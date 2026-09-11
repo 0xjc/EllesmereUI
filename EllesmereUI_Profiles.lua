@@ -452,6 +452,9 @@ function EllesmereUI.FilterLayoutToFolders(ul, folderSet, k2f)
     -- survive is harmless: its missing child frame just no-ops on apply.)
     local function endpointOK(key)
         if type(key) ~= "string" then return false end
+        -- Screen-edge targets (EUI_UnlockMode) exist on every install and belong to
+        -- no module: a link to one travels with its child's module.
+        if EllesmereUI.IsScreenEdgeKey and EllesmereUI.IsScreenEdgeKey(key) then return true end
         local f = k2f[key]
         if not f then return false end                     -- unclassifiable -> drop
         if NO_CHECKBOX_FOLDER[f] then return false end     -- never export no-checkbox edges
