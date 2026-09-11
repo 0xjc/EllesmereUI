@@ -339,9 +339,9 @@ do
     EllesmereUI:RegisterUnlockElements(elements)
 
     -- Linked children sit at absolute offsets from UIParent's center, so any change
-    -- of UIParent's width in units (aspect ratio, window size, UI scale, a
-    -- Proportional Layout refit) leaves them stale. This frame follows UIParent's
-    -- size and re-runs both edges' chains (batched into one pass per frame).
+    -- of UIParent's width in units (aspect ratio, window size, UI scale) leaves
+    -- them stale. This frame follows UIParent's size and re-runs both edges'
+    -- chains (batched into one pass per frame).
     local watch = CreateFrame("Frame", nil, UIParent)
     watch:SetAllPoints(UIParent)
     watch:SetScript("OnSizeChanged", function()
@@ -3400,6 +3400,9 @@ EllesmereUI._unlockCaptureGrowPin = function(childKey, ai, side)
         local refY
         if side == "TOP" then refY = "TOP"
         elseif side == "BOTTOM" then refY = "BOTTOM"
+        -- A screen edge spans the full height: hold against the screen's vertical
+        -- center like every other element on that edge, not its top or bottom.
+        elseif EllesmereUI.IsScreenEdgeKey(ai.target) then refY = "CENTER"
         else refY = (fixedY < tCY) and "BOTTOM" or "TOP" end
         local refVal = (refY == "TOP" and tT) or (refY == "BOTTOM" and tB) or tCY
         ai.refY = refY
@@ -3422,6 +3425,8 @@ local function ExtraAnchorOffset(childKey)
     if not ok or type(dx) ~= "number" or type(dy) ~= "number" then return 0, 0 end
     return dx, dy
 end
+-- On EllesmereUI for CreateMover's cog menu (Lua 5.1 limit: 60 upvalues).
+EllesmereUI._ExtraAnchorOffset = ExtraAnchorOffset
 
 -- Anchor-target shift providers ("Shift Elements if No Resource" and kin):
 -- modules register (targetKey, childKey) -> dir, extraY functions; the public
@@ -3481,6 +3486,9 @@ function EllesmereUI.RunAnchorShiftEnters()
 end
 
 ApplyAnchorPosition = function(childKey, targetKey, side, noMark, noMove, fromCascade)
+    -- A screen edge is a fixed target, never a child: a stray link from bad data
+    -- would re-point its strip and skew every screen-edge link.
+    if EllesmereUI.IsScreenEdgeKey(childKey) then return end
     local childBar = GetBarFrame(childKey)
     local targetBar = GetBarFrame(targetKey)
     if not childBar then return end
@@ -9826,7 +9834,12 @@ local function CreateMover(barKey)
                 local nearX = ((side == "RIGHT") and b:GetLeft() or b:GetRight()) * bR
                 local edgeCY = (edgeF:GetTop() + edgeF:GetBottom()) * 0.5 * eR
                 local cCY = (b:GetTop() + b:GetBottom()) * 0.5 * bR
-                SetAnchorInfo(barKey, edgeKey, side, nearX - edgeX, cCY - edgeCY)
+                -- The live spot already carries the element's own extra offset (the
+                -- raid container's per-tier offset), which every anchored apply folds
+                -- in again: store the base. The getter is in frame units.
+                local exX, exY = EllesmereUI._ExtraAnchorOffset(barKey)
+                SetAnchorInfo(barKey, edgeKey, side,
+                    nearX - edgeX - exX * bR, cCY - edgeCY - exY * bR)
                 ApplyAnchorPosition(barKey, edgeKey, side, nil, true)
                 if mover.RefreshAnchoredText then mover:RefreshAnchoredText() end
             end
