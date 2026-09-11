@@ -6904,5 +6904,4 @@ L["Choose the profile-wide border or glow used for Blizzard's Assisted Combat su
 L["Thickness in physical pixels for Solid Border and Pixel Glow."] = "Espessura em pixels físicos para Borda Sólida e Brilho em Pixel."
 L["How many pixels the custom effect extends beyond the icon."] = "Quantos pixels o efeito personalizado se estende além do ícone."
 L["Solid Border"] = "Borda Sólida"
-L["Thickness applies to Solid Border and Pixel Glow"] = "A espessura se aplica a Borda Sólida e Brilho em Pixel"
 L["Blizzard Default uses Blizzard's native size"] = "Padrão da Blizzard usa o tamanho nativo da Blizzard"
