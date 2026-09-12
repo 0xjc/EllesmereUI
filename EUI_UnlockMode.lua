@@ -303,16 +303,19 @@ do
     end)
 end
 
--- Screen-edge anchor targets: invisible 1-unit strips just outside the left and
--- right screen edge, so their inner edge IS the screen edge and a link's
+-- Screen-edge anchor targets: invisible 1-unit strips just outside each of the
+-- four screen edges, so their inner edge IS the screen edge and a link's
 -- edge-to-edge offset counts from it. Registered in this non-deferred header so the
 -- early ReapplyOwnAnchor stub resolves them at login. isHidden = no mover (never
 -- dragged or picked); the no-op savePosition keeps SaveBarPosition's action bar
 -- fallback from ever writing these keys.
 do
+    -- anchor, relative point, anchor, relative point, label, thin axis
     local EDGES = {
-        SCREEN_LEFT  = { "TOPRIGHT", "TOPLEFT",  "BOTTOMRIGHT", "BOTTOMLEFT",  "Left Screen Edge" },
-        SCREEN_RIGHT = { "TOPLEFT",  "TOPRIGHT", "BOTTOMLEFT",  "BOTTOMRIGHT", "Right Screen Edge" },
+        SCREEN_LEFT   = { "TOPRIGHT",   "TOPLEFT",    "BOTTOMRIGHT", "BOTTOMLEFT",  "Left Screen Edge",   "W" },
+        SCREEN_RIGHT  = { "TOPLEFT",    "TOPRIGHT",   "BOTTOMLEFT",  "BOTTOMRIGHT", "Right Screen Edge",  "W" },
+        SCREEN_TOP    = { "BOTTOMLEFT", "TOPLEFT",    "BOTTOMRIGHT", "TOPRIGHT",    "Top Screen Edge",    "H" },
+        SCREEN_BOTTOM = { "TOPLEFT",    "BOTTOMLEFT", "TOPRIGHT",    "BOTTOMRIGHT", "Bottom Screen Edge", "H" },
     }
     function EllesmereUI.IsScreenEdgeKey(key)
         return EDGES[key] ~= nil
@@ -326,7 +329,7 @@ do
     local elements = {}
     for key, def in pairs(EDGES) do
         local f = CreateFrame("Frame", nil, UIParent)
-        f:SetWidth(1)
+        if def[6] == "W" then f:SetWidth(1) else f:SetHeight(1) end
         f:SetPoint(def[1], UIParent, def[2], 0, 0)
         f:SetPoint(def[3], UIParent, def[4], 0, 0)
         strips[key] = f
@@ -339,9 +342,9 @@ do
     EllesmereUI:RegisterUnlockElements(elements)
 
     -- Linked children sit at absolute offsets from UIParent's center, so any change
-    -- of UIParent's width in units (aspect ratio, window size, UI scale) leaves
-    -- them stale. This frame follows UIParent's size and re-runs both edges'
-    -- chains (batched into one pass per frame).
+    -- of UIParent's size in units (aspect ratio, window size, UI scale) leaves them
+    -- stale. This frame follows UIParent's size and re-runs every edge's chain
+    -- (batched into one pass per frame).
     local watch = CreateFrame("Frame", nil, UIParent)
     watch:SetAllPoints(UIParent)
     watch:SetScript("OnSizeChanged", function()
@@ -3389,6 +3392,9 @@ EllesmereUI._unlockCaptureGrowPin = function(childKey, ai, side)
         local refX
         if side == "LEFT" then refX = "LEFT"
         elseif side == "RIGHT" then refX = "RIGHT"
+        -- A screen edge spans the full width: hold against the screen's horizontal
+        -- center like every other element on that edge, not its left or right.
+        elseif EllesmereUI.IsScreenEdgeKey(ai.target) then refX = "CENTER"
         else refX = (fixedX < tCX) and "LEFT" or "RIGHT" end
         local refVal = (refX == "LEFT" and tL) or (refX == "RIGHT" and tR) or tCX
         ai.refX = refX
@@ -8116,8 +8122,10 @@ local function CreateMover(barKey)
                     -- Read child edges from the actual bar frame for accuracy
                     local childBar = GetBarFrame(self._barKey)
                     local cL, cR, cT, cB
+                    local cRatio = 1   -- mover coords are already UIParent units
                     if childBar and childBar:GetLeft() then
                         local cS = childBar:GetEffectiveScale()
+                        cRatio = cS / uiScale
                         cL = childBar:GetLeft() * cS / uiScale
                         cR = childBar:GetRight() * cS / uiScale
                         cT = childBar:GetTop() * cS / uiScale
@@ -8128,6 +8136,14 @@ local function CreateMover(barKey)
                         cL = cx - halfW; cR = cx + halfW
                         cT = cy + halfH; cB = cy - halfH
                     end
+                    -- The live rect carries the element's own extra offset (the raid
+                    -- container's per-tier offset), which every anchored apply folds in
+                    -- again: rebase to the base rect before storing the offsets, like
+                    -- the cog's screen-edge link does. The getter is in frame units.
+                    local exX, exY = EllesmereUI._ExtraAnchorOffset(self._barKey)
+                    exX, exY = exX * cRatio, exY * cRatio
+                    cL, cR = cL - exX, cR - exX
+                    cT, cB = cT - exY, cB - exY
                     local cCX = (cL + cR) / 2
                     local cCY = (cT + cB) / 2
                     local sd = ai.side
@@ -9817,7 +9833,7 @@ local function CreateMover(barKey)
 
         -- Screen-edge links (offered wherever the link button is): the element
         -- stays put and from then on keeps its distance to that screen edge on any
-        -- screen width. Unlike a picked link, the grow direction is left alone.
+        -- screen size. Unlike a picked link, the grow direction is left alone.
         local elemSE = registeredElements[barKey]
         if not (elemSE and elemSE.noAnchorTo) and not ns.IsMoverPosLocked(barKey) then
             local function LinkToScreenEdge(edgeKey, side)
@@ -9830,21 +9846,40 @@ local function CreateMover(barKey)
                 -- apply would snap the element onto the screen edge.
                 local uiS = UIParent:GetEffectiveScale()
                 local eR, bR = edgeF:GetEffectiveScale() / uiS, b:GetEffectiveScale() / uiS
-                local edgeX = ((side == "RIGHT") and edgeF:GetRight() or edgeF:GetLeft()) * eR
-                local nearX = ((side == "RIGHT") and b:GetLeft() or b:GetRight()) * bR
-                local edgeCY = (edgeF:GetTop() + edgeF:GetBottom()) * 0.5 * eR
-                local cCY = (b:GetTop() + b:GetBottom()) * 0.5 * bR
+                local offX, offY
+                if side == "LEFT" or side == "RIGHT" then
+                    local edgeX = ((side == "RIGHT") and edgeF:GetRight() or edgeF:GetLeft()) * eR
+                    local nearX = ((side == "RIGHT") and b:GetLeft() or b:GetRight()) * bR
+                    offX = nearX - edgeX
+                    offY = (b:GetTop() + b:GetBottom()) * 0.5 * bR
+                        - (edgeF:GetTop() + edgeF:GetBottom()) * 0.5 * eR
+                else
+                    local edgeY = ((side == "TOP") and edgeF:GetTop() or edgeF:GetBottom()) * eR
+                    local nearY = ((side == "TOP") and b:GetBottom() or b:GetTop()) * bR
+                    offY = nearY - edgeY
+                    offX = (b:GetLeft() + b:GetRight()) * 0.5 * bR
+                        - (edgeF:GetLeft() + edgeF:GetRight()) * 0.5 * eR
+                end
                 -- The live spot already carries the element's own extra offset (the
                 -- raid container's per-tier offset), which every anchored apply folds
                 -- in again: store the base. The getter is in frame units.
                 local exX, exY = EllesmereUI._ExtraAnchorOffset(barKey)
-                SetAnchorInfo(barKey, edgeKey, side,
-                    nearX - edgeX - exX * bR, cCY - edgeCY - exY * bR)
+                SetAnchorInfo(barKey, edgeKey, side, offX - exX * bR, offY - exY * bR)
                 ApplyAnchorPosition(barKey, edgeKey, side, nil, true)
                 if mover.RefreshAnchoredText then mover:RefreshAnchoredText() end
             end
-            MakeActionItem("Anchor to Left Screen Edge", function() LinkToScreenEdge("SCREEN_LEFT", "RIGHT") end)
-            MakeActionItem("Anchor to Right Screen Edge", function() LinkToScreenEdge("SCREEN_RIGHT", "LEFT") end)
+            -- The side says where the element sits relative to the strip, so it is
+            -- the opposite of the edge it hugs.
+            local EDGE_ITEMS = {
+                { "SCREEN_LEFT",   "RIGHT",  "Anchor to Left Screen Edge" },
+                { "SCREEN_RIGHT",  "LEFT",   "Anchor to Right Screen Edge" },
+                { "SCREEN_TOP",    "BOTTOM", "Anchor to Top Screen Edge" },
+                { "SCREEN_BOTTOM", "TOP",    "Anchor to Bottom Screen Edge" },
+            }
+            for i = 1, #EDGE_ITEMS do
+                local it = EDGE_ITEMS[i]
+                MakeActionItem(it[3], function() LinkToScreenEdge(it[1], it[2]) end)
+            end
         end
 
         -- Toggle Orientation (hidden for vis-only bars)
