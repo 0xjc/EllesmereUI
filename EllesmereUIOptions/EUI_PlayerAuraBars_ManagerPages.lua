@@ -328,8 +328,8 @@ local function DefaultBuffBarName(cfg)
 end
 
 -- Weapon-enchants-only is a fundamentally different shape of bar -- at most
--- three cells (main hand / off hand / ranged, see EUI_UnitFrames_
--- WeaponEnchants.lua's SLOTS, which matches Blizzard's own
+-- three cells (main hand / off hand / ranged, the engine's own
+-- AuraContainerItemEnchantmentSlot set, which matches Blizzard's
 -- UpdateTemporaryEnchantmentBuffs) instead of a wrapping buff grid. Resize the
 -- grid to fit on the way in and restore it on the way out.
 --

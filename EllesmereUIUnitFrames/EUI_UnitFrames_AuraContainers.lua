@@ -1213,11 +1213,9 @@ local function AnchorContainer(container, frame, unit, base, s, buffContainer)
     local mergedBuff = merged and isBuff
     if mergedBuff then anchor = s.debuffAnchor end
     if anchor == "none" then
-        -- Player buffs hidden: retire the weapon-enchant lead strip too.
-        if unit == "player" and isBuff and ns._weaponEnchUF then
-            ns._weaponEnchUF = nil
-            if ns.WeaponEnchants_Layout then ns.WeaponEnchants_Layout() end
-        end
+        -- Player buffs hidden: the weapon enchants ride this container (see
+        -- the declaration below), so ApplyGroupConfig's SetShown(false) takes
+        -- them down with it -- nothing to retire here.
         return anchor
     end
 
@@ -1308,36 +1306,38 @@ local function AnchorContainer(container, frame, unit, base, s, buffContainer)
         container:SetPoint(ia, frame, fp, ox + offX, oy + cbOff + offY)
         AK.SetContainerAnchor(container, ia)
         if unit == "player" and isBuff then
-            -- Weapon enchant lead icons (oils/imbues are not auras; see
-            -- EUI_UnitFrames_WeaponEnchants.lua): ride the SAME resolved
-            -- anchor as the player's buff container so the strip leads it.
-            -- Published only while the broad-content mode admits generic
-            -- duration buffs (All Buffs or Has Duration -- the catch-all
-            -- gate) AND the buff display itself is on; renders with the
-            -- container's live style so customizations follow.
-            local broad = s.buffShowAll ~= false or s.buffHasDuration == true
-            local shownBuffs = (s.showBuffs ~= false)
-                or (s.debuffAnchorBuffs == true and (s.debuffAnchor or "none") ~= "none")
-            if broad and shownBuffs then
-                ns._weaponEnchUF = { frame = frame, ia = ia, fp = fp,
-                    x = ox + offX, y = oy + cbOff + offY, gX = gX,
-                    pad = EllesmereUI.PP.FromPixels(s.buffSpacingX or 1),
-                    styleKey = StyleKey("player", "HELPFUL") }
-                -- Shift the engine run inward past the enchant cells (main
-                -- hand adjacent to the run; zero enchants = zero shift).
-                local n = (ns.WeaponEnchants_Count and ns.WeaponEnchants_Count()) or 0
-                if n > 0 then
-                    local st = AK.styles[StyleKey("player", "HELPFUL")]
-                    local w = (st and st.width) or 22
-                    local sign = (gX == "RIGHT") and 1 or -1
-                    local shift = sign * n * (w + EllesmereUI.PP.FromPixels(s.buffSpacingX or 1))
-                    container:ClearAllPoints()
-                    container:SetPoint(ia, frame, fp, ox + offX + shift, oy + cbOff + offY)
-                end
-            else
-                ns._weaponEnchUF = nil
-            end
-            if ns.WeaponEnchants_Layout then ns.WeaponEnchants_Layout() end
+            -- Weapon enchants are not auras: the engine's own item-
+            -- enchantment source renders them as a layout group flowed AHEAD
+            -- of the aura groups on this container (see
+            -- AK.AddItemEnchantmentsToContainer), so nothing is anchored and
+            -- no cells are reserved. Declared lazily and never removed (no
+            -- addon-facing unregister), so they follow this container's
+            -- visibility instead of the old broad-content gate.
+            local PP = EllesmereUI.PP
+            local w, h = ElementSize(unit, base, s)
+            local gap = PP.FromPixels(s.buffSpacingX or 1)
+            local lineGap = PP.FromPixels(s.buffSpacingY or 1)
+            local placement = CustomAuraContainerItemEnchantmentPlacement
+            local sortMethods = AuraContainerItemEnchantmentSortMethod
+            local sortDirs = AuraContainerSortDirection
+            AK.AddItemEnchantmentsToContainer(container, {
+                style = StyleKey("player", "HELPFUL"),
+                hidePermanent = true,
+                -- REVERSE keeps main hand adjacent to the aura run: the
+                -- engine puts the group's first element at the leading edge,
+                -- and Slot order is main hand, off hand, ranged.
+                sortMethod = sortMethods and sortMethods.Slot,
+                sortDirection = sortDirs and sortDirs.Reverse,
+                layout = {
+                    elementWidth = w,
+                    elementHeight = h,
+                    elementSpacing = gap,
+                    lineSpacing = lineGap,
+                    groupSpacing = gap,
+                    groupLineSpacing = lineGap,
+                    placement = placement and placement.BeforeAuraGroups,
+                },
+            })
         end
     end
     AK.SetContainerGrowth(container, FlowDir(gX), FlowDir(gY))
@@ -1424,7 +1424,14 @@ local function ApplyGroupConfig(container, unit, base, s, chain, declared)
         cand.excludeSpellIDs = ex
     end
 
-    local layout = { elementWidth = size, elementHeight = h, elementSpacing = spX, lineSpacing = spY }
+    -- groupSpacing is the gap BEFORE a group that continues the line, so the
+    -- distance from the leading weapon-enchant group to the first aura has to
+    -- sit on the AURA groups. Only where enchants are actually declared (the
+    -- player's buff container): every other element keeps its existing
+    -- zero inter-group spacing.
+    local groupGap = AK.HasItemEnchantments(container) and spX or nil
+    local layout = { elementWidth = size, elementHeight = h, elementSpacing = spX, lineSpacing = spY,
+        groupSpacing = groupGap }
 
     -- Active set = "all" (a non-player BUFF element with no classes enabled)
     -- or each chain link. Every other declared group -- disabled classes and
