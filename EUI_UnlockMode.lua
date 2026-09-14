@@ -881,7 +881,16 @@ local function SetAnchorInfo(childKey, targetKey, side, offsetX, offsetY)
     -- Keep an existing fallback only when re-anchoring to the SAME target; a new target invalidates it (fallback belongs to the link, not the child).
     local prev = db[childKey]
     local fb = prev and prev.target == targetKey and prev.fallback or nil
-    db[childKey] = { target = targetKey, side = side, offsetX = offsetX, offsetY = offsetY, fallback = fb }
+    -- The cross-axis screen edge belongs to the CHILD, not to this link, so it
+    -- survives a re-anchor -- unless the new target claims its axis (edge target),
+    -- in which case the two would fight over the same coordinate.
+    local edge = prev and prev.edge or nil
+    if edge and edge.key and EllesmereUI._ScreenEdgeAxis
+       and EllesmereUI._ScreenEdgeAxis(edge.key) == EllesmereUI._ScreenEdgeAxis(targetKey) then
+        edge = nil
+    end
+    db[childKey] = { target = targetKey, side = side, offsetX = offsetX, offsetY = offsetY,
+                     fallback = fb, edge = edge }
     -- Link-change stamp: modules with memoized views over the anchor DB (e.g.
     -- the tracking bar growth-edge extent watch) re-derive lazily.
     EllesmereUI._anchorLinksStamp = (EllesmereUI._anchorLinksStamp or 0) + 1
@@ -1234,6 +1243,10 @@ local function ValidateStoredLinks()
             if (MissingForGood(childKey) or (info and MissingForGood(info.target)))
                and not OverrideProtected(childKey) then
                 anchors[childKey] = nil
+            elseif info and info.edge and info.edge.key and MissingForGood(info.edge.key) then
+                -- Unknown cross-axis edge (a string from a build without this
+                -- feature): drop the extra, keep the link itself.
+                info.edge = nil
             end
         end
     end
@@ -3434,6 +3447,47 @@ end
 -- On EllesmereUI for CreateMover's cog menu (Lua 5.1 limit: 60 upvalues).
 EllesmereUI._ExtraAnchorOffset = ExtraAnchorOffset
 
+-- A screen edge governs exactly one axis: left/right hold X, top/bottom hold Y.
+-- That is what lets an element carry two anchors -- the primary one (an element or
+-- a screen edge) keeps whichever axis no ai.edge claims. Returns "X", "Y" or nil.
+EllesmereUI._ScreenEdgeAxis = function(key)
+    if key == "SCREEN_LEFT" or key == "SCREEN_RIGHT" then return "X" end
+    if key == "SCREEN_TOP" or key == "SCREEN_BOTTOM" then return "Y" end
+    return nil
+end
+
+-- Offsets for a link, read from the live rects the way a drag does: near edge on
+-- the anchored side, center on the cross axis. The element's own extra offset (the
+-- raid container's per-tier offset) comes out, because every anchored apply folds
+-- it back in. Returns nil when either rect is missing.
+EllesmereUI._CaptureAnchorOffsets = function(childKey, targetKey, side)
+    local child, tgt = GetBarFrame(childKey), GetBarFrame(targetKey)
+    if not (child and child:GetLeft() and tgt and tgt:GetLeft()) then return nil end
+    local uiS = UIParent:GetEffectiveScale()
+    local cS, tS = child:GetEffectiveScale() / uiS, tgt:GetEffectiveScale() / uiS
+    local exX, exY = ExtraAnchorOffset(childKey)
+    exX, exY = exX * cS, exY * cS
+    local cL, cR = child:GetLeft() * cS - exX, child:GetRight() * cS - exX
+    local cT, cB = child:GetTop() * cS - exY, child:GetBottom() * cS - exY
+    local tL, tR = tgt:GetLeft() * tS, tgt:GetRight() * tS
+    local tT, tB = tgt:GetTop() * tS, tgt:GetBottom() * tS
+    local cCX, cCY = (cL + cR) / 2, (cT + cB) / 2
+    local tCX, tCY = (tL + tR) / 2, (tT + tB) / 2
+    if side == "LEFT" then return cR - tL, cCY - tCY end
+    if side == "RIGHT" then return cL - tR, cCY - tCY end
+    if side == "TOP" then return cCX - tCX, cB - tT end
+    if side == "BOTTOM" then return cCX - tCX, cT - tB end
+    return cCX - tCX, cCY - tCY
+end
+
+-- The single number a cross-axis screen edge needs: the capture above, reduced to
+-- the axis that edge governs.
+EllesmereUI._CaptureScreenEdgeOffset = function(childKey, edgeKey, side)
+    local offX, offY = EllesmereUI._CaptureAnchorOffsets(childKey, edgeKey, side)
+    if offX == nil then return nil end
+    return (EllesmereUI._ScreenEdgeAxis(edgeKey) == "X") and offX or offY
+end
+
 -- Anchor-target shift providers ("Shift Elements if No Resource" and kin):
 -- modules register (targetKey, childKey) -> dir, extraY functions; the public
 -- EllesmereUI._GetAnchorTargetShiftDir the apply paths consult dispatches to
@@ -3941,6 +3995,26 @@ ApplyAnchorPosition = function(childKey, targetKey, side, noMark, noMove, fromCa
         end
     end
 
+    -- Cross-axis screen-edge anchor: a screen edge that holds ONE axis while the
+    -- primary anchor keeps the other (raid frames on the minimap, but pinned to the
+    -- top edge). Authoritative on its axis, so it runs after the growth-edge pin and
+    -- the edge-preservation paths, which all read the PRIMARY target.
+    if ai and ai.edge and ai.edge.key then
+        local eFrame = GetBarFrame(ai.edge.key)
+        local eAxis = EllesmereUI._ScreenEdgeAxis(ai.edge.key)
+        if eFrame and eFrame:GetLeft() and eAxis then
+            local eS = eFrame:GetEffectiveScale() / uiS
+            local eOff = ai.edge.offset or 0
+            if eAxis == "X" then
+                local ref = ((ai.edge.side == "RIGHT") and eFrame:GetRight() or eFrame:GetLeft()) * eS
+                cx = (ai.edge.side == "RIGHT") and (ref + eOff + cW / 2) or (ref + eOff - cW / 2)
+            else
+                local ref = ((ai.edge.side == "TOP") and eFrame:GetTop() or eFrame:GetBottom()) * eS
+                cy = (ai.edge.side == "TOP") and (ref + eOff + cH / 2) or (ref + eOff - cH / 2)
+            end
+        end
+    end
+
     -- Temporary per-target visual shift (e.g. ResourceBars "Shift Elements if No
     -- Resource"). Applied to the final computed center only, never written to the
     -- saved ai.offsetX/offsetY. Magnitude is the target's live UIParent-space
@@ -4177,7 +4251,10 @@ PropagateAnchorChain = function(parentKey, visited, changedAxis)
         -- re-cascade when ITS fallback target moves/shifts, else it stays stale until the next full ReapplyAllUnlockAnchors pass (login/settle).
         local fallbackMatch = (not primaryMatch) and info.fallback
             and info.fallback.target == parentKey
-        if primaryMatch or fallbackMatch then
+        -- Cross-axis edge parents cascade unconditionally: the axis gate below reads
+        -- info.side, which describes the PRIMARY link, not this edge.
+        local edgeMatch = (not primaryMatch) and info.edge and info.edge.key == parentKey
+        if primaryMatch or fallbackMatch or edgeMatch then
             -- Axis isolation: skip children on the unaffected axis. A resize leaves a
             -- perpendicular-anchored child unaffected ONLY when the target's center is
             -- invariant on the changed axis (true for CENTER growth, but an edge-fixed
@@ -6003,6 +6080,13 @@ local function NudgeMover(dx, dy, targetMover, skipCollapse)
         -- The growth-edge pin rides the same nudge on its axis.
         if ai.edgeOffX ~= nil then ai.edgeOffX = ai.edgeOffX + dx end
         if ai.edgeOffY ~= nil then ai.edgeOffY = ai.edgeOffY + dy end
+        -- An axis held by the cross-axis screen edge takes the nudge there, or the
+        -- next apply overwrites it from the untouched edge offset.
+        if ai.edge and ai.edge.key then
+            local nAxis = EllesmereUI._ScreenEdgeAxis(ai.edge.key)
+            if nAxis == "X" then ai.edge.offset = (ai.edge.offset or 0) + dx
+            elseif nAxis == "Y" then ai.edge.offset = (ai.edge.offset or 0) + dy end
+        end
         ApplyAnchorPosition(m._barKey, ai.target, ai.side)
         -- Capture the bar's resulting position so CommitPositions saves the real
         -- (nudged) location. ApplyAnchorPosition always anchors the bar to UIParent,
@@ -8165,6 +8249,12 @@ local function CreateMover(barKey)
                     end
                 end
             end
+            -- The cross-axis screen edge rides the same recapture, else the next
+            -- apply pulls that axis back to where the edge offset still points.
+            if ai.edge and ai.edge.key then
+                local eo = EllesmereUI._CaptureScreenEdgeOffset(self._barKey, ai.edge.key, ai.edge.side)
+                if eo then ai.edge.offset = eo end
+            end
             -- Growth bars: recapture the growth-edge pin from the dropped
             -- position (the user may have carried the bar to the other
             -- corner, which can change the reference edge).
@@ -9764,7 +9854,7 @@ local function CreateMover(barKey)
                 onClick()
             end)
             yOff = yOff - ITEM_H
-            return item
+            return item, lbl
         end
 
         MakeActionItem("Center on Screen", function()
@@ -9836,50 +9926,207 @@ local function CreateMover(barKey)
         -- screen size. Unlike a picked link, the grow direction is left alone.
         local elemSE = registeredElements[barKey]
         if not (elemSE and elemSE.noAnchorTo) and not ns.IsMoverPosLocked(barKey) then
+            -- Primary link to a screen edge. The capture comes first: on an
+            -- offset-less link ApplyAnchorPosition's side-snap branch stores the FLUSH
+            -- offsets (0/0) before its no-move capture runs, and the next apply would
+            -- snap the element onto the edge.
             local function LinkToScreenEdge(edgeKey, side)
                 if InCombatLockdown() then return end
-                local edgeF, b = GetBarFrame(edgeKey), GetBarFrame(barKey)
-                if not (edgeF and edgeF:GetLeft() and b and b:GetLeft()) then return end
-                -- Offsets from the live edges, exactly like a drag of a linked element:
-                -- on an offset-less link ApplyAnchorPosition's side-snap branch stores
-                -- the FLUSH offsets (0/0) before its no-move capture runs, and the next
-                -- apply would snap the element onto the screen edge.
-                local uiS = UIParent:GetEffectiveScale()
-                local eR, bR = edgeF:GetEffectiveScale() / uiS, b:GetEffectiveScale() / uiS
-                local offX, offY
-                if side == "LEFT" or side == "RIGHT" then
-                    local edgeX = ((side == "RIGHT") and edgeF:GetRight() or edgeF:GetLeft()) * eR
-                    local nearX = ((side == "RIGHT") and b:GetLeft() or b:GetRight()) * bR
-                    offX = nearX - edgeX
-                    offY = (b:GetTop() + b:GetBottom()) * 0.5 * bR
-                        - (edgeF:GetTop() + edgeF:GetBottom()) * 0.5 * eR
-                else
-                    local edgeY = ((side == "TOP") and edgeF:GetTop() or edgeF:GetBottom()) * eR
-                    local nearY = ((side == "TOP") and b:GetBottom() or b:GetTop()) * bR
-                    offY = nearY - edgeY
-                    offX = (b:GetLeft() + b:GetRight()) * 0.5 * bR
-                        - (edgeF:GetLeft() + edgeF:GetRight()) * 0.5 * eR
-                end
-                -- The live spot already carries the element's own extra offset (the
-                -- raid container's per-tier offset), which every anchored apply folds
-                -- in again: store the base. The getter is in frame units.
-                local exX, exY = EllesmereUI._ExtraAnchorOffset(barKey)
-                SetAnchorInfo(barKey, edgeKey, side, offX - exX * bR, offY - exY * bR)
+                local offX, offY = EllesmereUI._CaptureAnchorOffsets(barKey, edgeKey, side)
+                if offX == nil then return end
+                SetAnchorInfo(barKey, edgeKey, side, offX, offY)
                 ApplyAnchorPosition(barKey, edgeKey, side, nil, true)
                 if mover.RefreshAnchoredText then mover:RefreshAnchoredText() end
             end
-            -- The side says where the element sits relative to the strip, so it is
-            -- the opposite of the edge it hugs.
-            local EDGE_ITEMS = {
-                { "SCREEN_LEFT",   "RIGHT",  "Anchor to Left Screen Edge" },
-                { "SCREEN_RIGHT",  "LEFT",   "Anchor to Right Screen Edge" },
-                { "SCREEN_TOP",    "BOTTOM", "Anchor to Top Screen Edge" },
-                { "SCREEN_BOTTOM", "TOP",    "Anchor to Bottom Screen Edge" },
-            }
-            for i = 1, #EDGE_ITEMS do
-                local it = EDGE_ITEMS[i]
-                MakeActionItem(it[3], function() LinkToScreenEdge(it[1], it[2]) end)
+
+            -- Which slot a picked edge lands in: with nothing anchored it becomes the
+            -- primary; a primary screen edge on the SAME axis is replaced; when a
+            -- cross-axis edge already holds the other axis the pick takes the primary
+            -- slot (a plain element link there would govern nothing any more, and
+            -- SetAnchorInfo keeps the other edge); otherwise it becomes the cross-axis
+            -- edge and the primary keeps its own axis.
+            local function SetScreenAnchor(edgeKey, side)
+                if InCombatLockdown() then return end
+                local ai = GetAnchorInfo(barKey)
+                local axis = EllesmereUI._ScreenEdgeAxis(edgeKey)
+                local hasCrossEdge = ai and ai.edge and ai.edge.key
+                    and EllesmereUI._ScreenEdgeAxis(ai.edge.key) ~= axis
+                if not (ai and ai.target)
+                   or EllesmereUI._ScreenEdgeAxis(ai.target) == axis
+                   or hasCrossEdge then
+                    LinkToScreenEdge(edgeKey, side)
+                    return
+                end
+                local off = EllesmereUI._CaptureScreenEdgeOffset(barKey, edgeKey, side)
+                if off == nil then return end
+                ai.edge = { key = edgeKey, side = side, offset = off }
+                EllesmereUI._anchorLinksStamp = (EllesmereUI._anchorLinksStamp or 0) + 1
+                ApplyAnchorPosition(barKey, ai.target, ai.side, nil, true)
+                hasChanges = true
+                if mover.RefreshAnchoredText then mover:RefreshAnchoredText() end
             end
+            -- The side says where the element sits relative to the strip, so it is
+            -- the opposite of the edge it hugs. The last row carries no key: it
+            -- clears the link, which is what centered means here -- the element
+            -- follows the screen center again, like every unanchored element.
+            local EDGE_ITEMS = {
+                { key = "SCREEN_LEFT",   side = "RIGHT",  text = "Left" },
+                { key = "SCREEN_RIGHT",  side = "LEFT",   text = "Right" },
+                { key = "SCREEN_TOP",    side = "BOTTOM", text = "Top" },
+                { key = "SCREEN_BOTTOM", side = "TOP",    text = "Bottom" },
+                { text = "Center" },
+            }
+
+            -- Center: drop the SCREEN anchors only. A link to another element stays,
+            -- that one belongs to the link button.
+            local function ClearScreenAnchor()
+                if InCombatLockdown() then return end
+                local ai = GetAnchorInfo(barKey)
+                if not ai then return end
+                local primaryIsEdge = ai.target and EllesmereUI.IsScreenEdgeKey(ai.target)
+                if not primaryIsEdge and not ai.edge then return end
+                if primaryIsEdge then
+                    -- Nothing holds the element afterwards: clear the record and
+                    -- capture the live position so Save & Exit persists it, the same
+                    -- way the link button unlink path does.
+                    ClearAnchorInfo(barKey)
+                    local bar = GetBarFrame(barKey)
+                    if bar then
+                        local pt, _, rpt, bx, by = bar:GetPoint(1)
+                        if pt then
+                            pendingPositions[barKey] = { point = pt, relPoint = rpt, x = bx, y = by }
+                        end
+                    end
+                else
+                    -- The element link takes its axis back. Rebase its offsets from the
+                    -- live rect first, or the element jumps to wherever that axis
+                    -- pointed before the edge took over.
+                    ai.edge = nil
+                    EllesmereUI._anchorLinksStamp = (EllesmereUI._anchorLinksStamp or 0) + 1
+                    local offX, offY = EllesmereUI._CaptureAnchorOffsets(barKey, ai.target, ai.side)
+                    if offX ~= nil then ai.offsetX, ai.offsetY = offX, offY end
+                    ApplyAnchorPosition(barKey, ai.target, ai.side, nil, true)
+                end
+                hasChanges = true
+                if mover.RefreshAnchoredText then mover:RefreshAnchoredText() end
+            end
+
+            -- Divider: the screen anchor is a state, not another one-shot action.
+            local seDiv = cogMenu:CreateTexture(nil, "ARTWORK")
+            seDiv:SetHeight(PP and PP.mult or 1)
+            if seDiv.SetSnapToPixelGrid then seDiv:SetSnapToPixelGrid(false); seDiv:SetTexelSnappingBias(0) end
+            seDiv:SetColorTexture(1, 1, 1, 0.10)
+            seDiv:SetPoint("TOPLEFT", cogMenu, "TOPLEFT", 1, yOff - 4)
+            seDiv:SetPoint("TOPRIGHT", cogMenu, "TOPRIGHT", -1, yOff - 4)
+            yOff = yOff - 9
+
+            local seItem, seLbl = MakeActionItem("Anchor to Screen", function() end)
+            local seArrow = seItem:CreateTexture(nil, "ARTWORK")
+            seArrow:SetSize(10, 10)
+            seArrow:SetPoint("RIGHT", seItem, "RIGHT", -8, 0)
+            seArrow:SetTexture(ARROW_RIGHT_ICON)
+            seArrow:SetAlpha(0.7)
+            -- Linked to an edge: the row wears the same orange as an anchored mover.
+            local aiSE = GetAnchorInfo(barKey)
+            local seLinked = aiSE and ((aiSE.target and EllesmereUI.IsScreenEdgeKey(aiSE.target))
+                or (aiSE.edge and aiSE.edge.key ~= nil))
+            if seLinked then seLbl:SetTextColor(1, 0.7, 0.3, 1) end
+
+            local seSub
+            local function ShowEdgeSub()
+                if seSub then
+                    for _, child in ipairs({seSub:GetChildren()}) do child:Hide(); child:SetParent(nil) end
+                    for _, tex in ipairs({seSub:GetRegions()}) do if tex.Hide then tex:Hide() end end
+                end
+                -- Parented to the cog menu so closing or rebuilding the menu tears
+                -- the flyout down with it, like the spec-override subnav below.
+                seSub = seSub or CreateFrame("Frame", nil, cogMenu)
+                seSub:SetFrameStrata("FULLSCREEN_DIALOG")
+                seSub:SetFrameLevel(cogMenu:GetFrameLevel() + 4)
+                seSub:SetClampedToScreen(true)
+                seSub:ClearAllPoints()
+                seSub:SetPoint("TOPLEFT", seItem, "TOPRIGHT", 2, 0)
+                local seBg = seSub:CreateTexture(nil, "BACKGROUND")
+                seBg:SetAllPoints()
+                seBg:SetColorTexture(0.075, 0.113, 0.141, 0.95)
+                EllesmereUI.MakeBorder(seSub, 1, 1, 1, 0.20)
+                -- Two rows can be active at once: a primary edge plus the cross-axis
+                -- one. Center is active exactly while neither exists.
+                local curAi = GetAnchorInfo(barKey)
+                local curT = curAi and curAi.target
+                curT = (curT and EllesmereUI.IsScreenEdgeKey(curT)) and curT or nil
+                local curEdge = curAi and curAi.edge and curAi.edge.key or nil
+                local seY = -4
+                for i = 1, #EDGE_ITEMS do
+                    local e = EDGE_ITEMS[i]
+                    -- Center is the active row exactly while nothing is linked.
+                    local isCur = (e.key ~= nil and (e.key == curT or e.key == curEdge))
+                        or (e.key == nil and curT == nil and curEdge == nil)
+                    local r, g, b, a = 0.75, 0.75, 0.75, 0.9
+                    if isCur then r, g, b, a = 1, 0.7, 0.3, 1 end
+                    local si = CreateFrame("Button", nil, seSub)
+                    si:SetHeight(ITEM_H)
+                    si:SetPoint("TOPLEFT", seSub, "TOPLEFT", 1, seY)
+                    si:SetPoint("TOPRIGHT", seSub, "TOPRIGHT", -1, seY)
+                    si:SetFrameLevel(seSub:GetFrameLevel() + 2)
+                    si:RegisterForClicks("AnyUp")
+                    local sHl = si:CreateTexture(nil, "ARTWORK")
+                    sHl:SetAllPoints()
+                    sHl:SetColorTexture(1, 1, 1, isCur and 0.04 or 0)
+                    local sLbl = si:CreateFontString(nil, "OVERLAY")
+                    sLbl:SetFont(FONT_PATH, 11, "OUTLINE, SLUG")
+                    sLbl:SetTextColor(r, g, b, a)
+                    sLbl:SetJustifyH("LEFT")
+                    sLbl:SetPoint("LEFT", si, "LEFT", 10, 0)
+                    sLbl:SetText(EllesmereUI.L(e.text))
+                    si:SetScript("OnEnter", function()
+                        sHl:SetColorTexture(1, 1, 1, 0.08)
+                        if isCur then sLbl:SetTextColor(1, 0.8, 0.5, 1)
+                        else sLbl:SetTextColor(1, 1, 1, 1) end
+                    end)
+                    si:SetScript("OnLeave", function()
+                        sHl:SetColorTexture(1, 1, 1, isCur and 0.04 or 0)
+                        sLbl:SetTextColor(r, g, b, a)
+                    end)
+                    si:SetScript("OnClick", function()
+                        CloseCogMenu()
+                        if e.key then SetScreenAnchor(e.key, e.side) else ClearScreenAnchor() end
+                    end)
+                    seY = seY - ITEM_H
+                end
+                local seW = 110
+                for i = 1, #EDGE_ITEMS do
+                    local tw = (EllesmereUI.MeasureText
+                        and EllesmereUI.MeasureText(EllesmereUI.L(EDGE_ITEMS[i].text), FONT_PATH, 11)) or 0
+                    local needed = 10 + tw + 10 + 2
+                    if needed > seW then seW = needed end
+                end
+                seSub:SetSize(seW, -seY + 4)
+                seSub:EnableMouse(true)
+                seSub:SetScript("OnLeave", function(self)
+                    C_Timer.After(0.05, function()
+                        if self:IsShown() and not self:IsMouseOver() and not seItem:IsMouseOver() then
+                            self:Hide()
+                        end
+                    end)
+                end)
+                seSub:Show()
+            end
+
+            seItem:SetScript("OnClick", ShowEdgeSub)
+            seItem:HookScript("OnEnter", function()
+                seArrow:SetAlpha(0.9)
+                ShowEdgeSub()
+            end)
+            seItem:HookScript("OnLeave", function()
+                seArrow:SetAlpha(0.7)
+                if seLinked then seLbl:SetTextColor(1, 0.7, 0.3, 1) end
+                C_Timer.After(0.05, function()
+                    if seSub and seSub:IsShown() and not seSub:IsMouseOver() and not seItem:IsMouseOver() then
+                        seSub:Hide()
+                    end
+                end)
+            end)
         end
 
         -- Toggle Orientation (hidden for vis-only bars)
@@ -10959,8 +11206,10 @@ local function SnapshotPositions()
                 refFor = info.refFor,
                 -- COPY, not a reference: _NudgeSelectedFallbackGhost mutates
                 -- fb.offsetX/offsetY in place, so a shared table would drag the
-                -- snapshot along with the edit and make the revert a no-op.
+                -- snapshot along with the edit and make the revert a no-op. The
+                -- cross-axis edge is nudged in place too, so it copies as well.
                 fallback = info.fallback and CopyTable(info.fallback) or nil,
+                edge = info.edge and CopyTable(info.edge) or nil,
             }
         end
     end
@@ -11274,6 +11523,7 @@ local function RevertPositions()
                 refX = info.refX, refY = info.refY,
                 edgeOffX = info.edgeOffX, edgeOffY = info.edgeOffY,
                 refFor = info.refFor,
+                edge = info.edge and CopyTable(info.edge) or nil,
                 -- Restored from the snapshot, so a fallback MOVED this session
                 -- reverts like every other position. Fresh copy so the next
                 -- session's nudges cannot reach back into the snapshot.
