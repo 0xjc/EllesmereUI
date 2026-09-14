@@ -1243,7 +1243,8 @@ local function ValidateStoredLinks()
             if (MissingForGood(childKey) or (info and MissingForGood(info.target)))
                and not OverrideProtected(childKey) then
                 anchors[childKey] = nil
-            elseif info and info.edge and info.edge.key and MissingForGood(info.edge.key) then
+            elseif info and info.edge and info.edge.key and MissingForGood(info.edge.key)
+                   and not OverrideProtected(childKey) then
                 -- Unknown cross-axis edge (a string from a build without this
                 -- feature): drop the extra, keep the link itself.
                 info.edge = nil
@@ -9361,6 +9362,7 @@ local function CreateMover(barKey)
 
     local function CloseCogMenu()
         if cogMenu then cogMenu:Hide() end
+        if mover._cogEdgeSub then mover._cogEdgeSub:Hide() end
         if cogClickCatcher then cogClickCatcher:Hide() end
         mover._menuOpen = false
         mover._syncCogPos = nil
@@ -9371,6 +9373,7 @@ local function CreateMover(barKey)
             for _, child in ipairs({cogMenu:GetChildren()}) do child:Hide(); child:SetParent(nil) end
             for _, tex in ipairs({cogMenu:GetRegions()}) do if tex.Hide then tex:Hide() end end
         end
+        if mover._cogEdgeSub then mover._cogEdgeSub:Hide() end
         cogMenu = cogMenu or CreateFrame("Frame", nil, unlockFrame)
         cogMenu:SetFrameStrata("FULLSCREEN_DIALOG")
         cogMenu:SetFrameLevel(250)
@@ -9959,6 +9962,14 @@ local function CreateMover(barKey)
                 end
                 local off = EllesmereUI._CaptureScreenEdgeOffset(barKey, edgeKey, side)
                 if off == nil then return end
+                -- A link that never got offsets (module default, imported layout) would
+                -- take the side-snap branch below and bank FLUSH offsets for the axis
+                -- the primary keeps. Fill them from the live rect first.
+                if ai.offsetX == nil or ai.offsetY == nil then
+                    local pX, pY = EllesmereUI._CaptureAnchorOffsets(barKey, ai.target, ai.side)
+                    if pX == nil then return end
+                    ai.offsetX, ai.offsetY = pX, pY
+                end
                 ai.edge = { key = edgeKey, side = side, offset = off }
                 EllesmereUI._anchorLinksStamp = (EllesmereUI._anchorLinksStamp or 0) + 1
                 ApplyAnchorPosition(barKey, ai.target, ai.side, nil, true)
@@ -10005,6 +10016,11 @@ local function CreateMover(barKey)
                     EllesmereUI._anchorLinksStamp = (EllesmereUI._anchorLinksStamp or 0) + 1
                     local offX, offY = EllesmereUI._CaptureAnchorOffsets(barKey, ai.target, ai.side)
                     if offX ~= nil then ai.offsetX, ai.offsetY = offX, offY end
+                    -- Growth bars: the pin outranks the offsets on its axis, so recapture
+                    -- it from the current position too, the way the drag-stop path does.
+                    if EllesmereUI._unlockCaptureGrowPin then
+                        EllesmereUI._unlockCaptureGrowPin(barKey, ai, ai.side)
+                    end
                     ApplyAnchorPosition(barKey, ai.target, ai.side, nil, true)
                 end
                 hasChanges = true
@@ -10032,15 +10048,17 @@ local function CreateMover(barKey)
                 or (aiSE.edge and aiSE.edge.key ~= nil))
             if seLinked then seLbl:SetTextColor(1, 0.7, 0.3, 1) end
 
-            local seSub
             local function ShowEdgeSub()
+                local seSub = mover._cogEdgeSub
                 if seSub then
                     for _, child in ipairs({seSub:GetChildren()}) do child:Hide(); child:SetParent(nil) end
                     for _, tex in ipairs({seSub:GetRegions()}) do if tex.Hide then tex:Hide() end end
                 end
-                -- Parented to the cog menu so closing or rebuilding the menu tears
-                -- the flyout down with it, like the spec-override subnav below.
-                seSub = seSub or CreateFrame("Frame", nil, cogMenu)
+                -- Kept on the mover and parented to unlockFrame, NOT to cogMenu:
+                -- BuildCogMenu reparents every cogMenu child to nil on each open, so a
+                -- cogMenu-parented flyout would orphan a frame tree per menu open.
+                seSub = seSub or CreateFrame("Frame", nil, unlockFrame)
+                mover._cogEdgeSub = seSub
                 seSub:SetFrameStrata("FULLSCREEN_DIALOG")
                 seSub:SetFrameLevel(cogMenu:GetFrameLevel() + 4)
                 seSub:SetClampedToScreen(true)
@@ -10061,7 +10079,7 @@ local function CreateMover(barKey)
                     local e = EDGE_ITEMS[i]
                     -- Center is the active row exactly while nothing is linked.
                     local isCur = (e.key ~= nil and (e.key == curT or e.key == curEdge))
-                        or (e.key == nil and curT == nil and curEdge == nil)
+                        or (e.key == nil and curAi == nil)
                     local r, g, b, a = 0.75, 0.75, 0.75, 0.9
                     if isCur then r, g, b, a = 1, 0.7, 0.3, 1 end
                     local si = CreateFrame("Button", nil, seSub)
@@ -10078,6 +10096,8 @@ local function CreateMover(barKey)
                     sLbl:SetTextColor(r, g, b, a)
                     sLbl:SetJustifyH("LEFT")
                     sLbl:SetPoint("LEFT", si, "LEFT", 10, 0)
+                    sLbl:SetPoint("RIGHT", si, "RIGHT", -8, 0)
+                    sLbl:SetWordWrap(false)
                     sLbl:SetText(EllesmereUI.L(e.text))
                     si:SetScript("OnEnter", function()
                         sHl:SetColorTexture(1, 1, 1, 0.08)
@@ -10094,14 +10114,11 @@ local function CreateMover(barKey)
                     end)
                     seY = seY - ITEM_H
                 end
-                local seW = 110
-                for i = 1, #EDGE_ITEMS do
-                    local tw = (EllesmereUI.MeasureText
-                        and EllesmereUI.MeasureText(EllesmereUI.L(EDGE_ITEMS[i].text), FONT_PATH, 11)) or 0
-                    local needed = 10 + tw + 10 + 2
-                    if needed > seW then seW = needed end
-                end
-                seSub:SetSize(seW, -seY + 4)
+                -- Fixed width: EllesmereUI.MeasureText does not exist (the other two
+                -- call sites in this file are dead code for the same reason), so a
+                -- measuring loop would always keep its minimum. The labels truncate
+                -- instead, so a long translation cannot spill past the background.
+                seSub:SetSize(DD_W, -seY + 4)
                 seSub:EnableMouse(true)
                 seSub:SetScript("OnLeave", function(self)
                     C_Timer.After(0.05, function()
@@ -10122,8 +10139,9 @@ local function CreateMover(barKey)
                 seArrow:SetAlpha(0.7)
                 if seLinked then seLbl:SetTextColor(1, 0.7, 0.3, 1) end
                 C_Timer.After(0.05, function()
-                    if seSub and seSub:IsShown() and not seSub:IsMouseOver() and not seItem:IsMouseOver() then
-                        seSub:Hide()
+                    local sub = mover._cogEdgeSub
+                    if sub and sub:IsShown() and not sub:IsMouseOver() and not seItem:IsMouseOver() then
+                        sub:Hide()
                     end
                 end)
             end)
