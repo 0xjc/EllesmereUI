@@ -689,9 +689,11 @@ local STYLE_DEBUFFS = "playerAuraBars_debuffs"
 -- borderTexture ("solid" or a built-in/LibSharedMedia key), optional
 -- borderTextureOffset/OffsetY/ShiftX/ShiftY, and borderBehind;
 -- padding (single scalar -> all 4 sides); rowSpacing (optional row gap: feeds
--- lineSpacing/groupLineSpacing only, nil falls back to `padding`; elementSpacing/
--- groupSpacing, icon-to-icon within a row, always stay tied to `padding`); maxTotal
--- (overall icon cap); iconsPerRow (row width in columns); maxRows (row cap; with
+-- lineSpacing/groupLineSpacing only, nil falls back to `padding`; elementSpacing,
+-- icon-to-icon within a row AND across a group seam, stays tied to `padding`
+-- while groupSpacing is held at 0, see BuildGroupLayout); maxTotal
+-- (overall icon cap, weapon-enchant cells included while that row is on);
+-- iconsPerRow (row width in columns); maxRows (row cap; with
 -- iconsPerRow also bounds maxTotal, see ComputeGrid()); growDirection ("LEFT"/"RIGHT"/
 -- "CENTER_HORIZONTAL"/"CENTER_VERTICAL"/"UP"/"DOWN", default LEFT).
 -- Buff bars (default AND custom, one model): filters ([filterId]=true, shared PAB
@@ -1291,7 +1293,13 @@ local function BuildGroupLayout(cfg, gap, rowGap, size)
         elementHeight = size,
         elementSpacing = gap,
         lineSpacing = rowGap,
-        groupSpacing = gap,
+        -- ZERO on purpose: the engine's flow layout advances the cursor by
+        -- elementSpacing AFTER every element, the last one of a group
+        -- included, so a group boundary already carries one `gap`. Adding
+        -- groupSpacing on top doubled it -- visible as a wider seam between
+        -- the weapon-enchant cells and the first buff, and between the
+        -- catch-all and spells groups.
+        groupSpacing = 0,
         groupLineSpacing = rowGap,
     }
 end
@@ -1299,13 +1307,13 @@ end
 local function ApplyGroupConfig(container, chain, declaredSet, styleKey, effectiveMax, gap, rowGap, cfg, extraCand)
     local sortMethod = ResolveSortMethod(cfg)
     local sortDirection = ResolveSortDirection(cfg)
-    -- elementSpacing = icon-to-icon gap in a row; lineSpacing = gap between wrapped
-    -- rows within a group; group*Spacing = gap to the NEXT group on the same
-    -- container. elementSpacing/groupSpacing stay tied to `gap` (padding);
-    -- lineSpacing/groupLineSpacing use `rowGap` (defaults to `gap`) so row-to-row
-    -- distance is overridable independently of icon-to-icon spacing (cfg.rowSpacing in
-    -- the Settings Schema comment). Container-level padding is a THIRD, unrelated
-    -- concept: the OUTER edge inset, fixed at 0 elsewhere and never affected by either.
+    -- elementSpacing = icon-to-icon gap in a row, and it also separates two
+    -- groups on one line (see BuildGroupLayout's zero groupSpacing);
+    -- lineSpacing = gap between wrapped rows within a group, tied to `rowGap`
+    -- (defaults to `gap`) so row-to-row distance is overridable independently of
+    -- icon-to-icon spacing (cfg.rowSpacing in the Settings Schema comment).
+    -- Container-level padding is a THIRD, unrelated concept: the OUTER edge inset,
+    -- fixed at 0 elsewhere and never affected by either.
     local active = {}
     for i = 1, #chain do
         local link = chain[i]
@@ -1457,6 +1465,12 @@ local function MaxIconSizeFor(isBuff, cfg)
     return PabSnap(shaped), shaped
 end
 
+-- Engine-declared weapon-enchant slots (AuraContainerItemEnchantmentSlot:
+-- main hand, off hand, ranged). Only the first two are reachable in current
+-- retail content, but the engine declares all three, so anything reserving
+-- space for them must tolerate three.
+local ENCH_SLOT_COUNT = 3
+
 local function ComputeGrid(isBuff, cfg)
     local iconSize, rawIconSize = MaxIconSizeFor(isBuff, cfg)
     local pad = cfg.padding or 5
@@ -1469,6 +1483,22 @@ local function ComputeGrid(isBuff, cfg)
     local effectiveMax = math.min(configuredMax, rows * cols)
     -- Actual rows needed for the effective cap, never more than the row limit
     local usedRows = math.min(rows, math.max(1, math.ceil(effectiveMax / cols)))
+    -- Weapon enchants share the line with the auras (their own leading layout
+    -- group, see BuildEnchantSpec), so their cells come OUT of the grid the
+    -- three sliders describe: the aura cap drops by the declared slots while
+    -- the row is on, and the box geometry stays identical whether the row is on
+    -- or off. Growing the box instead made toggling the row jump the bar by a
+    -- row (field report). A grid under three cells declares only what it can
+    -- hold, main hand first, so the cells can never spill out.
+    local auraMax, enchSlots = effectiveMax, 0
+    if isBuff and cfg.showWeaponEnchants == true then
+        enchSlots = math.min(ENCH_SLOT_COUNT, effectiveMax)
+        -- Enchants-only bars keep the full cap: their grid was auto-sized FOR
+        -- these cells (SyncWeaponEnchantsGrid) and no aura group holds content.
+        if not (ns.PAB_IsWeaponEnchantsOnly and ns.PAB_IsWeaponEnchantsOnly(cfg)) then
+            auraMax = effectiveMax - enchSlots
+        end
+    end
     -- `lineExtent` is the icons' own extent on the line axis (iconsPerRow
     -- icons of iconSize + gaps); `crossExtent` is the other axis (lines actually used).
     -- Horizontal growth: a "line" is a row, so lineExtent -> width. Vertical growth
@@ -1498,7 +1528,9 @@ local function ComputeGrid(isBuff, cfg)
     local legacyLine = cols * legacyIcon + (cols - 1) * legacyPad
     local legacyCross = usedRows * legacyIcon + (usedRows - 1) * legacyRowGap
     return {
-        effectiveMax = effectiveMax,
+        -- Aura cap, already net of the weapon-enchant cells (see auraMax).
+        effectiveMax = auraMax,
+        enchSlots = enchSlots,
         rowWidth = rowWidth,
         width = width,
         height = height,
@@ -2335,7 +2367,7 @@ end
 -- grow direction and in combat. Opt-in per bar (showWeaponEnchants, the
 -- pinned "Weapon Enchants" Filters row), a content source of its own and so
 -- never gated on the broad-content modes.
-local function BuildEnchantSpec(cfg, pad, rowGap)
+local function BuildEnchantSpec(cfg, pad, rowGap, maxSlots)
     local layout = BuildGroupLayout(cfg, pad, rowGap)
     local placement = CustomAuraContainerItemEnchantmentPlacement
     if placement then layout.placement = placement.BeforeAuraGroups end
@@ -2345,6 +2377,7 @@ local function BuildEnchantSpec(cfg, pad, rowGap)
         style = STYLE_BUFFS,
         layout = layout,
         hidePermanent = true,
+        maxSlots = maxSlots,
         -- REVERSE keeps MAIN HAND adjacent to the aura run: the engine puts
         -- the group's first element at the leading edge, and Slot order is
         -- main hand, off hand, ranged.
@@ -2357,17 +2390,21 @@ end
 -- a live padding/icon-size change follows. Turning the row OFF is served by
 -- the content signature below instead: the engine has no addon-facing
 -- unregister, so the container has to be rebuilt for that.
-local function ApplyEnchants(container, cfg, pad, rowGap)
-    if not (container and cfg and cfg.showWeaponEnchants == true) then return end
-    AK.AddItemEnchantmentsToContainer(container, BuildEnchantSpec(cfg, pad, rowGap))
+local function ApplyEnchants(container, cfg, pad, grid)
+    if not (container and cfg and grid and cfg.showWeaponEnchants == true) then return end
+    if (grid.enchSlots or 0) <= 0 then return end
+    AK.AddItemEnchantmentsToContainer(container,
+        BuildEnchantSpec(cfg, pad, grid.rowGap, grid.enchSlots))
 end
 
--- Buffs content signature: the resolved spell set PLUS the weapon-enchant
--- row. A group's candidateFilters are fixed at declaration and an item
--- enchantment cannot be undeclared at all, so a change in either releases
--- the container and builds a fresh one.
-local function BuffsContentSig(cfg, spells)
-    return table.concat(spells, ",") .. (cfg.showWeaponEnchants == true and "|e" or "")
+-- Buffs content signature: the resolved spell set PLUS the number of declared
+-- weapon-enchant slots. A group's candidateFilters are fixed at declaration
+-- and an item enchantment cannot be undeclared at all, so a change in either
+-- releases the container and builds a fresh one -- including a grid shrunk
+-- below three cells, which declares fewer slots than before.
+local function BuffsContentSig(cfg, spells, enchSlots)
+    enchSlots = (cfg.showWeaponEnchants == true) and (enchSlots or 0) or 0
+    return table.concat(spells, ",") .. (enchSlots > 0 and ("|e" .. enchSlots) or "")
 end
 
 local function CreateBars()
@@ -2495,11 +2532,18 @@ local function CreateBars()
     -- the sig-diffing.
     local buffAllChain = BuffBarChain(buffCfg)
     local buffSpells = ns.PAB_ResolveSpells(buffCfg)
-    buffsSlotSig = BuffsContentSig(buffCfg, buffSpells)
+    buffsSlotSig = BuffsContentSig(buffCfg, buffSpells, buffGrid.enchSlots)
+    -- This runs more than once per session (master re-enable, Use Blizzard
+    -- Buffs off, a profile swap whose content signature moved), and a container
+    -- can never be destroyed: retire the previous pair first or the orphans stay
+    -- shown on the same parent and every aura -- and every enchant cell -- renders
+    -- twice.
+    RetireContainer(buffsContainer, declared.buffs)
+    RetireContainer(debuffsContainer, declared.debuffs)
     AK.RequestContainer(buffsParent, "player", buffSpec, function(container)
         buffsContainer = container
         ApplyContainerAnchorAndGrowth(container, buffsParent, buffCfg, buffGrid)
-        ApplyEnchants(container, buffCfg, buffPad, buffGrid.rowGap)
+        ApplyEnchants(container, buffCfg, buffPad, buffGrid)
         declared.buffs = {}
         ApplyGroupConfig(container, buffAllChain, declared.buffs, STYLE_BUFFS, buffGrid.effectiveMax, buffPad, buffGrid.rowGap, buffCfg, BuffCandidateExtras(buffCfg))
         if #buffSpells > 0 then
@@ -2852,11 +2896,6 @@ local function ApplyLiveConfig(isBuff)
     ApplyContainerAnchorAndGrowth(container, parent, cfg, grid)
 
     if isBuff then
-        -- Re-applies the enchant group's layout so a live padding/icon-size
-        -- change follows; the row going OFF rebuilds the container through
-        -- the signature below instead.
-        ApplyEnchants(container, cfg, pad, grid.rowGap)
-
         -- Unlock mode bakes the mover's label at registration, so a Filters
         -- change would leave the old name on it until the next CreateBars.
         -- Re-register only when the name actually changed -- this function runs
@@ -2869,7 +2908,7 @@ local function ApplyLiveConfig(isBuff)
 
     if isBuff then
         local spells = ns.PAB_ResolveSpells(cfg)
-        local sig = BuffsContentSig(cfg, spells)
+        local sig = BuffsContentSig(cfg, spells, grid.enchSlots)
         local allChain = BuffBarChain(cfg)
         if sig ~= buffsSlotSig then
             -- Safe to fully release+rebuild: the default Buffs container holds only the
@@ -2884,7 +2923,7 @@ local function ApplyLiveConfig(isBuff)
             AK.RequestContainer(parent, "player", spec, function(newContainer)
                 buffsContainer = newContainer
                 ApplyContainerAnchorAndGrowth(newContainer, parent, cfg, grid)
-                ApplyEnchants(newContainer, cfg, pad, grid.rowGap)
+                ApplyEnchants(newContainer, cfg, pad, grid)
                 declared.buffs = {}
                 ApplyGroupConfig(newContainer, allChain, declared.buffs, STYLE_BUFFS, grid.effectiveMax, pad, grid.rowGap, cfg, BuffCandidateExtras(cfg))
                 if #spells > 0 then
@@ -2910,6 +2949,11 @@ local function ApplyLiveConfig(isBuff)
             -- zeroes the catch-all when `allChain` is empty, so one call covers on and
             -- off. The spells group isn't part of that chain path, so its
             -- maxFrameCount/layout/sort are refreshed here directly.
+            --
+            -- The enchant layout rides this branch (not the pass above): on the
+            -- rebuild path the container here is the one about to be retired,
+            -- and declaring three engine frames on it would leak them.
+            ApplyEnchants(container, cfg, pad, grid)
             ApplyGroupConfig(container, allChain, declared.buffs, STYLE_BUFFS, grid.effectiveMax, pad, grid.rowGap, cfg, BuffCandidateExtras(cfg))
             if declared.buffs.spells then
                 container:SetAuraGroupMaxFrameCount("spells", grid.effectiveMax)
@@ -4512,9 +4556,12 @@ local PREVIEW_ENCHANT_SLOTS = { INVSLOT_MAINHAND or 16, INVSLOT_OFFHAND or 17 }
 -- unknown-icon question mark there would advertise a cell the player can never
 -- fill. An unarmed character still gets the single main-hand cell, so ticking
 -- the option always previews as something rather than silently nothing.
+-- Walked in REVERSE, mirroring the live group's sortDirection: the engine puts
+-- the first element at the leading edge, so main hand ends up adjacent to the
+-- aura run (see BuildEnchantSpec), off hand out at the corner.
 local function PreviewEnchantSlots()
     local out = {}
-    for i = 1, #PREVIEW_ENCHANT_SLOTS do
+    for i = #PREVIEW_ENCHANT_SLOTS, 1, -1 do
         local slot = PREVIEW_ENCHANT_SLOTS[i]
         if GetInventoryItemTexture("player", slot) then out[#out + 1] = slot end
     end
@@ -4913,19 +4960,18 @@ local function BuildPreviewSlots(isBuff, cfg, list, listLen, count)
     -- appear, not just their order. Truncate to `count` on the stable, sort-
     -- independent mixed order FIRST, then sort that fixed selection for display.
     -- Weapon enchants take the LEADING cells and are never sorted into the aura
-    -- content: they are not auras. They are also ADDITIVE, not a slice of the
-    -- bar's capacity -- the live container keeps its full maxFrameCount and the
-    -- engine flows the enchant group ahead of the aura groups, so an enchant
-    -- never costs an aura its slot (it does share the line, so the wrap moves).
+    -- content: they are not auras. `count` is already net of them (ComputeGrid
+    -- drops the aura cap by the three engine slots while the row is on), so the
+    -- rendered total still fits the bar's own grid.
     local numEnch, enchSlots = 0, nil
     if isBuff and cfg.showWeaponEnchants == true then
         enchSlots = PreviewEnchantSlots()
         numEnch = #enchSlots
     end
     -- The two modes are genuinely different shapes and the preview mirrors both:
-    --   * alongside auras -- the container keeps its full maxFrameCount and the
-    --     enchant group leads the flow, so they cost no aura its slot but do
-    --     share the line: a full row wraps that many icons further down.
+    --   * alongside auras -- the enchant group leads the flow and its cells are
+    --     already subtracted from the aura cap, so the bar's footprint is the
+    --     same with the row on or off.
     --   * enchants-only -- the grid was auto-sized FOR the enchants
     --     (SyncWeaponEnchantsGrid) and the container holds no groups, so the
     --     cells sit INSIDE that reserved width. The leftover cells stay as
@@ -5163,8 +5209,8 @@ local function RenderPreviewIcons(box, icons, isBuff, cfg, fontPath, pool)
         -- ONE uniform flow, enchants first: the engine lays the weapon-enchant
         -- frames out as their own layout group placed BEFORE the aura groups
         -- on the same container, so they lead row 0 as plain members of the
-        -- line and row 2 wraps back to the bar's own edge -- no per-row
-        -- indent, and the reserved grid is never overflowed.
+        -- line and row 2 wraps back to the bar's own edge, no per-row indent.
+        -- Their cells come out of the aura cap, so the box always fits.
         local runningX, runningY = {}, 0
         for r = 0, rows - 1 do runningX[r] = 0 end
         for i = 1, total do
@@ -5693,6 +5739,20 @@ function ns.PAB_ProfileResync()
         -- (covers customs + unlock + natives itself).
         CreateBars()
         return
+    end
+    -- Content that can only change by rebuilding the container (the resolved
+    -- spell set, and the weapon-enchant row the engine cannot undeclare) does
+    -- not reach ApplyLiveConfig on a swap, so the new profile's signature is
+    -- reconciled here. CreateBars is the safe lane for it: it applies the new
+    -- profile's sizes and positions outright instead of running
+    -- ApplyLiveConfig's size-rebase against the OLD profile's lastSize.
+    if s and s.enabled == true and s.useBlizzardBuffs ~= true and buffsParent then
+        local buffCfg = DefaultBuffsCfg(s)
+        local buffGrid = ComputeGrid(true, buffCfg)
+        if BuffsContentSig(buffCfg, ns.PAB_ResolveSpells(buffCfg), buffGrid.enchSlots) ~= buffsSlotSig then
+            CreateBars()
+            return
+        end
     end
     ApplyDefaultBarShown(true)
     ApplyDefaultBarShown(false)

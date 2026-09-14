@@ -1380,13 +1380,17 @@ function AK.SetContainerItemEnchantmentLayout(container, layout)
     container:SetItemEnchantmentLayout(layout)
 end
 
+-- BOTH halves required: the inbound setter validates before it defaults, so a
+-- method without a direction is a hard error engine-side.
 function AK.SetContainerItemEnchantmentSort(container, sortMethod, sortDirection)
-    if not (container and sortMethod and container.SetItemEnchantmentSortMethod) then return end
+    if not (container and sortMethod and sortDirection
+        and container.SetItemEnchantmentSortMethod) then return end
     container:SetItemEnchantmentSortMethod(sortMethod, sortDirection)
 end
 
 -- e = { style, extraInit, hidePermanent (default true: duration-bearing
--- only), slots (default all three), layout, sortMethod, sortDirection }.
+-- only), maxSlots (declare only the first N of ITEM_ENCH_SLOTS, for a
+-- display too small to hold all three), layout, sortMethod, sortDirection }.
 -- ONE-WAY: with no addon-facing unregister, a consumer that must stop
 -- showing them releases the container and builds a fresh one. Re-calling is
 -- idempotent and re-applies layout and sort only.
@@ -1397,27 +1401,26 @@ function AK.AddItemEnchantmentsToContainer(container, e)
     local cd = containerData[container]
     if cd and not cd.itemEnchFrames then cd.itemEnchFrames = {} end
     local tracked = cd and cd.itemEnchFrames
-    local names = e.slots or AK.ITEM_ENCH_SLOTS
-    for i = 1, #names do
+    local names = AK.ITEM_ENCH_SLOTS
+    local last = math.min(e.maxSlots or #names, #names)
+    for i = 1, last do
         local name = names[i]
         local slot = slotEnum[name]
         -- HasItemEnchantment is engine-private and a second declaration for
-        -- the same slot asserts, so the declared set is ours to keep.
+        -- the same slot asserts, so the declared set is ours to keep. pcall'd
+        -- anyway: ReleaseContainer drops the whole containerData entry, so a
+        -- container that is released and then re-declared (no consumer does
+        -- that today) would hit that assert with the tracking gone.
         if slot ~= nil and not (tracked and tracked[name]) then
-            local frame = container:AddItemEnchantment(slot, {
+            local ok, frame = pcall(container.AddItemEnchantment, container, slot, {
                 initializeFrame = AK.MakeInitializer(e.style, e.extraInit),
                 hidePermanent = e.hidePermanent ~= false,
             })
-            if tracked then tracked[name] = frame or true end
+            if ok and tracked then tracked[name] = frame or true end
         end
     end
     AK.SetContainerItemEnchantmentLayout(container, e.layout)
     AK.SetContainerItemEnchantmentSort(container, e.sortMethod, e.sortDirection)
-end
-
-function AK.HasItemEnchantments(container)
-    local cd = container and containerData[container]
-    return (cd and cd.itemEnchFrames and next(cd.itemEnchFrames) ~= nil) or false
 end
 
 -- Unit LAST: unit assignment re-evaluates event registrations, and those

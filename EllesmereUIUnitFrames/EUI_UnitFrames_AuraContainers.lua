@@ -1333,7 +1333,7 @@ local function AnchorContainer(container, frame, unit, base, s, buffContainer)
                     elementHeight = h,
                     elementSpacing = gap,
                     lineSpacing = lineGap,
-                    groupSpacing = gap,
+                    -- No groupSpacing, see the aura groups' layout below.
                     groupLineSpacing = lineGap,
                     placement = placement and placement.BeforeAuraGroups,
                 },
@@ -1424,14 +1424,11 @@ local function ApplyGroupConfig(container, unit, base, s, chain, declared)
         cand.excludeSpellIDs = ex
     end
 
-    -- groupSpacing is the gap BEFORE a group that continues the line, so the
-    -- distance from the leading weapon-enchant group to the first aura has to
-    -- sit on the AURA groups. Only where enchants are actually declared (the
-    -- player's buff container): every other element keeps its existing
-    -- zero inter-group spacing.
-    local groupGap = AK.HasItemEnchantments(container) and spX or nil
-    local layout = { elementWidth = size, elementHeight = h, elementSpacing = spX, lineSpacing = spY,
-        groupSpacing = groupGap }
+    -- No groupSpacing: the engine trails every element with elementSpacing,
+    -- the last one of a group included, so a group boundary -- the seam
+    -- between the weapon-enchant cells and the first aura -- already sits one
+    -- spX away, and groupSpacing would double it.
+    local layout = { elementWidth = size, elementHeight = h, elementSpacing = spX, lineSpacing = spY }
 
     -- Active set = "all" (a non-player BUFF element with no classes enabled)
     -- or each chain link. Every other declared group -- disabled classes and
