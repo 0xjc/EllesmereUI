@@ -3481,6 +3481,47 @@ EllesmereUI._CaptureAnchorOffsets = function(childKey, targetKey, side)
     return cCX - tCX, cCY - tCY
 end
 
+-- Screen-edge marker: a line along the edge itself, so picking a side in the cog
+-- menu shows WHERE the element will hold. Hovering a row previews it, a click
+-- flashes it. The textures hang on the unlock overlay and are reused, so they exist
+-- only while unlock mode is open.
+EllesmereUI._ShowScreenEdgeMarker = function(edgeKey, flash)
+    if not unlockFrame then return end
+    local store = EllesmereUI._screenEdgeMarkers
+    if not store then store = {}; EllesmereUI._screenEdgeMarkers = store end
+    local m = store[edgeKey]
+    if not m then
+        local vertical = (edgeKey == "SCREEN_LEFT" or edgeKey == "SCREEN_RIGHT")
+        m = unlockFrame:CreateTexture(nil, "OVERLAY")
+        if m.SetSnapToPixelGrid then m:SetSnapToPixelGrid(false); m:SetTexelSnappingBias(0) end
+        m:SetColorTexture(1, 0.7, 0.3, 0.9)
+        if vertical then
+            m:SetWidth((PP and PP.mult or 1) * 3)
+            local corner = (edgeKey == "SCREEN_LEFT") and "LEFT" or "RIGHT"
+            m:SetPoint("TOP", UIParent, "TOP" .. corner, 0, 0)
+            m:SetPoint("BOTTOM", UIParent, "BOTTOM" .. corner, 0, 0)
+        else
+            m:SetHeight((PP and PP.mult or 1) * 3)
+            local edge = (edgeKey == "SCREEN_TOP") and "TOP" or "BOTTOM"
+            m:SetPoint("LEFT", UIParent, edge .. "LEFT", 0, 0)
+            m:SetPoint("RIGHT", UIParent, edge .. "RIGHT", 0, 0)
+        end
+        store[edgeKey] = m
+    end
+    m:Show()
+    if flash then
+        if m._hideTimer then m._hideTimer:Cancel() end
+        m._hideTimer = C_Timer.NewTimer(0.8, function() m._hideTimer = nil; m:Hide() end)
+    end
+end
+
+-- Hover preview only: a flash owns the marker until its timer fires.
+EllesmereUI._HideScreenEdgeMarker = function(edgeKey)
+    local store = EllesmereUI._screenEdgeMarkers
+    local m = store and store[edgeKey]
+    if m and not m._hideTimer then m:Hide() end
+end
+
 -- The single number a cross-axis screen edge needs: the capture above, reduced to
 -- the axis that edge governs.
 EllesmereUI._CaptureScreenEdgeOffset = function(childKey, edgeKey, side)
@@ -9924,11 +9965,15 @@ local function CreateMover(barKey)
             end)
         end)
 
-        -- Screen-edge links (offered wherever the link button is): the element
-        -- stays put and from then on keeps its distance to that screen edge on any
-        -- screen size. Unlike a picked link, the grow direction is left alone.
-        local elemSE = registeredElements[barKey]
-        if not (elemSE and elemSE.noAnchorTo) and not ns.IsMoverPosLocked(barKey) then
+        -- Screen-edge links: the element stays put and keeps its distance to that
+        -- edge on any screen size. The grow direction is left alone.
+        --
+        -- Not gated on noAnchorTo, unlike the link button: that flag means "must not
+        -- become a child of another element", which a screen edge never makes it.
+        -- The minimap and kin carry it while EllesmereUI owns their position. Only a
+        -- Blizzard-owned position must stay out, or the two fight over the frame.
+        local NO_SCREEN_ANCHOR = { QueueStatus = true }   -- Blizzard Edit Mode owns it
+        if not NO_SCREEN_ANCHOR[barKey] and not ns.IsMoverPosLocked(barKey) then
             -- Primary link to a screen edge. The capture comes first: on an
             -- offset-less link ApplyAnchorPosition's side-snap branch stores the FLUSH
             -- offsets (0/0) before its no-move capture runs, and the next apply would
@@ -10036,7 +10081,7 @@ local function CreateMover(barKey)
             seDiv:SetPoint("TOPRIGHT", cogMenu, "TOPRIGHT", -1, yOff - 4)
             yOff = yOff - 9
 
-            local seItem, seLbl = MakeActionItem("Anchor to Screen", function() end)
+            local seItem, seLbl = MakeActionItem("Relative to Screen", function() end)
             local seArrow = seItem:CreateTexture(nil, "ARTWORK")
             seArrow:SetSize(10, 10)
             seArrow:SetPoint("RIGHT", seItem, "RIGHT", -8, 0)
@@ -10103,14 +10148,24 @@ local function CreateMover(barKey)
                         sHl:SetColorTexture(1, 1, 1, 0.08)
                         if isCur then sLbl:SetTextColor(1, 0.8, 0.5, 1)
                         else sLbl:SetTextColor(1, 1, 1, 1) end
+                        -- Preview: show the line the element would hold on to.
+                        if e.key then EllesmereUI._ShowScreenEdgeMarker(e.key) end
                     end)
                     si:SetScript("OnLeave", function()
                         sHl:SetColorTexture(1, 1, 1, isCur and 0.04 or 0)
                         sLbl:SetTextColor(r, g, b, a)
+                        if e.key then EllesmereUI._HideScreenEdgeMarker(e.key) end
                     end)
                     si:SetScript("OnClick", function()
                         CloseCogMenu()
-                        if e.key then SetScreenAnchor(e.key, e.side) else ClearScreenAnchor() end
+                        if e.key then
+                            SetScreenAnchor(e.key, e.side)
+                            -- Confirmation: the menu is gone, so the line is the only
+                            -- feedback that the pick landed on that edge.
+                            EllesmereUI._ShowScreenEdgeMarker(e.key, true)
+                        else
+                            ClearScreenAnchor()
+                        end
                     end)
                     seY = seY - ITEM_H
                 end
