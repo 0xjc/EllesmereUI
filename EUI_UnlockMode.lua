@@ -3489,19 +3489,32 @@ EllesmereUI._ShowScreenEdgeMarker = function(edgeKey, flash)
     if not unlockFrame then return end
     local store = EllesmereUI._screenEdgeMarkers
     if not store then store = {}; EllesmereUI._screenEdgeMarkers = store end
+    -- Own host frame in the top strata: on the unlock overlay itself the line went
+    -- behind every bar and frame that sits in a higher strata. It is a child of the
+    -- overlay, so it still disappears with unlock mode.
+    local host = store.host
+    if not host then
+        host = CreateFrame("Frame", nil, unlockFrame)
+        host:SetFrameStrata("TOOLTIP")
+        host:SetFrameLevel(400)
+        host:SetAllPoints(UIParent)
+        store.host = host
+    end
+    host:Show()
     local m = store[edgeKey]
     if not m then
         local vertical = (edgeKey == "SCREEN_LEFT" or edgeKey == "SCREEN_RIGHT")
-        m = unlockFrame:CreateTexture(nil, "OVERLAY")
+        local thick = (PP and PP.mult or 1) * 5
+        m = host:CreateTexture(nil, "OVERLAY")
         if m.SetSnapToPixelGrid then m:SetSnapToPixelGrid(false); m:SetTexelSnappingBias(0) end
         m:SetColorTexture(1, 0.7, 0.3, 0.9)
         if vertical then
-            m:SetWidth((PP and PP.mult or 1) * 3)
+            m:SetWidth(thick)
             local corner = (edgeKey == "SCREEN_LEFT") and "LEFT" or "RIGHT"
             m:SetPoint("TOP", UIParent, "TOP" .. corner, 0, 0)
             m:SetPoint("BOTTOM", UIParent, "BOTTOM" .. corner, 0, 0)
         else
-            m:SetHeight((PP and PP.mult or 1) * 3)
+            m:SetHeight(thick)
             local edge = (edgeKey == "SCREEN_TOP") and "TOP" or "BOTTOM"
             m:SetPoint("LEFT", UIParent, edge .. "LEFT", 0, 0)
             m:SetPoint("RIGHT", UIParent, edge .. "RIGHT", 0, 0)
