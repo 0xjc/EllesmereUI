@@ -12247,9 +12247,7 @@ local DRUID_MOUNT_FORM_SPELLS = {
 -- "any" match verdict. A garrison reports a difficulty but is not instanced content
 -- for this axis, which is why the difficulty test alone is not enough.
 function EllesmereUI.IsInInstancedContent()
-    local _, iType, diffID = GetInstanceInfo()
-    diffID = tonumber(diffID) or 0
-    if diffID <= 0 then return false end
+    local _, iType = GetInstanceInfo()
     if C_Garrison and C_Garrison.IsOnGarrisonMap and C_Garrison.IsOnGarrisonMap() then
         return false
     end
