@@ -2085,6 +2085,27 @@ do
             return text, map[key or ""] or W
         end
 
+        -- Crest bonuses identify the crafting tier independently of quality and
+        -- overlapping item levels. Midnight S2 Hero/Myth: 13835/13836.
+        -- Source: https://www.raidbots.com/static/data/live/bonuses.json
+        local craftedColors = { [13835] = HE, [13836] = MY }
+        function EllesmereUI.GetCraftedTrackColor(itemLink)
+            if type(itemLink) ~= "string" then return nil end
+            local payload = itemLink:match("item:([^|]+)")
+            if not payload then return nil end
+            local index, lastBonus = 0, 13
+            for field in (payload .. ":"):gmatch("([^:]*):") do
+                index = index + 1
+                if index == 13 then
+                    lastBonus = 13 + (tonumber(field) or 0)
+                elseif index > 13 then
+                    if index > lastBonus then break end
+                    local color = craftedColors[tonumber(field)]
+                    if color then return color end
+                end
+            end
+        end
+
         -- Item-level text color: custom override > upgrade-track hue > item rarity >
         -- white. Shared by character sheet, inspect sheet and equipment flyout.
         function EllesmereUI.GetItemLevelColor(itemLink, itemQuality)
