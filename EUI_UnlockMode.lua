@@ -10060,15 +10060,21 @@ local function CreateMover(barKey)
                     boxBg:SetColorTexture(0, 0, 0, 0.4)
                     box:SetAutoFocus(false)
                     box:SetMaxLetters(7)
+                    -- Physical pixels in the box, units in the record, like the X/Y
+                    -- Position boxes (AxisToPx): +1 here is one pixel, one nudge, and
+                    -- the number matches the pixel sliders (Button Spacing 10 = Offset 10).
+                    local PPo = EllesmereUI and EllesmereUI.PP
                     local function Cur()
                         local a = GetAnchorInfo(barKey)
                         local v = a and a[key] or 0
+                        if PPo and PPo.ToPixels then v = PPo.ToPixels(v) end
                         return tostring(math.floor(v + 0.5))
                     end
                     box:SetText(Cur())
                     local function Commit(self)
                         local v = tonumber(self:GetText())
                         if not v then self:SetText(Cur()) return end
+                        if PPo and PPo.FromPixels then v = PPo.FromPixels(v) end
                         local a = GetAnchorInfo(barKey)
                         if a and a[key] == v then return end
                         local params = {}
@@ -10098,8 +10104,16 @@ local function CreateMover(barKey)
                     if prevSync then prevSync() end
                     local a = GetAnchorInfo(barKey)
                     if not a then return end
-                    if oxBox and not oxBox:HasFocus() then oxBox:SetText(tostring(math.floor((a.offsetX or 0) + 0.5))) end
-                    if oyBox and not oyBox:HasFocus() then oyBox:SetText(tostring(math.floor((a.offsetY or 0) + 0.5))) end
+                    -- Same pixel conversion as the boxes' own Cur(): a units value here
+                    -- would be read back as pixels by the next commit and shrink by the
+                    -- scale factor every Enter.
+                    local PPs = EllesmereUI and EllesmereUI.PP
+                    local function px(v)
+                        if PPs and PPs.ToPixels then v = PPs.ToPixels(v) end
+                        return tostring(math.floor(v + 0.5))
+                    end
+                    if oxBox and not oxBox:HasFocus() then oxBox:SetText(px(a.offsetX or 0)) end
+                    if oyBox and not oyBox:HasFocus() then oyBox:SetText(px(a.offsetY or 0)) end
                 end
                 local aDiv = cogMenu:CreateTexture(nil, "ARTWORK")
                 local aDivPx = PP and PP.mult or 1
