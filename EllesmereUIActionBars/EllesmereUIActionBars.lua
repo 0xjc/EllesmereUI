@@ -7485,6 +7485,16 @@ function EAB.PlaceButtonText(fs, parent, anchor, ox, oy)
     fs:SetPoint(edge .. "LEFT", parent, edge .. "LEFT", 1 + ox, y)
     fs:SetPoint(edge .. "RIGHT", parent, edge .. "RIGHT", -1 + ox, y)
     fs:SetJustifyH(justify)
+    -- A justification change alone does not re-lay the string out: SetPoint
+    -- with unchanged values and SetText with unchanged text are both no-ops,
+    -- so Top Left -> Top (same edge points) kept the old alignment on screen
+    -- until the next real text change. Clear and restore the text to force
+    -- it. issecretvalue first: a secret count must not be compared.
+    local text = fs:GetText()
+    if (issecretvalue and issecretvalue(text)) or (text and text ~= "") then
+        fs:SetText("")
+        fs:SetText(text)
+    end
     return true
 end
 
