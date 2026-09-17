@@ -44,8 +44,9 @@ local MAX_FLYOUT_ROWS = 12   -- flyout caps here; extra gems scroll with the whe
 local GEM_CLASS  = (Enum and Enum.ItemClass and Enum.ItemClass.Gem) or 3
 local EMPTY_SOCKET_TEX = "Interface\\ItemSocketingFrame\\UI-EmptySocket-Prismatic"
 
--- Inventory slots that can carry sockets (skip Body/Relic/Tabard/Shirt).
-local SLOTS = { 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17 }
+-- Character-sheet order: left column, right column, then weapons.
+-- Skip shirt/tabard; each item's sockets stay in socket-index order.
+local SLOTS = { 1, 2, 3, 15, 5, 9, 10, 6, 7, 8, 11, 12, 13, 14, 16, 17 }
 
 -- State (all plain Lua tables / our own frames -- nothing lives on Blizzard frames)
 local sockets   = {}      -- ordered list of { slot, socketIndex, gemLink, emptyName }
