@@ -2383,55 +2383,60 @@ end
 -- a live padding/icon-size change follows. Turning the row OFF is served by
 -- the content signature below instead: the engine has no addon-facing
 -- unregister, so the container has to be rebuilt for that.
--- Inventory slots behind AuraContainerItemEnchantmentSlot, in the same order.
-local ENCH_INV_SLOTS = { INVSLOT_MAINHAND or 16, INVSLOT_OFFHAND or 17, INVSLOT_RANGED or 18 }
+-- Wrapped in do...end: this file sits at Lua 5.1's 200-locals-per-chunk
+-- limit, so only the two helpers used below stay chunk-level locals.
+local BuffAuraMax, SyncEnchantEvents
+do
+    -- Inventory slots behind AuraContainerItemEnchantmentSlot, in the same order.
+    local ENCH_INV_SLOTS = { INVSLOT_MAINHAND or 16, INVSLOT_OFFHAND or 17, INVSLOT_RANGED or 18 }
 
--- Weapon enchants showing right now. Only duration-bearing ones render
--- (hidePermanent in BuildEnchantSpec), so an empty or permanently enchanted
--- slot costs nothing. Equipment state, not aura data: these returns carry no
--- secret flags, in restricted combat either.
-local function ActiveEnchantCount(slots)
-    local api = C_PaperDollInfo and C_PaperDollInfo.GetTemporaryEnchantmentInfo
-    if not api then return 0 end
-    local n = 0
-    for i = 1, math.min(slots or 0, #ENCH_INV_SLOTS) do
-        local info = api(ENCH_INV_SLOTS[i])
-        if info and info.hasExpirationTime then n = n + 1 end
-    end
-    return n
-end
-
--- Aura cap for the Buffs bar: "Max Icons" is the whole bar's budget, so the
--- cells actually showing come off it and the rendered total stays at the
--- configured number. Nothing is reserved for a slot that is not enchanted.
-local function BuffAuraMax(grid)
-    local slots = grid.enchSlots or 0
-    if slots <= 0 then return grid.effectiveMax end
-    return math.max(0, grid.effectiveMax - ActiveEnchantCount(slots))
-end
-
--- The budget moves with the enchants, so an applied or expired oil re-applies
--- it. Registered ONLY while the row is on, and the count is change-guarded:
--- WEAPON_ENCHANT_CHANGED also fires for charge ticks, which leave the cell
--- count alone.
-local enchEventFrame, lastEnchCount
-local function SyncEnchantEvents(want)
-    if want then
-        if not enchEventFrame then
-            enchEventFrame = CreateFrame("Frame")
-            enchEventFrame:SetScript("OnEvent", function()
-                local n = ActiveEnchantCount(#ENCH_INV_SLOTS)
-                if n == lastEnchCount then return end
-                lastEnchCount = n
-                if ns.PAB_ApplyLiveConfig then ns.PAB_ApplyLiveConfig(true) end
-            end)
+    -- Weapon enchants showing right now. Only duration-bearing ones render
+    -- (hidePermanent in BuildEnchantSpec), so an empty or permanently enchanted
+    -- slot costs nothing. Equipment state, not aura data: these returns carry no
+    -- secret flags, in restricted combat either.
+    local function ActiveEnchantCount(slots)
+        local api = C_PaperDollInfo and C_PaperDollInfo.GetTemporaryEnchantmentInfo
+        if not api then return 0 end
+        local n = 0
+        for i = 1, math.min(slots or 0, #ENCH_INV_SLOTS) do
+            local info = api(ENCH_INV_SLOTS[i])
+            if info and info.hasExpirationTime then n = n + 1 end
         end
-        lastEnchCount = ActiveEnchantCount(#ENCH_INV_SLOTS)
-        enchEventFrame:RegisterEvent("WEAPON_ENCHANT_CHANGED")
-        enchEventFrame:RegisterEvent("WEAPON_SLOT_CHANGED")
-    elseif enchEventFrame then
-        enchEventFrame:UnregisterAllEvents()
-        lastEnchCount = nil
+        return n
+    end
+
+    -- Aura cap for the Buffs bar: "Max Icons" is the whole bar's budget, so the
+    -- cells actually showing come off it and the rendered total stays at the
+    -- configured number. Nothing is reserved for a slot that is not enchanted.
+    function BuffAuraMax(grid)
+        local slots = grid.enchSlots or 0
+        if slots <= 0 then return grid.effectiveMax end
+        return math.max(0, grid.effectiveMax - ActiveEnchantCount(slots))
+    end
+
+    -- The budget moves with the enchants, so an applied or expired oil re-applies
+    -- it. Registered ONLY while the row is on, and the count is change-guarded:
+    -- WEAPON_ENCHANT_CHANGED also fires for charge ticks, which leave the cell
+    -- count alone.
+    local enchEventFrame, lastEnchCount
+    function SyncEnchantEvents(want)
+        if want then
+            if not enchEventFrame then
+                enchEventFrame = CreateFrame("Frame")
+                enchEventFrame:SetScript("OnEvent", function()
+                    local n = ActiveEnchantCount(#ENCH_INV_SLOTS)
+                    if n == lastEnchCount then return end
+                    lastEnchCount = n
+                    if ns.PAB_ApplyLiveConfig then ns.PAB_ApplyLiveConfig(true) end
+                end)
+            end
+            lastEnchCount = ActiveEnchantCount(#ENCH_INV_SLOTS)
+            enchEventFrame:RegisterEvent("WEAPON_ENCHANT_CHANGED")
+            enchEventFrame:RegisterEvent("WEAPON_SLOT_CHANGED")
+        elseif enchEventFrame then
+            enchEventFrame:UnregisterAllEvents()
+            lastEnchCount = nil
+        end
     end
 end
 
