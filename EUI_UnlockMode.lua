@@ -4084,6 +4084,10 @@ ApplyAnchorPosition = function(childKey, targetKey, side, noMark, noMove, fromCa
     local uiW, uiH = UIParent:GetSize()
     local centerX = cx - uiW / 2
     local centerY = cy - uiH / 2
+    -- Declared at function scope on purpose: the pendingPositions write at the end
+    -- of this function reads them, and it sits outside the branch below that
+    -- computes them. Kept local, they were read as (never set) globals there.
+    local bCenterX, bCenterY
 
     -- Only move the actual bar frame when noMove is not set
     if not noMove then
@@ -4153,8 +4157,8 @@ ApplyAnchorPosition = function(childKey, targetKey, side, noMark, noMove, fromCa
             end
         else
             -- Standard CENTER positioning for all other elements
-            local bCenterX = centerX * acRatio
-            local bCenterY = centerY * acRatio
+            bCenterX = centerX * acRatio
+            bCenterY = centerY * acRatio
             -- Snap the center FIRST (dim-aware for odd-pixel frames) so the idempotent
             -- skip below compares curX/curY (already snapped) against the value
             -- actually SetPoint'd. Snapping AFTER the check meant a bar whose snap
