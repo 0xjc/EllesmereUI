@@ -547,6 +547,8 @@ local function PreSkinCharacterSheet()
     end
 
     if PaperDollItemsFrame then PaperDollItemsFrame:Hide() end
+    -- Some clients name this pane CharacterStatsPane.
+    local CharacterStatPane = CharacterStatPane or _G.CharacterStatsPane
     if CharacterStatPane then
         if CharacterStatPane.ClassBackground then
             CharacterStatPane.ClassBackground:Hide()
@@ -562,24 +564,24 @@ local function PreSkinCharacterSheet()
 
 
     -- Hide the SlotFrame wrappers -- we reposition the inner slot buttons directly.
-    _G.CharacterBackSlotFrame:Hide()
-    _G.CharacterChestSlotFrame:Hide()
-    _G.CharacterFeetSlotFrame:Hide()
-    _G.CharacterFinger0SlotFrame:Hide()
-    _G.CharacterFinger1SlotFrame:Hide()
-    _G.CharacterHandsSlotFrame:Hide()
-    _G.CharacterHeadSlotFrame:Hide()
-    _G.CharacterLegsSlotFrame:Hide()
-    _G.CharacterMainHandSlotFrame:Hide()
-    _G.CharacterNeckSlotFrame:Hide()
-    _G.CharacterSecondaryHandSlotFrame:Hide()
-    _G.CharacterShirtSlotFrame:Hide()
-    _G.CharacterShoulderSlotFrame:Hide()
-    _G.CharacterTabardSlotFrame:Hide()
-    _G.CharacterTrinket0SlotFrame:Hide()
-    _G.CharacterTrinket1SlotFrame:Hide()
-    _G.CharacterWaistSlotFrame:Hide()
-    _G.CharacterWristSlotFrame:Hide()
+    if _G.CharacterBackSlotFrame then _G.CharacterBackSlotFrame:Hide() end
+    if _G.CharacterChestSlotFrame then _G.CharacterChestSlotFrame:Hide() end
+    if _G.CharacterFeetSlotFrame then _G.CharacterFeetSlotFrame:Hide() end
+    if _G.CharacterFinger0SlotFrame then _G.CharacterFinger0SlotFrame:Hide() end
+    if _G.CharacterFinger1SlotFrame then _G.CharacterFinger1SlotFrame:Hide() end
+    if _G.CharacterHandsSlotFrame then _G.CharacterHandsSlotFrame:Hide() end
+    if _G.CharacterHeadSlotFrame then _G.CharacterHeadSlotFrame:Hide() end
+    if _G.CharacterLegsSlotFrame then _G.CharacterLegsSlotFrame:Hide() end
+    if _G.CharacterMainHandSlotFrame then _G.CharacterMainHandSlotFrame:Hide() end
+    if _G.CharacterNeckSlotFrame then _G.CharacterNeckSlotFrame:Hide() end
+    if _G.CharacterSecondaryHandSlotFrame then _G.CharacterSecondaryHandSlotFrame:Hide() end
+    if _G.CharacterShirtSlotFrame then _G.CharacterShirtSlotFrame:Hide() end
+    if _G.CharacterShoulderSlotFrame then _G.CharacterShoulderSlotFrame:Hide() end
+    if _G.CharacterTabardSlotFrame then _G.CharacterTabardSlotFrame:Hide() end
+    if _G.CharacterTrinket0SlotFrame then _G.CharacterTrinket0SlotFrame:Hide() end
+    if _G.CharacterTrinket1SlotFrame then _G.CharacterTrinket1SlotFrame:Hide() end
+    if _G.CharacterWaistSlotFrame then _G.CharacterWaistSlotFrame:Hide() end
+    if _G.CharacterWristSlotFrame then _G.CharacterWristSlotFrame:Hide() end
 
     -- Grid layout via SetPoint only. Never reparent -- slots are secure and reparenting would taint the paper-doll.
     if CharacterFrameBg then CharacterFrameBg:Show() end
@@ -647,10 +649,10 @@ local function PreSkinCharacterSheet()
 
 
     -- Weapon-slot regions 16/17 are the ornamented border/frame textures. Shifting texcoords off-atlas is cheaper than SetTexture("") and survives Blizzard re-applying the atlas.
-    select(16, _G.CharacterMainHandSlot:GetRegions()):SetTexCoord(.8,.8,.8,.8,.8,.8,.8,.8)
-    select(17, _G.CharacterMainHandSlot:GetRegions()):SetTexCoord(.8,.8,.8,.8,.8,.8,.8,.8)
-    select(16, _G.CharacterSecondaryHandSlot:GetRegions()):SetTexCoord(.8,.8,.8,.8,.8,.8,.8,.8)
-    select(17, _G.CharacterSecondaryHandSlot:GetRegions()):SetTexCoord(.8,.8,.8,.8,.8,.8,.8,.8)
+    do local r = select(16, _G.CharacterMainHandSlot:GetRegions()) if r then r:SetTexCoord(.8,.8,.8,.8,.8,.8,.8,.8) end end
+    do local r = select(17, _G.CharacterMainHandSlot:GetRegions()) if r then r:SetTexCoord(.8,.8,.8,.8,.8,.8,.8,.8) end end
+    do local r = select(16, _G.CharacterSecondaryHandSlot:GetRegions()) if r then r:SetTexCoord(.8,.8,.8,.8,.8,.8,.8,.8) end end
+    do local r = select(17, _G.CharacterSecondaryHandSlot:GetRegions()) if r then r:SetTexCoord(.8,.8,.8,.8,.8,.8,.8,.8) end end
 
     -- Strip icon borders and crop icon texcoords so icons fill the slot cleanly.
     local slotsToHide = {
@@ -682,10 +684,10 @@ local function PreSkinCharacterSheet()
     end
 
     -- Re-apply 16/17: the loop above includes the weapon slots and clobbers them.
-    select(16, _G.CharacterMainHandSlot:GetRegions()):SetTexCoord(0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8)
-    select(17, _G.CharacterMainHandSlot:GetRegions()):SetTexCoord(0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8)
-    select(16, _G.CharacterSecondaryHandSlot:GetRegions()):SetTexCoord(0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8)
-    select(17, _G.CharacterSecondaryHandSlot:GetRegions()):SetTexCoord(0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8)
+    do local r = select(16, _G.CharacterMainHandSlot:GetRegions()) if r then r:SetTexCoord(0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8) end end
+    do local r = select(17, _G.CharacterMainHandSlot:GetRegions()) if r then r:SetTexCoord(0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8) end end
+    do local r = select(16, _G.CharacterSecondaryHandSlot:GetRegions()) if r then r:SetTexCoord(0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8) end end
+    do local r = select(17, _G.CharacterSecondaryHandSlot:GetRegions()) if r then r:SetTexCoord(0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8, 0.8) end end
 
     local slotNames = {
         "CharacterHeadSlot", "CharacterNeckSlot", "CharacterShoulderSlot", "CharacterBackSlot",
