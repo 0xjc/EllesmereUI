@@ -1191,9 +1191,10 @@ function WSkin.Tab(tab, opts)
             hooksecurefunc(sys, "SetTabVisuallySelected", UpdateAllTabs)
         end
     end
+    -- Icon tabs carry their label in Icon; retain its clipping mask as well.
     for j = 1, select("#", tab:GetRegions()) do
         local r = select(j, tab:GetRegions())
-        if r and r:IsObjectType("Texture") then
+        if r and r ~= tab.Icon and r ~= tab.IconMask and r:IsObjectType("Texture") then
             r:SetTexture("")
             if r.SetAtlas then r:SetAtlas("") end
         end
