@@ -48,6 +48,14 @@ local DEFAULT_CATEGORIES = {
     { name = "Miscellaneous",      types = { IC_MISC, IC_CONTAINER }, isCatchAll = true, icon = 5524917 },
 }
 
+if EUI_CLIENT_FOREVER then
+    for i = #DEFAULT_CATEGORIES, 1, -1 do
+        if DEFAULT_CATEGORIES[i].name == "Housing" then
+            table.remove(DEFAULT_CATEGORIES, i)
+        end
+    end
+end
+
 -------------------------------------------------------------------------------
 --  Init
 --  Builds the runtime category list from hardcoded defaults + saved user state
