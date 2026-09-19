@@ -22,6 +22,10 @@ EUI_BagsWindow = CreateFrame("Frame", "EUI_BagsWindowFrame", UIParent)
 EUI_BagsWindow:Hide()
 
 local SLOT_SIZE, SPACING = 34, 4
+local GetItemInfo = C_Item.GetItemInfo
+local GetItemInfoInstant = C_Item.GetItemInfoInstant
+local GetItemQualityColor = C_Item.GetItemQualityColor
+local IsEquippableItem = C_Item.IsEquippableItem
 
 -- Red-tint usability test (shared with the bank module via EUI). Tooltip must come from
 -- the real item, never GetItemByID: scaling gear's bonus IDs lower its required level, but
