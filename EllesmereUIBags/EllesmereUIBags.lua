@@ -5034,8 +5034,13 @@ local function BuildSidebarButtons(categoryCounts, totalCount)
                     iconLbl:SetTextColor(0.7, 0.7, 0.7, 1)
                     iconLbl:SetText(EllesmereUI.L("Icon:"))
 
-                    -- Icon grid (placeholder IDs -- replace with real set)
-                    local ICON_IDS = {
+                    -- Forever does not include the newer icon files used by the
+                    -- Midnight picker. Keep its choices to long-standing client
+                    -- icons, including a profession icon.
+                    local ICON_IDS = EUI_CLIENT_FOREVER and {
+                        134400, 132996, 136240, 136241, 136242, 136244, 136245,
+                        136246, 136247, 136248, 136249, 132485, 132640, 134332,
+                    } or {
                         7514178, 7548926, 7427980, 7548966, 2143125,
                         6025441, 7451177, 7548901, 7501337, 7704166,
                         7549083, 7549010, 7136579, 7549012,
