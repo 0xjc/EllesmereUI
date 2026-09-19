@@ -2814,10 +2814,12 @@ initFrame:SetScript("OnEvent", function(self)
         return math.abs(y)
     end
 
+    local pages = { PAGE_QOL, PAGE_RAIDTOOLS, PAGE_CURSOR, PAGE_SHIFTER, PAGE_MOVEMENT, PAGE_UPGCALC }
+    if _G._EUI_Swing_Profile then pages[#pages + 1] = "Swing Timer" end
     EllesmereUI:RegisterModule("EllesmereUIQoL", {
         title       = "Quality of Life",
         description = "Quality of life features and custom cursor.",
-        pages       = { PAGE_QOL, PAGE_RAIDTOOLS, PAGE_CURSOR, PAGE_SHIFTER, PAGE_MOVEMENT, PAGE_UPGCALC },
+        pages       = pages,
         searchTerms = { "brez", "bres", "battle res", "combat res", "cursor", "macro", "fps", "logging", "combat log", "warcraft logs", "upgrade", "ilvl", "item level", "crest", "upgrade calculator", "shifter", "move", "drag", "position", "demodal", "drift", "combat alert", "enter combat", "leave combat", "in combat", "combat text", "combat notification", "transform", "transforms", "costume", "disguise", "chef's hat", "noggenfogger", "target distance", "distance to target", "range text", "yard", "yards", "movement", "mobility", "gap closer", "blink", "gateway", "warlock gateway", "control shard", "time spiral", "free movement", "raid tools", "raid", "pull timer", "pull", "ready check", "role check", "raid marker", "target marker", "world marker", "flare", "disband", "convert to raid", "countdown" },
         buildPage   = function(pageName, parent, yOffset)
             -- The Raid Tools settings preview ends when any OTHER QoL page
@@ -2827,6 +2829,9 @@ initFrame:SetScript("OnEvent", function(self)
             if pageName ~= PAGE_RAIDTOOLS and not EllesmereUI._prebuilding
                and _G._EUI_RaidTools_Preview then
                 _G._EUI_RaidTools_Preview(false)
+            end
+            if pageName == "Swing Timer" and _G._EUI_BuildSwingPage then
+                return _G._EUI_BuildSwingPage(pageName, parent, yOffset)
             end
             if pageName == PAGE_QOL then
                 return BuildQoLPage(pageName, parent, yOffset)
