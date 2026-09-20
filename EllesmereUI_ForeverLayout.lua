@@ -148,6 +148,18 @@ function EllesmereUI.SeedForeverBaseLayout()
     uf.target = Pos("BOTTOM", UF_SPREAD, UF_BOTTOM)
     uf.targettarget = Pos("BOTTOM", UF_SPREAD + TOT_DX, UF_BOTTOM + TARGET_H + TOT_GAP)
 
+    -- Class resource on the player frame. Blizzard's own combo points are
+    -- suppressed on this client (see EllesmereUIUnitFrames.lua), so without a
+    -- style a Forever rogue or feral would have no combo point display at all.
+    -- "above" stretches the pips across the health bar instead of leaving a
+    -- narrow floating row; size drives pip height as floor(size * 0.375), and
+    -- the 8 default lands at 3px, which is a sliver once the UI scale is applied.
+    local ufPlayer = Sub(Sub(addons, "EllesmereUIUnitFrames"), "player")
+    ufPlayer.classPowerStyle = "modern"
+    ufPlayer.showClassPowerBar = true
+    ufPlayer.classPowerPosition = "above"
+    ufPlayer.classPowerSize = 16
+
     -- Damage meter: the one window, bottom-right above the bag bar, open on
     -- Damage Done (a window with no mode shows its mode picker instead).
     local dm = Sub(Sub(addons, "EllesmereUIDamageMeters"), "dm")
