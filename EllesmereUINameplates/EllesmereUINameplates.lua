@@ -4492,6 +4492,10 @@ local function UpdateClassPowerOnPlate(plate)
             end
         end
     end
+    -- The resource kind alone does not decide this: which values the client
+    -- classifies depends on the client, and combo points come back secret on
+    -- Forever. The pip fill below compares against cur, which raises on one.
+    if not isSecret and issecretvalue and issecretvalue(cur) then isSecret = true end
     if maxP <= 0 then
         for i = 1, #plate._cpPips do
             plate._cpPips[i]:Hide()
@@ -4818,6 +4822,13 @@ local ApplyClassPowerSetting
 local function EnableClassPowerWatcher()
     if classPowerWatcher then return end  -- already active
     local info = CLASS_POWER_MAP[PLAYER_CLASS]
+    -- Vanilla content has no specializations, so the spec-keyed entries above never
+    -- resolve on Forever, and the flat ones name resources that client does not
+    -- have. This is the whole set that exists there.
+    if EUI_CLIENT_FOREVER == true then
+        info = (PLAYER_CLASS == "ROGUE" or PLAYER_CLASS == "DRUID")
+            and { Enum.PowerType.ComboPoints, 5 } or nil
+    end
     if not info then return end  -- class has no trackable resource
 
     -- Resolve spec-specific entries: if info has numeric specID keys, look up current spec
@@ -4830,10 +4841,15 @@ local function EnableClassPowerWatcher()
 
     classPowerType = info[1]
     classPowerMax = info[2]
-    -- Druid Resto: cat form required. Feral always shows.
-    local specIdx = C_SpecializationInfo and C_SpecializationInfo.GetSpecialization()
-    local isResto = (PLAYER_CLASS == "DRUID" and specIdx == 4)
-    classPowerFormReq = isResto and 1 or nil
+    -- Druid Resto: cat form required. Feral always shows. On Forever there are no
+    -- specs to tell them apart and combo points are cat-only for every druid.
+    if EUI_CLIENT_FOREVER == true then
+        classPowerFormReq = (PLAYER_CLASS == "DRUID") and (DRUID_CAT_FORM or 1) or nil
+    else
+        local specIdx = C_SpecializationInfo and C_SpecializationInfo.GetSpecialization()
+        local isResto = (PLAYER_CLASS == "DRUID" and specIdx == 4)
+        classPowerFormReq = isResto and (DRUID_CAT_FORM or 1) or nil
+    end
     classPowerWatcher = CreateFrame("Frame")
 
     -- String-type resources (custom-tracked): use OnUpdate poll + events
