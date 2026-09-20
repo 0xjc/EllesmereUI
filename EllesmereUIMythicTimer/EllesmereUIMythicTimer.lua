@@ -815,7 +815,7 @@ local function UpdateObjectives()
         end
     end
 
-    if currentRun.completed and db.profile.showFastestRunSplits then
+    if currentRun.completed then
         saveFastestRunSplts()
     end
 
