@@ -4499,7 +4499,7 @@ initFrame:SetScript("OnEvent", function(self)
                 local _, kbCogShowRaw = EllesmereUI.BuildCogPopup({
                     title = "Keybind Text Offsets",
                     rows = {
-                        { type="dropdown", label="Anchor",
+                        { type="dropdown", label="Position",
                           values=TEXT_ANCHOR_LABELS, order=TEXT_ANCHOR_DROPDOWN_ORDER,
                           get=function() return SVal("keybindAnchor", "default") end,
                           set=function(v)
@@ -4664,7 +4664,7 @@ initFrame:SetScript("OnEvent", function(self)
                 local _, mcCogShowRaw = EllesmereUI.BuildCogPopup({
                     title = "Macro Text Offsets",
                     rows = {
-                        { type="dropdown", label="Anchor",
+                        { type="dropdown", label="Position",
                           values=TEXT_ANCHOR_LABELS, order=TEXT_ANCHOR_DROPDOWN_ORDER,
                           get=function() return SVal("macroAnchor", "default") end,
                           set=function(v)
@@ -4790,7 +4790,7 @@ initFrame:SetScript("OnEvent", function(self)
                 local _, ctCogShowRaw = EllesmereUI.BuildCogPopup({
                     title = "Charges Text Offsets",
                     rows = {
-                        { type="dropdown", label="Anchor",
+                        { type="dropdown", label="Position",
                           values=TEXT_ANCHOR_LABELS, order=TEXT_ANCHOR_DROPDOWN_ORDER,
                           get=function() return SVal("countAnchor", "default") end,
                           set=function(v)
