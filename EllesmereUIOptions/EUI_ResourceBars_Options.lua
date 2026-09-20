@@ -10412,7 +10412,7 @@ initFrame:SetScript("OnEvent", function(self)
 
         -- Row: Row Spacing | Text Size
         _, h = W:DualRow(parent, y,
-            { type = "slider", text = "Row Spacing", min = 0, max = 20, step = 1,
+            { type = "slider", pixel = true, text = "Row Spacing", min = 0, max = 20, step = 1,
               tooltip = "Gap between the weapon rows.",
               disabled = stOff, disabledTooltip = ST_TIP,
               getValue = function() local p = DB(); return p and p.swingTimer.rowSpacing or 2 end,

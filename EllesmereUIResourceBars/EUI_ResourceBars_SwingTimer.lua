@@ -75,13 +75,21 @@ local function P()
     return p and p.swingTimer or nil
 end
 
+-- Secret values throw on comparison and on truth tests: every read from the
+-- swing API and from UnitAttackSpeed passes here before it is looked at, and a
+-- restricted answer is treated as "no information" (no swing, no row, no
+-- range verdict). Never infer an interval from restricted data.
+local function Plain(v)
+    return not (issecretvalue and issecretvalue(v))
+end
+
 -- Blizzard's CanSwing: Main Hand always applies; Off Hand / Ranged only while
 -- UnitAttackSpeed reports a positive speed for the slot.
 local function CanSwing(swingType)
     if swingType == SWING.MainHand then return true end
     local _, oh, ranged = UnitAttackSpeed("player")
-    if swingType == SWING.OffHand then return oh ~= nil and oh > 0 end
-    if swingType == SWING.Ranged then return ranged ~= nil and ranged > 0 end
+    if swingType == SWING.OffHand then return Plain(oh) and type(oh) == "number" and oh > 0 end
+    if swingType == SWING.Ranged then return Plain(ranged) and type(ranged) == "number" and ranged > 0 end
     return false
 end
 
@@ -221,7 +229,7 @@ local function UpdateRangeRow(row)
     end
     -- nil = no check could be made (no target, untargetable, no weapon): NOT out of range.
     local inRange = C_SwingTimer.IsTargetWithinSwingRange(row._def.type)
-    SetOutOfRange(row, inRange == false)
+    SetOutOfRange(row, Plain(inRange) and inRange == false)
 end
 
 local function UpdateRangeAll()
@@ -244,7 +252,7 @@ local function IdleRow(row, cfg)
 end
 
 local function StartRow(row, dur, cfg)
-    if not dur or dur <= 0 then return end
+    if type(dur) ~= "number" or dur ~= dur or dur <= 0 or dur == math.huge then return end
     local now = GetTime()
     row._start, row._dur, row._end = now, dur, now + dur
     if not row._live then
@@ -324,7 +332,7 @@ local function QueuedName()
     if #names == 0 or not (C_Spell and C_Spell.IsCurrentSpell) then return false end
     for i = 1, #names do
         local cur = C_Spell.IsCurrentSpell(names[i])
-        if cur and not (issecretvalue and issecretvalue(cur)) then return names[i] end
+        if Plain(cur) and cur then return names[i] end
     end
     return false
 end
@@ -404,8 +412,11 @@ local function ApplyRowLook(row, cfg, w, h)
 
     ApplyRowFill(row, cfg)
 
+    -- Leading-edge spark: anchored to the fill texture's moving edge so it
+    -- tracks the fill (the GCD bar's horizontal case).
     local spark = row._spark
     if cfg.showSpark then
+        local fillTex = bar:GetStatusBarTexture()
         spark:ClearAllPoints()
         spark:SetSize(8, h)
         spark:SetPoint("CENTER", fillTex, "RIGHT", 0, 0)
@@ -483,6 +494,7 @@ shell:SetScript("OnEvent", function(self, event, a1, a2, a3)
     if not (cfg and cfg.enabled and S.built) then return end
     if event == "PLAYER_SWING" then
         -- a1 = swingDuration, a2 = swingType
+        if not (Plain(a1) and Plain(a2)) then return end
         local row = S.byType[a2]
         if row and row:IsShown() then StartRow(row, a1, cfg) end
         PaintQueue(cfg)
@@ -494,8 +506,9 @@ shell:SetScript("OnEvent", function(self, event, a1, a2, a3)
         end
     elseif event == "PLAYER_SWING_RANGE_UPDATE" then
         -- a1 = swingType, a2 = isInRange, a3 = checksRange
+        if not (Plain(a1) and Plain(a2) and Plain(a3)) then return end
         local row = S.byType[a1]
-        if row then SetOutOfRange(row, a3 and not a2) end
+        if row then SetOutOfRange(row, a3 == true and a2 == false) end
     elseif event == "PLAYER_TARGET_CHANGED" then
         UpdateRangeAll()
     else
@@ -550,7 +563,7 @@ local function EnsureBuilt()
     if C_Spell and C_Spell.GetSpellName then
         for i = 1, #QUEUE_SPELLS do
             local name = C_Spell.GetSpellName(QUEUE_SPELLS[i])
-            if name and not (issecretvalue and issecretvalue(name)) then
+            if Plain(name) and name then
                 S.queueNames[#S.queueNames + 1] = name
             end
         end
