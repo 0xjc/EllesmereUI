@@ -4483,7 +4483,16 @@ local function UpdateClassPowerOnPlate(plate)
         end
         cur, maxP = count, 5
     else
-        cur = UnitPower("player", classPowerType) or 0
+        -- Forever combo points belong to the target, and UnitPower still reports
+        -- the previous target's count at the moment PLAYER_TARGET_CHANGED fires
+        -- (measured on 1.60.1: up=3 while gcp=0 on the swap), with no later event
+        -- to correct it. Blizzard's own classic ComboFrame reads GetComboPoints.
+        if EUI_CLIENT_FOREVER == true and classPowerType == Enum.PowerType.ComboPoints
+           and GetComboPoints then
+            cur = GetComboPoints("player", "target") or 0
+        else
+            cur = UnitPower("player", classPowerType) or 0
+        end
         maxP = UnitPowerMax("player", classPowerType) or classPowerMax
         if maxP <= 0 then maxP = classPowerMax end
         -- Runes: UnitPower doesn't return ready-rune count; iterate cooldowns
