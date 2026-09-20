@@ -4112,7 +4112,7 @@ StartSidebarDrag = function(btnSelf, catIdx, catName, catIcon, catIsAtlas)
         ghost.icon:SetAtlas(catIcon or "")
         ghost.icon:SetTexCoord(0, 1, 0, 1)
     else
-        ghost.icon:SetTexture(catIcon or 134400)
+        ghost.icon:SetTexture(EllesmereUI.ClientIcon(catIcon or 134400))
         ghost.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     end
     ghost.label:SetText(catName or "?")
@@ -4907,6 +4907,8 @@ local function BuildSidebarButtons(categoryCounts, totalCount)
             btn._icon:SetAtlas(entry.icon)
             btn._icon:SetTexCoord(0, 1, 0, 1)
         else
+            -- Through the client icon map: a default the Forever client
+            -- cannot draw takes its vanilla-era stand-in there.
             btn._icon:SetTexture(EllesmereUI.ClientIcon(entry.icon))
             btn._icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         end

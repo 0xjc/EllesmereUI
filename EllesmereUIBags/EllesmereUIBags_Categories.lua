@@ -229,11 +229,14 @@ function CategoryManager:InitCategories()
             end
         else
             local state = userState[def.name]
+            -- The default group name stays raw: the seeded groups in
+            -- EllesmereUIBags_DB.lua store it raw too, so both land in one group
+            -- on every locale.
             local groupName
             if state and state.groupName ~= nil then
                 groupName = state.groupName
             elseif def.defaultGroupName then
-                groupName = EllesmereUI.L(def.defaultGroupName)
+                groupName = def.defaultGroupName
             end
             cats[#cats + 1] = {
                 _defaultName      = def.name,
@@ -315,12 +318,17 @@ function CategoryManager:InitCategories()
 
     self._categories = cats
 
-    -- setID -> category index, for split-mode classification
+    -- setID -> category index, for split-mode classification. The same pass
+    -- notes whether any category carries a fixed item list, so ClassifyItem
+    -- skips that scan entirely when none does (every retail category).
     local setCatIdx = {}
+    local hasItemIDs = false
     for i, cat in ipairs(cats) do
         if cat.equipSetID then setCatIdx[cat.equipSetID] = i end
+        if cat.itemIDs then hasItemIDs = true end
     end
     self._setCatIdxBySetID = setCatIdx
+    self._hasItemIDCats = hasItemIDs
 
     -- Clean up legacy DB keys
     EllesmereUIDB.bagCategoryDefs = nil
@@ -478,8 +486,9 @@ function CategoryManager:ClassifyItem(itemLink, itemID, bag, slot)
         end
     end
 
-    -- Check fixed item categories before item-class matching.
-    if itemID then
+    -- Fixed item lists (Forever camp items) win over item-class matching; the
+    -- scan runs only while some category carries one (see InitCategories).
+    if itemID and self._hasItemIDCats then
         for i, cat in ipairs(cats) do
             if cat.itemIDs and cat.itemIDs[itemID] then return i end
         end

@@ -5,7 +5,9 @@ _G._EUI_BuildSwingPage = function(_, parent, yOffset)
     local EUI = EllesmereUI
     local W = EUI.Widgets
     local y = yOffset
+    parent._showRowDivider = true
     EUI:ClearContentHeader()
+    local _, hh = W:SectionHeader(parent, "SWING TIMER", y);  y = y - hh
     local function Get(key) return _G._EUI_Swing_Profile()[key] end
     local function Set(key, value)
         _G._EUI_Swing_Profile()[key] = value

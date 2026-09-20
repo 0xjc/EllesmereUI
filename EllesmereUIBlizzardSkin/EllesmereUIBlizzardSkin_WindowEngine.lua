@@ -692,16 +692,20 @@ end
 
 -- MinimalScrollBar -> strip track/arrows; the thumb becomes a slim 5px white
 -- strip centered in the thumb's hit area (the house scrollbar look).
-function WSkin.ScrollBar(sb)
+-- keepSteppers leaves the up/down arrows as Blizzard draws them; only the
+-- track art and the thumb change, in place.
+function WSkin.ScrollBar(sb, keepSteppers)
     if not sb or sb:IsForbidden() then return end
     local d = GetFFD(sb)
     if d.skinned then return end
     d.skinned = true
-    for _, k in ipairs({ "Back", "Forward" }) do
-        local b = sb[k]
-        if b then
-            FadeRegions(b)
-            if b.Texture then b.Texture:SetAlpha(0) end
+    if not keepSteppers then
+        for _, k in ipairs({ "Back", "Forward" }) do
+            local b = sb[k]
+            if b then
+                FadeRegions(b)
+                if b.Texture then b.Texture:SetAlpha(0) end
+            end
         end
     end
     local track = sb.Track

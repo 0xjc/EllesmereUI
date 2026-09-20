@@ -17,6 +17,8 @@ local types = { Enum.PlayerSwingType.MainHand, Enum.PlayerSwingType.OffHand,
     Enum.PlayerSwingType.Ranged }
 -- Base spell IDs resolve to localized spell names, including ranked casts.
 local queuedSpells = { 78, 845, 6807 }
+local queuedNames = {}      -- their localized names, resolved once the bars exist
+local lastQueued = false    -- the queued name last painted (false = nothing painted yet)
 local textures
 
 local function Plain(value)
@@ -47,21 +49,24 @@ local function Reset()
         SetDuration(row, 0)
         row.label:SetText(labels[i])
     end
+    lastQueued = false
 end
 
+-- Paints the delta only: ACTIONBAR_UPDATE_STATE storms through combat, and
+-- the queued attack changes on a few of them, so the rows are touched (and
+-- their labels built) only when the queued name differs from the last paint.
 local function PaintQueue()
     if not frame then return end
     local p = Profile()
     local queuedName
     if p.queueColor and C_Spell and C_Spell.IsCurrentSpell then
-        for i = 1, #queuedSpells do
-            local name = C_Spell.GetSpellName(queuedSpells[i])
-            if Plain(name) and name then
-                local current = C_Spell.IsCurrentSpell(name)
-                if Plain(current) and current then queuedName = name; break end
-            end
+        for i = 1, #queuedNames do
+            local current = C_Spell.IsCurrentSpell(queuedNames[i])
+            if Plain(current) and current then queuedName = queuedNames[i]; break end
         end
     end
+    if queuedName == lastQueued then return end
+    lastQueued = queuedName
     local accent = EUI.ELLESMERE_GREEN
     for i = 1, #rows do
         local row = rows[i]
@@ -75,6 +80,22 @@ local function PaintQueue()
     end
 end
 
+-- Fonts and the bar texture: settings work, applied from Apply (every
+-- options change arrives through it), never from the event path.
+local function Style()
+    local p = Profile()
+    local font = EUI.GetFontPath("qol")
+    local tex = EUI.ResolveTexturePath(textures, p.texture, "Interface\\Buttons\\WHITE8x8")
+    for i = 1, #rows do
+        local row = rows[i]
+        row.label:SetFont(font, p.fontSize, "OUTLINE")
+        row.text:SetFont(font, p.fontSize, "OUTLINE")
+        row:SetStatusBarTexture(tex)
+    end
+    -- A fresh fill texture carries no colour: the next paint must run.
+    lastQueued = false
+end
+
 local function Layout()
     if not frame then return end
     local p = Profile()
@@ -82,7 +103,6 @@ local function Layout()
     -- This is a player-visibility decision, not a secure-frame mutation gate.
     -- Match Forever's own Swing Timer, which uses the unit combat predicate.
     local visible = p.enabled and (not p.combatOnly or UnitAffectingCombat("player") or unlocked)
-    local font = EUI.GetFontPath("qol")
     local main, off, ranged = UnitAttackSpeed("player")
     local speeds = { main, off, ranged }
     for i = 1, #rows do
@@ -92,10 +112,7 @@ local function Layout()
         row:ClearAllPoints()
         row:SetSize(p.width, p.height)
         row:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -count * (p.height + p.gap))
-        row.label:SetFont(font, p.fontSize, "OUTLINE")
-        row.text:SetFont(font, p.fontSize, "OUTLINE")
         row.label:SetWidth(math.max(1, p.width - 55))
-        row:SetStatusBarTexture(EUI.ResolveTexturePath(textures, p.texture, "Interface\\Buttons\\WHITE8x8"))
         local show = p[keys[i]] and row.available
         row:SetShown(show)
         if show then
@@ -168,6 +185,11 @@ local function CreateBars()
         row.available = i == 1
         rows[i] = row
     end
+    -- Spell names hold for the session: resolved once, never per event.
+    for i = 1, #queuedSpells do
+        local name = C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(queuedSpells[i])
+        if Plain(name) and name then queuedNames[#queuedNames + 1] = name end
+    end
 end
 
 local function Apply()
@@ -199,6 +221,7 @@ local function Apply()
     frame:RegisterEvent("WEAPON_SLOT_CHANGED")
     frame:RegisterUnitEvent("UNIT_ATTACK_SPEED", "player")
     Position()
+    Style()
     Layout()
     if not registered then
         registered = true

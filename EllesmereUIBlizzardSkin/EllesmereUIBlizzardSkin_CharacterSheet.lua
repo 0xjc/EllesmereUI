@@ -547,8 +547,6 @@ local function PreSkinCharacterSheet()
     end
 
     if PaperDollItemsFrame then PaperDollItemsFrame:Hide() end
-    -- Some clients name this pane CharacterStatsPane.
-    local CharacterStatPane = CharacterStatPane or _G.CharacterStatsPane
     if CharacterStatPane then
         if CharacterStatPane.ClassBackground then
             CharacterStatPane.ClassBackground:Hide()
@@ -4786,6 +4784,8 @@ end
 
 -- Show/hide the Upgrades calc tab from upgradeCalcOpts.showCalcButton (live toggle).
 local function ApplyCharSheetCalcTab()
+    -- Part of the retail makeover: nothing to hang it on under WoW Forever.
+    if EllesmereUI.IS_FOREVER then return end
     if not CharacterFrame then return end
     if not skinned then return end
     if EllesmereUIDB and (EllesmereUIDB.themedCharacterSheet == false or EllesmereUI.BlizzWindowSkinsKilled()) then
@@ -4806,6 +4806,10 @@ end
 
 -- Entry point: apply the themed character sheet.
 local function ApplyThemedCharacterSheet()
+    -- WoW Forever: the full makeover stands down; the sheet gets the plain
+    -- window treatment plus the stats sidebar from
+    -- EllesmereUIBlizzardSkin_CharacterSheetForever.lua instead.
+    if EllesmereUI.IS_FOREVER then return end
     if EllesmereUIDB and (EllesmereUIDB.themedCharacterSheet == false or EllesmereUI.BlizzWindowSkinsKilled()) then
         return
     end
@@ -4824,6 +4828,9 @@ if EllesmereUI then
     initFrame:RegisterEvent("PLAYER_LOGIN")
     initFrame:SetScript("OnEvent", function(self)
         self:UnregisterEvent("PLAYER_LOGIN")
+        -- WoW Forever: none of this (pre-skin, portrait suppression, the
+        -- makeover, the equipment-set watcher) runs; see the Forever file.
+        if EllesmereUI.IS_FOREVER then return end
         if CharacterFrame then
             -- Pre-skin runs early, while CharacterFrame is still hidden; running it
             -- mid-OnShow breaks the Rep/Currency ScrollBox data render.

@@ -2725,7 +2725,9 @@ function BuildBankSidebar()
         if isAtlas and btn._icon.SetAtlas then
             btn._icon:SetAtlas(icon)
         else
-            btn._icon:SetTexture(icon)
+            -- Through the client icon map, like the bag window's sidebar: a
+            -- default the Forever client cannot draw takes its stand-in there.
+            btn._icon:SetTexture(EllesmereUI.ClientIcon(icon))
         end
         btn._icon:SetAlpha(isSelected and 1 or 0.75)
 
