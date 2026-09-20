@@ -2671,16 +2671,15 @@ TagFns.tgtcol = function(unit)
     local r, g, b = ns.ResolveUnitNameColor(tunit)
     if not r then
         -- Secret class token (identity-restricted target, e.g. a boss's own
-        -- target): C_ClassColor.GetClassColor and C_ColorUtil.GenerateTextColorCode
-        -- (behind GenerateHexColor) are both AllowedWhenTainted and return a PLAIN
-        -- hex string, so the class colour declassifies here where r/g/b never could.
+        -- target): GenerateHexColor's result may itself be secret, but still
+        -- renders correctly through SetFormattedText's arg lane -- don't reject it.
         if UnitIsPlayer(tunit) and C_ClassColor and C_ClassColor.GetClassColor then
             local _, class = UnitClass(tunit)
             if issecretvalue(class) then
                 local cc = C_ClassColor.GetClassColor(class)
                 if cc and cc.GenerateHexColor then
                     local ok, hex = pcall(cc.GenerateHexColor, cc)
-                    if ok and type(hex) == "string" and not issecretvalue(hex) then
+                    if ok and type(hex) == "string" then
                         return "|c" .. hex
                     end
                 end
