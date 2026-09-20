@@ -213,6 +213,7 @@ local DB_DEFAULTS = {
         objectiveCompareDeltaOnly = false,
         objectiveCompareStrict = false,
         showUpcomingSplitTargets = false,
+        showFastestRunSplits = false,
         frameWidth        = 260,
         barWidth          = 210,
         barHeight         = 8,
@@ -586,7 +587,7 @@ end
 local function GetReferenceObjectiveTime(run, objectiveIndex, mode)
     if mode == COMPARE_NONE then return nil end
 
-    local store = EnsureProfileStore("bestObjectiveSplits")
+    local store  = (db.profile.showFastestRunSplits and EnsureProfileStore("fastestRunSplits"))  or EnsureProfileStore("bestObjectiveSplits")
     if not store then return nil end
 
     -- Try exact scope first, then fall back to broader scopes
@@ -639,6 +640,26 @@ local function UpdateObjectiveCompletion(obj, objectiveIndex)
     obj.isNewBest = reference == nil or obj.elapsed < reference
 
     UpdateBestObjectiveSplits(currentRun, objectiveIndex, obj.elapsed)
+end
+
+local function saveFastestRunSplts()
+    local store = EnsureProfileStore("fastestRunSplits")
+    local run = currentRun
+    local elapsed = currentRun.elapsed
+    if not store then return end
+    for _, mode in ipairs({ COMPARE_DUNGEON, COMPARE_LEVEL, COMPARE_LEVEL_AFFIX }) do
+        local scopeKey = GetScopeKey(run, mode)
+        if scopeKey then
+            if not store[scopeKey] then store[scopeKey] = {} end
+            local previousRunTime = store[scopeKey]['overallRunTime']
+            if not previousRunTime or elapsed < previousRunTime then
+                store[scopeKey]['overallRunTime'] = elapsed
+                for objectivIndex, objective in ipairs(run.objectives) do
+                    store[scopeKey][objectivIndex] = objective.elapsed
+                end
+            end
+        end
+    end
 end
 
 local function BuildSplitCompareText(referenceTime, currentTime, deltaOnly, fasterColor, slowerColor)
@@ -789,6 +810,10 @@ local function UpdateObjectives()
                 end
             end
         end
+    end
+
+    if currentRun.completed and db.profile.showFastestRunSplits then
+        saveFastestRunSplts()
     end
 
     for i = numCriteria + 1, #currentRun.objectives do
@@ -3054,6 +3079,15 @@ function EMT:OnInitialize()
                 -- Keys are normally scoped strings ("<mapID>-..."), but legacy
                 -- data can store a bare numeric mapID. tostring() guards against
                 -- calling :match on a number (crashes in Lua 5.1).
+                local mapIDStr = tostring(scopeKey):match("^(%d+)")
+                local mapID = tonumber(mapIDStr)
+                if mapID and not validMapIDs[mapID] then
+                    db.profile.bestObjectiveSplits[scopeKey] = nil
+                end
+            end
+        end
+        if db.profile.fastestRunSplits then
+            for scopeKey in pairs(db.profile.fastestRunSplits) do
                 local mapIDStr = tostring(scopeKey):match("^(%d+)")
                 local mapID = tonumber(mapIDStr)
                 if mapID and not validMapIDs[mapID] then

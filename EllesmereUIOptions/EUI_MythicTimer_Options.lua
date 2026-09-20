@@ -967,6 +967,15 @@ initFrame:SetScript("OnEvent", function(self)
               disabledTooltip="This option requires Split Compare to include a key level",
               get=function() return Cfg("objectiveCompareStrict") == true end,
               set=function(v) Set("objectiveCompareStrict", v); Refresh() end },
+            { type="toggle", label="Fastest Run Splits",
+              tooltip="Show splits from fastest run.",
+              disabled=function()
+                  local mode = Cfg("objectiveCompareMode") or "NONE"
+                  return mode ~= "LEVEL" and mode ~= "LEVEL_AFFIX"
+              end,
+              disabledTooltip="This option requires Split Compare to include a key level",
+              get=function() return Cfg("showFastestRunSplits") == true end,
+              set=function(v) Set("showFastestRunSplits", v); Refresh() end },
         }, function() return Cfg("enabled") == false or Cfg("showObjectives") == false end)
         end
         y = y - h
