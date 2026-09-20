@@ -4907,7 +4907,7 @@ local function BuildSidebarButtons(categoryCounts, totalCount)
             btn._icon:SetAtlas(entry.icon)
             btn._icon:SetTexCoord(0, 1, 0, 1)
         else
-            btn._icon:SetTexture(entry.icon)
+            btn._icon:SetTexture(EllesmereUI.ClientIcon(entry.icon))
             btn._icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         end
         btn._icon:SetAlpha(isSelected and 1 or 0.75)

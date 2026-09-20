@@ -1433,6 +1433,18 @@ end
 -------------------------------------------------------------------------------
 local EllesmereUI = _G.EllesmereUI or {}
 _G.EllesmereUI = EllesmereUI
+
+-- Icon file IDs the Forever client does not ship. Resolve them only when the
+-- client identifies itself as Forever; Retail continues to use its originals.
+EllesmereUI._FOREVER_ICON = {
+    [7548911] = 133975,   -- Bags "Consumables"
+    [7549094] = 136249,   -- Bags "Gear Enhancements"
+    [7548925] = 134332,   -- Bags "Professions"
+}
+function EllesmereUI.ClientIcon(icon)
+    if EUI_CLIENT_FOREVER ~= true then return icon end
+    return EllesmereUI._FOREVER_ICON[icon] or icon
+end
 EllesmereUI.GLOBAL_KEY = "_EUIGlobal"
 EllesmereUI.ADDON_ROSTER = ADDON_ROSTER
 EllesmereUI.LOCALE_FONT_FALLBACK = LOCALE_FONT_FALLBACK
