@@ -9222,12 +9222,18 @@ local function CreateCustomClassPower(playerFrame, style)
         if druidFormToggle then
             eventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
         end
+        -- Combo points belong to the target on Forever, so swapping targets
+        -- changes the count with no power event behind it. Blizzard's own
+        -- ComboFrame refreshes on this event for the same reason.
+        if EUI_CLIENT_FOREVER == true and powerType == Enum.PowerType.ComboPoints then
+            eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+        end
         eventFrame:SetScript("OnEvent", function(_, event, unit)
             if druidFormToggle and (event == "UPDATE_SHAPESHIFT_FORM" or event == "PLAYER_ENTERING_WORLD") then
                 container:SetShown(InCatForm())
             end
             if event == "PLAYER_ENTERING_WORLD" or event == "RUNE_POWER_UPDATE"
-               or (unit == "player") then
+               or event == "PLAYER_TARGET_CHANGED" or (unit == "player") then
                 UpdatePips()
             end
         end)
@@ -12511,32 +12517,6 @@ function InitializeFrames()
         end
     end
 
-    -- Forever runs vanilla content, where combo points are Blizzard's classic
-    -- ComboFrame: parented to UIParent but only anchored to TargetFrame, so
-    -- disabling that frame strands the art at a dead anchor instead of hiding
-    -- it. None of the BLIZZARD_CP_FRAMES globals exist on that client, so the
-    -- takeover above never reaches it.
-    if EUI_CLIENT_FOREVER == true then
-        -- Keyed on the TARGET frame, which is what ComboFrame anchors to, and on
-        -- "blizzard" rather than "eui" because the third source is "hidden",
-        -- which suppresses Blizzard's frame too and strands the art just the
-        -- same. An OnShow hook cannot be removed, so the flag carries the
-        -- decision: only a living Blizzard target frame releases ComboFrame.
-        ns._foreverHideComboFrame = (ns.GetUnitFrameSource("target") ~= "blizzard")
-        local comboFrame = _G.ComboFrame
-        if comboFrame then
-            if not ns._foreverComboHooked then
-                ns._foreverComboHooked = true
-                comboFrame:HookScript("OnShow", function(self)
-                    if ns._foreverHideComboFrame then self:Hide() end
-                end)
-            end
-            -- Released rather than shown: Blizzard shows it again on the next
-            -- combo point change, and forcing it here would show an empty bar.
-            if ns._foreverHideComboFrame then comboFrame:Hide() end
-        end
-    end
-
     local enabled = db.profile.enabledFrames
 
     local function SetupUnitMenu(frame, unit)
@@ -13204,6 +13184,34 @@ function InitializeFrames()
         SetupUnitMenu(frames.target, "target")
     elseif targetFrameSource == "hidden" then
         ns.Engine.HideBlizzardUnitFrame("target")
+    end
+
+    -- Forever combo points belong to the target, and Blizzard draws them with the
+    -- classic ComboFrame: parented to UIParent but only anchored to TargetFrame,
+    -- so replacing that frame strands the art at a dead anchor instead of hiding
+    -- it. No BLIZZARD_CP_FRAMES global exists here, so the takeover above never
+    -- reaches it either. Our pips replace it while the class resource is on; with
+    -- it off ComboFrame stays the display, re-anchored onto our target frame.
+    if EUI_CLIENT_FOREVER == true then
+        local comboFrame = _G.ComboFrame
+        if comboFrame then
+            ns._foreverHideComboFrame = (classPowerStyle ~= "none")
+            -- An OnShow hook cannot be removed, so the flag carries the decision.
+            if not ns._foreverComboHooked then
+                ns._foreverComboHooked = true
+                comboFrame:HookScript("OnShow", function(self)
+                    if ns._foreverHideComboFrame then self:Hide() end
+                end)
+            end
+            if ns._foreverHideComboFrame then
+                comboFrame:Hide()
+            elseif frames.target then
+                -- Blizzard's own offsets are cut for its target frame art, not
+                -- ours, so sit the row just above ours instead of inside it.
+                comboFrame:ClearAllPoints()
+                PP.Point(comboFrame, "BOTTOMRIGHT", frames.target, "TOPRIGHT", 0, 2)
+            end
+        end
     end
 
     local focusFrameSource = ns.GetUnitFrameSource("focus")
