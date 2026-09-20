@@ -4198,12 +4198,14 @@ local function UpdateBordersForScale(frame, unit)
         frame._barClip:ClearAllPoints()
         frame._barClip:SetPoint("TOPLEFT", frame, "TOPLEFT", clipL, -halfPixel)
         frame._barClip:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -clipR, halfPixel)
-        -- Re-anchor the health bar to the clip so coordinates stay consistent.
+        -- Preserve the health bar's logical top while the clip trims its edges.
+        -- Cancel the clip's Y inset after snapping; the bar keeps its full height,
+        -- so inheriting that inset would move centered text down half a pixel.
         local xOff = frame.Health._xOffset or 0
         local rInset = frame.Health._rightInset or 0
         local topOff = frame.Health._topOffset or 0
         frame.Health:ClearAllPoints()
-        frame.Health:SetPoint("TOPLEFT", frame._barClip, "TOPLEFT", xOff, PP.Scale(-topOff))
+        frame.Health:SetPoint("TOPLEFT", frame._barClip, "TOPLEFT", xOff, PP.Scale(-topOff) + halfPixel)
         frame.Health:SetPoint("RIGHT", frame._barClip, "RIGHT", -rInset, 0)
         PP.Height(frame.Health, settings.healthHeight)
     end
