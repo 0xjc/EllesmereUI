@@ -17,20 +17,35 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 -- bottom. A row exists while UnitAttackSpeed reports a speed for its slot
 -- (Main Hand always does); the frame shrinks to the rows shown. Each row is a
 -- StatusBar in a clip frame with bg, PP border, spark and two FontStrings
--- (remaining time, slot tag). Fill runs on a 20 Hz anim ticker only while a
--- row is live; the eased SetValue carries it between fires (GCD bar recipe).
+-- (remaining time, slot tag).
 --
--- Everything is gated on C_SwingTimer: on retail this file returns right below
--- and nothing below exists. Off by default = no frame, no events, no ticker.
+-- Cost on: PLAYER_SWING re-sets the row's C_DurationUtil duration object and
+-- arms the bar timer (SetTimerDuration), so the engine animates the fill with
+-- no Lua per frame, the way the QoL swing timer ran. A 20 Hz anim ticker runs
+-- only while a swing is in flight and does the two things the engine timer
+-- cannot: the remaining-time text (no engine formatter is proven to render the
+-- bar's %.1f) and the end edge (idle fill, Hide When Idle). Range and the
+-- queued attack are event-driven (PLAYER_SWING_RANGE_UPDATE,
+-- ACTIONBAR_UPDATE_STATE). An idle row costs nothing: its timer holds a
+-- finished duration, which paints a static state.
+--
+-- Everything is gated on the swing API and the engine timer it feeds: on retail
+-- this file returns right below and nothing below exists. Off by default = no
+-- frame children, no events, no ticker.
 
 local _, ns = ...
 local EllesmereUI = _G.EllesmereUI
 
-local C_SwingTimer = _G.C_SwingTimer
-if not C_SwingTimer then return end
--- Enum.PlayerSwingType per Blizzard's SwingTimerDocumentation.lua (0/1/2); the
--- literal fallback covers a capture where the enum table is not yet exported.
-local SWING = (Enum and Enum.PlayerSwingType) or { MainHand = 0, OffHand = 1, Ranged = 2 }
+-- The swing API, its enum (SwingTimerDocumentation.lua: 0/1/2) and the bar
+-- timer plumbing all come from the Forever client; no fallbacks for any of them.
+if not (C_SwingTimer and Enum.PlayerSwingType and C_DurationUtil
+    and C_DurationUtil.CreateDuration and Enum.StatusBarTimerDirection
+    and Enum.StatusBarInterpolation) then return end
+local SWING = Enum.PlayerSwingType
+local DIR = Enum.StatusBarTimerDirection
+-- A re-arm snaps to the timer's current value: a restart mid-swing must not
+-- ease back from the old fill.
+local IMMEDIATE = Enum.StatusBarInterpolation.Immediate
 
 local UNLOCK_KEY = "ERB_SwingTimer"
 local MO_KEY     = "swing"   -- ERB._moEligible slot for the shared mouseover poll
@@ -154,6 +169,9 @@ local function BuildRow(def)
     bar:SetMinMaxValues(0, 1)
     bar:SetValue(0)
     row._bar = bar
+    -- One duration object per row, re-set per swing and handed to the bar
+    -- timer (the QoL timer's shape); never read back in Lua.
+    row._durObj = C_DurationUtil.CreateDuration()
 
     -- Spark (same texture/approach as the cast and GCD bars)
     local sparkFrame = CreateFrame("Frame", nil, clip)
@@ -240,35 +258,49 @@ local function UpdateRangeAll()
 end
 
 -- Idle render: empty (background) by default, full of the fill colour with
--- idleShowFill. Time reads 0.0 like Blizzard's bar.
+-- idleShowFill. Time reads 0.0 like Blizzard's bar. This is also the disarm:
+-- the bar timer is re-armed on a finished duration, whose terminal state is
+-- static (RemainingTime paints empty, ElapsedTime full: the GCD bar's idle
+-- recipe), so the engine has nothing left to animate. The SetValue keeps the
+-- value channel coherent with what is drawn.
 local function IdleRow(row, cfg)
     if row._live then
         row._live = nil
         S.live = S.live - 1
     end
-    row._start, row._dur, row._end = nil, nil, nil
-    row._bar:SetValue((cfg and cfg.idleShowFill == true) and 1 or 0)
+    row._end = nil
+    local full = cfg and cfg.idleShowFill == true
+    local obj = row._durObj
+    obj:SetTimeFromStart(GetTime() - 1, 1)
+    row._bar:SetTimerDuration(obj, IMMEDIATE, full and DIR.ElapsedTime or DIR.RemainingTime)
+    row._bar:SetValue(full and 1 or 0)
     row._time:SetText("0.0")
 end
 
+-- The fill is the engine's: the row's duration object takes this swing and the
+-- bar timer animates it every frame with no Lua, draining (Deplete Fill) or
+-- filling exactly as the direction says. The end time stays in Lua only for
+-- the ticker's end edge; the duration object is never read.
 local function StartRow(row, dur, cfg)
     if type(dur) ~= "number" or dur ~= dur or dur <= 0 or dur == math.huge then return end
     local now = GetTime()
-    row._start, row._dur, row._end = now, dur, now + dur
+    row._end = now + dur
     if not row._live then
         row._live = true
         S.live = S.live + 1
     end
-    -- Snap to the start state (no ease): a restart mid-swing must not slide
-    -- back from the old fill.
-    row._bar:SetValue(cfg.depleteFill and 1 or 0)
+    local obj = row._durObj
+    obj:SetTimeFromStart(now, dur)
+    row._bar:SetTimerDuration(obj, IMMEDIATE, cfg.depleteFill and DIR.RemainingTime or DIR.ElapsedTime)
     row._time:SetFormattedText("%.1f", dur)
     ns.STTick.Start()
     if cfg.hideWhenIdle and S.live == 1 and ns.ST_UpdateVisibility then ns.ST_UpdateVisibility() end
 end
 
--- 20 Hz while any row is live; the eased SetValue carries the fill between
--- fires. Self-stops on the last row going idle.
+-- 20 Hz while any row is live, for what the engine timer cannot do: the
+-- remaining-time text and the end edge (idle render, Hide When Idle). No
+-- SetValue here, the fill is the engine's. Self-stops on the last row going
+-- idle.
 ns.STTick = EllesmereUI.Tick.NewAnimTicker(tickFrame, function()
     local cfg = P()
     if not (cfg and cfg.enabled and S.built) then return false end
@@ -281,8 +313,6 @@ ns.STTick = EllesmereUI.Tick.NewAnimTicker(tickFrame, function()
             if rem <= 0 then
                 IdleRow(row, cfg)
             else
-                local frac = (row._dur - rem) / row._dur
-                row._bar:SetValue(cfg.depleteFill and (1 - frac) or frac, ns.EASE)
                 if cfg.showTime ~= false then row._time:SetFormattedText("%.1f", rem) end
                 any = true
             end
@@ -586,8 +616,9 @@ local function EnsureBuilt()
     end
 end
 
--- Off: drop events, range checks and the ticker; the frame stays shown at
--- alpha 0 so anchored neighbours keep a valid rect (SetElementVisibility rule).
+-- Off: drop events, range checks and the ticker, and idle every live row (its
+-- bar timer is parked on a finished duration); the frame stays shown at alpha 0
+-- so anchored neighbours keep a valid rect (SetElementVisibility rule).
 local function Teardown()
     if not S.built then return end
     UnregisterEvents()
