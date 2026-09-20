@@ -36,12 +36,20 @@ local UNLOCK_KEY = "ERB_SwingTimer"
 local MO_KEY     = "swing"   -- ERB._moEligible slot for the shared mouseover poll
 
 -- Display order, top to bottom. `key` is the colour-key prefix in the store
--- (mhR/mhG/... ohR/... rR/...).
+-- (mhR/mhG/... ohR/... rR/...), `show` the per-row toggle key, `melee` the rows
+-- a queued on-next-swing attack lands on.
 local ROWS = {
-    { type = SWING.MainHand, key = "mh", tag = "MH" },
-    { type = SWING.OffHand,  key = "oh", tag = "OH" },
-    { type = SWING.Ranged,   key = "r",  tag = "R"  },
+    { type = SWING.MainHand, key = "mh", tag = "MH", show = "showMH", melee = true },
+    { type = SWING.OffHand,  key = "oh", tag = "OH", show = "showOH", melee = true },
+    { type = SWING.Ranged,   key = "r",  tag = "R",  show = "showR" },
 }
+
+-- On-next-swing attacks (base spell IDs; ranks resolve to the same name):
+-- Heroic Strike, Cleave, Maul. While one is queued the melee rows take the
+-- queue colour and carry the spell name, so the swing that will consume it is
+-- visible. Names resolve once per session (ACTIONBAR_UPDATE_STATE storms in
+-- combat; the paint is a name compare and touches the rows only on a change).
+local QUEUE_SPELLS = { 78, 845, 6807 }
 
 -- Shell + ticker host at FILE SCOPE (attribution rule, see _erbEventFrame in the
 -- main file): the OnEvent and OnLoop work bills ResourceBars. Children stay lazy.
@@ -51,8 +59,10 @@ local tickFrame = CreateFrame("Frame")
 
 -- built, rows[i] (row frames in ROWS order), byType[swingType] = row, shown (row
 -- count on screen), live (rows mid-swing), rangeOn[swingType] = bool, sample
--- (unlock mode preview on), moHooked, unlockHooked, lastH (frame height last laid out)
-local S = { rows = {}, byType = {}, shown = 0, live = 0, rangeOn = {} }
+-- (unlock mode preview on), moHooked, unlockHooked, lastH (frame height last laid
+-- out), queueNames (resolved on-next-swing spell names), queued (name painted,
+-- false = none)
+local S = { rows = {}, byType = {}, shown = 0, live = 0, rangeOn = {}, queueNames = {}, queued = false }
 
 -------------------------------------------------------------------------------
 --  Settings access
@@ -75,12 +85,18 @@ local function CanSwing(swingType)
     return false
 end
 
+-- A row is shown while its slot can swing and its toggle is on.
+local function RowWanted(def, cfg)
+    return CanSwing(def.type) and (not cfg or cfg[def.show] ~= false)
+end
+
 -- Rows the frame would show right now (from the live rows once built, from the
 -- weapon slots before). Feeds the unlock mover's size before the first build.
 local function ShownCount()
     if S.built then return math.max(S.shown, 1) end
+    local cfg = P()
     local n = 0
-    for i = 1, #ROWS do if CanSwing(ROWS[i].type) then n = n + 1 end end
+    for i = 1, #ROWS do if RowWanted(ROWS[i], cfg) then n = n + 1 end end
     return math.max(n, 1)
 end
 
@@ -272,6 +288,63 @@ end, 0.05)
 --  Layout + look
 -------------------------------------------------------------------------------
 
+-- Fill colour: the row's own (or class) colour, or the queue colour on a melee
+-- row while an on-next-swing attack is queued.
+local function ApplyRowFill(row, cfg)
+    local fillTex = row._bar:GetStatusBarTexture()
+    local queued = S.queued and row._def.melee
+    local fR, fG, fB, fA
+    if queued then
+        fR, fG, fB, fA = cfg.queueR or 1, cfg.queueG or 0.70, cfg.queueB or 0.20, cfg.queueA or 1
+    else
+        fR, fG, fB, fA = RowColor(cfg, row._def)
+    end
+    if cfg.gradientEnabled and not queued then
+        ns.ApplyBarGradient(fillTex, cfg.gradientDir or "HORIZONTAL", fR, fG, fB, fA,
+            cfg.gradientR, cfg.gradientG, cfg.gradientB, cfg.gradientA)
+    else
+        ns.ApplyBarFlat(fillTex, fR, fG, fB, fA)
+    end
+end
+
+-- Slot tag, with the queued attack's name on the melee rows while one is queued.
+local function ApplyRowTag(row, cfg)
+    local def = row._def
+    if S.queued and def.melee then
+        row._tag:SetText(def.tag .. " - " .. S.queued)
+    else
+        row._tag:SetText(def.tag)
+    end
+end
+
+-- Which on-next-swing attack is queued right now, or false. Reads only the
+-- names resolved at build; a restricted answer counts as not queued.
+local function QueuedName()
+    local names = S.queueNames
+    if #names == 0 or not (C_Spell and C_Spell.IsCurrentSpell) then return false end
+    for i = 1, #names do
+        local cur = C_Spell.IsCurrentSpell(names[i])
+        if cur and not (issecretvalue and issecretvalue(cur)) then return names[i] end
+    end
+    return false
+end
+
+-- Delta paint: touches the melee rows only when the queued name changed.
+local function PaintQueue(cfg)
+    cfg = cfg or P()
+    if not (cfg and S.built) then return end
+    local queued = cfg.queueHighlight ~= false and QueuedName() or false
+    if queued == S.queued then return end
+    S.queued = queued
+    for i = 1, #S.rows do
+        local row = S.rows[i]
+        if row._def.melee then
+            ApplyRowFill(row, cfg)
+            ApplyRowTag(row, cfg)
+        end
+    end
+end
+
 -- Stack the applicable rows and size the frame to them. Returns true when the
 -- frame height changed (anchored neighbours need a nudge).
 local function Layout(cfg)
@@ -329,14 +402,7 @@ local function ApplyRowLook(row, cfg, w, h)
     row._bg:SetTexture(nil)
     row._bg:SetColorTexture(cfg.bgR or 0, cfg.bgG or 0, cfg.bgB or 0, cfg.bgA or 0.7)
 
-    local fillTex = bar:GetStatusBarTexture()
-    local fR, fG, fB, fA = RowColor(cfg, row._def)
-    if cfg.gradientEnabled then
-        ns.ApplyBarGradient(fillTex, cfg.gradientDir or "HORIZONTAL", fR, fG, fB, fA,
-            cfg.gradientR, cfg.gradientG, cfg.gradientB, cfg.gradientA)
-    else
-        ns.ApplyBarFlat(fillTex, fR, fG, fB, fA)
-    end
+    ApplyRowFill(row, cfg)
 
     local spark = row._spark
     if cfg.showSpark then
@@ -351,6 +417,7 @@ local function ApplyRowLook(row, cfg, w, h)
     local size = cfg.textSize or 11
     ns.SetRBFont(row._tag, ns.GetRBFont(), size)
     ns.SetRBFont(row._time, ns.GetRBFont(), size)
+    ApplyRowTag(row, cfg)
     if cfg.showLabel ~= false then row._tag:Show() else row._tag:Hide() end
     if cfg.showTime ~= false then row._time:Show() else row._time:Hide() end
     ApplyRangeLook(row, cfg)
@@ -369,7 +436,7 @@ local function RefreshRows(cfg)
     local wantRange = cfg.enabled and cfg.rangeCheck ~= false
     for i = 1, #S.rows do
         local row = S.rows[i]
-        local can = CanSwing(row._def.type)
+        local can = RowWanted(row._def, cfg)
         if can then
             row:Show()
         else
@@ -418,6 +485,13 @@ shell:SetScript("OnEvent", function(self, event, a1, a2, a3)
         -- a1 = swingDuration, a2 = swingType
         local row = S.byType[a2]
         if row and row:IsShown() then StartRow(row, a1, cfg) end
+        PaintQueue(cfg)
+    elseif event == "ACTIONBAR_UPDATE_STATE" then
+        PaintQueue(cfg)
+    elseif event == "PLAYER_DEAD" then
+        for i = 1, #S.rows do
+            if S.rows[i]._live then IdleRow(S.rows[i], cfg) end
+        end
     elseif event == "PLAYER_SWING_RANGE_UPDATE" then
         -- a1 = swingType, a2 = isInRange, a3 = checksRange
         local row = S.byType[a1]
@@ -438,7 +512,19 @@ local function RegisterEvents()
     shell:RegisterEvent("PLAYER_TARGET_CHANGED")
     shell:RegisterEvent("WEAPON_SLOT_CHANGED")
     shell:RegisterEvent("PLAYER_ENTERING_WORLD")
+    shell:RegisterEvent("PLAYER_DEAD")
     shell:RegisterUnitEvent("UNIT_ATTACK_SPEED", "player")
+end
+
+-- The queue paint's event is registered only while the highlight is on (it is
+-- the one chatty event here).
+local function ApplyQueueEvents(cfg)
+    if not S.events then return end
+    if cfg.queueHighlight ~= false and #S.queueNames > 0 then
+        shell:RegisterEvent("ACTIONBAR_UPDATE_STATE")
+    else
+        shell:UnregisterEvent("ACTIONBAR_UPDATE_STATE")
+    end
 end
 
 local function UnregisterEvents()
@@ -459,6 +545,15 @@ local function EnsureBuilt()
         local row = BuildRow(ROWS[i])
         S.rows[i] = row
         S.byType[ROWS[i].type] = row
+    end
+    -- On-next-swing spell names, once per session.
+    if C_Spell and C_Spell.GetSpellName then
+        for i = 1, #QUEUE_SPELLS do
+            local name = C_Spell.GetSpellName(QUEUE_SPELLS[i])
+            if name and not (issecretvalue and issecretvalue(name)) then
+                S.queueNames[#S.queueNames + 1] = name
+            end
+        end
     end
     -- Mouseover hover-reveal: same plain-table proxy the class/power/health bars
     -- register, gated on the eligibility flag ST_UpdateVisibility maintains.
@@ -525,12 +620,16 @@ function ns.ST_Apply()
     shell:SetFrameStrata(cfg.frameStrata or "MEDIUM")
     shell:Show()
     RegisterEvents()
+    ApplyQueueEvents(cfg)
+    -- Highlight turned off with an attack queued: the paint below must clear it.
+    if cfg.queueHighlight == false then S.queued = false end
     -- Size and stack the rows BEFORE styling them: the textured border is a
     -- BackdropTemplate nine-slice keyed on first setup, and set up on a 0x0
     -- row it never paints (cast/GCD bars size first for the same reason).
     RefreshRows(cfg)
     ApplyPosition(cfg)
     ApplyLook(cfg)
+    PaintQueue(cfg)
     if S.sample then
         for i = 1, #S.rows do
             S.rows[i]._bar:SetValue(0.6)

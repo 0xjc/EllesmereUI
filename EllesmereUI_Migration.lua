@@ -136,6 +136,42 @@ local function RunMigration(spec)
     end
 end
 
+-- The WoW Forever swing timer moved from Quality of Life (a plain frame) to
+-- Resource Bars (a bar with the full resource-bar feature set). Carry the QoL
+-- settings over once; the QoL table is left in place (harmless, and a
+-- downgrade finds it untouched). Only runs where the QoL timer was ever
+-- enabled: an untouched QoL table means nothing to carry.
+EllesmereUI.RegisterMigration({
+    id          = "swing_timer_to_resource_bars_v1",
+    scope       = "profile",
+    description = "Carry the Quality of Life swing timer settings over to the Resource Bars swing timer",
+    body        = function(ctx)
+        local addons = ctx.profile.addons
+        local qol = addons and addons.EllesmereUIQoL
+        local src = qol and qol.swingTimer
+        if type(src) ~= "table" or src.enabled ~= true then return end
+        local rb = addons.EllesmereUIResourceBars
+        if type(rb) ~= "table" then rb = {}; addons.EllesmereUIResourceBars = rb end
+        local dst = rb.swingTimer
+        if type(dst) ~= "table" then dst = {}; rb.swingTimer = dst end
+        if dst.enabled == true then return end   -- the bar was set up on its own: keep it
+        dst.enabled = true
+        if type(src.width) == "number" then dst.width = src.width end
+        if type(src.height) == "number" then dst.height = src.height end
+        if type(src.gap) == "number" then dst.rowSpacing = src.gap end
+        if type(src.fontSize) == "number" then dst.textSize = src.fontSize end
+        if type(src.texture) == "string" then dst.texture = src.texture end
+        if type(src.x) == "number" then dst.anchorX = src.x end
+        if type(src.y) == "number" then dst.anchorY = src.y end
+        dst.showMH = src.mainHand ~= false
+        dst.showOH = src.offHand ~= false
+        dst.showR = src.ranged ~= false
+        dst.queueHighlight = src.queueColor ~= false
+        -- "Only Show In Combat" is the shared checklist's In Combat mode.
+        if src.combatOnly ~= false then dst.visibility = "in_combat" end
+    end,
+})
+
 -- Public: run all migrations. Called once from the parent ADDON_LOADED handler.
 function EllesmereUI.RunRegisteredMigrations()
     if not EllesmereUIDB then EllesmereUIDB = {} end

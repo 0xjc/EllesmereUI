@@ -1390,9 +1390,14 @@ local DEFAULTS = {
             hideWhenIdle  = false,  -- hide the whole bar while no swing is running
             showTime      = true,   -- remaining seconds on each row
             showLabel     = true,   -- MH / OH / R tag on each row
+            showMH        = true,   -- per-row toggles (a row also needs a weapon in the slot)
+            showOH        = true,
+            showR         = true,
             textSize      = 11,
             rangeCheck    = true,   -- dim rows whose target is out of auto-attack range
             outOfRangeAlpha = 0.4,
+            queueHighlight = true,  -- melee rows take the queue colour + spell name while an on-next-swing attack is queued
+            queueR = 1, queueG = 0.70, queueB = 0.20, queueA = 1,
             borderSize    = 1,
             borderR       = 0, borderG = 0, borderB = 0, borderA = 1,
             borderTexture = "solid",

@@ -10703,6 +10703,49 @@ initFrame:SetScript("OnEvent", function(self)
               setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.showLabel = v; RefreshST() end }
         );  y = y - h
 
+        -- Row: Main Hand | Off Hand | Ranged (per-row toggles; a row also needs a weapon in the slot)
+        local function RowToggle(label, key, tip)
+            return { type = "toggle", text = label, tooltip = tip,
+              disabled = stOff, disabledTooltip = ST_TIP,
+              getValue = function() local p = DB(); return p and p.swingTimer[key] ~= false end,
+              setValue = function(v) local p = DB(); if not p then return end; p.swingTimer[key] = v; RefreshST() end }
+        end
+        _, h = W:TripleRow(parent, y,
+            RowToggle("Main Hand", "showMH", "Show the Main Hand row."),
+            RowToggle("Off Hand", "showOH", "Show the Off Hand row while an off-hand weapon is equipped."),
+            RowToggle("Ranged", "showR", "Show the Ranged row while a ranged weapon is equipped.")
+        );  y = y - h
+
+        -- Row: Highlight Queued Attacks (+ inline queue colour swatch) | (empty; last row)
+        local queueRow
+        queueRow, h = W:DualRow(parent, y,
+            { type = "toggle", text = "Highlight Queued Attacks",
+              tooltip = "While an on-next-swing attack is queued (Heroic Strike, Cleave, Maul), the Main Hand and Off Hand rows take the queue color and show the attack's name.",
+              disabled = stOff, disabledTooltip = ST_TIP,
+              getValue = function() local p = DB(); return p and p.swingTimer.queueHighlight ~= false end,
+              setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.queueHighlight = v; RefreshST(); EllesmereUI:RefreshPage() end },
+            { type = "label", text = "" }
+        );  y = y - h
+        if not EllesmereUI._prebuilding then
+            local rgn = queueRow._leftRegion
+            local ctrl = rgn._control
+            local qSwatch, qUpdateSwatch = EllesmereUI.BuildColorSwatch(
+                rgn, queueRow:GetFrameLevel() + 3,
+                function() local p = DB(); return (p and p.swingTimer.queueR or 1), (p and p.swingTimer.queueG or 0.70), (p and p.swingTimer.queueB or 0.20), (p and p.swingTimer.queueA or 1) end,
+                function(r, g, b, a) local p = DB(); if not p then return end; p.swingTimer.queueR, p.swingTimer.queueG, p.swingTimer.queueB, p.swingTimer.queueA = r, g, b, a; RefreshST() end,
+                true, 20)
+            PP.Point(qSwatch, "RIGHT", ctrl, "LEFT", -8, 0)
+            local function UpdateQueueSwatch()
+                local p = DB()
+                if not p or not p.swingTimer.enabled then qSwatch:SetAlpha(0.15); qSwatch:Disable(); qSwatch._disabledTooltip = ST_TIP
+                elseif p.swingTimer.queueHighlight == false then qSwatch:SetAlpha(0.15); qSwatch:Disable(); qSwatch._disabledTooltip = "Highlight Queued Attacks"
+                else qSwatch:SetAlpha(1); qSwatch:Enable(); qSwatch._disabledTooltip = nil end
+                qUpdateSwatch()
+            end
+            UpdateQueueSwatch()
+            EllesmereUI.RegisterWidgetRefresh(UpdateQueueSwatch)
+        end
+
         return math.abs(y)
     end
 
