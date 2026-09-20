@@ -10703,31 +10703,31 @@ initFrame:SetScript("OnEvent", function(self)
               setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.showLabel = v; RefreshST() end }
         );  y = y - h
 
-        -- Row: Main Hand | Off Hand | Ranged (per-row toggles; a row also needs a weapon in the slot)
+        -- Per-row toggles (a row also needs a weapon in the slot).
         local function RowToggle(label, key, tip)
             return { type = "toggle", text = label, tooltip = tip,
               disabled = stOff, disabledTooltip = ST_TIP,
               getValue = function() local p = DB(); return p and p.swingTimer[key] ~= false end,
               setValue = function(v) local p = DB(); if not p then return end; p.swingTimer[key] = v; RefreshST() end }
         end
-        _, h = W:TripleRow(parent, y,
+        -- Row: Main Hand | Off Hand
+        _, h = W:DualRow(parent, y,
             RowToggle("Main Hand", "showMH", "Show the Main Hand row."),
-            RowToggle("Off Hand", "showOH", "Show the Off Hand row while an off-hand weapon is equipped."),
-            RowToggle("Ranged", "showR", "Show the Ranged row while a ranged weapon is equipped.")
+            RowToggle("Off Hand", "showOH", "Show the Off Hand row while an off-hand weapon is equipped.")
         );  y = y - h
 
-        -- Row: Highlight Queued Attacks (+ inline queue colour swatch) | (empty; last row)
+        -- Row: Ranged | Highlight Queued Attacks (+ inline queue colour swatch)
         local queueRow
         queueRow, h = W:DualRow(parent, y,
+            RowToggle("Ranged", "showR", "Show the Ranged row while a ranged weapon is equipped."),
             { type = "toggle", text = "Highlight Queued Attacks",
               tooltip = "While an on-next-swing attack is queued (Heroic Strike, Cleave, Maul), the Main Hand and Off Hand rows take the queue color and show the attack's name.",
               disabled = stOff, disabledTooltip = ST_TIP,
               getValue = function() local p = DB(); return p and p.swingTimer.queueHighlight ~= false end,
-              setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.queueHighlight = v; RefreshST(); EllesmereUI:RefreshPage() end },
-            { type = "label", text = "" }
+              setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.queueHighlight = v; RefreshST(); EllesmereUI:RefreshPage() end }
         );  y = y - h
         if not EllesmereUI._prebuilding then
-            local rgn = queueRow._leftRegion
+            local rgn = queueRow._rightRegion
             local ctrl = rgn._control
             local qSwatch, qUpdateSwatch = EllesmereUI.BuildColorSwatch(
                 rgn, queueRow:GetFrameLevel() + 3,
