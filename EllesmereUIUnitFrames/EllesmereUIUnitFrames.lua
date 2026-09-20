@@ -2671,16 +2671,15 @@ TagFns.tgtcol = function(unit)
     local r, g, b = ns.ResolveUnitNameColor(tunit)
     if not r then
         -- Secret class token (identity-restricted target, e.g. a boss's own
-        -- target): C_ClassColor.GetClassColor and C_ColorUtil.GenerateTextColorCode
-        -- (behind GenerateHexColor) are both AllowedWhenTainted and return a PLAIN
-        -- hex string, so the class colour declassifies here where r/g/b never could.
+        -- target): GenerateHexColor's result may itself be secret, but still
+        -- renders correctly through SetFormattedText's arg lane -- don't reject it.
         if UnitIsPlayer(tunit) and C_ClassColor and C_ClassColor.GetClassColor then
             local _, class = UnitClass(tunit)
             if issecretvalue(class) then
                 local cc = C_ClassColor.GetClassColor(class)
                 if cc and cc.GenerateHexColor then
                     local ok, hex = pcall(cc.GenerateHexColor, cc)
-                    if ok and type(hex) == "string" and not issecretvalue(hex) then
+                    if ok and type(hex) == "string" then
                         return "|c" .. hex
                     end
                 end
@@ -4273,12 +4272,14 @@ local function UpdateBordersForScale(frame, unit)
         frame._barClip:ClearAllPoints()
         frame._barClip:SetPoint("TOPLEFT", frame, "TOPLEFT", clipL, -halfPixel)
         frame._barClip:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -clipR, halfPixel)
-        -- Re-anchor the health bar to the clip so coordinates stay consistent.
+        -- Preserve the health bar's logical top while the clip trims its edges.
+        -- Cancel the clip's Y inset after snapping; the bar keeps its full height,
+        -- so inheriting that inset would move centered text down half a pixel.
         local xOff = frame.Health._xOffset or 0
         local rInset = frame.Health._rightInset or 0
         local topOff = frame.Health._topOffset or 0
         frame.Health:ClearAllPoints()
-        frame.Health:SetPoint("TOPLEFT", frame._barClip, "TOPLEFT", xOff, PP.Scale(-topOff))
+        frame.Health:SetPoint("TOPLEFT", frame._barClip, "TOPLEFT", xOff, PP.Scale(-topOff) + halfPixel)
         frame.Health:SetPoint("RIGHT", frame._barClip, "RIGHT", -rInset, 0)
         PP.Height(frame.Health, settings.healthHeight)
     end
