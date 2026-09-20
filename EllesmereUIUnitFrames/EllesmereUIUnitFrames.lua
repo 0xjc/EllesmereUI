@@ -8688,10 +8688,42 @@ local CLASS_POWER_TYPES = {
                     [71]  = { "SWEEPING_STRIKES", 18 } },  -- 12.1 cap: 12 + 6 Broad Strokes
 }
 
+-- Vanilla content has no specializations, so every spec-keyed entry above fails to
+-- resolve on Forever, and the flat ones name resources that client does not have --
+-- a paladin there would draw five Holy Power pips that can never fill. This is the
+-- whole set that exists on Forever; a class missing from it has no class resource.
+local FOREVER_CLASS_POWER = {
+    ROGUE = Enum.PowerType.ComboPoints,
+    DRUID = Enum.PowerType.ComboPoints,
+}
+
+local function ClassPowerEntry(playerClass)
+    if EUI_CLIENT_FOREVER == true then return FOREVER_CLASS_POWER[playerClass] end
+    return CLASS_POWER_TYPES[playerClass]
+end
+
+-- Combo points exist only in cat form for Guardian and Resto on retail, and for
+-- every druid on Forever, where there are no specs to tell them apart.
+local function DruidNeedsCatForm(playerClass, powerType)
+    if playerClass ~= "DRUID" or powerType ~= Enum.PowerType.ComboPoints then
+        return false
+    end
+    if EUI_CLIENT_FOREVER == true then return true end
+    local spec = C_SpecializationInfo and C_SpecializationInfo.GetSpecialization()
+    local specID = spec and C_SpecializationInfo.GetSpecializationInfo(spec)
+    return specID == 104 or specID == 105
+end
+
+-- Blizzard defines DRUID_CAT_FORM on every flavour; the literal is the fallback.
+local function InCatForm()
+    local form = GetShapeshiftFormID and GetShapeshiftFormID() or 0
+    return form == (DRUID_CAT_FORM or 1)
+end
+
 -- Returns true if the player's current spec has a class resource in CLASS_POWER_TYPES
 SpecHasClassPower = function()
     local _, playerClass = UnitClass("player")
-    local entry = CLASS_POWER_TYPES[playerClass]
+    local entry = ClassPowerEntry(playerClass)
     if not entry then return false end
     if type(entry) ~= "table" then return true end
     if entry[1] ~= nil then return true end
@@ -8753,7 +8785,7 @@ end
 
 local function CreateCustomClassPower(playerFrame, style)
     local _, playerClass = UnitClass("player")
-    local entry = CLASS_POWER_TYPES[playerClass]
+    local entry = ClassPowerEntry(playerClass)
     if not entry then return nil end
 
     -- Resolve spec-specific entries (table with specID keys)
@@ -9034,7 +9066,17 @@ local function CreateCustomClassPower(playerFrame, style)
             end
             if not max or max <= 0 then max = maxPower end
         else
-            cur = UnitPower("player", powerType) or 0
+            -- Forever combo points belong to the target, and UnitPower still
+            -- reports the previous target's count at the moment
+            -- PLAYER_TARGET_CHANGED fires (measured on 1.60.1: up=3 while
+            -- gcp=0 on the swap), with no later event to correct it. Blizzard's
+            -- own classic ComboFrame reads GetComboPoints for the same reason.
+            if EUI_CLIENT_FOREVER == true and powerType == Enum.PowerType.ComboPoints
+               and GetComboPoints then
+                cur = GetComboPoints("player", "target") or 0
+            else
+                cur = UnitPower("player", powerType) or 0
+            end
             max = UnitPowerMax("player", powerType) or maxPower
 
             -- Handle runes specially (count available runes)
@@ -9075,7 +9117,11 @@ local function CreateCustomClassPower(playerFrame, style)
             end
         end
 
-        if isSecretResource then
+        -- The resource kind alone does not decide this: which values the client
+        -- classifies depends on the client, and combo points come back secret on
+        -- Forever. Classifying the value itself keeps the compare below legal
+        -- whatever the resource, at the cost of one test per update.
+        if isSecretResource or issecretvalue(cur) then
             -- Secret-value path: use StatusBar overlays per pip
             for i = 1, #pips do
                 if pips[i] then
@@ -9183,36 +9229,30 @@ local function CreateCustomClassPower(playerFrame, style)
         if powerType == Enum.PowerType.Runes then
             eventFrame:RegisterEvent("RUNE_POWER_UPDATE")
         end
-        -- Guardian/Resto druids: show combo points only in cat form
-        local druidFormToggle = false
-        if playerClass == "DRUID" and powerType == Enum.PowerType.ComboPoints then
-            local spec = C_SpecializationInfo and C_SpecializationInfo.GetSpecialization()
-            local specID = spec and C_SpecializationInfo.GetSpecializationInfo(spec)
-            if specID == 104 or specID == 105 then
-                druidFormToggle = true
-                eventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
-            end
+        local druidFormToggle = DruidNeedsCatForm(playerClass, powerType)
+        if druidFormToggle then
+            eventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
+        end
+        -- Combo points belong to the target on Forever, so swapping targets
+        -- changes the count with no power event behind it. Blizzard's own
+        -- ComboFrame refreshes on this event for the same reason.
+        if EUI_CLIENT_FOREVER == true and powerType == Enum.PowerType.ComboPoints then
+            eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
         end
         eventFrame:SetScript("OnEvent", function(_, event, unit)
             if druidFormToggle and (event == "UPDATE_SHAPESHIFT_FORM" or event == "PLAYER_ENTERING_WORLD") then
-                local form = GetShapeshiftFormID and GetShapeshiftFormID() or 0
-                container:SetShown(form == 1)
+                container:SetShown(InCatForm())
             end
             if event == "PLAYER_ENTERING_WORLD" or event == "RUNE_POWER_UPDATE"
-               or (unit == "player") then
+               or event == "PLAYER_TARGET_CHANGED" or (unit == "player") then
                 UpdatePips()
             end
         end)
     end
 
-    -- For druid form-toggle specs, start hidden if not in cat form
-    if playerClass == "DRUID" and powerType == Enum.PowerType.ComboPoints then
-        local spec = C_SpecializationInfo and C_SpecializationInfo.GetSpecialization()
-        local specID = spec and C_SpecializationInfo.GetSpecializationInfo(spec)
-        if specID == 104 or specID == 105 then
-            local form = GetShapeshiftFormID and GetShapeshiftFormID() or 0
-            if form ~= 1 then container:Hide() end
-        end
+    -- Form-toggled druids start hidden unless already in cat form
+    if DruidNeedsCatForm(playerClass, powerType) and not InCatForm() then
+        container:Hide()
     end
 
     UpdatePips()
@@ -12429,6 +12469,32 @@ function InitializeFrames()
     end
 
     local classPowerStyle = db.profile.player.classPowerStyle or "none"
+    if EUI_CLIENT_FOREVER == true then
+        local pp = db.profile.player
+        -- The Blizzard style has nothing to adopt here (see the ComboFrame note
+        -- below), so a stored "blizzard" draws nothing at all, and the options
+        -- page greys the entry out -- migrate the ones already saved.
+        if classPowerStyle == "blizzard" then classPowerStyle = "modern" end
+        -- Profiles made before Blizzard's combo points were suppressed carry the
+        -- suite default of "none", which nobody chose. Defaults are copied into
+        -- the profile rather than inherited, so an untouched key cannot be told
+        -- from a deliberate one: move them across once and stamp it, so a "none"
+        -- picked after this sticks.
+        if classPowerStyle == "none" and not pp._foreverClassPowerMigrated then
+            classPowerStyle = "modern"
+            -- Geometry too, and for the same reason: the suite defaults put a
+            -- 3px row outside the frame, which reads as broken rather than as a
+            -- choice. Keep these in step with EllesmereUI_ForeverLayout.lua,
+            -- which seeds the same baseline on a fresh install.
+            pp.classPowerPosition = "above"
+            pp.classPowerSize = 16
+        end
+        pp.classPowerStyle = classPowerStyle
+        -- Kept in step the way _toggleClassPower and the options setter do it;
+        -- unlock mode registers the class power element from this key.
+        pp.showClassPowerBar = (classPowerStyle ~= "none")
+        pp._foreverClassPowerMigrated = true
+    end
     -- Per-unit frame source, resolved once for this build. When a unit is set to
     -- "blizzard" (leave Blizzard's default frame) or "hidden", the EllesmereUI frame is
     -- not spawned at all -- the ONLY way to keep Blizzard's own frame alive, since
@@ -13129,6 +13195,34 @@ function InitializeFrames()
         SetupUnitMenu(frames.target, "target")
     elseif targetFrameSource == "hidden" then
         ns.Engine.HideBlizzardUnitFrame("target")
+    end
+
+    -- Forever combo points belong to the target, and Blizzard draws them with the
+    -- classic ComboFrame: parented to UIParent but only anchored to TargetFrame,
+    -- so replacing that frame strands the art at a dead anchor instead of hiding
+    -- it. No BLIZZARD_CP_FRAMES global exists here, so the takeover above never
+    -- reaches it either. Our pips replace it while the class resource is on; with
+    -- it off ComboFrame stays the display, re-anchored onto our target frame.
+    if EUI_CLIENT_FOREVER == true then
+        local comboFrame = _G.ComboFrame
+        if comboFrame then
+            ns._foreverHideComboFrame = (classPowerStyle ~= "none")
+            -- An OnShow hook cannot be removed, so the flag carries the decision.
+            if not ns._foreverComboHooked then
+                ns._foreverComboHooked = true
+                comboFrame:HookScript("OnShow", function(self)
+                    if ns._foreverHideComboFrame then self:Hide() end
+                end)
+            end
+            if ns._foreverHideComboFrame then
+                comboFrame:Hide()
+            elseif frames.target then
+                -- Blizzard's own offsets are cut for its target frame art, not
+                -- ours, so sit the row just above ours instead of inside it.
+                comboFrame:ClearAllPoints()
+                PP.Point(comboFrame, "BOTTOMRIGHT", frames.target, "TOPRIGHT", 0, 2)
+            end
+        end
     end
 
     local focusFrameSource = ns.GetUnitFrameSource("focus")
