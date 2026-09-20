@@ -252,7 +252,10 @@ local defaults = {
     classPowerPos = "bottom",
     classPowerYOffset = 1,
     classPowerXOffset = 0,
-    classPowerScale = 1.0,
+    -- The 8x3 base pip is reported as too small to read on Forever, where this is
+    -- the target-side display rather than a second one. The Size slider (0.5 to
+    -- 4.0) still overrides it.
+    classPowerScale = (EUI_CLIENT_FOREVER == true) and 1.8 or 1.0,
     classPowerClassColors = true,
     classPowerCustomColor = { r = 1.00, g = 0.84, b = 0.30 },
     classPowerBgColor = { r = 0.082, g = 0.082, b = 0.082, a = 1.0 },
