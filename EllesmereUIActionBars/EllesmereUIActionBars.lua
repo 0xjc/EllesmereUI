@@ -11837,6 +11837,15 @@ local function UpdateKeybinds()
                and (bs.disableFormPaging or bs.disableSkyridingPaging) then
                 barHasCustomPaging = true
             end
+            -- Forever has no snippet compiler, so the page driver is never
+            -- registered (ns.SNIPPETS_OK) and MainBar is frozen on page 1 while
+            -- the engine keeps paging: a warrior in Battle Stance resolves
+            -- ACTIONBUTTONn through MainActionBar's actionpage to slots 73-84,
+            -- the page our icons never show. Same show-one/fire-another split as
+            -- the opt-outs above, so take the same exit. Costs press-and-hold
+            -- repeat, and puts override/vehicle/possess out of keyboard reach --
+            -- they remap ACTIONBUTTONn, and OverrideController is gated too.
+            local frozenPage = info.key == "MainBar" and not ns.SNIPPETS_OK
             for i, btn in ipairs(btns) do
                 if btn then
                     local cmd = prefix .. i
@@ -11885,7 +11894,8 @@ local function UpdateKeybinds()
                     -- isFlyout IS part of it: flyouts need self to be the
                     -- visible button so SpellFlyout anchors somewhere the
                     -- player can actually see.
-                    local useClick = barHasCustomPaging or (info.customPage ~= nil) or isFlyout
+                    local useClick = barHasCustomPaging or (info.customPage ~= nil)
+                        or isFlyout or frozenPage
                     k1 = k1 or false
                     k2 = k2 or false
                     if sig[n + 1] ~= k1 or sig[n + 2] ~= k2
