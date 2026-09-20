@@ -381,6 +381,13 @@ local PRIMARY_CLASS_MAP = {
 }
 
 local function GetPrimaryPowerType()
+    -- WoW Forever: the class table below is retail's (hunters use mana
+    -- there, not Focus), so ask the client what the player uses. Covers
+    -- every class and druid forms with no second table to maintain.
+    if EllesmereUI.IS_FOREVER then
+        local live = UnitPowerType("player")
+        if type(live) == "number" then return live end
+    end
     local _, classFile = UnitClass("player")
     local spec = GetSpecialization()
     local form = GetShapeshiftFormID()
