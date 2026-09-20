@@ -652,7 +652,7 @@ EllesmereUI._LEGENDS = {
         "delasteve", "Toxik", "Lily", "Pelleas", "Kulia",
         "GamingGrammers", "Cartridgebros", "fizzle_crunk", "Tzahal",
         "Ani", "Venalis", "Lurn", "Natasi", "Khardi", "Quiim",
-        "Capa", "e_luvin", "ccpoppin1", "Arjax",
+        "Capa", "e_luvin", "ccpoppin1", "Arjax", "Dlarge",
     },
     staff = {
         { group = "Support Leads", members = {
