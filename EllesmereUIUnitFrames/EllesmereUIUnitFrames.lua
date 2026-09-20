@@ -9065,7 +9065,17 @@ local function CreateCustomClassPower(playerFrame, style)
             end
             if not max or max <= 0 then max = maxPower end
         else
-            cur = UnitPower("player", powerType) or 0
+            -- Forever combo points belong to the target, and UnitPower still
+            -- reports the previous target's count at the moment
+            -- PLAYER_TARGET_CHANGED fires (measured on 1.60.1: up=3 while
+            -- gcp=0 on the swap), with no later event to correct it. Blizzard's
+            -- own classic ComboFrame reads GetComboPoints for the same reason.
+            if EUI_CLIENT_FOREVER == true and powerType == Enum.PowerType.ComboPoints
+               and GetComboPoints then
+                cur = GetComboPoints("player", "target") or 0
+            else
+                cur = UnitPower("player", powerType) or 0
+            end
             max = UnitPowerMax("player", powerType) or maxPower
 
             -- Handle runes specially (count available runes)
