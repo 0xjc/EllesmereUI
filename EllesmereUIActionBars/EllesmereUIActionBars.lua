@@ -1837,9 +1837,14 @@ ns._DegradedLayoutApply = function(layoutData, barFrameData)
         local btn = refs["btn-" .. i]
         if btn then btn:SetParent(uiParent) end
     end
+    -- MainActionBar keeps its parent, the one stock bar that must. It is Edit Mode
+    -- system 0 index 1, and an insecure SetParent taints it, so InitSystemAnchors
+    -- is blocked on SetPointBase at every reload and every /editmode. The snippet
+    -- path reparents it securely; here HideBlizzardBars has already hidden it with
+    -- alpha plus an OnShow re-hide, which needs no reparent at all.
     for i = 1, (ns._degradedBlizzCount or 0) do
         local bar = refs["blizzbar-" .. i]
-        if bar then bar:SetParent(hidden) end
+        if bar and bar ~= MainActionBar then bar:SetParent(hidden) end
     end
     for slot, d in pairs(layoutData) do
         local btn = refs["btn-" .. slot]
