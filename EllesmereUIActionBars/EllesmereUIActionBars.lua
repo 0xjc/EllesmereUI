@@ -7465,7 +7465,9 @@ end
 --  Font / Keybind Text
 -------------------------------------------------------------------------------
 -- Button text anchoring (keybind / charges / macro name). Opt-in per bar via
--- <text>Anchor; nil = classic placement, handled by the caller. The text is
+-- <text>Anchor; nil = classic placement, handled by the caller, which only
+-- calls in here once an anchor is set. Returns false for an anchor it does not
+-- know (a hand-edited profile), so the caller falls back to classic. The text is
 -- stretched across the chosen edge (both corners anchored, same as the classic
 -- keybind placement) and JustifyH does the alignment, so it holds regardless
 -- of the font string's own width. Insets match the classic ones. Shared with
@@ -7515,14 +7517,17 @@ function EAB:ApplyFontsForBar(barKey)
     local ctColor = s.countFontColor or { r=1, g=1, b=1 }
     local kbOX = s.keybindOffsetX or 0
     local kbOY = s.keybindOffsetY or 0
+    local kbAnchor = s.keybindAnchor
     local ctOX = s.countOffsetX or 0
     local ctOY = s.countOffsetY or 0
+    local ctAnchor = s.countAnchor
     local hideMacro = s.hideMacroText
     local macroSize = s.macroFontSize or 12
     if info and (info.isStance or info.isPetBar) then macroSize = max(macroSize - 2, 6) end
     local macroColor = s.macroFontColor or { r=1, g=1, b=1 }
     local macroOX = s.macroOffsetX or 0
     local macroOY = s.macroOffsetY or 0
+    local macroAnchor = s.macroAnchor
     local RANGE_INDICATOR = RANGE_INDICATOR or "\226\128\162"
 
     for i = 1, #buttons do
@@ -7561,7 +7566,9 @@ function EAB:ApplyFontsForBar(barKey)
                 hk:Show()
                 EllesmereUI.ApplyIconTextFont(hk, fontPath, kbSize, "actionBars")
                 hk:SetTextColor(kbColor.r, kbColor.g, kbColor.b)
-                if not EAB.PlaceButtonText(hk, btn, s.keybindAnchor, kbOX, kbOY) then
+                -- Anchor unset (the default) = the classic placement below; the
+                -- nil test is the whole cost of the feature while it is off.
+                if not (kbAnchor and EAB.PlaceButtonText(hk, btn, kbAnchor, kbOX, kbOY)) then
                     hk:ClearAllPoints()
                     hk:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -1 + kbOX, -3 + kbOY)
                     hk:SetPoint("TOPLEFT", btn, "TOPLEFT", 4 + kbOX, -3 + kbOY)
@@ -7575,7 +7582,7 @@ function EAB:ApplyFontsForBar(barKey)
         if ct then
             EllesmereUI.ApplyIconTextFont(ct, fontPath, ctSize, "actionBars")
             ct:SetTextColor(ctColor.r, ctColor.g, ctColor.b)
-            if not EAB.PlaceButtonText(ct, btn, s.countAnchor, ctOX, ctOY) then
+            if not (ctAnchor and EAB.PlaceButtonText(ct, btn, ctAnchor, ctOX, ctOY)) then
                 ct:ClearAllPoints()
                 ct:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1 + ctOX, 4 + ctOY)
                 ct:SetJustifyH("RIGHT")
@@ -7592,7 +7599,7 @@ function EAB:ApplyFontsForBar(barKey)
                 if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(nm, false) end
                 nm:SetFont(fontPath, macroSize, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
                 nm:SetTextColor(macroColor.r, macroColor.g, macroColor.b)
-                if not EAB.PlaceButtonText(nm, btn, s.macroAnchor, macroOX, macroOY) then
+                if not (macroAnchor and EAB.PlaceButtonText(nm, btn, macroAnchor, macroOX, macroOY)) then
                     nm:ClearAllPoints()
                     nm:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 1 + macroOX, 4 + macroOY)
                     nm:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1 + macroOX, 4 + macroOY)
