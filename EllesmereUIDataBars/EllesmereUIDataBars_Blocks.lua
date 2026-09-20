@@ -4713,7 +4713,12 @@ local function MMBuildSocialTip()
             if acc.isDND or ga.isGameBusy then icon = FRIENDS_TEXTURE_DND end
             -- Left text carries NO |c codes so hover recolor (Tip_Show) shows; its blue rides the left-color args. Right column keeps its codes.
             local left  = format("|T%s:16|t %s", icon, acc.accountName or "?")
-            local right = format("|cffecd672%s|r %s", charName or "?", ga.areaName or "")
+            -- A cross-faction BNet friend's characterName can be secret; format("%s", ...)
+            -- rejects it outright, so display text uses a nil'd-out copy. The real
+            -- charName below is kept whole for BuildFullName (invite/whisper).
+            local displayCharName = charName
+            if issecretvalue and issecretvalue(displayCharName) then displayCharName = nil end
+            local right = format("|cffecd672%s|r %s", displayCharName or "?", ga.areaName or "")
             local bnetName   = acc.accountName
             local sameFaction = (not faction) or (faction == playerFaction)
             -- Fix "Name-Realm-Realm" to "Name-Realm"
