@@ -255,7 +255,7 @@ local defaults = {
     -- The 8x3 base pip is reported as too small to read on Forever, where this is
     -- the target-side display rather than a second one. The Size slider (0.5 to
     -- 4.0) still overrides it.
-    classPowerScale = (EUI_CLIENT_FOREVER == true) and 1.8 or 1.0,
+    classPowerScale = (EllesmereUI.IS_FOREVER == true) and 1.8 or 1.0,
     classPowerClassColors = true,
     classPowerCustomColor = { r = 1.00, g = 0.84, b = 0.30 },
     classPowerBgColor = { r = 0.082, g = 0.082, b = 0.082, a = 1.0 },
@@ -4487,7 +4487,7 @@ local function UpdateClassPowerOnPlate(plate)
         -- the previous target's count at the moment PLAYER_TARGET_CHANGED fires
         -- (measured on 1.60.1: up=3 while gcp=0 on the swap), with no later event
         -- to correct it. Blizzard's own classic ComboFrame reads GetComboPoints.
-        if EUI_CLIENT_FOREVER == true and classPowerType == Enum.PowerType.ComboPoints
+        if EllesmereUI.IS_FOREVER == true and classPowerType == Enum.PowerType.ComboPoints
            and GetComboPoints then
             cur = GetComboPoints("player", "target") or 0
         else
@@ -4837,7 +4837,7 @@ local function EnableClassPowerWatcher()
     -- Vanilla content has no specializations, so the spec-keyed entries above never
     -- resolve on Forever, and the flat ones name resources that client does not
     -- have. This is the whole set that exists there.
-    if EUI_CLIENT_FOREVER == true then
+    if EllesmereUI.IS_FOREVER == true then
         info = (PLAYER_CLASS == "ROGUE" or PLAYER_CLASS == "DRUID")
             and { Enum.PowerType.ComboPoints, 5 } or nil
     end
@@ -4855,7 +4855,7 @@ local function EnableClassPowerWatcher()
     classPowerMax = info[2]
     -- Druid Resto: cat form required. Feral always shows. On Forever there are no
     -- specs to tell them apart and combo points are cat-only for every druid.
-    if EUI_CLIENT_FOREVER == true then
+    if EllesmereUI.IS_FOREVER == true then
         classPowerFormReq = (PLAYER_CLASS == "DRUID") and (DRUID_CAT_FORM or 1) or nil
     else
         local specIdx = C_SpecializationInfo and C_SpecializationInfo.GetSpecialization()
