@@ -21,13 +21,10 @@ ns.EAB = EAB
 -- vehicle or override switching do not. Comes back whole with the client fix.
 ns.SNIPPETS_OK = EllesmereUI.SecureSnippetsOK()
 
--- Key-down casting relies on the pickup wrapper (eabPickupWrap, below) standing
--- it down for the press that starts a drag. That wrapper is a secure snippet, so
--- without snippets the press casts before the drag is seen and a spell can only
--- be moved by turning the cvar off by hand. Blizzard's own button answers the
--- same case by not acting on that edge at all. Key-up costs a keypress of
--- latency; silently casting what the player meant to drag costs a cast.
--- On ns, not a file local: this file sits on Lua's 200-local ceiling.
+-- The pickup wrapper (eabPickupWrap, below) is what stops a key-down press from
+-- casting the spell a drag is about to pick up, and it is a secure snippet, so
+-- without snippets key down is not safe to honour. On ns: this file sits on
+-- Lua's 200-local ceiling.
 function ns.UseKeyDownEffective()
     if not ns.SNIPPETS_OK then return false end
     return GetCVarBool("ActionButtonUseKeyDown")
