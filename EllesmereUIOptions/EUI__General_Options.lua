@@ -4309,6 +4309,12 @@ initFrame:SetScript("OnEvent", function(self)
         _, h = W:DualRow(parent, y,
             { type="toggle", text="Cast Actions on Key Down",
               tooltip="Keybinds respond on key down instead of key up. This helps make your abilities feel more responsive.",
+              -- The action bars stand key down back down on a client that cannot
+              -- run secure snippets, because the guard that keeps a drag from
+              -- casting is one. Leaving the control live would report a setting
+              -- the bars are ignoring.
+              disabled=function() return not EllesmereUI.SecureSnippetsOK() end,
+              disabledTooltip="This client cannot run the safeguard that stops a drag from casting the spell, so actions stay on key up until Blizzard fixes it.",
               getValue=function() return GetCVarBool("ActionButtonUseKeyDown") end,
               setValue=function(v)
                 SetCVarSafe("ActionButtonUseKeyDown", v and "1" or "0")
