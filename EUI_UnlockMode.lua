@@ -91,25 +91,6 @@ if EllesmereUI._unlockModeLoaded then return end
 EllesmereUI._unlockModeLoaded = true
 
 -------------------------------------------------------------------------------
---  Frame-point helpers for explicit anchors (ai.point / ai.relPoint on an anchor
---  record). Pure arithmetic, defined ahead of the reapply stub below because it
---  must place a pointed record the same way the full body does. On EllesmereUI:
---  the deferred body is at the Lua 5.1 200-local cap.
---  _AnchorPointHalf: the point's offset from the rect centre in half-widths /
---  half-heights (-1 left/bottom, 0 centre, +1 right/top).
---  _AnchorPointXY: the point's screen position from a rect.
--------------------------------------------------------------------------------
-function EllesmereUI._AnchorPointHalf(point)
-    local hx = (point:find("LEFT", 1, true) and -1) or (point:find("RIGHT", 1, true) and 1) or 0
-    local hy = (point:find("TOP", 1, true) and 1) or (point:find("BOTTOM", 1, true) and -1) or 0
-    return hx, hy
-end
-function EllesmereUI._AnchorPointXY(point, l, r, t, b)
-    local hx, hy = EllesmereUI._AnchorPointHalf(point)
-    return (l + r) / 2 + hx * (r - l) / 2, (t + b) / 2 + hy * (t - b) / 2
-end
-
--------------------------------------------------------------------------------
 --  Anchor reapply stub (pre-EnsureLoaded): lets child addons (CDM) reposition
 --  anchored elements at login before the full body loads; deferred block replaces it.
 -------------------------------------------------------------------------------
@@ -143,14 +124,7 @@ if not EllesmereUI.ReapplyOwnAnchor then
         local cH = (childBar:GetHeight() or 50) * cS / uiS
 
         local cx, cy
-        if info.point and info.relPoint and info.offsetX and info.offsetY then
-            -- Explicit points: same placement as ApplyAnchorPosition, or the
-            -- element sits at the side geometry until the full body reapplies.
-            local px, py = EllesmereUI._AnchorPointXY(info.relPoint, tL, tR, tT, tB)
-            local hx, hy = EllesmereUI._AnchorPointHalf(info.point)
-            cx = px + info.offsetX - hx * cW / 2
-            cy = py + info.offsetY - hy * cH / 2
-        elseif info.offsetX and info.offsetY then
+        if info.offsetX and info.offsetY then
             if side == "LEFT" then
                 cx = tL + info.offsetX - cW / 2
                 cy = tCY + info.offsetY
@@ -3496,9 +3470,8 @@ end
 -- Offsets for a link, read from the live rects the way a drag does: near edge on
 -- the anchored side, center on the cross axis. The element's own extra offset (the
 -- raid container's per-tier offset) comes out, because every anchored apply folds
--- it back in. Returns nil when either rect is missing. With a point pair (explicit
--- anchors) the offset runs point to point instead, from the same rebased rects.
-EllesmereUI._CaptureAnchorOffsets = function(childKey, targetKey, side, point, relPoint)
+-- it back in. Returns nil when either rect is missing.
+EllesmereUI._CaptureAnchorOffsets = function(childKey, targetKey, side)
     local child, tgt = GetBarFrame(childKey), GetBarFrame(targetKey)
     if not (child and child:GetLeft() and tgt and tgt:GetLeft()) then return nil end
     local uiS = UIParent:GetEffectiveScale()
@@ -3509,11 +3482,6 @@ EllesmereUI._CaptureAnchorOffsets = function(childKey, targetKey, side, point, r
     local cT, cB = child:GetTop() * cS - exY, child:GetBottom() * cS - exY
     local tL, tR = tgt:GetLeft() * tS, tgt:GetRight() * tS
     local tT, tB = tgt:GetTop() * tS, tgt:GetBottom() * tS
-    if point and relPoint then
-        local ox, oy = EllesmereUI._AnchorPointXY(point, cL, cR, cT, cB)
-        local px, py = EllesmereUI._AnchorPointXY(relPoint, tL, tR, tT, tB)
-        return ox - px, oy - py
-    end
     local cCX, cCY = (cL + cR) / 2, (cT + cB) / 2
     local tCX, tCY = (tL + tR) / 2, (tT + tB) / 2
     if side == "LEFT" then return cR - tL, cCY - tCY end
@@ -3740,17 +3708,7 @@ ApplyAnchorPosition = function(childKey, targetKey, side, noMark, noMove, fromCa
     -- Compute child center
     local cx, cy
     local ai = GetAnchorInfo(childKey)
-    -- Explicit points (cog menu): ai.point on this element sits ai.offsetX/Y from
-    -- ai.relPoint on the target, both any of the nine frame points. Replaces the
-    -- side/centre geometry below outright and needs no growth-edge pin: the own
-    -- point IS the fixed edge, so a resize grows away from it by construction.
-    local pointed = ai and ai.point and ai.relPoint and ai.offsetX ~= nil and ai.offsetY ~= nil
-    if pointed then
-        local px, py = EllesmereUI._AnchorPointXY(ai.relPoint, tL, tR, tT, tB)
-        local hx, hy = EllesmereUI._AnchorPointHalf(ai.point)
-        cx = px + ai.offsetX - hx * cW / 2
-        cy = py + ai.offsetY - hy * cH / 2
-    elseif ai and ai.offsetX ~= nil and ai.offsetY ~= nil then
+    if ai and ai.offsetX ~= nil and ai.offsetY ~= nil then
         -- Edge-to-edge offset mode: the offset runs from the child's near edge to
         -- the target's anchor edge, so a resized child keeps that near edge fixed.
         local edgeX, edgeY
@@ -3842,10 +3800,7 @@ ApplyAnchorPosition = function(childKey, targetKey, side, noMark, noMove, fromCa
     -- current position; while frames lack bounds the legacy pin below still
     -- applies, so early-login frames degrade gracefully.
     local growPinned = false
-    if pointed then
-        -- Explicit points: no pin, no edge preservation (see above).
-        growPinned = true
-    elseif isCdmOrAB and ai and ai.target and ai.offsetX ~= nil and ai.offsetY ~= nil then
+    if isCdmOrAB and ai and ai.target and ai.offsetX ~= nil and ai.offsetY ~= nil then
         local gd = GetBarGrowDirActual(childKey)
         if gd and gd ~= "CENTER" then
             -- Lazy capture ONLY at provable quiescence: the settle pass (trusted by
@@ -4437,85 +4392,6 @@ local function ReapplyAllAnchors()
     end
 end
 
--- Explicit anchors: the nine frame points a cog-menu pick offers, in list order,
--- and their labels. On EllesmereUI with the rest of this block: the deferred body
--- is at the Lua 5.1 200-local cap (the point arithmetic itself sits at the top of
--- the file, ahead of the reapply stub).
-EllesmereUI._ANCHOR_POINTS = { "TOPLEFT", "TOP", "TOPRIGHT", "LEFT", "CENTER", "RIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT" }
-EllesmereUI._ANCHOR_POINT_LABEL = {
-    TOPLEFT = "Top Left", TOP = "Top", TOPRIGHT = "Top Right",
-    LEFT = "Left", CENTER = "Center", RIGHT = "Right",
-    BOTTOMLEFT = "Bottom Left", BOTTOM = "Bottom", BOTTOMRIGHT = "Bottom Right",
-}
--- The side a point pair expresses, for the parts of the anchor system that read
--- ai.side (chain extents, mover captions, fallback picks).
-function EllesmereUI._SideFromPoints(point, relPoint)
-    local px, py = EllesmereUI._AnchorPointHalf(point)
-    local rx, ry = EllesmereUI._AnchorPointHalf(relPoint)
-    if rx == 1 and px == -1 then return "RIGHT" end
-    if rx == -1 and px == 1 then return "LEFT" end
-    if ry == 1 and py == -1 then return "TOP" end
-    if ry == -1 and py == 1 then return "BOTTOM" end
-    return "CENTER"
-end
--- The point pair a classic side means (child's near edge on the target's edge,
--- centred across), so a record without points reads back the same way.
-function EllesmereUI._PointsFromSide(side)
-    if side == "LEFT" then return "RIGHT", "LEFT" end
-    if side == "RIGHT" then return "LEFT", "RIGHT" end
-    if side == "TOP" then return "BOTTOM", "TOP" end
-    if side == "BOTTOM" then return "TOP", "BOTTOM" end
-    return "CENTER", "CENTER"
-end
-function EllesmereUI.GetAnchorPoints(childKey)
-    local ai = GetAnchorInfo(childKey)
-    if not (ai and ai.target) then return nil end
-    if ai.point and ai.relPoint then return ai.point, ai.relPoint end
-    return EllesmereUI._PointsFromSide(ai.side)
-end
-
--- Cog-menu editing of an existing anchor: own point, target point and the two
--- offsets. A point change keeps the element where it is (the offset is
--- re-derived from live bounds for the new pair); a typed offset moves it.
--- Returns true when applied.
-function EllesmereUI.SetAnchorParams(childKey, p)
-    local ai = GetAnchorInfo(childKey)
-    if not (ai and ai.target) or InCombatLockdown() then return false end
-    if p.point or p.relPoint then
-        local curP, curR = EllesmereUI.GetAnchorPoints(childKey)
-        local point, relPoint = p.point or curP, p.relPoint or curR
-        -- The same capture a drag ends with, so the raid container's per-tier
-        -- offset comes out here too; nil while either rect is missing.
-        local ox, oy = EllesmereUI._CaptureAnchorOffsets(childKey, ai.target, nil, point, relPoint)
-        if ox == nil then return false end
-        local snap = (EllesmereUI.PP and EllesmereUI.PP.Snap) or function(v) return math.floor(v + 0.5) end
-        local side = EllesmereUI._SideFromPoints(point, relPoint)
-        if side ~= ai.side then
-            -- Memoized views over the anchor DB (the tracking bar growth-edge
-            -- extent watch) key on the side.
-            EllesmereUI._anchorLinksStamp = (EllesmereUI._anchorLinksStamp or 0) + 1
-        end
-        ai.point, ai.relPoint, ai.side = point, relPoint, side
-        ai.offsetX, ai.offsetY = snap(ox), snap(oy)
-        -- The growth-edge pin has nothing left to hold (the own point is the fixed
-        -- edge); cleared so a later side-path apply recaptures movement-free.
-        ai.refFor, ai.refX, ai.refY, ai.edgeOffX, ai.edgeOffY = nil, nil, nil, nil, nil
-    end
-    if p.offsetX then ai.offsetX = p.offsetX end
-    if p.offsetY then ai.offsetY = p.offsetY end
-    ApplyAnchorPosition(childKey, ai.target, ai.side)
-    -- Synchronous like the nudge path: the element is already placed, and a
-    -- deferred cascade would paint the children one frame late.
-    PropagateAnchorChain(childKey)
-    hasChanges = true
-    local m = movers[childKey]
-    if m then
-        if m.RefreshAnchoredText then m:RefreshAnchoredText() end
-        DeferMoverSync(m, function(mm) mm:Sync() end, GetBarFrame(childKey))
-    end
-    return true
-end
-
 -- Recursively propagate anchor repositioning from a moved parent down the chain.
 -- visited guards circular anchor loops. changedAxis: "width", "height", or nil
 -- (nil = all axes, e.g. from a drag).
@@ -4555,20 +4431,9 @@ PropagateAnchorChain = function(parentKey, visited, changedAxis)
             -- still-dominated CDM/chain-driven parent. Every other child keeps the
             -- original gate. fallbackMatch skips this entirely: info.side describes the
             -- PRIMARY anchor's geometry, meaningless for the fallback's own math.
-            -- Explicit points tie the cross axis to the picked target point, not to
-            -- its center: only a centered relPoint on the changed axis leaves the
-            -- child where it is (a corner moves with the edge under CENTER growth).
             local dominated = false
-            local relHx, relHy
-            if info.point and info.relPoint then
-                relHx, relHy = EllesmereUI._AnchorPointHalf(info.relPoint)
-            end
             if primaryMatch and changedAxis == "width" then
-                if relHx then
-                    dominated = (relHx == 0)
-                else
-                    dominated = (info.side == "TOP" or info.side == "BOTTOM")
-                end
+                dominated = (info.side == "TOP" or info.side == "BOTTOM")
                 if dominated then
                     if parentKey:sub(1, 4) == "CDM_"
                        or (EllesmereUI._abBarKeys and EllesmereUI._abBarKeys[parentKey]) then
@@ -4586,11 +4451,7 @@ PropagateAnchorChain = function(parentKey, visited, changedAxis)
                     end
                 end
             elseif primaryMatch and changedAxis == "height" then
-                if relHy then
-                    dominated = (relHy == 0)
-                else
-                    dominated = (info.side == "LEFT" or info.side == "RIGHT")
-                end
+                dominated = (info.side == "LEFT" or info.side == "RIGHT")
                 if dominated then
                     if parentKey:sub(1, 4) == "CDM_"
                        or (EllesmereUI._abBarKeys and EllesmereUI._abBarKeys[parentKey]) then
@@ -6513,6 +6374,105 @@ end
 -- CreateMover) avoids adding NudgeMover as a new upvalue to that large closure.
 EllesmereUI._unlockNudge = NudgeMover
 
+-- Grow-direction change for a growth bar in unlock mode, the cog's Grow row in
+-- one call: write the module's setting and relayout, put the bar's visual center
+-- back where it was (a relayout can shift the frame around its new fixed edge),
+-- re-anchor by the new growth edge and record the position for Save & Exit.
+-- Shared with the anchor picker's corner rows, which set the direction AFTER
+-- placing the bar flush so the growth-edge hold captures from where it sits.
+-- On the namespace table like the nudge: CreateMover is at the upvalue cap.
+EllesmereUI._unlockSetGrowDirection = function(barKey, val)
+    hasChanges = true
+
+    -- Capture the bar's visual center before changing grow
+    local barFrame = GetBarFrame(barKey)
+    local preCX, preCY
+    if barFrame then
+        preCX, preCY = barFrame:GetCenter()
+    end
+
+    -- Write to the bar's actual settings DB and rebuild layout
+    if barKey:sub(1, 4) == "CDM_" then
+        local rawKey = barKey:sub(5)
+        local cdm = EllesmereUI.Lite.GetAddon("EllesmereUICooldownManager", true)
+        local cdmBars = cdm and cdm.db and cdm.db.profile and cdm.db.profile.cdmBars
+        if cdmBars and cdmBars.bars then
+            for _, bar in ipairs(cdmBars.bars) do
+                if bar.key == rawKey then
+                    bar.growDirection = val
+                    break
+                end
+            end
+        end
+        if EllesmereUI.LayoutCDMBar then
+            EllesmereUI.LayoutCDMBar(rawKey)
+        end
+        EllesmereUI.RecenterBarAnchor(barKey)
+    elseif barKey == "ERB_TotemBar" then
+        local erb = EllesmereUI.Lite.GetAddon("EllesmereUIResourceBars", true)
+        local tb = erb and erb.db and erb.db.profile and erb.db.profile.totemBar
+        if tb then tb.growDirection = val end
+        if EllesmereUI.LayoutTotemBar then EllesmereUI.LayoutTotemBar() end
+        EllesmereUI.RecenterBarAnchor(barKey)
+    elseif barKey:sub(1, 4) == "PAB_" then
+        local euf = EllesmereUI.Lite.GetAddon("EllesmereUIUnitFrames", true)
+        if euf and euf.SetGrowDirectionForBar then
+            euf:SetGrowDirectionForBar(barKey, val)
+        end
+    else
+        local eab = EllesmereUI.Lite.GetAddon("EllesmereUIActionBars", true)
+        if eab and eab.SetGrowDirectionForBar then
+            eab:SetGrowDirectionForBar(barKey, val)
+        end
+    end
+
+    -- Restore the bar's visual center so it doesn't jump,
+    -- then re-anchor based on the new growth direction.
+    if barFrame and preCX and preCY then
+        local postCX, postCY = barFrame:GetCenter()
+        if postCX and postCY then
+            local dx = preCX - postCX
+            local dy = preCY - postCY
+            if math.abs(dx) > 0.5 or math.abs(dy) > 0.5 then
+                local pt, relTo, relPt, offX, offY = barFrame:GetPoint(1)
+                if pt then
+                    barFrame:ClearAllPoints()
+                    barFrame:SetPoint(pt, relTo, relPt, offX + dx, offY + dy)
+                end
+            end
+        end
+    end
+    EllesmereUI.RecenterBarAnchor(barKey)
+    -- Anchored bars: hold the new growth edge from where the bar sits NOW, the
+    -- way the drag-stop path does after a drop. Left to the lazy capture, the
+    -- next apply would read the rect BEFORE the move it was asked to make (a
+    -- first nudge, a first drag of the target) and stamp that stale hold; and a
+    -- hold left over from an earlier direction would be trusted again the day
+    -- that direction comes back. Centered growth keeps no hold.
+    local ai = GetAnchorInfo(barKey)
+    if ai and ai.target then
+        ai.refFor, ai.refX, ai.refY, ai.edgeOffX, ai.edgeOffY = nil, nil, nil, nil, nil
+        if EllesmereUI._unlockCaptureGrowPin then
+            EllesmereUI._unlockCaptureGrowPin(barKey, ai, ai.side)
+        end
+    end
+    -- Store in pending (committed on Save & Exit)
+    if barFrame then
+        local pt2, relTo2, relPt2, offX2, offY2 = barFrame:GetPoint(1)
+        if pt2 then
+            pendingPositions[barKey] = {
+                point = pt2, relPoint = relPt2, x = offX2, y = offY2,
+            }
+            hasChanges = true
+        end
+    end
+
+    -- Sync the mover to the bar's new position
+    if movers[barKey] and movers[barKey].Sync then
+        movers[barKey]:Sync()
+    end
+end
+
 -- Arrow key nudge: single press only, no hold-to-repeat
 local function SetupArrowKeyFrame()
     if arrowKeyFrame then return end
@@ -7873,83 +7833,7 @@ local function CreateMover(barKey)
                     -- If already on this direction, just close the popup
                     if sideVal == currentVal then return end
 
-                    hasChanges = true
-
-                    -- Capture the bar's visual center before changing grow
-                    local barFrame = GetBarFrame(barKey)
-                    local preCX, preCY
-                    if barFrame then
-                        preCX, preCY = barFrame:GetCenter()
-                    end
-
-                    -- Write to the bar's actual settings DB and rebuild layout
-                    if barKey:sub(1, 4) == "CDM_" then
-                        local rawKey = barKey:sub(5)
-                        local cdm = EllesmereUI.Lite.GetAddon("EllesmereUICooldownManager", true)
-                        local cdmBars = cdm and cdm.db and cdm.db.profile and cdm.db.profile.cdmBars
-                        if cdmBars and cdmBars.bars then
-                            for _, bar in ipairs(cdmBars.bars) do
-                                if bar.key == rawKey then
-                                    bar.growDirection = sideVal
-                                    break
-                                end
-                            end
-                        end
-                        if EllesmereUI.LayoutCDMBar then
-                            EllesmereUI.LayoutCDMBar(rawKey)
-                        end
-                        EllesmereUI.RecenterBarAnchor(barKey)
-                    elseif barKey == "ERB_TotemBar" then
-                        local erb = EllesmereUI.Lite.GetAddon("EllesmereUIResourceBars", true)
-                        local tb = erb and erb.db and erb.db.profile and erb.db.profile.totemBar
-                        if tb then tb.growDirection = sideVal end
-                        if EllesmereUI.LayoutTotemBar then EllesmereUI.LayoutTotemBar() end
-                        EllesmereUI.RecenterBarAnchor(barKey)
-                    elseif barKey:sub(1, 4) == "PAB_" then
-                        local euf = EllesmereUI.Lite.GetAddon("EllesmereUIUnitFrames", true)
-                        if euf and euf.SetGrowDirectionForBar then
-                            euf:SetGrowDirectionForBar(barKey, sideVal)
-                        end
-                    else
-                        local eab = EllesmereUI.Lite.GetAddon("EllesmereUIActionBars", true)
-                        if eab and eab.SetGrowDirectionForBar then
-                            eab:SetGrowDirectionForBar(barKey, sideVal)
-                        end
-                    end
-
-                    -- Restore the bar's visual center so it doesn't jump,
-                    -- then re-anchor based on the new growth direction.
-                    if barFrame and preCX and preCY then
-                        local postCX, postCY = barFrame:GetCenter()
-                        if postCX and postCY then
-                            local dx = preCX - postCX
-                            local dy = preCY - postCY
-                            if math.abs(dx) > 0.5 or math.abs(dy) > 0.5 then
-                                local pt, relTo, relPt, offX, offY = barFrame:GetPoint(1)
-                                if pt then
-                                    barFrame:ClearAllPoints()
-                                    barFrame:SetPoint(pt, relTo, relPt, offX + dx, offY + dy)
-                                end
-                            end
-                        end
-                    end
-                    EllesmereUI.RecenterBarAnchor(barKey)
-                    -- Store in pending (committed on Save & Exit)
-                    if barFrame then
-                        local pt2, relTo2, relPt2, offX2, offY2 = barFrame:GetPoint(1)
-                        if pt2 then
-                            pendingPositions[barKey] = {
-                                point = pt2, relPoint = relPt2, x = offX2, y = offY2,
-                            }
-                            hasChanges = true
-                        end
-                    end
-
-                    -- Sync the mover to the bar's new position
-                    if movers[barKey] and movers[barKey].Sync then
-                        movers[barKey]:Sync()
-                    end
-
+                    EllesmereUI._unlockSetGrowDirection(barKey, sideVal)
                     RefreshLinkStates()
                 end)
             end
@@ -8650,12 +8534,7 @@ local function CreateMover(barKey)
                     local cCX = (cL + cR) / 2
                     local cCY = (cT + cB) / 2
                     local sd = ai.side
-                    if ai.point and ai.relPoint then
-                        -- Explicit points (cog menu): the offset is point to point.
-                        local ox, oy = EllesmereUI._AnchorPointXY(ai.point, cL, cR, cT, cB)
-                        local px, py = EllesmereUI._AnchorPointXY(ai.relPoint, tL, tR, tT, tB)
-                        ai.offsetX, ai.offsetY = ox - px, oy - py
-                    elseif sd == "LEFT" then
+                    if sd == "LEFT" then
                         ai.offsetX = cR - tL
                         ai.offsetY = cCY - tCY
                     elseif sd == "RIGHT" then
@@ -9062,6 +8941,11 @@ local function CreateMover(barKey)
                     EllesmereUI.MakeBorder(anchorDropdownFrame, 1, 1, 1, 0.20)
 
                     local ddY = -4
+                    -- Growth bars (CDM and action bars) get the corner rows below on a
+                    -- primary anchor pick; the hint speaks to those rows when they exist.
+                    local isGrowBar = not fbPick and not ovPick
+                        and (pmKey:sub(1, 4) == "CDM_"
+                             or (EllesmereUI._abBarKeys and EllesmereUI._abBarKeys[pmKey]) or false)
                     -- Title: the fallback picker keeps its short dimmed label;
                     -- the anchor picker shows a wrapped usage hint in the same
                     -- color as the option rows below.
@@ -9081,7 +8965,11 @@ local function CreateMover(barKey)
                         titleFS:SetTextColor(0.75, 0.75, 0.75, 0.9)
                         titleFS:SetWidth(DD_WIDTH - 20)
                         titleFS:SetWordWrap(true)
-                        titleFS:SetText(EllesmereUI.L("After anchoring, drag to an edge and choose a grow direction to maintain its corner spot as bars change size."))
+                        if isGrowBar then
+                            titleFS:SetText(EllesmereUI.L("Corner options place the bar flush with that corner of the target and set its grow direction to keep it there as bars change size."))
+                        else
+                            titleFS:SetText(EllesmereUI.L("After anchoring, drag to an edge and choose a grow direction to maintain its corner spot as bars change size."))
+                        end
                         ddY = ddY - (titleFS:GetStringHeight() + 8)
                     end
                     local titleDiv = anchorDropdownFrame:CreateTexture(nil, "ARTWORK")
@@ -9185,6 +9073,141 @@ local function CreateMover(barKey)
                             DeferMoverSync(movers[pmKey], function(m) m:Sync() end, GetBarFrame(pmKey))
                         end)
                         ddY = ddY - DD_ITEM_H
+                    end
+
+                    -- Corner rows (growth bars, primary anchor only): the bar sits flush
+                    -- with that corner of the target and grows away from it. Nothing new
+                    -- in the record -- it is the side pick above, the flush drag and the
+                    -- cog's Grow row in one click. A corner reads by the bar's
+                    -- orientation: a horizontal bar sits above or below the target
+                    -- (Top/Bottom) with the named edges flush and grows away from them; a
+                    -- vertical bar sits beside it (Left/Right) the same way. So the four
+                    -- rows cover exactly the sides the picks above leave centered.
+                    if isGrowBar then
+                        local divC = anchorDropdownFrame:CreateTexture(nil, "ARTWORK")
+                        divC:SetHeight(1)
+                        divC:SetColorTexture(1, 1, 1, 0.10)
+                        divC:SetPoint("TOPLEFT", anchorDropdownFrame, "TOPLEFT", 1, ddY - 4)
+                        divC:SetPoint("TOPRIGHT", anchorDropdownFrame, "TOPRIGHT", -1, ddY - 4)
+                        ddY = ddY - 9
+                        local corners = {
+                            { label = EllesmereUI.L("Top Left"),     v = "TOP",    h = "LEFT"  },
+                            { label = EllesmereUI.L("Top Right"),    v = "TOP",    h = "RIGHT" },
+                            { label = EllesmereUI.L("Bottom Left"),  v = "BOTTOM", h = "LEFT"  },
+                            { label = EllesmereUI.L("Bottom Right"), v = "BOTTOM", h = "RIGHT" },
+                        }
+                        for _, corner in ipairs(corners) do
+                            local item = CreateFrame("Button", nil, anchorDropdownFrame)
+                            item:SetHeight(DD_ITEM_H)
+                            item:SetPoint("TOPLEFT", anchorDropdownFrame, "TOPLEFT", 1, ddY)
+                            item:SetPoint("TOPRIGHT", anchorDropdownFrame, "TOPRIGHT", -1, ddY)
+                            item:SetFrameLevel(anchorDropdownFrame:GetFrameLevel() + 2)
+                            item:RegisterForClicks("AnyUp")
+                            local hl = item:CreateTexture(nil, "ARTWORK")
+                            hl:SetAllPoints()
+                            hl:SetColorTexture(1, 1, 1, 0)
+                            local lbl = item:CreateFontString(nil, "OVERLAY")
+                            lbl:SetFont(FONT_PATH, 11, "OUTLINE, SLUG")
+                            lbl:SetTextColor(0.75, 0.75, 0.75, 0.9)
+                            lbl:SetJustifyH("LEFT")
+                            lbl:SetPoint("LEFT", item, "LEFT", 10, 0)
+                            lbl:SetText(EllesmereUI.Lf("Anchor to %1$s", corner.label))
+                            item:SetScript("OnEnter", function()
+                                hl:SetColorTexture(1, 1, 1, 0.08)
+                                lbl:SetTextColor(1, 1, 1, 1)
+                            end)
+                            item:SetScript("OnLeave", function()
+                                hl:SetColorTexture(1, 1, 1, 0)
+                                lbl:SetTextColor(0.75, 0.75, 0.75, 0.9)
+                            end)
+                            item:SetScript("OnClick", function()
+                                anchorDropdownFrame:Hide()
+                                anchorDropdownCatcher:Hide()
+                                -- Orientation, the same lookups as the side pick. The bar is
+                                -- placed on centered growth first (the side pick's own default
+                                -- for this side): a held growth edge would otherwise pin the
+                                -- bar to where it stood before the anchor moved it.
+                                local isVert = false
+                                if pmKey:sub(1, 4) == "CDM_" then
+                                    local rawCdmKey = pmKey:sub(5)
+                                    local cdmAddon = EllesmereUI.Lite.GetAddon("EllesmereUICooldownManager", true)
+                                    local cdmBars = cdmAddon and cdmAddon.db and cdmAddon.db.profile and cdmAddon.db.profile.cdmBars
+                                    if cdmBars and cdmBars.bars then
+                                        for _, bar in ipairs(cdmBars.bars) do
+                                            if bar.key == rawCdmKey then
+                                                isVert = bar.verticalOrientation == true
+                                                bar.growDirection = "CENTER"
+                                                break
+                                            end
+                                        end
+                                    end
+                                else
+                                    local eab = EllesmereUI.Lite.GetAddon("EllesmereUIActionBars", true)
+                                    local abBars = eab and eab.db and eab.db.profile and eab.db.profile.bars
+                                    local abCfg = abBars and abBars[pmKey]
+                                    if abCfg then
+                                        isVert = (abCfg.orientation == "vertical")
+                                        abCfg.growDirection = "center"
+                                    end
+                                end
+                                -- The side the corner means, the edge held flush along it and
+                                -- the direction that grows away from that edge.
+                                local sideVal = isVert and corner.h or corner.v
+                                local flush = isVert and corner.v or corner.h
+                                local growVal
+                                if isVert then
+                                    growVal = (flush == "TOP") and "DOWN" or "UP"
+                                else
+                                    growVal = (flush == "RIGHT") and "LEFT" or "RIGHT"
+                                end
+                                -- Flush edges: the side pick centers the bar along the side, so
+                                -- the shift is half the size difference (UIParent units,
+                                -- pixel-snapped like the side pick's own offsets). Sizes, not
+                                -- rects: the target's bounds are read before anything moves.
+                                local offX, offY = 0, 0
+                                local childF, targetF = GetBarFrame(pmKey), GetBarFrame(targetKey)
+                                if childF and targetF then
+                                    local uiS = UIParent:GetEffectiveScale()
+                                    local cS, tS = childF:GetEffectiveScale() / uiS, targetF:GetEffectiveScale() / uiS
+                                    local snap = (EllesmereUI.PP and EllesmereUI.PP.Snap) or function(v) return math.floor(v + 0.5) end
+                                    if isVert then
+                                        local half = ((targetF:GetHeight() or 0) * tS - (childF:GetHeight() or 0) * cS) / 2
+                                        offY = snap((flush == "TOP") and half or -half)
+                                    else
+                                        local half = ((targetF:GetWidth() or 0) * tS - (childF:GetWidth() or 0) * cS) / 2
+                                        offX = snap((flush == "RIGHT") and half or -half)
+                                    end
+                                end
+                                -- Set anchor relationship, flush offsets included (the record a
+                                -- side pick plus a drag to the edge leaves behind)
+                                SetAnchorInfo(pmKey, targetKey, sideVal, offX, offY)
+                                -- A screen edge the element holds on the flush axis would win
+                                -- that axis on every apply and undo the alignment just asked
+                                -- for: release it, the Relative-to-Screen clear path's way.
+                                local aiC = GetAnchorInfo(pmKey)
+                                if aiC and aiC.edge and aiC.edge.key and EllesmereUI._ScreenEdgeAxis
+                                   and EllesmereUI._ScreenEdgeAxis(aiC.edge.key) == (isVert and "Y" or "X") then
+                                    aiC.edge = nil
+                                    EllesmereUI._anchorLinksStamp = (EllesmereUI._anchorLinksStamp or 0) + 1
+                                end
+                                -- Apply the anchor position
+                                ApplyAnchorPosition(pmKey, targetKey, sideVal)
+                                -- Grow away from the flush edge, after the placement: the
+                                -- growth-edge hold captures from where the bar now sits.
+                                EllesmereUI._unlockSetGrowDirection(pmKey, growVal)
+                                -- Propagate to children after layout flushes so
+                                -- they read the correct bounds from the newly-anchored parent
+                                C_Timer.After(0, function() PropagateAnchorChain(pmKey) end)
+                                hasChanges = true
+                                -- Refresh the anchored mover's text
+                                if movers[pmKey] and movers[pmKey].RefreshAnchoredText then
+                                    movers[pmKey]:RefreshAnchoredText()
+                                end
+                                -- Sync mover position to follow the element after anchor placement
+                                DeferMoverSync(movers[pmKey], function(m) m:Sync() end, GetBarFrame(pmKey))
+                            end)
+                            ddY = ddY - DD_ITEM_H
+                        end
                     end
 
                     -- "Remove Anchor" option if already anchored
@@ -9786,7 +9809,6 @@ local function CreateMover(barKey)
     local function CloseCogMenu()
         if cogMenu then cogMenu:Hide() end
         if mover._cogEdgeSub then mover._cogEdgeSub:Hide() end
-        if mover._cogPointList then mover._cogPointList:Hide() end
         if cogClickCatcher then cogClickCatcher:Hide() end
         mover._menuOpen = false
         mover._syncCogPos = nil
@@ -9798,7 +9820,6 @@ local function CreateMover(barKey)
             for _, tex in ipairs({cogMenu:GetRegions()}) do if tex.Hide then tex:Hide() end end
         end
         if mover._cogEdgeSub then mover._cogEdgeSub:Hide() end
-        if mover._cogPointList then mover._cogPointList:Hide() end
         cogMenu = cogMenu or CreateFrame("Frame", nil, unlockFrame)
         cogMenu:SetFrameStrata("FULLSCREEN_DIALOG")
         cogMenu:SetFrameLevel(250)
@@ -10169,24 +10190,6 @@ local function CreateMover(barKey)
 
                 local xBox = MakePosRow("X", AxisToPx("X") or 0)
                 local yBox = MakePosRow("Y", AxisToPx("Y") or 0)
-                -- Anchored elements: the anchor owns the position, so these only
-                -- report it (the anchor rows below edit it). Disabled the way a
-                -- matched Width/Height box is.
-                do
-                    local aiP = GetAnchorInfo(barKey)
-                    if aiP and aiP.target then
-                        local targetName = GetBarLabel(aiP.target) or aiP.target
-                        for _, b in ipairs({ xBox, yBox }) do
-                            b:Disable()
-                            b:SetTextColor(0.4, 0.4, 0.4, 0.7)
-                            b:SetScript("OnEnter", function()
-                                EllesmereUI.ShowWidgetTooltip(b,
-                                    "Anchored to " .. targetName .. ". Edit the anchor offsets below.")
-                            end)
-                            b:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-                        end
-                    end
-                end
                 -- Let arrow-key nudges (while the cog is open) refresh these boxes
                 -- so they stay in lockstep with the element and the floating overlay.
                 mover._syncCogPos = function()
@@ -10206,16 +10209,15 @@ local function CreateMover(barKey)
             yOff = yOff - 9
         end
 
-        -- Anchor rows (anchored elements only): which point of THIS element sits on
-        -- which point of the target, and the offset between the two, editable in
-        -- place. Picking a point keeps the element where it is; typing an offset
-        -- moves it. Rows share the size/position rows' shape above.
+        -- Anchor rows (anchored elements only): the target this element is linked
+        -- to, and the offset a drag or a nudge left between the two, typed in
+        -- place. Nothing here positions an element differently from a drag: a
+        -- typed offset is a nudge by the difference. Rows share the size/position
+        -- rows' shape above.
         do
             local aiM = GetAnchorInfo(barKey)
             if aiM and aiM.target and not InCombatLockdown() then
-                local AROW_H, AINPUT_W, AINPUT_H, ADD_W = 22, 50, 18, 96
-                local POINTS, PLABEL = EllesmereUI._ANCHOR_POINTS, EllesmereUI._ANCHOR_POINT_LABEL
-                local ownName = GetBarLabel(barKey) or barKey
+                local AROW_H, AINPUT_W, AINPUT_H = 22, 50, 18
                 local tgtName = GetBarLabel(aiM.target) or aiM.target
                 local function MakeAnchorRow(text)
                     local rowFrame = CreateFrame("Frame", nil, cogMenu)
@@ -10238,150 +10240,26 @@ local function CreateMover(barKey)
                     local _, lbl = MakeAnchorRow(EllesmereUI.Lf("Anchored to: %1$s", tgtName))
                     lbl:SetTextColor(0.55, 0.55, 0.55, 0.9)
                 end
-                -- The nine-point list both point rows open. Kept on the mover and
-                -- parented to unlockFrame, NOT to cogMenu, for the same reason as the
-                -- screen-edge flyout: BuildCogMenu reparents every cogMenu child to
-                -- nil on each open. Rebuilt on each show for the row that opened it.
-                local function ShowPointList(btn, current, onPick)
-                    local list = mover._cogPointList
-                    if list then
-                        for _, child in ipairs({list:GetChildren()}) do child:Hide(); child:SetParent(nil) end
-                        for _, tex in ipairs({list:GetRegions()}) do if tex.Hide then tex:Hide() end end
-                    end
-                    list = list or CreateFrame("Frame", nil, unlockFrame)
-                    mover._cogPointList = list
-                    list._btn = btn
-                    list:SetFrameStrata("FULLSCREEN_DIALOG")
-                    list:SetFrameLevel(cogMenu:GetFrameLevel() + 4)
-                    list:SetClampedToScreen(true)
-                    local lBg = list:CreateTexture(nil, "BACKGROUND")
-                    lBg:SetAllPoints()
-                    lBg:SetColorTexture(0.075, 0.113, 0.141, 0.95)
-                    EllesmereUI.MakeBorder(list, 1, 1, 1, 0.20)
-                    local lY = -4
-                    for i = 1, #POINTS do
-                        local pt = POINTS[i]
-                        local isCur = (pt == current)
-                        local r, g, b, a = 0.75, 0.75, 0.75, 0.9
-                        if isCur then r, g, b, a = 1, 0.7, 0.3, 1 end
-                        local li = CreateFrame("Button", nil, list)
-                        li:SetHeight(ITEM_H)
-                        li:SetPoint("TOPLEFT", list, "TOPLEFT", 1, lY)
-                        li:SetPoint("TOPRIGHT", list, "TOPRIGHT", -1, lY)
-                        li:SetFrameLevel(list:GetFrameLevel() + 2)
-                        li:RegisterForClicks("AnyUp")
-                        local lHl = li:CreateTexture(nil, "ARTWORK")
-                        lHl:SetAllPoints()
-                        lHl:SetColorTexture(1, 1, 1, isCur and 0.04 or 0)
-                        local lLbl = li:CreateFontString(nil, "OVERLAY")
-                        lLbl:SetFont(FONT_PATH, 11, "OUTLINE, SLUG")
-                        lLbl:SetTextColor(r, g, b, a)
-                        lLbl:SetJustifyH("LEFT")
-                        lLbl:SetPoint("LEFT", li, "LEFT", 10, 0)
-                        lLbl:SetPoint("RIGHT", li, "RIGHT", -8, 0)
-                        lLbl:SetWordWrap(false)
-                        lLbl:SetText(EllesmereUI.L(PLABEL[pt]))
-                        li:SetScript("OnEnter", function()
-                            lHl:SetColorTexture(1, 1, 1, 0.08)
-                            if isCur then lLbl:SetTextColor(1, 0.8, 0.5, 1)
-                            else lLbl:SetTextColor(1, 1, 1, 1) end
-                        end)
-                        li:SetScript("OnLeave", function()
-                            lHl:SetColorTexture(1, 1, 1, isCur and 0.04 or 0)
-                            lLbl:SetTextColor(r, g, b, a)
-                        end)
-                        li:SetScript("OnClick", function()
-                            list:Hide()
-                            onPick(pt)
-                        end)
-                        lY = lY - ITEM_H
-                    end
-                    list:SetSize(ADD_W, -lY + 4)
-                    list:EnableMouse(true)
-                    -- Open downward, or upward when the list would run past the
-                    -- bottom of the screen (the cog menu itself may sit low).
-                    list:ClearAllPoints()
-                    local listH = list:GetHeight() * list:GetEffectiveScale()
-                    local btnBottom = (btn:GetBottom() or 0) * btn:GetEffectiveScale()
-                    if btnBottom - listH - 2 < 0 then
-                        list:SetPoint("BOTTOMRIGHT", btn, "TOPRIGHT", 0, 1)
-                    else
-                        list:SetPoint("TOPRIGHT", btn, "BOTTOMRIGHT", 0, -1)
-                    end
-                    list:SetScript("OnLeave", function(self)
-                        C_Timer.After(0.05, function()
-                            if self:IsShown() and not self:IsMouseOver() and not btn:IsMouseOver() then
-                                self:Hide()
-                            end
-                        end)
-                    end)
-                    list:Show()
-                end
-                -- Point row: the value button opens the list under it.
-                local function MakePointRow(text, current, onPick)
-                    local rowFrame, lbl = MakeAnchorRow(text)
-                    local btn = CreateFrame("Button", nil, rowFrame)
-                    btn:SetSize(ADD_W, AINPUT_H)
-                    btn:SetPoint("RIGHT", rowFrame, "RIGHT", -8, 0)
-                    btn:SetFrameLevel(cogMenu:GetFrameLevel() + 3)
-                    btn:RegisterForClicks("AnyUp")
-                    lbl:SetPoint("RIGHT", btn, "LEFT", -6, 0)
-                    local bg = btn:CreateTexture(nil, "BACKGROUND")
-                    bg:SetAllPoints()
-                    bg:SetColorTexture(0, 0, 0, 0.4)
-                    local arrow = EllesmereUI.MakeDropdownArrow(btn, 4)
-                    local val = btn:CreateFontString(nil, "OVERLAY")
-                    val:SetFont(FONT_PATH, 10, "")
-                    val:SetTextColor(1, 1, 1, 0.9)
-                    val:SetJustifyH("LEFT")
-                    val:SetWordWrap(false)
-                    val:SetPoint("LEFT", btn, "LEFT", 6, 0)
-                    val:SetPoint("RIGHT", arrow, "LEFT", -2, 0)
-                    val:SetText(EllesmereUI.L(PLABEL[current] or current))
-                    btn:SetScript("OnEnter", function() bg:SetColorTexture(1, 1, 1, 0.08) end)
-                    btn:SetScript("OnLeave", function()
-                        bg:SetColorTexture(0, 0, 0, 0.4)
-                        -- Same leave-to-close as the flyout row: a list opened and
-                        -- then abandoned without ever being entered closes too.
-                        C_Timer.After(0.05, function()
-                            local list = mover._cogPointList
-                            if list and list:IsShown() and list._btn == btn
-                               and not list:IsMouseOver() and not btn:IsMouseOver() then
-                                list:Hide()
-                            end
-                        end)
-                    end)
-                    btn:SetScript("OnClick", function()
-                        local list = mover._cogPointList
-                        if list and list:IsShown() and list._btn == btn then list:Hide() return end
-                        ShowPointList(btn, current, onPick)
-                    end)
-                    return btn
-                end
-                local curP, curR = EllesmereUI.GetAnchorPoints(barKey)
-                MakePointRow(EllesmereUI.Lf("%1$s point", ownName), curP, function(v)
-                    -- Rebuild in place so the rows show the new pair.
-                    if EllesmereUI.SetAnchorParams(barKey, { point = v }) then BuildCogMenu() end
-                end)
-                MakePointRow(EllesmereUI.Lf("%1$s point", tgtName), curR, function(v)
-                    if EllesmereUI.SetAnchorParams(barKey, { relPoint = v }) then BuildCogMenu() end
-                end)
                 -- Offset X / Offset Y: typed values, Enter applies, Escape reverts.
                 -- Physical pixels in the box, units in the record, like the X/Y
-                -- Position boxes (AxisToPx): +1 here is one pixel, one nudge, and the
-                -- number matches the pixel sliders (Button Spacing 10 = Offset 10).
-                -- One conversion for the box and the nudge sync below: a units value
-                -- written into the box would be read back as pixels by the next commit
-                -- and shrink by the scale factor every Enter.
+                -- Position boxes (AxisToPx): +1 here is one pixel, one nudge. A typed
+                -- value drives the SAME pixel-exact nudge the arrow keys and the X/Y
+                -- boxes use, by the difference from the record, so the anchored move,
+                -- the pending-save capture and the mover re-sync all follow the proven
+                -- path (a position-locked mover refuses it there too); the box then
+                -- re-reads the record, so it can never show a number that did not land.
                 local PPo = EllesmereUI and EllesmereUI.PP
-                local function OffsetText(key)
+                local function OffsetPx(key)
                     local a = GetAnchorInfo(barKey)
                     local v = a and a[key] or 0
                     if PPo and PPo.ToPixels then v = PPo.ToPixels(v) end
-                    return tostring(math.floor(v + 0.5))
+                    return math.floor(v + 0.5)
+                end
+                local function OffsetText(key)
+                    return tostring(OffsetPx(key))
                 end
                 local function MakeOffsetRow(text, key)
-                    local rowFrame = MakeAnchorRow(EllesmereUI.L(text))
+                    local rowFrame = MakeAnchorRow(text)
                     local box = CreateFrame("EditBox", nil, rowFrame)
                     box:SetSize(AINPUT_W, AINPUT_H)
                     box:SetPoint("RIGHT", rowFrame, "RIGHT", -8, 0)
@@ -10397,31 +10275,36 @@ local function CreateMover(barKey)
                     box:SetMaxLetters(6)
                     box:SetText(OffsetText(key))
                     local function Commit(self)
-                        local v = tonumber(self:GetText())
-                        if not v then self:SetText(OffsetText(key)) return end
-                        if PPo and PPo.FromPixels then v = PPo.FromPixels(v) end
-                        local a = GetAnchorInfo(barKey)
-                        if a and a[key] == v then return end
-                        local params = {}
-                        params[key] = v
-                        EllesmereUI.SetAnchorParams(barKey, params)
+                        local val = tonumber(self:GetText())
+                        if val and not InCombatLockdown() and PPo and PPo.FromPixels then
+                            local deltaPx = math.floor(val + 0.5) - OffsetPx(key)
+                            if deltaPx ~= 0 then
+                                local stepUnits = PPo.FromPixels(deltaPx)
+                                if key == "offsetX" then
+                                    EllesmereUI._unlockNudge(stepUnits, 0, mover, true)
+                                else
+                                    EllesmereUI._unlockNudge(0, stepUnits, mover, true)
+                                end
+                                -- The bar just moved: the X/Y Position boxes follow right away.
+                                if mover._syncCogPos then mover._syncCogPos() end
+                            end
+                        end
                         self:SetText(OffsetText(key))
-                        -- The bar just moved: the X/Y Position boxes follow right away.
-                        if mover._syncCogPos then mover._syncCogPos() end
                     end
+                    -- Enter applies, Escape reverts; losing focus does neither, like
+                    -- the X/Y Position boxes above.
                     box:SetScript("OnEnterPressed", function(self)
                         self:ClearFocus()
                         Commit(self)
                     end)
-                    box:SetScript("OnEditFocusLost", Commit)
                     box:SetScript("OnEscapePressed", function(self)
                         self:SetText(OffsetText(key))
                         self:ClearFocus()
                     end)
                     return box
                 end
-                local oxBox = MakeOffsetRow("Offset X", "offsetX")
-                local oyBox = MakeOffsetRow("Offset Y", "offsetY")
+                local oxBox = MakeOffsetRow(EllesmereUI.L("Offset X"), "offsetX")
+                local oyBox = MakeOffsetRow(EllesmereUI.L("Offset Y"), "offsetY")
                 -- Arrow-key nudges move the offsets underneath: keep these boxes in
                 -- lockstep, the same way the X/Y boxes are.
                 local prevSync = mover._syncCogPos
@@ -10648,7 +10531,7 @@ local function CreateMover(barKey)
                 -- take the side-snap branch below and bank FLUSH offsets for the axis
                 -- the primary keeps. Fill them from the live rect first.
                 if ai.offsetX == nil or ai.offsetY == nil then
-                    local pX, pY = EllesmereUI._CaptureAnchorOffsets(barKey, ai.target, ai.side, ai.point, ai.relPoint)
+                    local pX, pY = EllesmereUI._CaptureAnchorOffsets(barKey, ai.target, ai.side)
                     if pX == nil then return end
                     ai.offsetX, ai.offsetY = pX, pY
                 end
@@ -10696,7 +10579,7 @@ local function CreateMover(barKey)
                     -- pointed before the edge took over.
                     ai.edge = nil
                     EllesmereUI._anchorLinksStamp = (EllesmereUI._anchorLinksStamp or 0) + 1
-                    local offX, offY = EllesmereUI._CaptureAnchorOffsets(barKey, ai.target, ai.side, ai.point, ai.relPoint)
+                    local offX, offY = EllesmereUI._CaptureAnchorOffsets(barKey, ai.target, ai.side)
                     if offX ~= nil then ai.offsetX, ai.offsetY = offX, offY end
                     -- Growth bars: the pin outranks the offsets on its axis, so recapture
                     -- it from the current position too, the way the drag-stop path does.
@@ -11903,16 +11786,13 @@ local function SnapshotPositions()
 
     -- Snapshot anchor data so we can revert on discard (includes the
     -- growth-edge pin fields; losing them on cancel would force a lazy
-    -- recapture from whatever position the session left the bar at, and the
-    -- explicit points: without them a pointed record reverts as a side record
-    -- whose point-to-point offsets mean something else, and the element jumps)
+    -- recapture from whatever position the session left the bar at)
     wipe(snapshotAnchors)
     local anchorDB = GetAnchorDB()
     if anchorDB then
         for childKey, info in pairs(anchorDB) do
             snapshotAnchors[childKey] = {
                 target = info.target, side = info.side,
-                point = info.point, relPoint = info.relPoint,
                 offsetX = info.offsetX, offsetY = info.offsetY,
                 refX = info.refX, refY = info.refY,
                 edgeOffX = info.edgeOffX, edgeOffY = info.edgeOffY,
@@ -12232,7 +12112,6 @@ local function RevertPositions()
         for childKey, info in pairs(snapshotAnchors) do
             anchorDB[childKey] = {
                 target = info.target, side = info.side,
-                point = info.point, relPoint = info.relPoint,
                 offsetX = info.offsetX, offsetY = info.offsetY,
                 refX = info.refX, refY = info.refY,
                 edgeOffX = info.edgeOffX, edgeOffY = info.edgeOffY,
