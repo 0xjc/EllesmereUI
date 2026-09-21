@@ -21,6 +21,18 @@ ns.EAB = EAB
 -- vehicle or override switching do not. Comes back whole with the client fix.
 ns.SNIPPETS_OK = EllesmereUI.SecureSnippetsOK()
 
+-- Key-down casting relies on the pickup wrapper (eabPickupWrap, below) standing
+-- it down for the press that starts a drag. That wrapper is a secure snippet, so
+-- without snippets the press casts before the drag is seen and a spell can only
+-- be moved by turning the cvar off by hand. Blizzard's own button answers the
+-- same case by not acting on that edge at all. Key-up costs a keypress of
+-- latency; silently casting what the player meant to drag costs a cast.
+-- On ns, not a file local: this file sits on Lua's 200-local ceiling.
+function ns.UseKeyDownEffective()
+    if not ns.SNIPPETS_OK then return false end
+    return GetCVarBool("ActionButtonUseKeyDown")
+end
+
 local PP = EllesmereUI.PP
 
 -- CPU-attribution shell pool: the engine bills a handler's whole call tree to the addon
@@ -3175,7 +3187,7 @@ ns.BuildBarButtons = function(info, frame, skipProtected)
                 -- receive the key-down event even when CVar is key-up mode.
                 -- useOnKeyDown controls which event fires normal spells.
                 btn:RegisterForClicks("AnyDown", "AnyUp")
-                btn:SetAttribute("useOnKeyDown", GetCVarBool("ActionButtonUseKeyDown"))
+                btn:SetAttribute("useOnKeyDown", ns.UseKeyDownEffective())
                 if btn.EnableMouseWheel then
                     btn:EnableMouseWheel(true)
                 end
@@ -11961,7 +11973,7 @@ end
 -- receive key-down even in key-up mode. Only the attribute changes.
 -- Must be called out of combat (SetAttribute on secure buttons).
 local function ApplyClickRegistration()
-    local keyDown = GetCVarBool("ActionButtonUseKeyDown")
+    local keyDown = ns.UseKeyDownEffective()
     for _, info in ipairs(BAR_CONFIG) do
         if not info.isStance and not info.isPetBar then
             local btns = barButtons[info.key]
