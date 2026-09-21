@@ -2302,7 +2302,18 @@ end
 -- Applies the saved position (if any) or the default to the given parent frame.
 -- Shared between initial creation and the unlock-mode applyPos callback so the two
 -- never drift into different SetPoint logic. `grid` is optional (computed when nil).
+-- An unlock-anchored bar belongs to the anchor: the stored position is only a
+-- snapshot of where the anchor put it at the last Save & Exit, stale once the
+-- target moves (a player frame riding a CDM whose width varies per spec or
+-- character), and nothing re-anchors a fixed-size bar afterwards. The stored
+-- position still seeds a parent with no point yet; the anchor then places it.
 local function ApplyBarPosition(parent, isBuff, grid)
+    local unlockKey = isBuff and "PAB_Buffs" or "PAB_Debuffs"
+    local anchored = EllesmereUI.IsUnlockAnchored and EllesmereUI.IsUnlockAnchored(unlockKey)
+    if anchored and parent:GetNumPoints() > 0 and EllesmereUI.ReapplyOwnAnchor then
+        EllesmereUI.ReapplyOwnAnchor(unlockKey)
+        return
+    end
     local s = PAB()
     local posKey = BarPositionKey(isBuff)
     local pos = s and s[posKey]
@@ -2317,6 +2328,7 @@ local function ApplyBarPosition(parent, isBuff, grid)
     if cfg and (cfg.growDirection == "CENTER_HORIZONTAL" or cfg.growDirection == "CENTER_VERTICAL") then
         s[posKey] = RebaseBarPositionToCenter(parent, pos)
     end
+    if anchored and EllesmereUI.ReapplyOwnAnchor then EllesmereUI.ReapplyOwnAnchor(unlockKey) end
 end
 
 -- Blizzard's player BuffFrame/DebuffFrame are superseded by this module: hide them so
@@ -3976,8 +3988,14 @@ end
 
 -- Applies bar.pos (or the default) to a custom bar's parent frame. Same SetPoint
 -- logic as ApplyBarPosition, kept separate only because custom bars key off bar.pos
--- on the bar object, not a fixed s[BarPositionKey] slot.
+-- on the bar object, not a fixed s[BarPositionKey] slot. Same anchored rule too.
 local function ApplyCustomBarPosition(parent, bar, barId, isBuff, grid)
+    local unlockKey = (isBuff and "PAB_CustomBuff_" or "PAB_CustomDebuff_") .. barId
+    local anchored = EllesmereUI.IsUnlockAnchored and EllesmereUI.IsUnlockAnchored(unlockKey)
+    if anchored and parent:GetNumPoints() > 0 and EllesmereUI.ReapplyOwnAnchor then
+        EllesmereUI.ReapplyOwnAnchor(unlockKey)
+        return
+    end
     local pos = bar.pos or DefaultCustomPos(barId)
     local x, y = BarAnchorOffset(parent, bar, grid or ComputeGrid(isBuff, bar), pos)
     parent:ClearAllPoints()
@@ -3987,6 +4005,7 @@ local function ApplyCustomBarPosition(parent, bar, barId, isBuff, grid)
         local centeredPos = RebaseBarPositionToCenter(parent, pos)
         if bar.pos or centeredPos ~= pos then bar.pos = centeredPos end
     end
+    if anchored and EllesmereUI.ReapplyOwnAnchor then EllesmereUI.ReapplyOwnAnchor(unlockKey) end
 end
 
 local function CustomBuffSpellSignature(spells)
