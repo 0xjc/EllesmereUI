@@ -59,12 +59,17 @@ local ROWS = {
     { type = SWING.Ranged,   key = "r",  tag = "R",  show = "showR" },
 }
 
--- On-next-swing attacks (base spell IDs; ranks resolve to the same name):
--- Heroic Strike, Cleave, Maul. While one is queued the melee rows take the
--- queue colour and carry the spell name, so the swing that will consume it is
--- visible. Names resolve once per session (ACTIONBAR_UPDATE_STATE storms in
--- combat; the paint is a name compare and touches the rows only on a change).
-local QUEUE_SPELLS = { 78, 845, 6807 }
+-- On-next-swing attacks per class (base spell IDs; ranks resolve to the same
+-- name): Warrior Heroic Strike / Cleave, Druid Maul. While one is queued the
+-- melee rows take the queue colour and carry the spell name, so the swing that
+-- will consume it is visible. Names resolve once per session and only for a
+-- class that has one: ACTIONBAR_UPDATE_STATE storms in combat and is
+-- registered only while there are names to compare (the paint is a name
+-- compare that touches the rows only on a change).
+local QUEUE_SPELLS = {
+    WARRIOR = { 78, 845 },
+    DRUID   = { 6807 },
+}
 
 -- Shell + ticker host at FILE SCOPE (attribution rule, see _erbEventFrame in the
 -- main file): the OnEvent and OnLoop work bills ResourceBars. Children stay lazy.
@@ -232,9 +237,13 @@ local function SetOutOfRange(row, oor)
     ApplyRangeLook(row)
 end
 
+-- Range tracking is one engine flag per swing type, and Blizzard's own timer
+-- flips it on its edges too (its Edit Mode toggle sends false for the slot), so
+-- this never dedupes: every row refresh and every target change re-asserts our
+-- answer, and a flip from the other frame can never leave a row undimmed.
+-- S.rangeOn is the memo UpdateRangeRow reads, not a send gate.
 local function SetRangeCheck(swingType, on)
     on = on and true or false
-    if (S.rangeOn[swingType] or false) == on then return end
     S.rangeOn[swingType] = on
     C_SwingTimer.EnableRangeCheck(swingType, on)
 end
@@ -285,6 +294,7 @@ local function StartRow(row, dur, cfg)
     if type(dur) ~= "number" or dur ~= dur or dur <= 0 or dur == math.huge then return end
     local now = GetTime()
     row._end = now + dur
+    row._dur = dur
     if not row._live then
         row._live = true
         S.live = S.live + 1
@@ -540,6 +550,12 @@ shell:SetScript("OnEvent", function(self, event, a1, a2, a3)
         local row = S.byType[a1]
         if row then SetOutOfRange(row, a3 == true and a2 == false) end
     elseif event == "PLAYER_TARGET_CHANGED" then
+        -- Re-assert the range flags before the re-read (see SetRangeCheck).
+        local wantRange = cfg.rangeCheck ~= false
+        for i = 1, #S.rows do
+            local row = S.rows[i]
+            SetRangeCheck(row._def.type, wantRange and row:IsShown())
+        end
         UpdateRangeAll()
     else
         -- WEAPON_SLOT_CHANGED / UNIT_ATTACK_SPEED / PLAYER_ENTERING_WORLD
@@ -589,10 +605,12 @@ local function EnsureBuilt()
         S.rows[i] = row
         S.byType[ROWS[i].type] = row
     end
-    -- On-next-swing spell names, once per session.
-    if C_Spell and C_Spell.GetSpellName then
-        for i = 1, #QUEUE_SPELLS do
-            local name = C_Spell.GetSpellName(QUEUE_SPELLS[i])
+    -- On-next-swing spell names, once per session, for a class that has one.
+    local _, classFile = UnitClass("player")
+    local queueList = QUEUE_SPELLS[classFile]
+    if queueList and C_Spell and C_Spell.GetSpellName then
+        for i = 1, #queueList do
+            local name = C_Spell.GetSpellName(queueList[i])
             if Plain(name) and name then
                 S.queueNames[#S.queueNames + 1] = name
             end
@@ -674,10 +692,26 @@ function ns.ST_Apply()
     ApplyPosition(cfg)
     ApplyLook(cfg)
     PaintQueue(cfg)
-    if S.sample then
-        for i = 1, #S.rows do
-            S.rows[i]._bar:SetValue(0.6)
-            S.rows[i]._time:SetText("1.2")
+    -- Every row takes its paint here on every apply, always by re-arming the
+    -- bar timer, never by a plain SetValue: a parked timer keeps painting its
+    -- terminal state and SetValue does not repaint it (the GCD bar's idle
+    -- recipe). Unlock movers up: a full bar with a sample time. A row
+    -- mid-swing: its running swing again, in the direction now configured
+    -- (unlock exit, a Deplete Fill change). Otherwise the idle render, so a
+    -- Show Fill Color When Idle change shows at once, not at the next swing's end.
+    for i = 1, #S.rows do
+        local row = S.rows[i]
+        local obj = row._durObj
+        if S.sample then
+            obj:SetTimeFromStart(GetTime() - 1, 1)
+            row._bar:SetTimerDuration(obj, IMMEDIATE, DIR.ElapsedTime)
+            row._bar:SetValue(1)
+            row._time:SetText("1.2")
+        elseif row._live and row._dur then
+            obj:SetTimeFromStart(row._end - row._dur, row._dur)
+            row._bar:SetTimerDuration(obj, IMMEDIATE, cfg.depleteFill and DIR.RemainingTime or DIR.ElapsedTime)
+        else
+            IdleRow(row, cfg)
         end
     end
     ns.ST_UpdateVisibility()

@@ -409,7 +409,7 @@ local defaults = {
     focusCastHeight = 100,
     questMobColorEnabled = false,
     questMobColor = { r = 0.157, g = 0.855, b = 0.475 },
-    replaceQuestIconWithObjective = false,
+    replaceQuestIconWithObjective = (EllesmereUI.IS_FOREVER == true) and true or false,
     questObjectiveTextSize = 14,
     showCastIcon = true,
     castIconScale = 1,

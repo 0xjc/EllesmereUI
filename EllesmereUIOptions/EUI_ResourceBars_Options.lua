@@ -10329,7 +10329,7 @@ initFrame:SetScript("OnEvent", function(self)
         local enableRow
         enableRow, h = W:DualRow(parent, y,
             { type = "toggle", text = "Enable Swing Timer",
-              tooltip = "Shows one bar per weapon that can swing (Main Hand, Off Hand, Ranged), each filling over the time to the next auto attack. Rows for slots without a weapon are hidden.",
+              tooltip = "One bar per weapon that can swing, each filling over the time to the next auto attack.",
               getValue = function() local p = DB(); return p and p.swingTimer.enabled end,
               setValue = function(v)
                   local p = DB(); if not p then return end
@@ -10400,7 +10400,7 @@ initFrame:SetScript("OnEvent", function(self)
         local swDis, swTip, swRaw = EllesmereUI.MatchGuard("ERB_SwingTimer", "Width", stOff, ST_TIP)
         _, h = W:DualRow(parent, y,
             { type = "slider", text = "Row Height", min = 1, max = 60, step = 1,
-              tooltip = "Height of each weapon row. The bar grows by one row per weapon that can swing.",
+              tooltip = "Height of each weapon row.",
               disabled = shDis, disabledTooltip = shTip, rawTooltip = shRaw,
               getValue = function() local p = DB(); return p and p.swingTimer.height or 12 end,
               setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.height = v; RefreshST() end },
@@ -10433,7 +10433,7 @@ initFrame:SetScript("OnEvent", function(self)
               onChanged = function() RefreshST() end,
               onOptionChanged = function() RefreshST() end },
             { type = "toggle", text = "Hide When Idle",
-              tooltip = "Hide the whole bar while no swing is running (out of melee, not auto attacking). Off keeps the rows on screen sitting empty.",
+              tooltip = "Hide the bar while no swing is running.",
               disabled = stOff, disabledTooltip = ST_TIP,
               getValue = function() local p = DB(); return p and p.swingTimer.hideWhenIdle end,
               setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.hideWhenIdle = v; RefreshST() end }
