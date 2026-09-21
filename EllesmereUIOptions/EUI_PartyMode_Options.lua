@@ -419,7 +419,15 @@ do
                   local rl = EllesmereUI._widgetRefreshList
                   if rl then for i = 1, #rl do rl[i]() end end
               end },
-            nil,
+            { type = "checkbox", text = "Level Up",
+              getValue = TriggerGet("partyModeTriggerLevelUp"),
+              setValue = function(v)
+                  if not EllesmereUIDB then EllesmereUIDB = {} end
+                  EllesmereUIDB.partyModeTriggerLevelUp = v
+                  if EllesmereUI_UpdatePartyModeLevelUpListener then EllesmereUI_UpdatePartyModeLevelUpListener() end
+                  local rl = EllesmereUI._widgetRefreshList
+                  if rl then for i = 1, #rl do rl[i]() end end
+              end },
             nil,
             CB_SPLITS
         );  y = y - h
@@ -447,6 +455,7 @@ do
                     or EllesmereUIDB.partyModeTriggerMythic0
                     or EllesmereUIDB.partyModeTriggerRatedBG
                     or EllesmereUIDB.partyModeTriggerRatedArena
+                    or EllesmereUIDB.partyModeTriggerLevelUp
                     or EllesmereUIDB.partyModeTriggerRandom
                     or false
             end
@@ -681,6 +690,7 @@ do
                 EllesmereUIDB.partyModeTriggerLFRBoss = nil
                 EllesmereUIDB.partyModeTriggerMythic0 = nil
                 EllesmereUIDB.partyModeTriggerBloodlust = nil
+                EllesmereUIDB.partyModeTriggerLevelUp = nil
                 EllesmereUIDB.partyModeTriggerRatedBG = nil
                 EllesmereUIDB.partyModeTriggerRatedArena = nil
                 EllesmereUIDB.partyModeTriggerRandom = nil
