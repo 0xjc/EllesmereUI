@@ -1450,10 +1450,13 @@ end
 -- pull total is never computed in Lua: each value goes straight into SetValue
 -- and the segments add up on screen by anchoring each one to the previous
 -- segment's fill edge. The host clips anything past 100%.
-local RenderPullSegments, HidePullSegments
+-- The full render stores the layout and style on the frame (f._pull*); plate
+-- and regen events then only re-place the segments via UpdatePullSegments.
+local RenderPullSegments, HidePullSegments, SyncPullEvents
 do
     local PLATE_UNITS = {}
     for i = 1, 40 do PLATE_UNITS[i] = "nameplate" .. i end
+    local GROUP_UNITS = { "player", "party1", "party2", "party3", "party4" }
 
     -- A secret never counts as true.
     local function IsPlainTrue(v)
@@ -1461,24 +1464,41 @@ do
         return v == true
     end
 
+    -- Enemies only count while someone in the group fights, so the plate scan
+    -- is skipped between pulls. Party members keep it alive after a death.
+    local function GroupInCombat()
+        for i = 1, #GROUP_UNITS do
+            if IsPlainTrue(UnitAffectingCombat(GROUP_UNITS[i])) then return true end
+        end
+        return false
+    end
+
+    -- Without `from` this is a full hide: it also stops event-driven updates
+    -- from re-showing segments until the next full render turns them back on.
     HidePullSegments = function(f, from)
+        if not from then f._pullOn = false end
         local segs = f._pullSegs
         if not segs then return end
         for i = from or 1, #segs do segs[i]:Hide() end
     end
 
     -- Returns the placed segment's fill texture, the anchor for the next one.
-    local function PlaceSegment(f, clip, n, anchor, value, total, w, h, texPath, r, g, b, a)
+    -- Texture, color, range and size are re-applied only when the render's
+    -- style version changed; per update a segment just re-anchors and SetValues.
+    local function PlaceSegment(f, n, anchor, value)
         local seg = f._pullSegs[n]
         if not seg then
-            seg = CreateFrame("StatusBar", nil, clip)
+            seg = CreateFrame("StatusBar", nil, f._pullClip)
             seg:EnableMouse(false)
             f._pullSegs[n] = seg
         end
-        seg:SetStatusBarTexture(texPath)
-        seg:SetStatusBarColor(r, g, b, a)
-        seg:SetMinMaxValues(0, total)
-        seg:SetSize(w, h)
+        if seg._styleVer ~= f._pullStyleVer then
+            seg._styleVer = f._pullStyleVer
+            seg:SetStatusBarTexture(f._pullTex)
+            seg:SetStatusBarColor(f._pullR, f._pullG, f._pullB, f._pullA)
+            seg:SetMinMaxValues(0, f._pullTotal)
+            seg:SetSize(f._pullW, f._pullH)
+        end
         seg:ClearAllPoints()
         seg:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 0, 0)
         seg:SetValue(value)
@@ -1486,7 +1506,35 @@ do
         return seg:GetStatusBarTexture()
     end
 
+    local function UpdatePullSegments(f)
+        if not (f and f._pullOn) then return end
+        local anchor, n = f._enemyBarFill, 0
+        local previewValues = f._pullPreview
+        if previewValues then
+            for i = 1, #previewValues do
+                n = n + 1
+                anchor = PlaceSegment(f, n, anchor, previewValues[i])
+            end
+        elseif C_ScenarioInfo and C_ScenarioInfo.GetUnitCriteriaProgressValues and GroupInCombat() then
+            for i = 1, #PLATE_UNITS do
+                local unit = PLATE_UNITS[i]
+                if IsPlainTrue(UnitExists(unit)) and IsPlainTrue(UnitCanAttack("player", unit))
+                   and IsPlainTrue(UnitAffectingCombat(unit)) and not IsPlainTrue(UnitIsDead(unit)) then
+                    -- nil for enemies that give no forces. The value itself is
+                    -- only ever handed to SetValue, never read.
+                    local value = C_ScenarioInfo.GetUnitCriteriaProgressValues(unit)
+                    if value ~= nil then
+                        n = n + 1
+                        anchor = PlaceSegment(f, n, anchor, value)
+                    end
+                end
+            end
+        end
+        HidePullSegments(f, n + 1)
+    end
+
     RenderPullSegments = function(f, clip, run, enemyObj, p, w, h, barR, barG, barB)
+        SyncPullEvents()
         local total = enemyObj.rawTotalQuantity
         if p.showPullBar ~= true or enemyObj.completed or not total or total <= 0 then
             HidePullSegments(f)
@@ -1503,30 +1551,73 @@ do
             and EllesmereUI.ResolveTexturePath(barTextures, p.enemyBarTexture or "none", nil)
             or "Interface\\Buttons\\WHITE8X8"
 
-        local anchor, n = f._enemyBarFill, 0
-        local previewValues = run._previewPullValues
-        if previewValues then
-            for i = 1, #previewValues do
-                n = n + 1
-                anchor = PlaceSegment(f, clip, n, anchor, previewValues[i], total, w, h, texPath, r, g, b, a)
+        if f._pullTex ~= texPath or f._pullR ~= r or f._pullG ~= g or f._pullB ~= b
+           or f._pullA ~= a or f._pullTotal ~= total or f._pullW ~= w or f._pullH ~= h
+           or f._pullClip ~= clip then
+            f._pullTex, f._pullR, f._pullG, f._pullB, f._pullA = texPath, r, g, b, a
+            f._pullTotal, f._pullW, f._pullH, f._pullClip = total, w, h, clip
+            f._pullStyleVer = (f._pullStyleVer or 0) + 1
+        end
+        f._pullOn = true
+        f._pullPreview = run._previewPullValues
+        UpdatePullSegments(f)
+    end
+
+    -- Event side. Regen events (twice per pull) are registered while a run is
+    -- active with the bar enabled; nameplate events additionally only while
+    -- the player is in combat, so segments follow enemies joining the fight
+    -- between the 1/sec ticks. SyncPullEvents runs from the run-event toggle,
+    -- the regen events and every full render, so enabling the option mid-run,
+    -- mid-combat or after a mid-key /reload converges within a second.
+    local pullFrame = CreateFrame("Frame")
+    local PLATE_EVENTS = { "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED" }
+    local regenOn, platesOn = false, false
+    local updatePending = false
+
+    local function RunPendingUpdate()
+        updatePending = false
+        UpdatePullSegments(standaloneFrame)
+    end
+
+    SyncPullEvents = function(inCombat)
+        local p = db and db.profile
+        local on = (currentRun.active and p and p.showPullBar == true and p.showEnemyBar ~= false) and true or false
+        if inCombat == nil then inCombat = InCombatLockdown() end
+        local plates = on and inCombat and true or false
+        if on ~= regenOn then
+            regenOn = on
+            if on then
+                pullFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
+                pullFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+            else
+                pullFrame:UnregisterEvent("PLAYER_REGEN_DISABLED")
+                pullFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
             end
-        elseif C_ScenarioInfo and C_ScenarioInfo.GetUnitCriteriaProgressValues then
-            for i = 1, #PLATE_UNITS do
-                local unit = PLATE_UNITS[i]
-                if IsPlainTrue(UnitExists(unit)) and IsPlainTrue(UnitCanAttack("player", unit))
-                   and IsPlainTrue(UnitAffectingCombat(unit)) and not IsPlainTrue(UnitIsDead(unit)) then
-                    -- nil for enemies that give no forces. The value itself is
-                    -- only ever handed to SetValue, never read.
-                    local value = C_ScenarioInfo.GetUnitCriteriaProgressValues(unit)
-                    if value ~= nil then
-                        n = n + 1
-                        anchor = PlaceSegment(f, clip, n, anchor, value, total, w, h, texPath, r, g, b, a)
-                    end
+        end
+        if plates ~= platesOn then
+            platesOn = plates
+            for i = 1, #PLATE_EVENTS do
+                if plates then
+                    pullFrame:RegisterEvent(PLATE_EVENTS[i])
+                else
+                    pullFrame:UnregisterEvent(PLATE_EVENTS[i])
                 end
             end
         end
-        HidePullSegments(f, n + 1)
     end
+
+    pullFrame:SetScript("OnEvent", function(_, event)
+        if event == "PLAYER_REGEN_DISABLED" then
+            SyncPullEvents(true)
+        elseif event == "PLAYER_REGEN_ENABLED" then
+            SyncPullEvents(false)
+        end
+        -- Coalesce plate bursts (a pack scrolling into view) into one update.
+        if not updatePending then
+            updatePending = true
+            C_Timer.After(0.05, RunPendingUpdate)
+        end
+    end)
 end
 
 local function StripDefeated(name)
@@ -3126,42 +3217,13 @@ local _ALWAYS_EVENTS = {
 -- Registering them only during a key keeps idle CPU at zero.
 local _RUN_EVENTS = { "SCENARIO_CRITERIA_UPDATE", "ZONE_CHANGED_NEW_AREA" }
 
--- Current pull bar: regen events (twice per pull) are registered during a run
--- with the bar enabled (re-evaluated on every run event). Nameplate events are
--- registered only while the player is in combat, so segments follow enemies
--- joining the fight between the 1/sec ticks; outside combat they would fire on
--- every plate that scrolls into view.
-local pullFrame = CreateFrame("Frame")
-local _PULL_PLATE_EVENTS = { "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED" }
-local function _stopPullTracking()
-    for _, ev in ipairs(_PULL_PLATE_EVENTS) do pullFrame:UnregisterEvent(ev) end
-end
-pullFrame:SetScript("OnEvent", function(self, event)
-    if event == "PLAYER_REGEN_ENABLED" then
-        _stopPullTracking()
-    elseif event == "PLAYER_REGEN_DISABLED" then
-        if not (db and db.profile and db.profile.showPullBar == true) then return end
-        for _, ev in ipairs(_PULL_PLATE_EVENTS) do self:RegisterEvent(ev) end
-    end
-    NotifyRefresh()
-end)
-
 local function _registerRunEvents()
     for _, ev in ipairs(_RUN_EVENTS) do runtimeFrame:RegisterEvent(ev) end
-    if db and db.profile and db.profile.showPullBar == true then
-        pullFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
-        pullFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-    else
-        pullFrame:UnregisterEvent("PLAYER_REGEN_DISABLED")
-        pullFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
-        _stopPullTracking()
-    end
+    SyncPullEvents()
 end
 local function _unregisterRunEvents()
     for _, ev in ipairs(_RUN_EVENTS) do runtimeFrame:UnregisterEvent(ev) end
-    pullFrame:UnregisterEvent("PLAYER_REGEN_DISABLED")
-    pullFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
-    _stopPullTracking()
+    SyncPullEvents()
 end
 
 for _, ev in ipairs(_ALWAYS_EVENTS) do runtimeFrame:RegisterEvent(ev) end

@@ -402,7 +402,10 @@ initFrame:SetScript("OnEvent", function(self)
                 local block = CreateFrame("Frame", nil, sw)
                 block:SetAllPoints(); block:SetFrameLevel(sw:GetFrameLevel() + 10); block:EnableMouse(true)
                 block:SetScript("OnEnter", function()
-                    EllesmereUI.ShowWidgetTooltip(sw, EllesmereUI.DisabledTooltip(disabledTip or "the module"))
+                    -- disabledTip may be a function, like a DualRow cfg.disabledTooltip.
+                    local tip = disabledTip
+                    if type(tip) == "function" then tip = tip() end
+                    EllesmereUI.ShowWidgetTooltip(sw, EllesmereUI.DisabledTooltip(tip or "the module"))
                 end)
                 block:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
                 sw._block = block
@@ -912,6 +915,12 @@ initFrame:SetScript("OnEvent", function(self)
         local function _pullBarOff()
             return Cfg("enabled") == false or Cfg("showEnemyBar") == false or Cfg("showPullBar") ~= true
         end
+        -- Names whichever requirement actually disables the pull controls.
+        local function _pullBarReq()
+            if Cfg("enabled") == false then return "the module" end
+            if Cfg("showEnemyBar") == false then return "Show Enemy Forces" end
+            return "Show Current Pull in Bar"
+        end
         row, h = W:DualRow(parent, y,
             { type="toggle", text="Show Current Pull in Bar",
               disabled=function() return Cfg("enabled") == false or Cfg("showEnemyBar") == false end,
@@ -921,7 +930,7 @@ initFrame:SetScript("OnEvent", function(self)
               setValue=function(v) Set("showPullBar", v); Refresh(); EllesmereUI:RefreshPage() end },
             { type="slider", text="Current Pull Color", min=0, max=100, step=5, isPercent=false, trackWidth=130,
               disabled=_pullBarOff,
-              disabledTooltip="Show Current Pull in Bar",
+              disabledTooltip=_pullBarReq,
               tooltip="Opacity of the current pull on the enemy forces bar.",
               -- Stored 0..1 internally; displayed 0..100 to the user.
               getValue=function() return (Cfg("pullBarAlpha") or 0.35) * 100 end,
@@ -929,7 +938,7 @@ initFrame:SetScript("OnEvent", function(self)
         if not EllesmereUI._prebuilding then
         -- Pull color: follows the enemy bar color by default, or a custom color.
         _AttachInlineAccentSwatches(row._rightRegion, "pullBarUseBarColor", "pullBarColor", 1, 0.55, 0.1,
-            _pullBarOff, "Show Current Pull in Bar", "Enemy Bar Color", _enemyBarColor)
+            _pullBarOff, _pullBarReq, "Enemy Bar Color", _enemyBarColor)
         end
         y = y - h
 
