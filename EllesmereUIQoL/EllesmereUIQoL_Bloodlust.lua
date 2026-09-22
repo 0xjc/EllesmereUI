@@ -115,14 +115,16 @@ local function EP_borderColor()
     return { r = 0, g = 0, b = 0, a = 1 }
 end
 
--- Ready-display keys are OWN keys: BattleRes has no ready state, so they read
--- straight from the bloodlust slice instead of EP()'s proxy chain.
+-- Ready-display keys and desaturateSated are OWN keys: they have no BattleRes
+-- counterpart to follow, so they read straight from the bloodlust slice
+-- instead of EP()'s proxy chain.
 local READY_DEFAULTS = {
     showSated    = true,
     showReady    = false,
     readySize    = 12,
     readyOffsetX = 0,
     readyOffsetY = 0,
+    desaturateSated = false,
 }
 
 local function RP(key)
@@ -620,6 +622,18 @@ local function _hideReadyState()
     _readyShown = false
 end
 
+-- Grey the base icon while it shows a lockout (real or preview), never in the
+-- ready state. The 40s buff overlay is its own texture and stays in colour.
+local _lastDesat = false
+local function _syncDesat()
+    if not iconTex then return end
+    local want = (RP("desaturateSated") and not _readyShown) and true or false
+    if want ~= _lastDesat then
+        iconTex:SetDesaturated(want)
+        _lastDesat = want
+    end
+end
+
 local function _hideBuffOverlay()
     _buffExpiry = 0
     if buffOverlay then
@@ -751,6 +765,7 @@ local function PollSated()
             if _ticker then _ticker:Cancel(); _ticker = nil end
             _setDur("")
             _showReadyState()
+            _syncDesat()
             return
         end
         if _previewActive() then
@@ -759,6 +774,7 @@ local function PollSated()
             -- label when it is on, everything else previews the lockout, including
             -- the both-off case where the icon has no live state of its own.
             _showPreviewLockout()
+            _syncDesat()
             return
         end
         _setDur("")
@@ -782,6 +798,7 @@ local function PollSated()
     else
         _setDur("")
     end
+    _syncDesat()
 end
 
 function UpdateVisibility()
