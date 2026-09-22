@@ -7473,26 +7473,29 @@ end
 -- of the font string's own width. Insets match the classic ones. Shared with
 -- the options preview, hence on EAB not a local.
 EAB.TEXT_ANCHOR_ORDER = { "TOPLEFT", "TOP", "TOPRIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT" }
+-- Horizontal inset shared by the three classic placements, and each text's own
+-- vertical one: the baseline an anchored text keeps at every position.
+EAB.TEXT_INSET_X = 1
+EAB.TEXT_INSET_Y = { keybind = 3, count = 4, macro = 4 }
 EAB.TEXT_ANCHOR_JUSTIFY = {
     TOPLEFT = "LEFT", TOP = "CENTER", TOPRIGHT = "RIGHT",
     BOTTOMLEFT = "LEFT", BOTTOM = "CENTER", BOTTOMRIGHT = "RIGHT",
 }
-function EAB.PlaceButtonText(fs, parent, anchor, ox, oy)
+function EAB.PlaceButtonText(fs, parent, anchor, ox, oy, yInset)
     local justify = anchor and EAB.TEXT_ANCHOR_JUSTIFY[anchor]
     if not justify then return false end
-    -- One unit in from both edges, the same for every position, so offset 0/0
-    -- means the same thing wherever the text is anchored. The three classic
-    -- placements each carry their own hand-tuned pair (keybind -1/-3, charges
-    -- -1/+4, macro +1/+4), tuned for the one corner each sits in; folding those
-    -- in would make 0/0 mean a different distance per text and per corner. The
-    -- stock look is one typed pair away (keybind Top Right, Y -2).
-    local INSET = 1
+    -- yInset is the text's own classic inset (EAB.TEXT_INSET_Y), so offset 0/0
+    -- at the position it already sits in is exactly where it sat before, and the
+    -- same number of units from the edge at the other five. Keying the inset off
+    -- the edge instead would hand a keybind sent to a bottom corner the charges
+    -- tuning, and make 0/0 mean two different distances for one text.
+    yInset = yInset or 0
     local edge = (anchor:find("TOP", 1, true) and "TOP") or "BOTTOM"
-    local y = ((edge == "TOP") and -INSET or INSET) + (oy or 0)
+    local y = ((edge == "TOP") and -yInset or yInset) + (oy or 0)
     ox = ox or 0
     fs:ClearAllPoints()
-    fs:SetPoint(edge .. "LEFT", parent, edge .. "LEFT", INSET + ox, y)
-    fs:SetPoint(edge .. "RIGHT", parent, edge .. "RIGHT", -INSET + ox, y)
+    fs:SetPoint(edge .. "LEFT", parent, edge .. "LEFT", EAB.TEXT_INSET_X + ox, y)
+    fs:SetPoint(edge .. "RIGHT", parent, edge .. "RIGHT", -EAB.TEXT_INSET_X + ox, y)
     fs:SetJustifyH(justify)
     -- A justification change alone does not re-lay the string out: SetPoint
     -- with unchanged values and SetText with unchanged text are both no-ops,
@@ -7575,7 +7578,7 @@ function EAB:ApplyFontsForBar(barKey)
                 hk:SetTextColor(kbColor.r, kbColor.g, kbColor.b)
                 -- Anchor unset (the default) = the classic placement below; the
                 -- nil test is the whole cost of the feature while it is off.
-                if not (kbAnchor and EAB.PlaceButtonText(hk, btn, kbAnchor, kbOX, kbOY)) then
+                if not (kbAnchor and EAB.PlaceButtonText(hk, btn, kbAnchor, kbOX, kbOY, EAB.TEXT_INSET_Y.keybind)) then
                     hk:ClearAllPoints()
                     hk:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -1 + kbOX, -3 + kbOY)
                     hk:SetPoint("TOPLEFT", btn, "TOPLEFT", 4 + kbOX, -3 + kbOY)
@@ -7589,7 +7592,7 @@ function EAB:ApplyFontsForBar(barKey)
         if ct then
             EllesmereUI.ApplyIconTextFont(ct, fontPath, ctSize, "actionBars")
             ct:SetTextColor(ctColor.r, ctColor.g, ctColor.b)
-            if not (ctAnchor and EAB.PlaceButtonText(ct, btn, ctAnchor, ctOX, ctOY)) then
+            if not (ctAnchor and EAB.PlaceButtonText(ct, btn, ctAnchor, ctOX, ctOY, EAB.TEXT_INSET_Y.count)) then
                 ct:ClearAllPoints()
                 ct:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1 + ctOX, 4 + ctOY)
                 ct:SetJustifyH("RIGHT")
@@ -7606,7 +7609,7 @@ function EAB:ApplyFontsForBar(barKey)
                 if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(nm, false) end
                 nm:SetFont(fontPath, macroSize, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
                 nm:SetTextColor(macroColor.r, macroColor.g, macroColor.b)
-                if not (macroAnchor and EAB.PlaceButtonText(nm, btn, macroAnchor, macroOX, macroOY)) then
+                if not (macroAnchor and EAB.PlaceButtonText(nm, btn, macroAnchor, macroOX, macroOY, EAB.TEXT_INSET_Y.macro)) then
                     nm:ClearAllPoints()
                     nm:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 1 + macroOX, 4 + macroOY)
                     nm:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1 + macroOX, 4 + macroOY)

@@ -1005,7 +1005,7 @@ initFrame:SetScript("OnEvent", function(self)
                     keybindFS:SetTextColor(kbColor.r, kbColor.g, kbColor.b)
                     local kbOX = (settings.keybindOffsetX or 0) * totalScale
                     local kbOY = (settings.keybindOffsetY or 0) * totalScale
-                    if not (settings.keybindAnchor and EAB.PlaceButtonText(keybindFS, bf, settings.keybindAnchor, kbOX, kbOY)) then
+                    if not (settings.keybindAnchor and EAB.PlaceButtonText(keybindFS, bf, settings.keybindAnchor, kbOX, kbOY, EAB.TEXT_INSET_Y.keybind)) then
                         keybindFS:ClearAllPoints()
                         keybindFS:SetPoint("TOPRIGHT", bf, "TOPRIGHT", -1 + kbOX, -3 + kbOY)
                         keybindFS:SetPoint("TOPLEFT", bf, "TOPLEFT", 4 + kbOX, -3 + kbOY)
@@ -1024,7 +1024,7 @@ initFrame:SetScript("OnEvent", function(self)
                     countFS:SetTextColor(ctColor.r, ctColor.g, ctColor.b)
                     local ctOX = (settings.countOffsetX or 0) * totalScale
                     local ctOY = (settings.countOffsetY or 0) * totalScale
-                    if not (settings.countAnchor and EAB.PlaceButtonText(countFS, bf, settings.countAnchor, ctOX, ctOY)) then
+                    if not (settings.countAnchor and EAB.PlaceButtonText(countFS, bf, settings.countAnchor, ctOX, ctOY, EAB.TEXT_INSET_Y.count)) then
                         countFS:ClearAllPoints()
                         countFS:SetPoint("BOTTOMRIGHT", bf, "BOTTOMRIGHT", -1 + ctOX, 4 + ctOY)
                         countFS:SetJustifyH("RIGHT")
@@ -1046,7 +1046,7 @@ initFrame:SetScript("OnEvent", function(self)
                         macroFS:SetTextColor(mcColor.r, mcColor.g, mcColor.b)
                         local mcOX = (settings.macroOffsetX or 0) * totalScale
                         local mcOY = (settings.macroOffsetY or 0) * totalScale
-                        if not (settings.macroAnchor and EAB.PlaceButtonText(macroFS, bf, settings.macroAnchor, mcOX, mcOY)) then
+                        if not (settings.macroAnchor and EAB.PlaceButtonText(macroFS, bf, settings.macroAnchor, mcOX, mcOY, EAB.TEXT_INSET_Y.macro)) then
                             macroFS:ClearAllPoints()
                             macroFS:SetPoint("BOTTOMLEFT", bf, "BOTTOMLEFT", 1 + mcOX, 4 + mcOY)
                             macroFS:SetPoint("BOTTOMRIGHT", bf, "BOTTOMRIGHT", -1 + mcOX, 4 + mcOY)
