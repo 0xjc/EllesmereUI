@@ -9,7 +9,7 @@ if not ns then return end  -- module disabled: no options page
 local EAB = ns.EAB
 local VisibilityCompat = EAB and EAB.VisibilityCompat
 -- Anchor dropdown for the three button texts (keybind / charges / macro name);
--- "default" = classic placement, stored as nil in the profile.
+-- "default" = stock placement, stored as nil in the profile.
 local TEXT_ANCHOR_LABELS = {
     default = "Default", TOPLEFT = "Top Left", TOP = "Top", TOPRIGHT = "Top Right",
     BOTTOMLEFT = "Bottom Left", BOTTOM = "Bottom", BOTTOMRIGHT = "Bottom Right",
@@ -1654,13 +1654,14 @@ initFrame:SetScript("OnEvent", function(self)
             UpdatePreview()
         end
 
-        -- The stock spacing lives in the offset boxes, not in the placement: on the
-        -- way in it is seeded there, and it follows the position while the numbers
-        -- are still the ones seeded. The moment the user types anything the boxes
-        -- are theirs and nothing rewrites them.
+        -- The stock spacing lives in the offset boxes, not in the placement: it is
+        -- seeded there on the way in, follows the position while the numbers are
+        -- still the seeded ones, and is cleared on the way back out to Default,
+        -- where the stock placement carries its own spacing again. The moment the
+        -- user types anything the boxes are theirs and nothing rewrites them.
         local function SSeedTextOffsets(kind, anchorKey, oxKey, oyKey, anchor)
-            if not anchor then return end
             local prev = SVal(anchorKey, nil)
+            if prev == anchor then return end
             local ox, oy = SVal(oxKey, 0), SVal(oyKey, 0)
             if prev then
                 local px, py = EAB.StockTextOffsets(kind, prev)
@@ -1668,7 +1669,11 @@ initFrame:SetScript("OnEvent", function(self)
             elseif ox ~= 0 or oy ~= 0 then
                 return
             end
-            SB()[oxKey], SB()[oyKey] = EAB.StockTextOffsets(kind, anchor)
+            if anchor then
+                SB()[oxKey], SB()[oyKey] = EAB.StockTextOffsets(kind, anchor)
+            else
+                SB()[oxKey], SB()[oyKey] = nil, nil
+            end
         end
         local function SUpdatePreviewAndResize()
             UpdatePreviewAndResize()

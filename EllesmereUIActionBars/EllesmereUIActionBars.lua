@@ -583,7 +583,7 @@ for _, info in ipairs(BAR_CONFIG) do
         macroOffsetY = 0,
         countOffsetX = 0,
         countOffsetY = 0,
-        -- Text anchors: nil keeps the classic placement (keybind top-right,
+        -- Text anchors: nil keeps the stock placement (keybind top-right,
         -- charges bottom-right, macro name bottom-center). Any value from
         -- EAB.TEXT_ANCHOR_ORDER pins the text to that button corner/edge and
         -- justifies it the same way, so multi-digit text grows away from it.
@@ -7465,15 +7465,15 @@ end
 --  Font / Keybind Text
 -------------------------------------------------------------------------------
 -- Button text anchoring (keybind / charges / macro name). Opt-in per bar via
--- <text>Anchor; nil = classic placement, handled by the caller, which only
+-- <text>Anchor; nil = stock placement, handled by the caller, which only
 -- calls in here once an anchor is set. Returns false for an anchor it does not
--- know (a hand-edited profile), so the caller falls back to classic. The text is
--- stretched across the chosen edge (both corners anchored, same as the classic
+-- know (a hand-edited profile), so the caller falls back to stock. The text is
+-- stretched across the chosen edge (both corners anchored, same as the stock
 -- keybind placement) and JustifyH does the alignment, so it holds regardless
--- of the font string's own width. Insets match the classic ones. Shared with
+-- of the font string's own width. Shared with
 -- the options preview, hence on EAB not a local.
 EAB.TEXT_ANCHOR_ORDER = { "TOPLEFT", "TOP", "TOPRIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT" }
--- The spacing each classic placement carries (keybind -1/-3, charges -1/+4,
+-- The spacing each stock placement carries (keybind -1/-3, charges -1/+4,
 -- macro +1/+4). Seeded into a text's offset boxes the first time a position is
 -- picked for it, so opting in does not move the text, and the numbers are then
 -- the user's to change. Not applied on the drawing side: there, 0/0 is the
@@ -7588,7 +7588,7 @@ function EAB:ApplyFontsForBar(barKey)
                 hk:Show()
                 EllesmereUI.ApplyIconTextFont(hk, fontPath, kbSize, "actionBars")
                 hk:SetTextColor(kbColor.r, kbColor.g, kbColor.b)
-                -- Anchor unset (the default) = the classic placement below; the
+                -- Anchor unset (the default) = the stock placement below; the
                 -- nil test is the whole cost of the feature while it is off.
                 if not (kbAnchor and EAB.PlaceButtonText(hk, btn, kbAnchor, kbOX, kbOY)) then
                     hk:ClearAllPoints()
