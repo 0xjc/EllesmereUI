@@ -3126,11 +3126,11 @@ local _ALWAYS_EVENTS = {
 -- Registering them only during a key keeps idle CPU at zero.
 local _RUN_EVENTS = { "SCENARIO_CRITERIA_UPDATE", "ZONE_CHANGED_NEW_AREA" }
 
--- Current pull bar: regen events (twice per pull) are registered for the whole
--- run. Nameplate events are registered only while the player is in combat with
--- the bar enabled, so segments follow enemies joining the fight between the
--- 1/sec ticks; outside combat they would fire on every plate that scrolls into
--- view.
+-- Current pull bar: regen events (twice per pull) are registered during a run
+-- with the bar enabled (re-evaluated on every run event). Nameplate events are
+-- registered only while the player is in combat, so segments follow enemies
+-- joining the fight between the 1/sec ticks; outside combat they would fire on
+-- every plate that scrolls into view.
 local pullFrame = CreateFrame("Frame")
 local _PULL_PLATE_EVENTS = { "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED" }
 local function _stopPullTracking()
@@ -3148,8 +3148,14 @@ end)
 
 local function _registerRunEvents()
     for _, ev in ipairs(_RUN_EVENTS) do runtimeFrame:RegisterEvent(ev) end
-    pullFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
-    pullFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+    if db and db.profile and db.profile.showPullBar == true then
+        pullFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
+        pullFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+    else
+        pullFrame:UnregisterEvent("PLAYER_REGEN_DISABLED")
+        pullFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
+        _stopPullTracking()
+    end
 end
 local function _unregisterRunEvents()
     for _, ev in ipairs(_RUN_EVENTS) do runtimeFrame:UnregisterEvent(ev) end
