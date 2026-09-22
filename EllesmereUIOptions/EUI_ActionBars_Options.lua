@@ -1005,7 +1005,7 @@ initFrame:SetScript("OnEvent", function(self)
                     keybindFS:SetTextColor(kbColor.r, kbColor.g, kbColor.b)
                     local kbOX = (settings.keybindOffsetX or 0) * totalScale
                     local kbOY = (settings.keybindOffsetY or 0) * totalScale
-                    if not (settings.keybindAnchor and EAB.PlaceButtonText(keybindFS, bf, settings.keybindAnchor, kbOX, kbOY, EAB.TEXT_INSET_Y.keybind)) then
+                    if not (settings.keybindAnchor and EAB.PlaceButtonText(keybindFS, bf, settings.keybindAnchor, kbOX, kbOY)) then
                         keybindFS:ClearAllPoints()
                         keybindFS:SetPoint("TOPRIGHT", bf, "TOPRIGHT", -1 + kbOX, -3 + kbOY)
                         keybindFS:SetPoint("TOPLEFT", bf, "TOPLEFT", 4 + kbOX, -3 + kbOY)
@@ -1024,7 +1024,7 @@ initFrame:SetScript("OnEvent", function(self)
                     countFS:SetTextColor(ctColor.r, ctColor.g, ctColor.b)
                     local ctOX = (settings.countOffsetX or 0) * totalScale
                     local ctOY = (settings.countOffsetY or 0) * totalScale
-                    if not (settings.countAnchor and EAB.PlaceButtonText(countFS, bf, settings.countAnchor, ctOX, ctOY, EAB.TEXT_INSET_Y.count)) then
+                    if not (settings.countAnchor and EAB.PlaceButtonText(countFS, bf, settings.countAnchor, ctOX, ctOY)) then
                         countFS:ClearAllPoints()
                         countFS:SetPoint("BOTTOMRIGHT", bf, "BOTTOMRIGHT", -1 + ctOX, 4 + ctOY)
                         countFS:SetJustifyH("RIGHT")
@@ -1046,7 +1046,7 @@ initFrame:SetScript("OnEvent", function(self)
                         macroFS:SetTextColor(mcColor.r, mcColor.g, mcColor.b)
                         local mcOX = (settings.macroOffsetX or 0) * totalScale
                         local mcOY = (settings.macroOffsetY or 0) * totalScale
-                        if not (settings.macroAnchor and EAB.PlaceButtonText(macroFS, bf, settings.macroAnchor, mcOX, mcOY, EAB.TEXT_INSET_Y.macro)) then
+                        if not (settings.macroAnchor and EAB.PlaceButtonText(macroFS, bf, settings.macroAnchor, mcOX, mcOY)) then
                             macroFS:ClearAllPoints()
                             macroFS:SetPoint("BOTTOMLEFT", bf, "BOTTOMLEFT", 1 + mcOX, 4 + mcOY)
                             macroFS:SetPoint("BOTTOMRIGHT", bf, "BOTTOMRIGHT", -1 + mcOX, 4 + mcOY)
@@ -1652,6 +1652,23 @@ initFrame:SetScript("OnEvent", function(self)
         end
         local function SUpdatePreview()
             UpdatePreview()
+        end
+
+        -- The stock spacing lives in the offset boxes, not in the placement: on the
+        -- way in it is seeded there, and it follows the position while the numbers
+        -- are still the ones seeded. The moment the user types anything the boxes
+        -- are theirs and nothing rewrites them.
+        local function SSeedTextOffsets(kind, anchorKey, oxKey, oyKey, anchor)
+            if not anchor then return end
+            local prev = SVal(anchorKey, nil)
+            local ox, oy = SVal(oxKey, 0), SVal(oyKey, 0)
+            if prev then
+                local px, py = EAB.StockTextOffsets(kind, prev)
+                if ox ~= px or oy ~= py then return end
+            elseif ox ~= 0 or oy ~= 0 then
+                return
+            end
+            SB()[oxKey], SB()[oyKey] = EAB.StockTextOffsets(kind, anchor)
         end
         local function SUpdatePreviewAndResize()
             UpdatePreviewAndResize()
@@ -4503,7 +4520,9 @@ initFrame:SetScript("OnEvent", function(self)
                           values=TEXT_ANCHOR_LABELS, order=TEXT_ANCHOR_DROPDOWN_ORDER,
                           get=function() return SVal("keybindAnchor", "default") end,
                           set=function(v)
-                              SSet("keybindAnchor", v ~= "default" and v or nil, function(k) EAB:ApplyFontsForBar(k) end)
+                              local anchor = v ~= "default" and v or nil
+                              SSeedTextOffsets("keybind", "keybindAnchor", "keybindOffsetX", "keybindOffsetY", anchor)
+                              SSet("keybindAnchor", anchor, function(k) EAB:ApplyFontsForBar(k) end)
                               SUpdatePreview()
                           end },
                         { type="slider", label="X Offset", min=-150, max=150, step=1,
@@ -4668,7 +4687,9 @@ initFrame:SetScript("OnEvent", function(self)
                           values=TEXT_ANCHOR_LABELS, order=TEXT_ANCHOR_DROPDOWN_ORDER,
                           get=function() return SVal("macroAnchor", "default") end,
                           set=function(v)
-                              SSet("macroAnchor", v ~= "default" and v or nil, function(k) EAB:ApplyFontsForBar(k) end)
+                              local anchor = v ~= "default" and v or nil
+                              SSeedTextOffsets("macro", "macroAnchor", "macroOffsetX", "macroOffsetY", anchor)
+                              SSet("macroAnchor", anchor, function(k) EAB:ApplyFontsForBar(k) end)
                               SUpdatePreview()
                           end },
                         { type="slider", label="X Offset", min=-150, max=150, step=1,
@@ -4794,7 +4815,9 @@ initFrame:SetScript("OnEvent", function(self)
                           values=TEXT_ANCHOR_LABELS, order=TEXT_ANCHOR_DROPDOWN_ORDER,
                           get=function() return SVal("countAnchor", "default") end,
                           set=function(v)
-                              SSet("countAnchor", v ~= "default" and v or nil, function(k) EAB:ApplyFontsForBar(k) end)
+                              local anchor = v ~= "default" and v or nil
+                              SSeedTextOffsets("count", "countAnchor", "countOffsetX", "countOffsetY", anchor)
+                              SSet("countAnchor", anchor, function(k) EAB:ApplyFontsForBar(k) end)
                               SUpdatePreview()
                           end },
                         { type="slider", label="X Offset", min=-150, max=150, step=1,
