@@ -247,6 +247,12 @@ local DB_DEFAULTS = {
         deathTextColor    = { r = 0.93, g = 0.33, b = 0.33 },
         enemyBarUseAccent = true,
         enemyBarColor     = { r = 0.35, g = 0.55, b = 0.8 },
+        -- Current pull: the bar previews the forces of every enemy in combat
+        -- behind the forces fill (by default in the fill color at reduced alpha).
+        showPullBar        = false,
+        pullBarUseBarColor = true,
+        pullBarColor       = { r = 1, g = 0.55, b = 0.1 },
+        pullBarAlpha       = 0.35,
         -- Targeted Spell Bars (Mythic+ Tools tab): replica nameplate cast bars
         -- collected into one movable group. Disabled by default; the feature
         -- registers its events only while enabled (zero cost off). Runtime in
@@ -1110,6 +1116,8 @@ local PREVIEW_RUN = {
     preciseCompletedElapsed = nil,
     _previewAffixNames = { "Tyrannical", "Xal'atath's Bargain: Ascendant" },
     _previewAffixIDs = { 9, 152 },
+    -- Current pull sample: two pulled mobs worth 18 and 14 forces (~13%).
+    _previewPullValues = { 18, 14 },
     objectives    = {
         { name = "Kyrioss",                 completed = true,  elapsed = 510,  quantity = 1,     totalQuantity = 1,   rawQuantity = 1, rawTotalQuantity = 1, percent = 0, isWeighted = false, previewSplit = 528 },
         { name = "Stormguard Gorren",       completed = true,  elapsed = 1005, quantity = 1,     totalQuantity = 1,   rawQuantity = 1, rawTotalQuantity = 1, percent = 0, isWeighted = false, previewSplit = 972 },
@@ -1434,6 +1442,91 @@ local function GetAccentColor()
         return EllesmereUI.ResolveActiveAccent()
     end
     return 0.05, 0.83, 0.62
+end
+
+-- Current pull bar: one StatusBar per enemy in combat, chained off the end of
+-- the forces fill. In M+ the per-unit forces values are secret (tainted code
+-- can neither add nor compare them) and unit identity is restricted, so the
+-- pull total is never computed in Lua: each value goes straight into SetValue
+-- and the segments add up on screen by anchoring each one to the previous
+-- segment's fill edge. The host clips anything past 100%.
+local RenderPullSegments, HidePullSegments
+do
+    local PLATE_UNITS = {}
+    for i = 1, 40 do PLATE_UNITS[i] = "nameplate" .. i end
+
+    -- A secret never counts as true.
+    local function IsPlainTrue(v)
+        if v == nil or (issecretvalue and issecretvalue(v)) then return false end
+        return v == true
+    end
+
+    HidePullSegments = function(f, from)
+        local segs = f._pullSegs
+        if not segs then return end
+        for i = from or 1, #segs do segs[i]:Hide() end
+    end
+
+    -- Returns the placed segment's fill texture, the anchor for the next one.
+    local function PlaceSegment(f, clip, n, anchor, value, total, w, h, texPath, r, g, b, a)
+        local seg = f._pullSegs[n]
+        if not seg then
+            seg = CreateFrame("StatusBar", nil, clip)
+            seg:EnableMouse(false)
+            f._pullSegs[n] = seg
+        end
+        seg:SetStatusBarTexture(texPath)
+        seg:SetStatusBarColor(r, g, b, a)
+        seg:SetMinMaxValues(0, total)
+        seg:SetSize(w, h)
+        seg:ClearAllPoints()
+        seg:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 0, 0)
+        seg:SetValue(value)
+        seg:Show()
+        return seg:GetStatusBarTexture()
+    end
+
+    RenderPullSegments = function(f, clip, run, enemyObj, p, w, h, barR, barG, barB)
+        local total = enemyObj.rawTotalQuantity
+        if p.showPullBar ~= true or enemyObj.completed or not total or total <= 0 then
+            HidePullSegments(f)
+            return
+        end
+        if not f._pullSegs then f._pullSegs = {} end
+
+        local r, g, b = barR, barG, barB
+        if p.pullBarUseBarColor == false then
+            r, g, b = GetColor(p.pullBarColor, 1, 0.55, 0.1)
+        end
+        local a = p.pullBarAlpha or 0.35
+        local texPath = EllesmereUI.ResolveTexturePath
+            and EllesmereUI.ResolveTexturePath(barTextures, p.enemyBarTexture or "none", nil)
+            or "Interface\\Buttons\\WHITE8X8"
+
+        local anchor, n = f._enemyBarFill, 0
+        local previewValues = run._previewPullValues
+        if previewValues then
+            for i = 1, #previewValues do
+                n = n + 1
+                anchor = PlaceSegment(f, clip, n, anchor, previewValues[i], total, w, h, texPath, r, g, b, a)
+            end
+        elseif C_ScenarioInfo and C_ScenarioInfo.GetUnitCriteriaProgressValues then
+            for i = 1, #PLATE_UNITS do
+                local unit = PLATE_UNITS[i]
+                if IsPlainTrue(UnitExists(unit)) and IsPlainTrue(UnitCanAttack("player", unit))
+                   and IsPlainTrue(UnitAffectingCombat(unit)) and not IsPlainTrue(UnitIsDead(unit)) then
+                    -- nil for enemies that give no forces. The value itself is
+                    -- only ever handed to SetValue, never read.
+                    local value = C_ScenarioInfo.GetUnitCriteriaProgressValues(unit)
+                    if value ~= nil then
+                        n = n + 1
+                        anchor = PlaceSegment(f, clip, n, anchor, value, total, w, h, texPath, r, g, b, a)
+                    end
+                end
+            end
+        end
+        HidePullSegments(f, n + 1)
+    end
 end
 
 local function StripDefeated(name)
@@ -2156,6 +2249,7 @@ local function RenderStandalone()
             f._enemyBarBg:Hide()
             f._enemyBarFill:Hide()
             if f._enemyBarText then f._enemyBarText:Hide() end
+            HidePullSegments(f)
             return
         end
 
@@ -2172,6 +2266,7 @@ local function RenderStandalone()
             if f._enemyBarHost then f._enemyBarHost:Hide() end
             f._enemyBarBg:Hide(); f._enemyBarFill:Hide()
             if f._enemyBarText then f._enemyBarText:Hide() end
+            HidePullSegments(f)
             return
         end
 
@@ -2249,6 +2344,7 @@ local function RenderStandalone()
             f._enemyBarFill:SetSize(eFillW, clipH)
             ApplyBarTexture(f._enemyBarFill, p.enemyBarTexture, eR, eG, eB, 0.8)
             f._enemyBarFill:Show()
+            RenderPullSegments(f, enemyClip, run, enemyObj, p, clipW, clipH, eR, eG, eB)
 
             if not f._enemyBarText then
                 f._enemyBarText = f:CreateFontString(nil, "OVERLAY")
@@ -3030,11 +3126,36 @@ local _ALWAYS_EVENTS = {
 -- Registering them only during a key keeps idle CPU at zero.
 local _RUN_EVENTS = { "SCENARIO_CRITERIA_UPDATE", "ZONE_CHANGED_NEW_AREA" }
 
+-- Current pull bar: regen events (twice per pull) are registered for the whole
+-- run. Nameplate events are registered only while the player is in combat with
+-- the bar enabled, so segments follow enemies joining the fight between the
+-- 1/sec ticks; outside combat they would fire on every plate that scrolls into
+-- view.
+local pullFrame = CreateFrame("Frame")
+local _PULL_PLATE_EVENTS = { "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED" }
+local function _stopPullTracking()
+    for _, ev in ipairs(_PULL_PLATE_EVENTS) do pullFrame:UnregisterEvent(ev) end
+end
+pullFrame:SetScript("OnEvent", function(self, event)
+    if event == "PLAYER_REGEN_ENABLED" then
+        _stopPullTracking()
+    elseif event == "PLAYER_REGEN_DISABLED" then
+        if not (db and db.profile and db.profile.showPullBar == true) then return end
+        for _, ev in ipairs(_PULL_PLATE_EVENTS) do self:RegisterEvent(ev) end
+    end
+    NotifyRefresh()
+end)
+
 local function _registerRunEvents()
     for _, ev in ipairs(_RUN_EVENTS) do runtimeFrame:RegisterEvent(ev) end
+    pullFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
+    pullFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 end
 local function _unregisterRunEvents()
     for _, ev in ipairs(_RUN_EVENTS) do runtimeFrame:UnregisterEvent(ev) end
+    pullFrame:UnregisterEvent("PLAYER_REGEN_DISABLED")
+    pullFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
+    _stopPullTracking()
 end
 
 for _, ev in ipairs(_ALWAYS_EVENTS) do runtimeFrame:RegisterEvent(ev) end
