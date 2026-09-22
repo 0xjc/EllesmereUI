@@ -7480,12 +7480,19 @@ EAB.TEXT_ANCHOR_JUSTIFY = {
 function EAB.PlaceButtonText(fs, parent, anchor, ox, oy)
     local justify = anchor and EAB.TEXT_ANCHOR_JUSTIFY[anchor]
     if not justify then return false end
+    -- One unit in from both edges, the same for every position, so offset 0/0
+    -- means the same thing wherever the text is anchored. The three classic
+    -- placements each carry their own hand-tuned pair (keybind -1/-3, charges
+    -- -1/+4, macro +1/+4), tuned for the one corner each sits in; folding those
+    -- in would make 0/0 mean a different distance per text and per corner. The
+    -- stock look is one typed pair away (keybind Top Right, Y -2).
+    local INSET = 1
     local edge = (anchor:find("TOP", 1, true) and "TOP") or "BOTTOM"
-    local y = ((edge == "TOP") and -3 or 4) + (oy or 0)
+    local y = ((edge == "TOP") and -INSET or INSET) + (oy or 0)
     ox = ox or 0
     fs:ClearAllPoints()
-    fs:SetPoint(edge .. "LEFT", parent, edge .. "LEFT", 1 + ox, y)
-    fs:SetPoint(edge .. "RIGHT", parent, edge .. "RIGHT", -1 + ox, y)
+    fs:SetPoint(edge .. "LEFT", parent, edge .. "LEFT", INSET + ox, y)
+    fs:SetPoint(edge .. "RIGHT", parent, edge .. "RIGHT", -INSET + ox, y)
     fs:SetJustifyH(justify)
     -- A justification change alone does not re-lay the string out: SetPoint
     -- with unchanged values and SetText with unchanged text are both no-ops,
