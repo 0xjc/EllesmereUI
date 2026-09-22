@@ -1009,6 +1009,7 @@ local function CreateBloodlustFrame()
     buffCooldown:SetAllPoints(buffOverlay)
     buffCooldown:SetDrawEdge(false)
     buffCooldown:SetHideCountdownNumbers(true)
+    buffCooldown:SetReverse(true)  -- active buff: starts bright and darkens as it runs out
     buffCooldown:SetFrameLevel(buffOverlay:GetFrameLevel() + 1)
 
     -- Parented to the overlay, not to frame: the 40s text hides with the window
