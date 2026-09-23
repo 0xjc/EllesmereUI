@@ -5281,7 +5281,7 @@ initFrame:SetScript("OnEvent", function(self)
             cogTooltip = _visSrcIsEui and "Frame Source & Visibility" or "Frame Source",
             extraRows = _visSrcIsEui and {
                 { type = "toggle", label = "Show When Health Missing",
-                  tooltip = "Reveals the frame while this unit is below full health. At full health, your existing visibility rules apply. Never Show takes priority. Hidden frames may still accept clicks in combat.",
+                  tooltip = "Reveals the frame while this unit is below full health. At full health, your existing visibility rules apply. Never Show and Visibility Options such as Hide when Mounted take priority. While enabled, a frame hidden by its visibility setting can still be clicked.",
                   disabled = function() return InCombatLockdown() end,
                   disabledTooltip = "Change health visibility out of combat",
                   get = function() return SVal("showWhenHealthMissing", false) == true end,

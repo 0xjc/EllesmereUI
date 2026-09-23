@@ -12832,7 +12832,8 @@ function ns.ResolveVisRestingLive(s, frame)
                       and EllesmereUI.CheckVisibilityOptions(s)
     local ext = EllesmereUI.EvalVisibilityExtended
         and EllesmereUI.EvalVisibilityExtended(s, "barVisibility", nil, EllesmereUI.VIS_CAPS_DEFAULT)
-    return ns.ResolveVisResting(s, frame, ext, hiddenByOpts, InCombatLockdown())
+    local alpha, hoverGated = ns.ResolveVisResting(s, frame, ext, hiddenByOpts, InCombatLockdown())
+    return alpha, hoverGated, hiddenByOpts
 end
 
 --- Is the hover mechanism wired for this frame at all? The cheap static prefilter both
@@ -12864,7 +12865,6 @@ function ns.HealthVisibilityAlpha(s, frame, baseAlpha, hoverGated, inCombat)
     if hoverGated and frame._healthVisHovered then
         baseAlpha = ns.ResolveFrameAlpha(s, inCombat)
     end
-    frame._healthVisBaseAlpha = baseAlpha
     if not frame._healthVisCurve then
         frame._healthVisCurve = C_CurveUtil.CreateCurve()
         frame._healthVisCurve:SetType(Enum.LuaCurveType.Step)
@@ -12882,7 +12882,8 @@ function ns.UpdateHealthVisibilityUnit(unit)
     local frame = frames[unit]
     local s = db.profile[unit]
     if not ns.HealthVisibilityEnabled(s, frame) then return end
-    local baseAlpha, hoverGated = ns.ResolveVisRestingLive(s, frame)
+    local baseAlpha, hoverGated, hiddenByOpts = ns.ResolveVisRestingLive(s, frame)
+    if hiddenByOpts then return end
     local alpha = ns.HealthVisibilityAlpha(s, frame, baseAlpha, hoverGated, InCombatLockdown())
     ;(frame._visWrap or frame):SetAlpha(alpha)
     local model = frame.Portrait and frame.Portrait.backdrop and frame.Portrait.backdrop._3d
@@ -12897,17 +12898,21 @@ function ns.SyncHealthVisibilityEvents()
     local player = ns.HealthVisibilityEnabled(db.profile.player, frames.player)
     local target = ns.HealthVisibilityEnabled(db.profile.target, frames.target)
     local focus = ns.HealthVisibilityEnabled(db.profile.focus, frames.focus)
-    if not player and not target and not focus and not ns.healthVisibilityEvents then return end
-    if not ns.healthVisibilityEvents then
-        ns.healthVisibilityEvents = CreateFrame("Frame")
-        ns.healthVisibilityEvents:SetScript("OnEvent", function(_, event, unit)
+    local mask = (player and 1 or 0) + (target and 2 or 0) + (focus and 4 or 0)
+    local eventFrame = ns.healthVisibilityEvents
+    if not eventFrame then
+        if mask == 0 then return end
+        eventFrame = CreateFrame("Frame")
+        eventFrame:SetScript("OnEvent", function(_, event, unit)
             if event == "PLAYER_FOCUS_CHANGED" then unit = "focus" end
             ns.UpdateHealthVisibilityUnit(unit)
         end)
+        ns.healthVisibilityEvents = eventFrame
     end
-    local eventFrame = ns.healthVisibilityEvents
+    if eventFrame.mask == mask then return end
+    eventFrame.mask = mask
     eventFrame:UnregisterAllEvents()
-    if player or target or focus then
+    if mask ~= 0 then
         local units = eventFrame.units or {}
         eventFrame.units = units
         wipe(units)
@@ -12980,8 +12985,8 @@ local function UnitFrame_OnLeave(self)
         -- Return to the resting alpha the visibility pass would paint, never a hardcoded
         -- 0: under Any a passing disjunct keeps the frame visible with no hover involved,
         -- and hiding it here would leave it wrong until the next visibility event fires.
-        local leaveAlpha = ns.ResolveVisRestingLive(s, self)
-        if s.showWhenHealthMissing then leaveAlpha = ns.HealthVisibilityAlpha(s, self, leaveAlpha) end
+        local leaveAlpha, _, hiddenByOpts = ns.ResolveVisRestingLive(s, self)
+        if s.showWhenHealthMissing and not hiddenByOpts then leaveAlpha = ns.HealthVisibilityAlpha(s, self, leaveAlpha) end
         ;(self._visWrap or self):SetAlpha(leaveAlpha)
         -- 3D models don't inherit parent alpha: hide/dim the portrait too
         local bd3d = self.Portrait and self.Portrait.backdrop and self.Portrait.backdrop._3d
@@ -14440,7 +14445,7 @@ function InitializeFrames()
                 -- a dismount inside a lockdown would otherwise hide it permanently.
                 -- _ufInCombat leads InCombatLockdown() on regen, so the ooc fade is instant.
                 local bodyAlpha, hoverGated = ns.ResolveVisResting(s, frame, ext, hiddenByOpts, _ufInCombat)
-                if s.showWhenHealthMissing then
+                if s.showWhenHealthMissing and not hiddenByOpts then
                     bodyAlpha = ns.HealthVisibilityAlpha(s, frame, bodyAlpha, hoverGated, _ufInCombat)
                 end
                 alphaTarget:SetAlpha(bodyAlpha)
