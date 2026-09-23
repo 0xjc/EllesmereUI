@@ -5193,6 +5193,14 @@ local function SkinChatFrame(cf)
     if btnFrame then
         btnFrame:SetAlpha(0)
         btnFrame:EnableMouse(false)
+        -- On an undocked window FCF_FadeIn/OutChatFrame animate this alpha every
+        -- frame (out to 0.2, not 0), outpacing the state watcher: zero each write.
+        if not CFD(cf).buttonFrameHooked then
+            CFD(cf).buttonFrameHooked = true
+            hooksecurefunc(btnFrame, "SetAlpha", function(self, a)
+                if (issecretvalue and issecretvalue(a)) or a ~= 0 then self:SetAlpha(0) end
+            end)
+        end
     end
 
     -- Restyle Blizzard's resize button to align with our bg (undocked-capable
