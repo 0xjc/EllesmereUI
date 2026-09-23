@@ -1888,12 +1888,14 @@ local function CreateStatusBar(parent, name, w, h, borderSize, borderR, borderG,
     bar:SetSize(w, h)
     bar:EnableMouse(false)
 
-    -- Inner StatusBar: clips its fill. Inset by half a physical pixel so
-    -- the fill can never bleed past the border at any resolution.
+    -- Inner StatusBar: clips its fill. Inset by a quarter of a physical pixel so
+    -- the fill can never bleed past the border at any resolution. A quarter, not
+    -- a half: an edge on a pixel centre hits the rasteriser's tie rule and the
+    -- fill covers one more pixel on one side than the other.
     local sb = CreateFrame("StatusBar", nil, bar)
-    local halfPx = PP.mult * 0.5
-    sb:SetPoint("TOPLEFT", bar, "TOPLEFT", halfPx, -halfPx)
-    sb:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -halfPx, halfPx)
+    local clipInset = PP.mult * 0.25
+    sb:SetPoint("TOPLEFT", bar, "TOPLEFT", clipInset, -clipInset)
+    sb:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -clipInset, clipInset)
     sb:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
     sb:SetMinMaxValues(0, 1)
     sb:SetValue(0)
@@ -4037,7 +4039,7 @@ local function BuildBars()
             -- the empty portion too, or it tints the translucent fill from behind
             -- and defeats the world-show-through. Anchor to secondaryBar's own
             -- inset inner StatusBar (_sb), not the uninset outer secondaryFrame,
-            -- or a halfPx sliver of _barBg peeks out past the fill's clipped edge.
+            -- or a sub-pixel sliver of _barBg peeks out past the fill's clipped edge.
             ns.AnchorBgToFillEdge(secondaryFrame._barBg, secondaryBar:GetStatusBarTexture(),
                 secondaryBar._sb, sp.pipOrientation or "HORIZONTAL")
             secondaryFrame._barBg:Show()
@@ -4049,7 +4051,7 @@ local function BuildBars()
             secondaryFrame._barBg:Hide()
         elseif isBarType then
             -- Bar-type: anchor to secondaryBar's inset inner StatusBar (_sb) so
-            -- _barBg doesn't extend a halfPx past the fill/bg's own clipped edge.
+            -- _barBg does not extend a sub-pixel inset past the fill/bg's own clipped edge.
             secondaryFrame._barBg:SetAllPoints(secondaryBar._sb)
             secondaryFrame._barBg:Show()
         else
