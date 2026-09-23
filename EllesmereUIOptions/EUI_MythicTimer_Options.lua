@@ -347,14 +347,21 @@ initFrame:SetScript("OnEvent", function(self)
         -- click the custom swatch to switch to a custom colour (opens the picker).
         -- The inactive swatch dims to 0.3; both are blocked + dimmed with the
         -- requirement tooltip while isDisabled() is true (mirrors _AttachInlineSwatch).
-        local function _AttachInlineAccentSwatches(rgn, useAccentKey, colorKey, defR, defG, defB, isDisabled, disabledTip)
+        -- followTip/followColor optionally replace the accent swatch's label and
+        -- color source when the "follow" color is not the theme accent.
+        local function _AttachInlineAccentSwatches(rgn, useAccentKey, colorKey, defR, defG, defB, isDisabled, disabledTip, followTip, followColor)
             local PP = EllesmereUI.PP
 
             -- Accent swatch (nearest the control): live theme accent.
             local accentSwatch, updateAccent = EllesmereUI.BuildColorSwatch(
                 rgn, rgn:GetFrameLevel() + 5,
                 function()
-                    local ar, ag, ab = EllesmereUI.ResolveActiveAccent()
+                    local ar, ag, ab
+                    if followColor then
+                        ar, ag, ab = followColor()
+                    else
+                        ar, ag, ab = EllesmereUI.ResolveActiveAccent()
+                    end
                     return ar, ag, ab, 1
                 end,
                 function() end, false, 18)
@@ -395,12 +402,15 @@ initFrame:SetScript("OnEvent", function(self)
                 local block = CreateFrame("Frame", nil, sw)
                 block:SetAllPoints(); block:SetFrameLevel(sw:GetFrameLevel() + 10); block:EnableMouse(true)
                 block:SetScript("OnEnter", function()
-                    EllesmereUI.ShowWidgetTooltip(sw, EllesmereUI.DisabledTooltip(disabledTip or "the module"))
+                    -- disabledTip may be a function, like a DualRow cfg.disabledTooltip.
+                    local tip = disabledTip
+                    if type(tip) == "function" then tip = tip() end
+                    EllesmereUI.ShowWidgetTooltip(sw, EllesmereUI.DisabledTooltip(tip or "the module"))
                 end)
                 block:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
                 sw._block = block
             end
-            AddBlock(accentSwatch, "Accent Color")
+            AddBlock(accentSwatch, followTip or "Accent Color")
             AddBlock(customSwatch, "Custom Color")
 
             local function UpdateState()
@@ -895,6 +905,45 @@ initFrame:SetScript("OnEvent", function(self)
               get=function() return Cfg("enemyBarBgTexture") or "none" end,
               set=function(v) Set("enemyBarBgTexture", v); Refresh() end },
         }, function() return Cfg("enabled") == false or Cfg("showEnemyBar") == false end)
+        y = y - h
+
+        -- The pull bar's default color is the forces fill color (accent or custom).
+        local function _enemyBarColor()
+            if Cfg("enemyBarUseAccent") ~= false then
+                return EllesmereUI.ResolveActiveAccent()
+            end
+            local c = Cfg("enemyBarColor")
+            if c then return c.r or 0.35, c.g or 0.55, c.b or 0.8 end
+            return 0.35, 0.55, 0.8
+        end
+        local function _pullBarOff()
+            return Cfg("enabled") == false or Cfg("showEnemyBar") == false or Cfg("showPullBar") ~= true
+        end
+        -- Names whichever requirement actually disables the pull controls.
+        local function _pullBarReq()
+            if Cfg("enabled") == false then return "the module" end
+            if Cfg("showEnemyBar") == false then return "Show Enemy Forces" end
+            return "Show Current Pull in Bar"
+        end
+        row, h = W:DualRow(parent, y,
+            { type="toggle", text="Show Current Pull in Bar",
+              disabled=function() return Cfg("enabled") == false or Cfg("showEnemyBar") == false end,
+              disabledTooltip="Show Enemy Forces",
+              tooltip="Previews the forces of every enemy in combat with a visible nameplate on the enemy forces bar.",
+              getValue=function() return Cfg("showPullBar") == true end,
+              setValue=function(v) Set("showPullBar", v); Refresh(); EllesmereUI:RefreshPage() end },
+            { type="slider", text="Current Pull Color", min=0, max=100, step=5, isPercent=false, trackWidth=130,
+              disabled=_pullBarOff,
+              disabledTooltip=_pullBarReq,
+              tooltip="Opacity of the current pull on the enemy forces bar.",
+              -- Stored 0..1 internally; displayed 0..100 to the user.
+              getValue=function() return (Cfg("pullBarAlpha") or 0.35) * 100 end,
+              setValue=function(v) Set("pullBarAlpha", v / 100); Refresh() end })
+        if not EllesmereUI._prebuilding then
+        -- Pull color: follows the enemy bar color by default, or a custom color.
+        _AttachInlineAccentSwatches(row._rightRegion, "pullBarUseBarColor", "pullBarColor", 1, 0.55, 0.1,
+            _pullBarOff, _pullBarReq, "Enemy Bar Color", _enemyBarColor)
+        end
         y = y - h
 
         _, h = W:SectionHeader(parent, "BOSS OBJECTIVES", y); y = y - h
