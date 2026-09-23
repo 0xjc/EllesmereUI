@@ -51,6 +51,13 @@ local function Speed()
     return Cfg().speed or DEFAULT_SPEED
 end
 
+-- Frequent Flier, node 110300 of the Adventure Legacy tree (1188), makes
+-- flight path mounts 20% faster. Legacy perks are bought per character.
+local function SpeedMultiplier()
+    local node = C_Traits.GetNodeInfo(C_Traits.GetConfigIDByTreeID(1188), 110300)
+    return node.activeRank > 0 and 1.2 or 1
+end
+
 local function FormatTime(sec)
     sec = math.max(0, math.floor(sec + 0.5))
     return string.format("%d:%02d", math.floor(sec / 60), sec % 60)
@@ -194,7 +201,8 @@ local function StartFlight(dest, yards, preview)
     if preview then
         flight.eta = PREVIEW_SECONDS
     elseif yards then
-        flight.eta = yards / Speed()
+        flight.mult = SpeedMultiplier()
+        flight.eta = yards / (Speed() * flight.mult)
     end
     CreateBar()
     bar.dest:SetText(dest or "")
@@ -213,9 +221,10 @@ end
 
 -- Moves the stored speed halfway toward what this flight measured. A flight
 -- that ran more than 2x off the estimate is treated as bad data, not a speed.
+-- The stored speed excludes Frequent Flier so every character can share it.
 local function Land()
     if flight.yards and not flight.early then
-        local measured = flight.yards / (GetTime() - flight.start)
+        local measured = flight.yards / (GetTime() - flight.start) / flight.mult
         local speed = Speed()
         if measured > speed * 0.5 and measured < speed * 2 then
             Cfg().speed = speed + (measured - speed) * 0.5
