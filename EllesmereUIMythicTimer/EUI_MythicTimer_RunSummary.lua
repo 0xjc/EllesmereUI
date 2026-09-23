@@ -257,6 +257,28 @@ local ITEM_CLASS   = Enum and Enum.ItemClass
 local ITEM_QUALITY = Enum and Enum.ItemQuality
 local GetInstant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
 
+local ITEM_BIND   = Enum and Enum.ItemBind
+local GetFullInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+
+-- A Warbound until Equipped item reports bindType OnEquip, so the predicate
+-- has to run first: the bind type alone only catches the fully bound ones.
+local function IsWarboundLoot(info)
+    if not info then return false end
+    if C_Item and C_Item.IsItemBindToAccountUntilEquip
+        and C_Item.IsItemBindToAccountUntilEquip(info) == true then
+        return true
+    end
+    if ITEM_BIND and GetFullInfo then
+        local bind = PlainNumber(select(14, GetFullInfo(info)))
+        if bind and (bind == ITEM_BIND.ToWoWAccount
+            or bind == ITEM_BIND.ToBnetAccount
+            or bind == ITEM_BIND.ToBnetAccountUntilEquipped) then
+            return true
+        end
+    end
+    return false
+end
+
 -- The column is for the chest's gear. Keystones, quest items, housing decor,
 -- reagents and anything below epic arrive through the same loot channels and
 -- are skipped. Quality is read from the link where there is one, since bonus
@@ -268,6 +290,7 @@ local function IsExcludedLootID(id, link)
     if C_Item and C_Item.IsItemKeystoneByID and C_Item.IsItemKeystoneByID(id) == true then
         return true
     end
+    if IsWarboundLoot(link or id) then return true end
     if GetInstant then
         local _, _, _, equipLoc, _, classID = GetInstant(id)
         classID = PlainNumber(classID)
@@ -303,7 +326,15 @@ local function RecordLoot(rst, ord, guid, name, link)
             end
         end
     end
-    if not rec or rec.lootLink then return false end
+    if not rec then return false end
+    -- The chest reward is the item the column is for: a link gets in only when
+    -- it is that same item, carrying the level and bonuses the ID has not got.
+    if rec.lootChest then
+        if rec.lootLink or IDFromLink(link) ~= rec.lootID then return false end
+        rec.lootLink = link
+        return true
+    end
+    if rec.lootLink then return false end
     rec.lootLink = link
     rec.lootID   = IDFromLink(link) or rec.lootID
     return true
@@ -891,7 +922,11 @@ local function OnEvent(_, event, ...)
                         -- cache yet here, so icon and tooltip resolve from the
                         -- ID at render time. A link from one of the two loot
                         -- events below is preferred when it arrives.
-                        own.lootID = own.lootID or id
+                        if (own.lootID or IDFromLink(own.lootLink)) ~= id then
+                            own.lootLink = nil
+                        end
+                        own.lootID    = id
+                        own.lootChest = true
                         break
                     end
                 end
