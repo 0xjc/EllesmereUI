@@ -1192,7 +1192,7 @@ local unlockLayoutActive = false -- force preview layout while Unlock Mode is op
 -- textured border if the border lived inside the host. Frame level is raised
 -- above the host's tick layer every apply so the continuous TICKS fill cannot
 -- paint over the border strips.
-local function ApplyBorderTo(parent, anchor, key, p, size, texKey, r, g, b, a)
+local function ApplyBorderTo(parent, anchor, key, p, size, texKey, r, g, b, a, px)
     if not parent or not anchor then
         return
     end
@@ -1236,7 +1236,7 @@ local function ApplyBorderTo(parent, anchor, key, p, size, texKey, r, g, b, a)
         bf, size, r, g, b, a, texKey,
         p.borderTextureOffset, p.borderTextureOffsetY,
         p.borderTextureShiftX, p.borderTextureShiftY,
-        "MythicPlus", size
+        "MythicPlus", size, nil, px
     )
     -- PP strip container keeps an absolute level from create time; bump it with
     -- the carrier or the strips can sit under the TICKS tick layer while the
@@ -1266,6 +1266,9 @@ ns.ApplyBorder = function()
     end
     local texKey = p.borderTexture or "solid"
     local r, g, b, a = p.borderR or 0, p.borderG or 0, p.borderB or 0, p.borderA or 1
+    -- Exact pixel size (nil = the legacy path), resolved once against the bar's
+    -- own step: every carrier below draws either this size or a forced 0.
+    local px = EllesmereUI.BorderPx(p.borderSizePx, size, texKey)
 
     -- Main timer bar. In SEGMENTS mode "_barHost" is only a layout spacer that
     -- spans the ENTIRE bar width (including the gaps between segments). Bordering
@@ -1276,28 +1279,28 @@ ns.ApplyBorder = function()
     local isSegmented = (p.timerBarStyle == "SEGMENTS")
     local barAnchor = f._barHost or f._barBg
     if isSegmented then
-        ApplyBorderTo(f, barAnchor, "_emtBarBorderFrame", p, 0, texKey, r, g, b, a)
+        ApplyBorderTo(f, barAnchor, "_emtBarBorderFrame", p, 0, texKey, r, g, b, a, nil)
     else
-        ApplyBorderTo(f, barAnchor, "_emtBarBorderFrame", p, size, texKey, r, g, b, a)
+        ApplyBorderTo(f, barAnchor, "_emtBarBorderFrame", p, size, texKey, r, g, b, a, px)
     end
 
     -- Forces bar (skipped when "Apply to Forces Bar" is off in the border cog).
-    local forcesSize = size
-    if p.borderApplyToForces == false then forcesSize = 0 end
-    ApplyBorderTo(f, f._enemyBarHost or f._enemyBarBg, "_emtEnemyBorderFrame", p, forcesSize, texKey, r, g, b, a)
+    local forcesSize, forcesPx = size, px
+    if p.borderApplyToForces == false then forcesSize, forcesPx = 0, nil end
+    ApplyBorderTo(f, f._enemyBarHost or f._enemyBarBg, "_emtEnemyBorderFrame", p, forcesSize, texKey, r, g, b, a, forcesPx)
 
     -- Segment bars (timer bar SEGMENTS mode) -- border each segment host.
+    local segSize, segPx = 0, nil
+    if isSegmented then segSize, segPx = size, px end
     if f._timerSegHosts then
         for i, host in ipairs(f._timerSegHosts) do
-            local segSize = isSegmented and size or 0
-            ApplyBorderTo(f, host, "_emtSegBorderFrame" .. i, p, segSize, texKey, r, g, b, a)
+            ApplyBorderTo(f, host, "_emtSegBorderFrame" .. i, p, segSize, texKey, r, g, b, a, segPx)
         end
     elseif f._timerSegBgs then
         -- Legacy texture-only segments (pre-shell); keep border working if hosts
         -- were never built this session.
         for i, seg in ipairs(f._timerSegBgs) do
-            local segSize = isSegmented and size or 0
-            ApplyBorderTo(f, seg, "_emtSegBorderFrame" .. i, p, segSize, texKey, r, g, b, a)
+            ApplyBorderTo(f, seg, "_emtSegBorderFrame" .. i, p, segSize, texKey, r, g, b, a, segPx)
         end
     end
 end

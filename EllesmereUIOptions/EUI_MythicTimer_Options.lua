@@ -639,14 +639,38 @@ initFrame:SetScript("OnEvent", function(self)
                     end
                     local defSz = EllesmereUI.GetBorderDefaultSize("MythicPlus", v)
                     if defSz then Set("borderSize", defSz) end
-                    ApplyBorder(); EllesmereUI:RefreshPage()
+                    if Cfg("borderSizePx") then Set("borderSizePx", false) end
+                    ApplyBorder(); EllesmereUI:RefreshPage(true)
                 end },
-            { type="slider", text="Border Size",
-                min=0, max=4, step=1,
-                getValue=function() return Cfg("borderSize") or 1 end,
-                setValue=function(v) Set("borderSize", v); ApplyBorder(); EllesmereUI:RefreshPage() end })
+            EllesmereUI.BorderPxSliderCfg({ text="Border Size",
+                getStep=function() return Cfg("borderSize") or 0 end,
+                setStep=function(step) Set("borderSize", step) end,
+                getTex=function() return Cfg("borderTexture") or "solid" end,
+                getPx=function() return Cfg("borderSizePx") end,
+                setPx=function(v) Set("borderSizePx", v) end,
+                apply=function() ApplyBorder(); EllesmereUI:RefreshPage() end }))
             y = y - h
-            -- Inline cog for border offset (left region)
+            -- Width Offset | Height Offset: only while a textured style is
+            -- selected (a solid border has no outward offsets). Built during
+            -- prebuild too so the y advance is identical whenever it is present.
+            local borderTex = Cfg("borderTexture") or "solid"
+            if borderTex ~= "" and borderTex ~= "solid" then
+                local ocfgL, ocfgR = EllesmereUI.BorderOffsetRowCfgs({
+                    addonKey = "MythicPlus",
+                    getTex = function() return Cfg("borderTexture") or "solid" end,
+                    getStep = function() return Cfg("borderSize") or 0 end,
+                    getSizeKey = function() return Cfg("borderSize") or 0 end,
+                    getPx = function() return Cfg("borderSizePx") end,
+                    getX = function() return Cfg("borderTextureOffset") end,
+                    setX = function(v) Set("borderTextureOffset", v) end,
+                    getY = function() return Cfg("borderTextureOffsetY") end,
+                    setY = function(v) Set("borderTextureOffsetY", v) end,
+                    apply = function() ApplyBorder() end,
+                })
+                row, h = W:DualRow(parent, y, ocfgL, ocfgR)
+                y = y - h
+            end
+            -- Inline cog for border options (left region)
             if not EllesmereUI._prebuilding then
                 local rgn = bsRow._leftRegion
                 local _, cogShow = EllesmereUI.BuildCogPopup({
@@ -655,26 +679,6 @@ initFrame:SetScript("OnEvent", function(self)
                         { type = "toggle", label = "Apply to Forces Bar",
                             get = function() return Cfg("borderApplyToForces") ~= false end,
                             set = function(v) Set("borderApplyToForces", v); ApplyBorder() end },
-                        { type = "slider", label = "Offset X", min = -10, max = 10, step = 1,
-                            get = function()
-                                local v = Cfg("borderTextureOffset")
-                                if v then return v end
-                                local tex = Cfg("borderTexture") or "solid"
-                                local sz = Cfg("borderSize") or 1
-                                local dox = EllesmereUI.GetBorderDefaults("MythicPlus", tex, sz)
-                                return dox
-                            end,
-                            set = function(v) Set("borderTextureOffset", v); ApplyBorder() end },
-                        { type = "slider", label = "Offset Y", min = -10, max = 10, step = 1,
-                            get = function()
-                                local v = Cfg("borderTextureOffsetY")
-                                if v then return v end
-                                local tex = Cfg("borderTexture") or "solid"
-                                local sz = Cfg("borderSize") or 1
-                                local _, doy = EllesmereUI.GetBorderDefaults("MythicPlus", tex, sz)
-                                return doy
-                            end,
-                            set = function(v) Set("borderTextureOffsetY", v); ApplyBorder() end },
                         { type = "slider", label = "Shift X", min = -10, max = 10, step = 1,
                             get = function()
                                 local v = Cfg("borderTextureShiftX")

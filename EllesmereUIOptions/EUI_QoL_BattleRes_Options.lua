@@ -45,8 +45,23 @@ local SHAPE_VALUES = {
 }
 local SHAPE_ORDER = { "none", "cropped", "---", "square", "circle", "csquare", "diamond", "hexagon", "portrait", "shield" }
 
-local BORDER_VALUES = { none = "None", thin = "Thin", normal = "Normal", heavy = "Heavy", strong = "Strong" }
-local BORDER_ORDER  = { "none", "thin", "normal", "heavy", "strong" }
+-- Border Size as a 0-4 pixel slider over the stored word (none..strong): the
+-- border is solid only, so the step is the pixel count. It writes the same
+-- word the dropdown wrote and only on a real change, so a Bloodlust value that
+-- inherits Battle Res (nil) keeps inheriting while the slider merely shows it.
+-- get/set/refresh are the page's accessors (Cfg/Set/Refresh or the BL_ trio).
+local function BorderSizeSliderCfg(get, set, refresh, disabled, disabledTooltip)
+    return { type="slider", text="Border Size", min=0, max=4, step=1,
+      disabled=disabled, disabledTooltip=disabledTooltip,
+      getValue=function()
+          return EllesmereUI.BORDER_STEP_OF_LABEL[get("borderSize") or "thin"] or 1
+      end,
+      setValue=function(v)
+          local word = EllesmereUI.BORDER_LABEL_OF_STEP[math.floor(v + 0.5)] or "thin"
+          if word == (get("borderSize") or "thin") then return end
+          set("borderSize", word); refresh()
+      end }
+end
 
 local VIS_VALUES = {
     MPLUS_AND_RAID = "M+ and Raid",
@@ -154,13 +169,9 @@ local function BuildBattleResPage(pageName, parent, yOffset)
 
     -- Border Size | Icon Zoom
     row, h = W:DualRow(parent, y,
-        { type="dropdown", text="Border Size",
-          disabled=function() return Cfg("visibility") == "NEVER" end,
-          disabledTooltip="BattleRes Icon",
-          values=BORDER_VALUES,
-          order=BORDER_ORDER,
-          getValue=function() return Cfg("borderSize") or "thin" end,
-          setValue=function(v) Set("borderSize", v); Refresh() end },
+        BorderSizeSliderCfg(Cfg, Set, Refresh,
+          function() return Cfg("visibility") == "NEVER" end,
+          "BattleRes Icon"),
         { type="slider", text="Icon Zoom",
           disabled=function()
               if Cfg("visibility") == "NEVER" then return true end
@@ -304,12 +315,7 @@ _G._EUI_BuildBattleResSection = function(parent, yOffset, W, PP)
     y = y - h
 
     row, h = W:DualRow(parent, y,
-        { type="dropdown", text="Border Size",
-          disabled=TextModeOn,
-          disabledTooltip=ICON_ROWS_TIP,
-          values=BORDER_VALUES, order=BORDER_ORDER,
-          getValue=function() return Cfg("borderSize") or "thin" end,
-          setValue=function(v) Set("borderSize", v); Refresh() end },
+        BorderSizeSliderCfg(Cfg, Set, Refresh, TextModeOn, ICON_ROWS_TIP),
         { type="slider", text="Icon Zoom",
           disabled=function()
               if TextModeOn() then return true end
@@ -637,10 +643,7 @@ _G._EUI_BuildBloodlustSection = function(parent, yOffset, W, PP)
     y = y - h
 
     row, h = W:DualRow(parent, y,
-        { type="dropdown", text="Border Size",
-          values=BORDER_VALUES, order=BORDER_ORDER,
-          getValue=function() return BL_Cfg("borderSize") or "thin" end,
-          setValue=function(v) BL_Set("borderSize", v); BL_Refresh() end },
+        BorderSizeSliderCfg(BL_Cfg, BL_Set, BL_Refresh),
         { type="slider", text="Icon Zoom",
           disabled=function()
               local s = BL_Cfg("shape") or "none"
