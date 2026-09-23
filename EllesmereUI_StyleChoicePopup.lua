@@ -26,7 +26,6 @@ local ELLESMERE_GREEN = EllesmereUI.ELLESMERE_GREEN
 local function Stamp()
     if not EllesmereUIDB then EllesmereUIDB = {} end
     EllesmereUIDB.styleChoicePending = nil
-    EllesmereUIDB.styleChoiceShown = true
 end
 
 -- Conflict-check handoff: while the picker is due this session the auto

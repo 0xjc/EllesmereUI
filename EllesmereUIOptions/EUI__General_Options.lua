@@ -4824,8 +4824,7 @@ initFrame:SetScript("OnEvent", function(self)
                             "autoInsertKeystone", "quickSignup",
                             "persistSignupNote", "signupNote", "hideBlizzardPartyFrame",
                             "instanceResetAnnounce", "instanceResetAnnounceMsg",
-                            "healthMacroEnabled", "healthMacroPrio1", "healthMacroPrio2",
-                            "healthMacroPrio3", "foodMacroEnabled", "macroFactory",
+                            "macroFactory",
                         }
                         local savedQoL = {}
                         for _, k in ipairs(qolKeys) do

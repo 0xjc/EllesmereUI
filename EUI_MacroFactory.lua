@@ -6,140 +6,6 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 -------------------------------------------------------------------------------
 
 -------------------------------------------------------------------------------
---  Dynamic Health Recovery (disabled -- kept for future use)
--------------------------------------------------------------------------------
---[[ DYNAMIC_HEALTH_RECOVERY
-local EUI_HEALTH_MACRO_NAME = "EUI_Health"
-
-local HEALTH_RECOVERY_STONES = { 5512, 224464 }
-local HEALTH_RECOVERY_POTS = {
-    241304, 241305,
-}
-
-local function HealthMacroItemCount(itemID)
-    return GetItemCount(itemID, false) or 0
-end
-
-local function CollectHealthRecoveryItems()
-    local items = {}
-    for _, itemID in ipairs(HEALTH_RECOVERY_STONES) do
-        if HealthMacroItemCount(itemID) > 0 then
-            items[#items + 1] = itemID
-            if #items >= #HEALTH_RECOVERY_STONES then
-                break
-            end
-        end
-    end
-    for _, itemID in ipairs(HEALTH_RECOVERY_POTS) do
-        if HealthMacroItemCount(itemID) > 0 then
-            items[#items + 1] = itemID
-            break
-        end
-    end
-    return items
-end
-
-local function HealthRecoverySequenceKey(items)
-    return table.concat(items, ",")
-end
-
-local function GetHealthMacroDB()
-    if not EllesmereUIDB then EllesmereUIDB = {} end
-    if not EllesmereUIDB.macroFactory then EllesmereUIDB.macroFactory = {} end
-    if not EllesmereUIDB.macroFactory[EUI_HEALTH_MACRO_NAME] then
-        EllesmereUIDB.macroFactory[EUI_HEALTH_MACRO_NAME] = {}
-    end
-    return EllesmereUIDB.macroFactory[EUI_HEALTH_MACRO_NAME]
-end
-
-local lastHealthRecoveryKey = nil
-local healthMacroPendingUpdate = false
-
-local function ApplyHealthRecoveryMacro(items)
-    items = items or CollectHealthRecoveryItems()
-    local key = HealthRecoverySequenceKey(items)
-
-    local idx = GetMacroIndexByName(EUI_HEALTH_MACRO_NAME)
-    if idx == 0 then
-        lastHealthRecoveryKey = key
-        healthMacroPendingUpdate = false
-        return
-    end
-
-    if InCombatLockdown() then
-        if key ~= lastHealthRecoveryKey then
-            healthMacroPendingUpdate = true
-        end
-        return
-    end
-
-    if key == lastHealthRecoveryKey then
-        healthMacroPendingUpdate = false
-        return
-    end
-
-    EditMacro(idx, nil, nil, EllesmereUI.BuildHealthRecoveryMacroBody(GetHealthMacroDB(), items))
-    lastHealthRecoveryKey = key
-    healthMacroPendingUpdate = false
-end
-
-function EllesmereUI.BuildHealthRecoveryMacroBody(db, items)
-    db = db or {}
-    items = items or CollectHealthRecoveryItems()
-    local lines = {}
-
-    if db.showTooltip ~= false then
-        local tip = (items[1] and ("item:" .. items[1])) or "Recuperate"
-        lines[#lines + 1] = "#showtooltip " .. tip
-    end
-
-    lines[#lines + 1] = "/stopcasting"
-    lines[#lines + 1] = "/cast [nocombat] Recuperate"
-
-    if #items > 0 then
-        local seqParts = {}
-        for _, itemID in ipairs(items) do
-            seqParts[#seqParts + 1] = "item:" .. itemID
-        end
-        lines[#lines + 1] = "/castsequence [@player,combat] reset=combat "
-            .. table.concat(seqParts, ", ")
-    end
-
-    if #lines == 0 then return "" end
-    return table.concat(lines, "\n")
-end
-
-do
-    local f = CreateFrame("Frame")
-    local bagPending = false
-    f:RegisterEvent("PLAYER_LOGIN")
-    f:RegisterEvent("PLAYER_ENTERING_WORLD")
-    f:RegisterEvent("PLAYER_REGEN_ENABLED")
-    f:RegisterEvent("BAG_UPDATE")
-    f:SetScript("OnEvent", function(_, event)
-        if event == "PLAYER_REGEN_ENABLED" then
-            if healthMacroPendingUpdate then
-                healthMacroPendingUpdate = false
-                ApplyHealthRecoveryMacro()
-            end
-            return
-        end
-        if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
-            C_Timer.After(1, ApplyHealthRecoveryMacro)
-            return
-        end
-        if bagPending then return end
-        bagPending = true
-        C_Timer.After(0.5, function()
-            bagPending = false
-            ApplyHealthRecoveryMacro()
-        end)
-    end)
-end
-DYNAMIC_HEALTH_RECOVERY]]
-
-
--------------------------------------------------------------------------------
 --  Set Focus extras -- auto raid marker, ping and group announce
 --
 --  All three are plain macro lines appended by the def's extraBody below, and
@@ -663,9 +529,6 @@ function EllesmereUI.BuildMacroFactory(parent, startY, PP)
     end
 
     local function GetMacroInventoryKey(def, db)
-        if def.healthRecovery then
-            return lastHealthRecoveryKey or HealthRecoverySequenceKey(CollectHealthRecoveryItems())
-        end
         return GetFirstAvailableItemID(def, db)
     end
 
@@ -727,8 +590,6 @@ function EllesmereUI.BuildMacroFactory(parent, startY, PP)
             end
             if #lines == 0 then return "" end
             return body .. table.concat(lines, "\n")
-        elseif def.healthRecovery then
-            return EllesmereUI.BuildHealthRecoveryMacroBody(db, nil)
         elseif def.fixedBody then
             local fbody = ResolveSpellTokens(def.fixedBody, def.spells)
             if fbody == nil then return nil end -- spell data not cached; skip write
@@ -769,10 +630,6 @@ function EllesmereUI.BuildMacroFactory(parent, startY, PP)
     local pendingMacroUpdates = {}
 
     local function UpdateMacro(def, db)
-        if def.healthRecovery then
-            ApplyHealthRecoveryMacro()
-            return
-        end
         local idx = GetMacroIndexByName(def.name)
         if idx ~= 0 then
             if InCombatLockdown() then
@@ -1079,11 +936,6 @@ function EllesmereUI.BuildMacroFactory(parent, startY, PP)
                             if icon then break end
                         end
                     end
-                elseif def.healthRecovery then
-                    local tipID = tonumber((lastHealthRecoveryKey or ""):match("^(%d+)"))
-                    if tipID and C_Item.GetItemIconByID then
-                        icon = C_Item.GetItemIconByID(tipID)
-                    end
                 elseif def.fixedTooltip then
                     local slot = tonumber(def.fixedTooltip)
                     if slot then
@@ -1148,16 +1000,11 @@ function EllesmereUI.BuildMacroFactory(parent, startY, PP)
                     if InCombatLockdown() then return end
                     if MacroExists() then
                         DeleteMacro(def.name)
-                        if def.healthRecovery then lastHealthRecoveryKey = nil end
                     else
                         local db = GetDB()
                         local body = BuildMacroBody(def, db)
                         if body == nil then return end -- spell data not cached yet
                         CreateMacro(def.name, ResolveMacroIcon(def), body, nil)
-                        if def.healthRecovery then
-                            lastHealthRecoveryKey = nil
-                            ApplyHealthRecoveryMacro()
-                        end
                         lastAvailableItems[def.name] = GetMacroInventoryKey(def, db)
                         PlayFlash()
                         C_Timer.After(0.15, function()
@@ -1545,10 +1392,6 @@ function EllesmereUI.BuildMacroFactory(parent, startY, PP)
                 local body = BuildMacroBody(def, db)
                 if body == nil then return end -- spell data not cached yet
                 CreateMacro(def.name, ResolveMacroIcon(def), body, nil)
-                if def.healthRecovery then
-                    lastHealthRecoveryKey = nil
-                    ApplyHealthRecoveryMacro()
-                end
                 lastAvailableItems[def.name] = GetMacroInventoryKey(def, db)
                 self._playFlash()
                 C_Timer.After(0.1, RefreshState)
@@ -1591,12 +1434,6 @@ function EllesmereUI.BuildMacroFactory(parent, startY, PP)
                         lastAvailableItems[mdef.name] = newKey
                         UpdateMacro(mdef, db)
                     end
-                end
-            elseif mdef and btn._tex and mdef.healthRecovery then
-                local newKey = lastHealthRecoveryKey or GetMacroInventoryKey(mdef, GetMacroDB(mdef.name))
-                if newKey ~= lastAvailableItems[mdef.name] then
-                    lastAvailableItems[mdef.name] = newKey
-                    if btn._refreshIcon then btn._refreshIcon() end
                 end
             end
         end

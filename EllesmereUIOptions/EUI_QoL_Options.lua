@@ -2878,7 +2878,6 @@ initFrame:SetScript("OnEvent", function(self)
             if EllesmereUIDB then
                 EllesmereUIDB.hideBlizzardPartyFrame = false
                 EllesmereUIDB.quickLoot = false
-                EllesmereUIDB.quickLootShiftSkip = false
                 EllesmereUIDB.skipCinematics = false
                 EllesmereUIDB.skipCinematicsAuto = false
                 EllesmereUIDB.autoFillDelete = false
@@ -2889,11 +2888,6 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUIDB.persistSignupNote = false
                 EllesmereUIDB.signupNote = nil
                 EllesmereUIDB.ahCurrentExpansion = false
-                EllesmereUIDB.healthMacroEnabled = false
-                EllesmereUIDB.healthMacroPrio1 = 1
-                EllesmereUIDB.healthMacroPrio2 = 2
-                EllesmereUIDB.healthMacroPrio3 = 3
-                EllesmereUIDB.foodMacroEnabled = false
                 EllesmereUIDB.hideScreenshotStatus = false
                 EllesmereUIDB.trainAllButton = false
                 EllesmereUIDB.autoUnwrapCollections = false
