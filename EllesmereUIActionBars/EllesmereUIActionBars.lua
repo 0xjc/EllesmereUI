@@ -611,6 +611,13 @@ for _, info in ipairs(BAR_CONFIG) do
         macroOffsetY = 0,
         countOffsetX = 0,
         countOffsetY = 0,
+        -- Text anchors: nil keeps the stock placement (keybind top-right,
+        -- charges bottom-right, macro name bottom-center). Any value from
+        -- EAB.TEXT_ANCHOR_ORDER pins the text to that button corner/edge and
+        -- justifies it the same way, so multi-digit text grows away from it.
+        keybindAnchor = nil,
+        countAnchor = nil,
+        macroAnchor = nil,
         cooldownFontSize = 12,
         cooldownTextXOffset = 0,
         cooldownTextYOffset = 0,
@@ -7690,6 +7697,64 @@ end
 -------------------------------------------------------------------------------
 --  Font / Keybind Text
 -------------------------------------------------------------------------------
+-- Button text anchoring (keybind / charges / macro name). Opt-in per bar via
+-- <text>Anchor; nil = stock placement, handled by the caller, which only
+-- calls in here once an anchor is set. Returns false for an anchor it does not
+-- know (a hand-edited profile), so the caller falls back to stock. The text is
+-- stretched across the chosen edge (both corners anchored, same as the stock
+-- keybind placement) and JustifyH does the alignment, so it holds regardless
+-- of the font string's own width. Shared with
+-- the options preview, hence on EAB not a local.
+EAB.TEXT_ANCHOR_ORDER = { "TOPLEFT", "TOP", "TOPRIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT" }
+-- The spacing each stock placement carries (keybind -1/-3, charges -1/+4,
+-- macro +1/+4). Seeded into a text's offset boxes the first time a position is
+-- picked for it, so opting in does not move the text, and the numbers are then
+-- the user's to change. Not applied on the drawing side: there, 0/0 is the
+-- corner itself.
+EAB.TEXT_INSET_X = 1
+EAB.TEXT_INSET_Y = { keybind = 3, count = 4, macro = 4 }
+
+-- Offsets that reproduce a text's stock spacing at the position just picked.
+function EAB.StockTextOffsets(kind, anchor)
+    local x = 0
+    if anchor:find("LEFT", 1, true) then x = EAB.TEXT_INSET_X
+    elseif anchor:find("RIGHT", 1, true) then x = -EAB.TEXT_INSET_X end
+    local y = EAB.TEXT_INSET_Y[kind] or 0
+    if anchor:find("TOP", 1, true) then y = -y end
+    return x, y
+end
+EAB.TEXT_ANCHOR_JUSTIFY = {
+    TOPLEFT = "LEFT", TOP = "CENTER", TOPRIGHT = "RIGHT",
+    BOTTOMLEFT = "LEFT", BOTTOM = "CENTER", BOTTOMRIGHT = "RIGHT",
+}
+function EAB.PlaceButtonText(fs, parent, anchor, ox, oy)
+    local justify = anchor and EAB.TEXT_ANCHOR_JUSTIFY[anchor]
+    if not justify then return false end
+    -- Offset 0/0 is the corner the position names, with no inset of its own: the
+    -- boxes are the only thing between the text and the edge, and they read the
+    -- same at all six positions. The spacing the three stock placements carry
+    -- (EAB.TEXT_INSET_*) is seeded into those boxes when a position is first
+    -- picked, so the text does not move on the way in.
+    local edge = (anchor:find("TOP", 1, true) and "TOP") or "BOTTOM"
+    local y = oy or 0
+    ox = ox or 0
+    fs:ClearAllPoints()
+    fs:SetPoint(edge .. "LEFT", parent, edge .. "LEFT", ox, y)
+    fs:SetPoint(edge .. "RIGHT", parent, edge .. "RIGHT", ox, y)
+    fs:SetJustifyH(justify)
+    -- A justification change alone does not re-lay the string out: SetPoint
+    -- with unchanged values and SetText with unchanged text are both no-ops,
+    -- so Top Left -> Top (same edge points) kept the old alignment on screen
+    -- until the next real text change. Clear and restore the text to force
+    -- it. issecretvalue first: a secret count must not be compared.
+    local text = fs:GetText()
+    if (issecretvalue and issecretvalue(text)) or (text and text ~= "") then
+        fs:SetText("")
+        fs:SetText(text)
+    end
+    return true
+end
+
 function EAB:ApplyFontsForBar(barKey)
     local s = self.db.profile.bars[barKey]
     if not s then return end
@@ -7707,14 +7772,17 @@ function EAB:ApplyFontsForBar(barKey)
     local ctColor = s.countFontColor or { r=1, g=1, b=1 }
     local kbOX = s.keybindOffsetX or 0
     local kbOY = s.keybindOffsetY or 0
+    local kbAnchor = s.keybindAnchor
     local ctOX = s.countOffsetX or 0
     local ctOY = s.countOffsetY or 0
+    local ctAnchor = s.countAnchor
     local hideMacro = s.hideMacroText
     local macroSize = s.macroFontSize or 12
     if info and (info.isStance or info.isPetBar) then macroSize = max(macroSize - 2, 6) end
     local macroColor = s.macroFontColor or { r=1, g=1, b=1 }
     local macroOX = s.macroOffsetX or 0
     local macroOY = s.macroOffsetY or 0
+    local macroAnchor = s.macroAnchor
     local RANGE_INDICATOR = RANGE_INDICATOR or "\226\128\162"
 
     for i = 1, #buttons do
@@ -7753,10 +7821,14 @@ function EAB:ApplyFontsForBar(barKey)
                 hk:Show()
                 EllesmereUI.ApplyIconTextFont(hk, fontPath, kbSize, "actionBars")
                 hk:SetTextColor(kbColor.r, kbColor.g, kbColor.b)
-                hk:ClearAllPoints()
-                hk:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -1 + kbOX, -3 + kbOY)
-                hk:SetPoint("TOPLEFT", btn, "TOPLEFT", 4 + kbOX, -3 + kbOY)
-                hk:SetJustifyH("RIGHT")
+                -- Anchor unset (the default) = the stock placement below; the
+                -- nil test is the whole cost of the feature while it is off.
+                if not (kbAnchor and EAB.PlaceButtonText(hk, btn, kbAnchor, kbOX, kbOY)) then
+                    hk:ClearAllPoints()
+                    hk:SetPoint("TOPRIGHT", btn, "TOPRIGHT", -1 + kbOX, -3 + kbOY)
+                    hk:SetPoint("TOPLEFT", btn, "TOPLEFT", 4 + kbOX, -3 + kbOY)
+                    hk:SetJustifyH("RIGHT")
+                end
             end
         end
 
@@ -7765,8 +7837,11 @@ function EAB:ApplyFontsForBar(barKey)
         if ct then
             EllesmereUI.ApplyIconTextFont(ct, fontPath, ctSize, "actionBars")
             ct:SetTextColor(ctColor.r, ctColor.g, ctColor.b)
-            ct:ClearAllPoints()
-            ct:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1 + ctOX, 4 + ctOY)
+            if not (ctAnchor and EAB.PlaceButtonText(ct, btn, ctAnchor, ctOX, ctOY)) then
+                ct:ClearAllPoints()
+                ct:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1 + ctOX, 4 + ctOY)
+                ct:SetJustifyH("RIGHT")
+            end
         end
 
         -- Macro name text
@@ -7779,10 +7854,12 @@ function EAB:ApplyFontsForBar(barKey)
                 if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(nm, false) end
                 nm:SetFont(fontPath, macroSize, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
                 nm:SetTextColor(macroColor.r, macroColor.g, macroColor.b)
-                nm:ClearAllPoints()
-                nm:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 1 + macroOX, 4 + macroOY)
-                nm:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1 + macroOX, 4 + macroOY)
-                nm:SetJustifyH("CENTER")
+                if not (macroAnchor and EAB.PlaceButtonText(nm, btn, macroAnchor, macroOX, macroOY)) then
+                    nm:ClearAllPoints()
+                    nm:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 1 + macroOX, 4 + macroOY)
+                    nm:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -1 + macroOX, 4 + macroOY)
+                    nm:SetJustifyH("CENTER")
+                end
             end
         end
     end

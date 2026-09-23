@@ -11,6 +11,14 @@ if not ns then return end  -- module disabled: no options page
 if (EllesmereUI.Lite.GetAddon(ADDON_NAME, true) or ns).standDown then return end
 local EAB = ns.EAB
 local VisibilityCompat = EAB and EAB.VisibilityCompat
+-- Anchor dropdown for the three button texts (keybind / charges / macro name);
+-- "default" = stock placement, stored as nil in the profile.
+local TEXT_ANCHOR_LABELS = {
+    default = "Default", TOPLEFT = "Top Left", TOP = "Top", TOPRIGHT = "Top Right",
+    BOTTOMLEFT = "Bottom Left", BOTTOM = "Bottom", BOTTOMRIGHT = "Bottom Right",
+}
+local TEXT_ANCHOR_DROPDOWN_ORDER = { "default" }
+for i, a in ipairs(EAB and EAB.TEXT_ANCHOR_ORDER or {}) do TEXT_ANCHOR_DROPDOWN_ORDER[i + 1] = a end
 
 local function GetEABOptOutline() return EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag() or "" end
 local function GetEABOptUseShadow() return EllesmereUI.GetFontUseShadow and EllesmereUI.GetFontUseShadow() or true end
@@ -1125,10 +1133,12 @@ initFrame:SetScript("OnEvent", function(self)
                     keybindFS:SetTextColor(kbColor.r, kbColor.g, kbColor.b)
                     local kbOX = (settings.keybindOffsetX or 0) * totalScale
                     local kbOY = (settings.keybindOffsetY or 0) * totalScale
-                    keybindFS:ClearAllPoints()
-                    keybindFS:SetPoint("TOPRIGHT", bf, "TOPRIGHT", -1 + kbOX, -3 + kbOY)
-                    keybindFS:SetPoint("TOPLEFT", bf, "TOPLEFT", 4 + kbOX, -3 + kbOY)
-                    keybindFS:SetJustifyH("RIGHT")
+                    if not (settings.keybindAnchor and EAB.PlaceButtonText(keybindFS, bf, settings.keybindAnchor, kbOX, kbOY)) then
+                        keybindFS:ClearAllPoints()
+                        keybindFS:SetPoint("TOPRIGHT", bf, "TOPRIGHT", -1 + kbOX, -3 + kbOY)
+                        keybindFS:SetPoint("TOPLEFT", bf, "TOPLEFT", 4 + kbOX, -3 + kbOY)
+                        keybindFS:SetJustifyH("RIGHT")
+                    end
 
                     local countFS = entry.count
                     do
@@ -1142,8 +1152,11 @@ initFrame:SetScript("OnEvent", function(self)
                     countFS:SetTextColor(ctColor.r, ctColor.g, ctColor.b)
                     local ctOX = (settings.countOffsetX or 0) * totalScale
                     local ctOY = (settings.countOffsetY or 0) * totalScale
-                    countFS:ClearAllPoints()
-                    countFS:SetPoint("BOTTOMRIGHT", bf, "BOTTOMRIGHT", -1 + ctOX, 4 + ctOY)
+                    if not (settings.countAnchor and EAB.PlaceButtonText(countFS, bf, settings.countAnchor, ctOX, ctOY)) then
+                        countFS:ClearAllPoints()
+                        countFS:SetPoint("BOTTOMRIGHT", bf, "BOTTOMRIGHT", -1 + ctOX, 4 + ctOY)
+                        countFS:SetJustifyH("RIGHT")
+                    end
 
                     local macroFS = entry.macro
                     if macroFS then
@@ -1161,10 +1174,12 @@ initFrame:SetScript("OnEvent", function(self)
                         macroFS:SetTextColor(mcColor.r, mcColor.g, mcColor.b)
                         local mcOX = (settings.macroOffsetX or 0) * totalScale
                         local mcOY = (settings.macroOffsetY or 0) * totalScale
-                        macroFS:ClearAllPoints()
-                        macroFS:SetPoint("BOTTOMLEFT", bf, "BOTTOMLEFT", 1 + mcOX, 4 + mcOY)
-                        macroFS:SetPoint("BOTTOMRIGHT", bf, "BOTTOMRIGHT", -1 + mcOX, 4 + mcOY)
-                        macroFS:SetJustifyH("CENTER")
+                        if not (settings.macroAnchor and EAB.PlaceButtonText(macroFS, bf, settings.macroAnchor, mcOX, mcOY)) then
+                            macroFS:ClearAllPoints()
+                            macroFS:SetPoint("BOTTOMLEFT", bf, "BOTTOMLEFT", 1 + mcOX, 4 + mcOY)
+                            macroFS:SetPoint("BOTTOMRIGHT", bf, "BOTTOMRIGHT", -1 + mcOX, 4 + mcOY)
+                            macroFS:SetJustifyH("CENTER")
+                        end
                     end
                     end -- close alwaysShowButtons else
                 else
@@ -1766,6 +1781,28 @@ initFrame:SetScript("OnEvent", function(self)
         end
         local function SUpdatePreview()
             UpdatePreview()
+        end
+
+        -- The stock spacing lives in the offset boxes, not in the placement: it is
+        -- seeded there on the way in, follows the position while the numbers are
+        -- still the seeded ones, and is cleared on the way back out to Default,
+        -- where the stock placement carries its own spacing again. The moment the
+        -- user types anything the boxes are theirs and nothing rewrites them.
+        local function SSeedTextOffsets(kind, anchorKey, oxKey, oyKey, anchor)
+            local prev = SVal(anchorKey, nil)
+            if prev == anchor then return end
+            local ox, oy = SVal(oxKey, 0), SVal(oyKey, 0)
+            if prev then
+                local px, py = EAB.StockTextOffsets(kind, prev)
+                if ox ~= px or oy ~= py then return end
+            elseif ox ~= 0 or oy ~= 0 then
+                return
+            end
+            if anchor then
+                SB()[oxKey], SB()[oyKey] = EAB.StockTextOffsets(kind, anchor)
+            else
+                SB()[oxKey], SB()[oyKey] = nil, nil
+            end
         end
         local function SUpdatePreviewAndResize()
             UpdatePreviewAndResize()
@@ -4636,11 +4673,13 @@ initFrame:SetScript("OnEvent", function(self)
                         local sz = s.keybindFontSize or 12
                         local ox = s.keybindOffsetX or 0
                         local oy = s.keybindOffsetY or 0
+                        local an = s.keybindAnchor
                         for _, key in ipairs(GROUP_BAR_ORDER) do
                             if c then EAB.db.profile.bars[key].keybindFontColor = { r=c.r, g=c.g, b=c.b } end
                             EAB.db.profile.bars[key].keybindFontSize = sz
                             EAB.db.profile.bars[key].keybindOffsetX = ox
                             EAB.db.profile.bars[key].keybindOffsetY = oy
+                            EAB.db.profile.bars[key].keybindAnchor = an
                             EAB:ApplyFontsForBar(key)
                         end
                         EllesmereUI:RefreshPage()
@@ -4656,6 +4695,7 @@ initFrame:SetScript("OnEvent", function(self)
                             if (b.keybindFontSize or 12) ~= sz then return false end
                             if (b.keybindOffsetX or 0) ~= ox then return false end
                             if (b.keybindOffsetY or 0) ~= oy then return false end
+                            if b.keybindAnchor ~= s.keybindAnchor then return false end
                             if c then
                                 local bc = b.keybindFontColor
                                 if not bc or bc.r ~= c.r or bc.g ~= c.g or bc.b ~= c.b then return false end
@@ -4674,11 +4714,13 @@ initFrame:SetScript("OnEvent", function(self)
                             local sz = s.keybindFontSize or 12
                             local ox = s.keybindOffsetX or 0
                             local oy = s.keybindOffsetY or 0
+                            local an = s.keybindAnchor
                             for _, key in ipairs(checkedKeys) do
                                 if c then EAB.db.profile.bars[key].keybindFontColor = { r=c.r, g=c.g, b=c.b } end
                                 EAB.db.profile.bars[key].keybindFontSize = sz
                                 EAB.db.profile.bars[key].keybindOffsetX = ox
                                 EAB.db.profile.bars[key].keybindOffsetY = oy
+                                EAB.db.profile.bars[key].keybindAnchor = an
                                 EAB:ApplyFontsForBar(key)
                             end
                             EllesmereUI:RefreshPage()
@@ -4709,6 +4751,15 @@ initFrame:SetScript("OnEvent", function(self)
                 local _, kbCogShowRaw = EllesmereUI.BuildCogPopup({
                     title = "Keybind Text Offsets",
                     rows = {
+                        { type="dropdown", label="Position",
+                          values=TEXT_ANCHOR_LABELS, order=TEXT_ANCHOR_DROPDOWN_ORDER,
+                          get=function() return SVal("keybindAnchor", "default") end,
+                          set=function(v)
+                              local anchor = v ~= "default" and v or nil
+                              SSeedTextOffsets("keybind", "keybindAnchor", "keybindOffsetX", "keybindOffsetY", anchor)
+                              SSet("keybindAnchor", anchor, function(k) EAB:ApplyFontsForBar(k) end)
+                              SUpdatePreview()
+                          end },
                         { type="slider", label="X Offset", min=-150, max=150, step=1,
                           get=function() return SVal("keybindOffsetX", 0) end,
                           set=function(v)
@@ -4789,11 +4840,13 @@ initFrame:SetScript("OnEvent", function(self)
                         local sz = s.macroFontSize or 12
                         local ox = s.macroOffsetX or 0
                         local oy = s.macroOffsetY or 0
+                        local an = s.macroAnchor
                         for _, key in ipairs(GROUP_BAR_ORDER) do
                             if c then EAB.db.profile.bars[key].macroFontColor = { r=c.r, g=c.g, b=c.b } end
                             EAB.db.profile.bars[key].macroFontSize = sz
                             EAB.db.profile.bars[key].macroOffsetX = ox
                             EAB.db.profile.bars[key].macroOffsetY = oy
+                            EAB.db.profile.bars[key].macroAnchor = an
                             EAB:ApplyFontsForBar(key)
                         end
                         EllesmereUI:RefreshPage()
@@ -4809,6 +4862,7 @@ initFrame:SetScript("OnEvent", function(self)
                             if (b.macroFontSize or 12) ~= sz then return false end
                             if (b.macroOffsetX or 0) ~= ox then return false end
                             if (b.macroOffsetY or 0) ~= oy then return false end
+                            if b.macroAnchor ~= s.macroAnchor then return false end
                             if c then
                                 local bc = b.macroFontColor
                                 if not bc or bc.r ~= c.r or bc.g ~= c.g or bc.b ~= c.b then return false end
@@ -4827,11 +4881,13 @@ initFrame:SetScript("OnEvent", function(self)
                             local sz = s.macroFontSize or 12
                             local ox = s.macroOffsetX or 0
                             local oy = s.macroOffsetY or 0
+                            local an = s.macroAnchor
                             for _, key in ipairs(checkedKeys) do
                                 if c then EAB.db.profile.bars[key].macroFontColor = { r=c.r, g=c.g, b=c.b } end
                                 EAB.db.profile.bars[key].macroFontSize = sz
                                 EAB.db.profile.bars[key].macroOffsetX = ox
                                 EAB.db.profile.bars[key].macroOffsetY = oy
+                                EAB.db.profile.bars[key].macroAnchor = an
                                 EAB:ApplyFontsForBar(key)
                             end
                             EllesmereUI:RefreshPage()
@@ -4862,6 +4918,15 @@ initFrame:SetScript("OnEvent", function(self)
                 local _, mcCogShowRaw = EllesmereUI.BuildCogPopup({
                     title = "Macro Text Offsets",
                     rows = {
+                        { type="dropdown", label="Position",
+                          values=TEXT_ANCHOR_LABELS, order=TEXT_ANCHOR_DROPDOWN_ORDER,
+                          get=function() return SVal("macroAnchor", "default") end,
+                          set=function(v)
+                              local anchor = v ~= "default" and v or nil
+                              SSeedTextOffsets("macro", "macroAnchor", "macroOffsetX", "macroOffsetY", anchor)
+                              SSet("macroAnchor", anchor, function(k) EAB:ApplyFontsForBar(k) end)
+                              SUpdatePreview()
+                          end },
                         { type="slider", label="X Offset", min=-150, max=150, step=1,
                           get=function() return SVal("macroOffsetX", 0) end,
                           set=function(v)
@@ -4903,11 +4968,13 @@ initFrame:SetScript("OnEvent", function(self)
                         local sz = s.countFontSize or 12
                         local ox = s.countOffsetX or 0
                         local oy = s.countOffsetY or 0
+                        local an = s.countAnchor
                         for _, key in ipairs(GROUP_BAR_ORDER) do
                             if c then EAB.db.profile.bars[key].countFontColor = { r=c.r, g=c.g, b=c.b } end
                             EAB.db.profile.bars[key].countFontSize = sz
                             EAB.db.profile.bars[key].countOffsetX = ox
                             EAB.db.profile.bars[key].countOffsetY = oy
+                            EAB.db.profile.bars[key].countAnchor = an
                             EAB:ApplyFontsForBar(key)
                         end
                         EllesmereUI:RefreshPage()
@@ -4923,6 +4990,7 @@ initFrame:SetScript("OnEvent", function(self)
                             if (b.countFontSize or 12) ~= sz then return false end
                             if (b.countOffsetX or 0) ~= ox then return false end
                             if (b.countOffsetY or 0) ~= oy then return false end
+                            if b.countAnchor ~= s.countAnchor then return false end
                             if c then
                                 local bc = b.countFontColor
                                 if not bc or bc.r ~= c.r or bc.g ~= c.g or bc.b ~= c.b then return false end
@@ -4941,11 +5009,13 @@ initFrame:SetScript("OnEvent", function(self)
                             local sz = s.countFontSize or 12
                             local ox = s.countOffsetX or 0
                             local oy = s.countOffsetY or 0
+                            local an = s.countAnchor
                             for _, key in ipairs(checkedKeys) do
                                 if c then EAB.db.profile.bars[key].countFontColor = { r=c.r, g=c.g, b=c.b } end
                                 EAB.db.profile.bars[key].countFontSize = sz
                                 EAB.db.profile.bars[key].countOffsetX = ox
                                 EAB.db.profile.bars[key].countOffsetY = oy
+                                EAB.db.profile.bars[key].countAnchor = an
                                 EAB:ApplyFontsForBar(key)
                             end
                             EllesmereUI:RefreshPage()
@@ -4976,6 +5046,15 @@ initFrame:SetScript("OnEvent", function(self)
                 local _, ctCogShowRaw = EllesmereUI.BuildCogPopup({
                     title = "Charges Text Offsets",
                     rows = {
+                        { type="dropdown", label="Position",
+                          values=TEXT_ANCHOR_LABELS, order=TEXT_ANCHOR_DROPDOWN_ORDER,
+                          get=function() return SVal("countAnchor", "default") end,
+                          set=function(v)
+                              local anchor = v ~= "default" and v or nil
+                              SSeedTextOffsets("count", "countAnchor", "countOffsetX", "countOffsetY", anchor)
+                              SSet("countAnchor", anchor, function(k) EAB:ApplyFontsForBar(k) end)
+                              SUpdatePreview()
+                          end },
                         { type="slider", label="X Offset", min=-150, max=150, step=1,
                           get=function() return SVal("countOffsetX", 0) end,
                           set=function(v)
