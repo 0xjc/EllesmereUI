@@ -9367,6 +9367,9 @@ factionFrame:SetScript("OnEvent", function(_, event, unit)
         local w = enemyWatchers[unit]
         w:GetScript("OnEvent")(w, "UNIT_FACTION", unit)
     end
+    -- Tap state changes arrive here, not on any per-plate event.
+    local plate = ns.plates[unit]
+    if plate then plate:UpdateHealthColor() end
 end)
 -- Unified mouseover monitor (enemy + friendly). UPDATE_MOUSEOVER_UNIT fires when a mouseover
 -- STARTS but never when it clears, so a single shared 0.1s ticker (alive only while a mouseover
