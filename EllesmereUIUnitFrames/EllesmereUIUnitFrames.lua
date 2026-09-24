@@ -4941,6 +4941,195 @@ local function UpdateAbsorbBarReverseFill(frame, isReversed, settingsOverride)
             end
         end
     end
+    if ab._predMy then ns.UF_AnchorHealPred(ab) end
+end
+
+-------------------------------------------------------------------------------
+--  Heal Prediction (opt-in per unit, s.healPrediction): incoming heals drawn
+--  past the health fill as two segments, the player's own heals first, then
+--  everyone else's, like Blizzard's frames. Both are StatusBars fed by a heal
+--  prediction calculator (secret-safe: values only reach SetValue), parented
+--  to the absorb cluster's missing-health clip, which also stops them at full
+--  health. Overheal (s.healPredOverheal, percent of the bar) lets them run past
+--  the bar's end: the calculator clamps to maximum health instead, and the bars
+--  move (without the edge mask) to a holder outside the frame's bar clip that
+--  clips at the bar's end plus the allowance. Texture (s.healPredTexture)
+--  follows the health bar by default.
+--  Nothing is built or registered until a frame turns the option on.
+--  On ns: this chunk sits at the Lua 5.1 local ceiling.
+-------------------------------------------------------------------------------
+ns.UF_HEAL_PRED_MY    = { r = 102/255, g = 243/255, b = 102/255 }
+ns.UF_HEAL_PRED_OTHER = { r = 40/255,  g = 170/255, b = 40/255 }
+-- Units with heal prediction: UNIT_HEAL_PREDICTION fires for every group member
+-- and nameplate, so the listener drops anything else before touching frames.
+ns.UF_HEAL_PRED_UNITS = { player = true, target = true, focus = true,
+    boss1 = true, boss2 = true, boss3 = true, boss4 = true, boss5 = true }
+
+-- Anchors both segments at the health fill's leading edge, in the fill
+-- direction (reverse and vertical fill included), the others' segment
+-- starting where the player's ends.
+function ns.UF_AnchorHealPred(ab)
+    local my, other = ab._predMy, ab._predOther
+    local hpTex = ab._hpBar and ab._hpBar:GetStatusBarTexture()
+    if not (my and hpTex) then return end
+    local myTex = my:GetStatusBarTexture()
+    local isVert, isRev = ab._isVert and true or false, ab._isReversed and true or false
+    for _, bar in ipairs({ my, other }) do
+        bar:SetOrientation(isVert and "VERTICAL" or "HORIZONTAL")
+        ns.ApplyFillRotation(bar)
+        bar:SetReverseFill(isRev)
+        bar:ClearAllPoints()
+    end
+    local a1, b1, a2, b2
+    if isVert then
+        if isRev then a1, b1, a2, b2 = "TOPLEFT", "BOTTOMLEFT", "TOPRIGHT", "BOTTOMRIGHT"
+        else a1, b1, a2, b2 = "BOTTOMLEFT", "TOPLEFT", "BOTTOMRIGHT", "TOPRIGHT" end
+    elseif isRev then a1, b1, a2, b2 = "TOPRIGHT", "TOPLEFT", "BOTTOMRIGHT", "BOTTOMLEFT"
+    else a1, b1, a2, b2 = "TOPLEFT", "TOPRIGHT", "BOTTOMLEFT", "BOTTOMRIGHT" end
+    my:SetPoint(a1, hpTex, b1, 0, 0)
+    my:SetPoint(a2, hpTex, b2, 0, 0)
+    other:SetPoint(a1, myTex, b1, 0, 0)
+    other:SetPoint(a2, myTex, b2, 0, 0)
+end
+
+function ns.UF_NewHealPredBar(ab)
+    local bar = CreateFrame("StatusBar", nil, ab._missClip)
+    bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+    local fill = bar:GetStatusBarTexture()
+    if fill and ab._absorbMask then fill:AddMaskTexture(ab._absorbMask) end
+    bar:SetMinMaxValues(0, 1)
+    bar:SetValue(0)
+    bar:SetFrameLevel(ab._hpBar:GetFrameLevel() + 1)
+    bar:Hide()
+    return bar
+end
+
+-- One listener for every frame with the option on, created with the first.
+function ns.UF_ArmHealPredEvents()
+    if ns._ufHealPredEvents then return end
+    local ev = CreateFrame("Frame")
+    ev:RegisterEvent("UNIT_HEAL_PREDICTION")
+    ev:SetScript("OnEvent", function(_, _, unit)
+        if not ns.UF_HEAL_PRED_UNITS[unit] then return end
+        for _, f in pairs(frames) do
+            if type(f) == "table" and f._euiUnit == unit and f.HealthPrediction and f:IsVisible() then
+                ns.UF_PaintHealPred(f, unit)
+            end
+        end
+    end)
+    ns._ufHealPredEvents = ev
+end
+
+function ns.UF_PaintHealPred(frame, unit)
+    local ab = frame.HealthPrediction and frame.HealthPrediction.damageAbsorb
+    if not (ab and ab._missClip) then return end
+    local s = GetSettingsForUnit(unit)
+    -- Boss frames follow the Target frame's settings, like their absorbs.
+    if unit and unit:match("^boss") then s = db.profile.target or s end
+    if not (s and s.healPrediction and CreateUnitHealPredictionCalculator and UnitGetDetailedHealPrediction) then
+        if ab._predMy then ab._predMy:Hide(); ab._predOther:Hide() end
+        return
+    end
+    if not ab._predMy then
+        ab._predMy = ns.UF_NewHealPredBar(ab)
+        ab._predOther = ns.UF_NewHealPredBar(ab)
+        ab._predCalc = CreateUnitHealPredictionCalculator()
+        ns.UF_AnchorHealPred(ab)
+    end
+    ns.UF_ArmHealPredEvents()
+    local my, other = ab._predMy, ab._predOther
+    local hp = ab._hpBar
+    -- Texture (s.healPredTexture): "health" (default) follows the frame's own
+    -- health bar, read off its fill so every texture path (per frame, profile,
+    -- donor, Blizzard Style) matches; "flat" is a plain fill; anything else is a
+    -- health-bar texture key. A swap replaces the fill objects, so the others'
+    -- anchor, fill rotation and the edge mask are re-seated after it.
+    local texKey = s.healPredTexture or "health"
+    local path
+    if texKey == "health" then
+        local hFill = hp:GetStatusBarTexture()
+        path = hFill and hFill:GetTexture()
+    elseif texKey ~= "flat" then
+        path = EllesmereUI.ResolveTexturePath(healthBarTextures, texKey, nil)
+    end
+    path = path or "Interface\\Buttons\\WHITE8X8"
+    if ab._predTexPath ~= path then
+        ab._predTexPath = path
+        for _, bar in ipairs({ my, other }) do
+            bar:SetStatusBarTexture(path)
+            local fill = bar:GetStatusBarTexture()
+            if fill then UnsnapTex(fill) end
+        end
+        ns.UF_AnchorHealPred(ab)
+        ab._predOverKey = nil
+    end
+    local alpha = (s.healPredOpacity or 60) / 100
+    local mc = s.healPredColor or ns.UF_HEAL_PRED_MY
+    local oc = s.healPredOtherColor or ns.UF_HEAL_PRED_OTHER
+    my:SetStatusBarColor(mc.r, mc.g, mc.b, alpha)
+    other:SetStatusBarColor(oc.r, oc.g, oc.b, alpha)
+    local w, h = hp:GetWidth(), hp:GetHeight()
+    if ab._predW ~= w or ab._predH ~= h then
+        ab._predW, ab._predH = w, h
+        my:SetSize(w, h)
+        other:SetSize(w, h)
+    end
+    -- Overheal: how far past full health the bars may run (0 = stop at the end).
+    -- The health bar sits inside the frame's bar clip, so running past its end
+    -- takes a holder outside it: parented to the unit frame and clipping at the
+    -- bar's end plus the allowance. The calculator then clamps to maximum
+    -- health instead of missing health.
+    local over = tonumber(s.healPredOverheal) or 0
+    local overKey = over .. "|" .. w .. "|" .. h .. "|" .. tostring(ab._isVert) .. "|" .. tostring(ab._isReversed)
+    if ab._predOverKey ~= overKey then
+        ab._predOverKey = overKey
+        local modes = Enum and Enum.UnitIncomingHealClampMode
+        if ab._predCalc.SetIncomingHealClampMode and modes then
+            ab._predCalc:SetIncomingHealClampMode(over > 0 and modes.MaximumHealth or modes.MissingHealth)
+        end
+        local parent = ab._missClip
+        if over > 0 then
+            local holder = ab._predHolder
+            if not holder then
+                holder = CreateFrame("Frame", nil, frame)
+                holder:SetClipsChildren(true)
+                ab._predHolder = holder
+            end
+            holder:SetFrameLevel(hp:GetFrameLevel() + 1)
+            local ext = (ab._isVert and h or w) * over / 100
+            local l, r, t, b = 0, 0, 0, 0
+            if ab._isVert then
+                if ab._isReversed then b = -ext else t = ext end
+            elseif ab._isReversed then
+                l = -ext
+            else
+                r = ext
+            end
+            holder:ClearAllPoints()
+            holder:SetPoint("TOPLEFT", hp, "TOPLEFT", l, t)
+            holder:SetPoint("BOTTOMRIGHT", hp, "BOTTOMRIGHT", r, b)
+            parent = holder
+        end
+        for i, bar in ipairs({ other, my }) do
+            bar:SetParent(parent)
+            bar:SetFrameLevel(hp:GetFrameLevel() + i)
+            local fill = bar:GetStatusBarTexture()
+            if fill and ab._absorbMask then
+                pcall(fill.RemoveMaskTexture, fill, ab._absorbMask)
+                if over == 0 then fill:AddMaskTexture(ab._absorbMask) end
+            end
+        end
+    end
+    local calc = ab._predCalc
+    UnitGetDetailedHealPrediction(unit, "player", calc)
+    local _, mine, others = calc:GetIncomingHeals()
+    local maxHealth = UnitHealthMax(unit) or 0
+    my:SetMinMaxValues(0, maxHealth)
+    other:SetMinMaxValues(0, maxHealth)
+    my:SetValue(mine or 0)
+    other:SetValue(others or 0)
+    my:Show()
+    other:Show()
 end
 
 -- Absorb / Heal Absorb strip-bar position resolvers + layout (mirrors Raid
@@ -5218,9 +5407,10 @@ local function CreateAbsorbBar(frame, unit, settings)
     UF_AbsorbOverride = function(self, event, updUnit)
             if self._euiUnit ~= updUnit then return end
 
-            -- Incoming-heal prediction is never rendered on unit frames, so its frequent
-            -- healer-cast-driven events change nothing we paint; absorb/health changes
-            -- always arrive via their own events, so skipping cannot strand state.
+            -- Incoming heals (opt-in) paint their own two bars on every pass here
+            -- (identity repaints included) and on UNIT_HEAL_PREDICTION, which only
+            -- their listener delivers; nothing below reads them.
+            ns.UF_PaintHealPred(self, updUnit)
             if event == "UNIT_HEAL_PREDICTION" then return end
 
             -- Arm on the dedicated absorb events (plainly observable even
