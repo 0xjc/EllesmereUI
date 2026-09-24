@@ -768,7 +768,7 @@ local function EnsureEater(d, slot, host, container, active, pinHost, point, cor
         -- secure unit menu. Click-cast re-writes these when it is enabled.
         e:SetAttribute("type1", "target")
         e:SetAttribute("*type1", "target")
-        if EllesmereUI.AttachSecureUnitMenu then EllesmereUI.AttachSecureUnitMenu(e) end
+        EllesmereUI.AttachSecureUnitMenu(e)
         -- HookScript, not SetScript: the click-cast header wraps these same
         -- script slots securely, and a hook never displaces a wrap. The Lua
         -- side forwards the unit button's own hover (highlight, unit tooltip).
@@ -2161,7 +2161,7 @@ local function EnsureTileStyle(d, s, t, szOv, szCat)
     local st = dmTileFP[key]
     if not st then st = {}; dmTileFP[key] = st end
 
-    local font = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or ""
+    local font = (EllesmereUI.GetFontPath("raidFrames")) or ""
     local v
     if isGrid then
         -- Rebuild handles for DM_RefreshSizedStyles (base-style edits re-derive this key without an apply pass).
@@ -2236,7 +2236,7 @@ local function EnsureBaseSizeStyle(d, s, cat, size)
     if not st then st = { cls = cls, cat = cat }; dmSizeFP[key] = st end
     st.rawSize = size
     size = EffectiveIconSizeForClass(size, cls)
-    local font = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or ""
+    local font = (EllesmereUI.GetFontPath("raidFrames")) or ""
     local v = ((ns.RFC_DebuffStyleFP and ns.RFC_DebuffStyleFP(s, font)) or "")
         .. "|" .. tostring(size)
     if st.style ~= v and ns.RFC_BuildDebuffStyle then
@@ -2260,7 +2260,7 @@ function ns.DM_RefreshSizedStyles(baseStyleKey, s)
     if not AK then return end
     local cls = baseStyleKey:match("^rf:debuff:(.+)$")
     if not cls then return end
-    local font = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or ""
+    local font = (EllesmereUI.GetFontPath("raidFrames")) or ""
     for key, st in pairs(dmSizeFP) do
         if st.cls == cls and st.style and st.rawSize then
             local size = EffectiveIconSizeForClass(st.rawSize, cls)

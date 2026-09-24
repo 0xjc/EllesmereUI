@@ -221,7 +221,7 @@ local function ApplyRFDebuffText(button, d, style)
             button:SetMouseMotionEnabled(motion)
         end
     end
-    local path = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or FALLBACK_FONT
+    local path = (EllesmereUI.GetFontPath("raidFrames")) or FALLBACK_FONT
     if d.duration then
         -- Always font the string even hidden: the engine SetText()s every registered
         -- duration string on display updates, and an unfonted FontString hard-errors.
@@ -791,7 +791,7 @@ end
 local function PrimeClassFP(styleKey, s)
     local st = classFP[styleKey]
     if not st then st = {}; classFP[styleKey] = st end
-    local font = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or ""
+    local font = (EllesmereUI.GetFontPath("raidFrames")) or ""
     st.debuffStyle = DebuffStyleFP(s, font)
     st.debuffCfg = DebuffCfgFP(s)
     st.dispLocStyle = DispLocStyleFP(s, font)
@@ -2096,7 +2096,7 @@ local function BmAcquireChain(button, d, health, ch, iscale, counters)
     local styleBase = StyleKeyFor(d):gsub("debuff", "bmpool") .. ":" .. poolKey
 
     -- Per-member styles (each group carries its own size/text styling).
-    local font = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or ""
+    local font = (EllesmereUI.GetFontPath("raidFrames")) or ""
     local styleKeys = {}
     for j = 1, #members do
         local mInd = members[j].ind
@@ -2315,7 +2315,7 @@ local function CreateBmContainer(button, health, d, unit)
 
     -- Prime the fingerprint caches with what was just built, so the next
     -- reload after a swap/login compares equal instead of storming.
-    local font = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or ""
+    local font = (EllesmereUI.GetFontPath("raidFrames")) or ""
     for i = 1, #meta do
         local m = meta[i]
         if m.styleKey then
@@ -2420,7 +2420,7 @@ end
 -- candidate-filter re-drive (per button, below) rather than a container swap.
 local function BmCheckStyles(cls, meta)
     cls.stylesChecked = true
-    local font = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or ""
+    local font = (EllesmereUI.GetFontPath("raidFrames")) or ""
     for i = 1, #meta do
         local m = meta[i]
         if m.styleKey then
@@ -3006,7 +3006,7 @@ end
 local function ComputeClassFlags(styleKey, s)
     local st = classFP[styleKey]
     if not st then st = {}; classFP[styleKey] = st end
-    local font = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or ""
+    local font = (EllesmereUI.GetFontPath("raidFrames")) or ""
     local flags = {}
 
     local v = DebuffStyleFP(s, font)

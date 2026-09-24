@@ -71,7 +71,7 @@ local function BuildPTROverlay(parentFrame, label, fontSize)
     bg:SetAllPoints()
     bg:SetColorTexture(0.10, 0.10, 0.12, 0.95)
     local fs = ov:CreateFontString(nil, "OVERLAY")
-    local fp = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
+    local fp = (EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
     fs:SetFont(fp, fontSize or 12, "")
     fs:SetPoint("LEFT", ov, "LEFT", 8, 0)
     fs:SetPoint("RIGHT", ov, "RIGHT", -8, 0)
@@ -753,7 +753,7 @@ local function ApplyEffectBorder(borderFrame, ind, r, g, b, a, w, h)
     local baseLvl = (parent and parent:GetFrameLevel()) or borderFrame:GetFrameLevel()
     borderFrame:SetFrameLevel(baseLvl + 11)   -- default border level (matches creation)
     if style == "dashed" and Glows and Glows.StartProceduralAnts then
-        if EllesmereUI.HideBorderStyle then EllesmereUI.HideBorderStyle(borderFrame) end
+        EllesmereUI.HideBorderStyle(borderFrame)
         Glows.StartProceduralAnts(borderFrame, ind.borderDashCount or 8, bw, nil, nil,
             r, g, b, nil, nil, nil, nil, nil, nil, true)
         Glows.SetProceduralAntsColor(borderFrame, r, g, b, a)
@@ -778,7 +778,7 @@ function ns.BM_ApplyEffectBorder(borderFrame, ind, r, g, b, a, w, h)
     local Glows = EllesmereUI.Glows
     if w and (ind.borderStyle or "solid") == "dashed"
         and Glows and Glows.StartAnimatedAnts then
-        if EllesmereUI.HideBorderStyle then EllesmereUI.HideBorderStyle(borderFrame) end
+        EllesmereUI.HideBorderStyle(borderFrame)
         -- Same +11 as the static styles (this branch returns first): otherwise the host stays at slot+1, one level BELOW the health bar (unit+2).
         local parent = borderFrame:GetParent()
         local baseLvl = (parent and parent:GetFrameLevel()) or borderFrame:GetFrameLevel()
@@ -938,7 +938,7 @@ function ns.BM_CreatePreviewIndicators(f, health, PP)
         fr._textCarrier = textCarrier
         local countFS = textCarrier:CreateFontString(nil, "OVERLAY")
         countFS:SetPoint("BOTTOMRIGHT", fr, "BOTTOMRIGHT", 1, -1)
-        local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
+        local fontPath = (EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
         EllesmereUI.ApplyIconTextFont(countFS, fontPath, 8, "raidFrames")
         countFS:SetTextColor(1, 1, 1)
         fr._count = countFS
@@ -1405,7 +1405,7 @@ function ns.BM_ApplyPreviewIndicators(f, index, s)
                                         local sc = ind.stacksTextColor or { r=1, g=1, b=1 }
                                         local sOX = (ind.stacksOffsetX or 0) * iscale
                                         local sOY = (ind.stacksOffsetY or 0) * iscale
-                                        local fp = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
+                                        local fp = (EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
                                         EllesmereUI.ApplyIconTextFont(fr._count, fp, sSz, "raidFrames")
                                         fr._count:SetTextColor(sc.r, sc.g, sc.b)
                                         fr._count:ClearAllPoints()
@@ -1433,7 +1433,7 @@ function ns.BM_ApplyPreviewIndicators(f, index, s)
                                             -- Manual duration text (static, not a countdown); survives Hide Icons.
                                             if ind.showDurationText and fr._durText then
                                                 local dtc = ind.durationTextColor or { r=1, g=1, b=1 }
-                                                local fp = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
+                                                local fp = (EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
                                                 EllesmereUI.ApplyIconTextFont(fr._durText, fp, ind.durationTextSize or 8, "raidFrames")
                                                 fr._durText:SetTextColor(dtc.r, dtc.g, dtc.b)
                                                 fr._durText:ClearAllPoints()
@@ -1549,8 +1549,7 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
 
     -- Health bar (matches the custom preview build exactly)
     local texKey = s.healthBarTexture or "atrocity"
-    local texPath = EllesmereUI.ResolveTexturePath and
-        EllesmereUI.ResolveTexturePath(ns.healthBarTextures or {}, texKey, "Interface\\Buttons\\WHITE8X8")
+    local texPath = EllesmereUI.ResolveTexturePath(ns.healthBarTextures or {}, texKey, "Interface\\Buttons\\WHITE8X8")
         or "Interface\\Buttons\\WHITE8X8"
     local health = CreateFrame("StatusBar", nil, pvFrame)
     health:SetFrameLevel(pvFrame:GetFrameLevel() + 2)
@@ -1581,7 +1580,7 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
         local _, pc = UnitClass("player")
         previewClass = pc
     end
-    local cc = EllesmereUI.GetClassColor and EllesmereUI.GetClassColor(previewClass)
+    local cc = EllesmereUI.GetClassColor(previewClass)
     local mode = s.healthColorMode or "class"
     local fillTex = health:GetStatusBarTexture()
     if mode == "dark" then
@@ -1625,7 +1624,7 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
         power:GetStatusBarTexture():SetHorizTile(false)
         power:SetMinMaxValues(0, 100)
         power:SetValue(72)
-        local pInfo = EllesmereUI.GetPowerColor and EllesmereUI.GetPowerColor("MANA")
+        local pInfo = EllesmereUI.GetPowerColor("MANA")
         if pInfo then power:SetStatusBarColor(pInfo.r, pInfo.g, pInfo.b, 1)
         else power:SetStatusBarColor(0, 0.5, 1, 1) end
         local pwBg = power:CreateTexture(nil, "BACKGROUND")
@@ -1675,8 +1674,8 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
     nameCarrier:SetAllPoints(pvFrame)
     nameCarrier:SetFrameLevel(pvFrame:GetFrameLevel() + (ns.LVL_TEXT or 12))
     local nameFS = nameCarrier:CreateFontString(nil, "OVERLAY")
-    local outline = (EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("raidFrames")) or ""
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(nameFS, outline == "" and (not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow("raidFrames"))) end
+    local outline = (EllesmereUI.GetFontOutlineFlag("raidFrames")) or ""
+    EllesmereUI.PrimeFontShadow(nameFS, outline == "" and (not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow("raidFrames")))
     nameFS:SetFont(fontPath, s.nameSize or 10, outline)
     nameFS:SetWordWrap(false)
     local npos = s.namePosition or "center"
@@ -1794,8 +1793,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
     local db = ns.db
     if not db then return 0 end
     -- Override-session gate: heals a stale BM layer FIRST (renders the edited group's fork) and reports the end overlay; nil = normal WYSIWYG.
-    local bmOverlayState = EllesmereUI.SpecOverrides_BmPagePrelude
-        and EllesmereUI.SpecOverrides_BmPagePrelude() or nil
+    local bmOverlayState = EllesmereUI.SpecOverrides_BmPagePrelude() or nil
     local PP = EllesmereUI.PanelPP
 
     -- Auto-detect spec on first open
@@ -1820,7 +1818,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
         EllesmereUI:RefreshPage(true)
     end
 
-    local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
+    local fontPath = (EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
     local _, h
     local PAD = 20  -- consistent left/right padding for creation bar + settings
     local s = db.profile
@@ -1962,9 +1960,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                 if createPopup and createPopup:IsShown() then createPopup:Hide(); return end
                 if not (EllesmereUI.SpecOverrides_ActivateBm and EllesmereUI.SpecOverrides_BmSeedSources
                         and EllesmereUI.BuildDropdownControl) then
-                    if EllesmereUI.SpecOverrides_ActivateBm then
-                        EllesmereUI.SpecOverrides_ActivateBm(st.kind, st.gid)
-                    end
+                    EllesmereUI.SpecOverrides_ActivateBm(st.kind, st.gid)
                     return
                 end
                 local values, order = EllesmereUI.SpecOverrides_BmSeedSources(st.kind, st.gid)
@@ -2021,7 +2017,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                     cBg:SetAllPoints()
                     cBg:SetColorTexture(ac.r, ac.g, ac.b, 0.8)
                     local cLbl = cBtn:CreateFontString(nil, "OVERLAY")
-                    if EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(cLbl, true) end
+                    EllesmereUI.PrimeFontShadow(cLbl, true)
                     cLbl:SetFont(fontPath, 12, "")
                     cLbl:SetPoint("CENTER")
                     cLbl:SetText(EllesmereUI.L("Create Custom Buff Manager"))
@@ -2283,8 +2279,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
     --  contains, so a spec with no indicators in it renders nothing. Say so
     --  in place of the blank tile list (fork live on this page only).
     -------------------------------------------------------------------
-    if #specIndicators == 0 and EllesmereUI.SpecOverrides_BmActiveInfo
-       and EllesmereUI.SpecOverrides_BmActiveInfo() then
+    if #specIndicators == 0 and EllesmereUI.SpecOverrides_BmActiveInfo() then
         local inhCount = 0
         if inheritedGroups then
             for gi = 1, #inheritedGroups do
@@ -2323,7 +2318,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
 
         local addLabel = addBtn:CreateFontString(nil, "OVERLAY")
         -- Drop shadow via the shadow FontObject, primed BEFORE SetFont (SetShadowOffset alone does not render).
-        if EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(addLabel, true) end
+        EllesmereUI.PrimeFontShadow(addLabel, true)
         addLabel:SetFont(fontPath, 12, "")
         addLabel:SetPoint("CENTER")
         addLabel:SetText(EllesmereUI.L("Add New"))
