@@ -97,9 +97,7 @@ _G._EUI_BuildFlightTimerPage = function(pageName, parent, yOffset)
     local texValues, texOrder = {}, {}
     do
         local t = FT.textures
-        if EllesmereUI.AppendSharedMediaTextures then
-            EllesmereUI.AppendSharedMediaTextures(t.names, t.order, nil, t.lookup)
-        end
+        EllesmereUI.AppendSharedMediaTextures(t.names, t.order, nil, t.lookup)
         for _, key in ipairs(t.order) do
             if key ~= "---" then texValues[key] = t.names[key] or key end
             texOrder[#texOrder + 1] = key

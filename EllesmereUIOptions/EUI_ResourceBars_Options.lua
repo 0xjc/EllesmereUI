@@ -187,7 +187,7 @@ initFrame:SetScript("OnEvent", function(self)
         return EllesmereUIDB and EllesmereUIDB.previewHintDismissed
     end
 
-    local FONT_PATH = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("resourceBars"))
+    local FONT_PATH = (EllesmereUI.GetFontPath("resourceBars"))
         or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
     local SetPVFont = EllesmereUI.ApplyModuleFont
     local CONTENT_PAD = 45
@@ -1196,7 +1196,7 @@ initFrame:SetScript("OnEvent", function(self)
         local clickCatcher = CreateFrame("Button", nil, bandPopup)
         clickCatcher:SetFrameStrata("FULLSCREEN_DIALOG")
         clickCatcher:SetFrameLevel(bandPopup:GetFrameLevel() - 1)
-        clickCatcher:SetAllPoints((EllesmereUI.GetMainFrame and EllesmereUI:GetMainFrame()) or UIParent)
+        clickCatcher:SetAllPoints((EllesmereUI:GetMainFrame()) or UIParent)
         clickCatcher:SetScript("OnClick", function() bandPopup:Hide() end)
         clickCatcher:Hide()
         -- Close on entering combat
@@ -1350,7 +1350,7 @@ initFrame:SetScript("OnEvent", function(self)
         input:SetFrameLevel(rf:GetFrameLevel() + 2)
         input:SetAutoFocus(false)
         input:SetFontObject(GameFontHighlightSmall)
-        local inFont = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("main") or "Fonts\\FRIZQT__.TTF"
+        local inFont = EllesmereUI.GetFontPath("main") or "Fonts\\FRIZQT__.TTF"
         input:SetFont(inFont, 12, "")
         input:SetTextColor(1, 1, 1, 0.75)
         input:SetJustifyH("CENTER")
@@ -1573,7 +1573,7 @@ initFrame:SetScript("OnEvent", function(self)
         local clickCatcher = CreateFrame("Button", nil, buffPopup)
         clickCatcher:SetFrameStrata("FULLSCREEN_DIALOG")
         clickCatcher:SetFrameLevel(buffPopup:GetFrameLevel() - 1)
-        clickCatcher:SetAllPoints((EllesmereUI.GetMainFrame and EllesmereUI:GetMainFrame()) or UIParent)
+        clickCatcher:SetAllPoints((EllesmereUI:GetMainFrame()) or UIParent)
         clickCatcher:SetScript("OnClick", function() if _buffDrag.active then return end buffPopup:Hide() end)
         clickCatcher:Hide()
         buffPopup:SetScript("OnShow", function(self)
@@ -1593,7 +1593,7 @@ initFrame:SetScript("OnEvent", function(self)
         _buffTitleFS:SetPoint("TOP", buffPopup, "TOP", 0, -BAND_PAD)
         _buffTitleFS:SetText(EllesmereUI.L("Buff Colors"))
 		local ht = buffPopup:CreateFontString(nil, "OVERLAY")
-		local FONT = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath()) or "Fonts\\FRIZQT__.TTF"
+		local FONT = (EllesmereUI.GetFontPath()) or "Fonts\\FRIZQT__.TTF"
 		ht:SetFont(FONT, 10, "")
 		ht:SetPoint("TOPLEFT", buffPopup, "TOPLEFT", 16, -BAND_PAD - 4)
 		ht:SetTextColor(1, 1, 1, 0.25)
@@ -1632,7 +1632,7 @@ initFrame:SetScript("OnEvent", function(self)
         input:SetPoint("LEFT", rf, "LEFT", 16, 0)
         input:SetFrameLevel(rf:GetFrameLevel() + 2)
         input:SetAutoFocus(false)
-        local inFont = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("main") or "Fonts\\FRIZQT__.TTF"
+        local inFont = EllesmereUI.GetFontPath("main") or "Fonts\\FRIZQT__.TTF"
         input:SetFont(inFont, 12, "")
         input:SetTextColor(1, 1, 1, 0.75)
         input:SetJustifyH("CENTER")
@@ -2067,7 +2067,7 @@ initFrame:SetScript("OnEvent", function(self)
             local clickCatcher = CreateFrame("Button", nil, popup)
             clickCatcher:SetFrameStrata("DIALOG")
             clickCatcher:SetFrameLevel(popup:GetFrameLevel() - 1)
-            clickCatcher:SetAllPoints((EllesmereUI.GetMainFrame and EllesmereUI:GetMainFrame()) or UIParent)
+            clickCatcher:SetAllPoints((EllesmereUI:GetMainFrame()) or UIParent)
             clickCatcher:SetScript("OnClick", function() popup:Hide() end)
             clickCatcher:Hide()
             popup:SetScript("OnShow", function(self)
@@ -2457,7 +2457,7 @@ initFrame:SetScript("OnEvent", function(self)
                         hashInput:SetFrameLevel(ef:GetFrameLevel() + 3)
                         hashInput:SetAutoFocus(false)
                         hashInput:SetFontObject(GameFontHighlightSmall)
-                        local hiFont = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("main") or "Fonts\\FRIZQT__.TTF"
+                        local hiFont = EllesmereUI.GetFontPath("main") or "Fonts\\FRIZQT__.TTF"
                         hashInput:SetFont(hiFont, 12, "")
                         hashInput:SetTextColor(1, 1, 1, 0.75)
                         hashInput:SetJustifyH("CENTER")
@@ -2530,7 +2530,7 @@ initFrame:SetScript("OnEvent", function(self)
                     threshInput:SetFrameLevel(ef:GetFrameLevel() + 3)
                     threshInput:SetAutoFocus(false)
                     threshInput:SetFontObject(GameFontHighlightSmall)
-                    local tiFont = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("main") or "Fonts\\FRIZQT__.TTF"
+                    local tiFont = EllesmereUI.GetFontPath("main") or "Fonts\\FRIZQT__.TTF"
                     threshInput:SetFont(tiFont, 12, "")
                     threshInput:SetTextColor(1, 1, 1, 0.75)
                     threshInput:SetJustifyH("CENTER")
@@ -2922,7 +2922,7 @@ initFrame:SetScript("OnEvent", function(self)
         badge:SetScript("OnLeave", function(self)
             local c = self._color
             ico:SetVertexColor(c[1], c[2], c[3], 0.85)
-            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+            EllesmereUI.HideWidgetTooltip()
         end)
         badge:Hide()
 
@@ -5381,10 +5381,8 @@ initFrame:SetScript("OnEvent", function(self)
         do
             local settingsRgn = classColorRow._rightRegion
             -- Thresholds have their own per-spec system, so lock the slot during a Spec Overrides editing session.
-            if EllesmereUI.SpecOverrides_AttachEditLock then
-                EllesmereUI.SpecOverrides_AttachEditLock(settingsRgn,
-                    "Thresholds have their own per-spec system and can't be edited while editing a spec group")
-            end
+            EllesmereUI.SpecOverrides_AttachEditLock(settingsRgn,
+                "Thresholds have their own per-spec system and can't be edited while editing a spec group")
 
             -- Advanced: this popup edits the per-spec override cfg(), which only applies while
             -- playing ctx.specID. The spec-assignment chrome (dropdown + Add Specs) is dropped
@@ -5910,7 +5908,7 @@ initFrame:SetScript("OnEvent", function(self)
 				local ROWH  = 26
 				local ROWGAP = 12
 				local INW   = contentHalfSize - DPAD * 2  -- inner content width
-				local MEDIAF = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("main") or "Fonts\\FRIZQT__.TTF"
+				local MEDIAF = EllesmereUI.GetFontPath("main") or "Fonts\\FRIZQT__.TTF"
 
 				-- Shown when nothing is selected
 				local dPlaceholder = EllesmereUI.MakeFont(detailC, 13, nil, 1, 1, 1)
@@ -7129,14 +7127,12 @@ initFrame:SetScript("OnEvent", function(self)
         local _syncRows = {}
 
         -- Bar texture dropdown values from the _ERB globals. SharedMedia is re-appended here because options open later than init, so SM packs that register textures lazily are available by now.
-        if EllesmereUI.AppendSharedMediaTextures then
-            EllesmereUI.AppendSharedMediaTextures(
-                _G._ERB_BarTextureNames or {},
-                _G._ERB_BarTextureOrder or {},
-                nil,
-                _G._ERB_BarTextures
-            )
-        end
+        EllesmereUI.AppendSharedMediaTextures(
+            _G._ERB_BarTextureNames or {},
+            _G._ERB_BarTextureOrder or {},
+            nil,
+            _G._ERB_BarTextures
+        )
         local hbtValues = {}
         local hbtOrder = {}
         do
@@ -8681,14 +8677,12 @@ initFrame:SetScript("OnEvent", function(self)
         end
 
         -- Re-append SharedMedia textures for cast bar (catches lazy-registered SM packs)
-        if EllesmereUI.AppendSharedMediaTextures then
-            EllesmereUI.AppendSharedMediaTextures(
-                _G._ERB_CastBarTextureNames or {},
-                _G._ERB_CastBarTextureOrder or {},
-                nil,
-                _G._ERB_CastBarTextures
-            )
-        end
+        EllesmereUI.AppendSharedMediaTextures(
+            _G._ERB_CastBarTextureNames or {},
+            _G._ERB_CastBarTextureOrder or {},
+            nil,
+            _G._ERB_CastBarTextures
+        )
         -- Texture dropdown values (same as nameplates)
         local texValues = {}
         local texOrder = {}
@@ -9814,14 +9808,12 @@ initFrame:SetScript("OnEvent", function(self)
         parent._showRowDivider = true
 
         -- Re-append SharedMedia textures (catches lazy-registered SM packs)
-        if EllesmereUI.AppendSharedMediaTextures then
-            EllesmereUI.AppendSharedMediaTextures(
-                _G._ERB_BarTextureNames or {},
-                _G._ERB_BarTextureOrder or {},
-                nil,
-                _G._ERB_BarTextures
-            )
-        end
+        EllesmereUI.AppendSharedMediaTextures(
+            _G._ERB_BarTextureNames or {},
+            _G._ERB_BarTextureOrder or {},
+            nil,
+            _G._ERB_BarTextures
+        )
         -- Bar texture dropdown values (same set the renderer uses)
         local texValues, texOrder = {}, {}
         do
@@ -10197,14 +10189,12 @@ initFrame:SetScript("OnEvent", function(self)
 
         parent._showRowDivider = true
 
-        if EllesmereUI.AppendSharedMediaTextures then
-            EllesmereUI.AppendSharedMediaTextures(
-                _G._ERB_BarTextureNames or {},
-                _G._ERB_BarTextureOrder or {},
-                nil,
-                _G._ERB_BarTextures
-            )
-        end
+        EllesmereUI.AppendSharedMediaTextures(
+            _G._ERB_BarTextureNames or {},
+            _G._ERB_BarTextureOrder or {},
+            nil,
+            _G._ERB_BarTextures
+        )
         local texValues, texOrder = {}, {}
         do
             local texNames = _G._ERB_BarTextureNames or {}

@@ -48,7 +48,7 @@ initFrame:SetScript("OnEvent", function(self)
         -- Drag instructions (centered, above settings). Wrapped in a Frame so the
         -- search system collects it as an orphan and auto-hides it during search.
         do
-            local fontPath = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath() or STANDARD_TEXT_FONT
+            local fontPath = EllesmereUI.GetFontPath() or STANDARD_TEXT_FONT
             local infoFrame = CreateFrame("Frame", nil, parent)
             infoFrame:SetSize(parent:GetWidth() or 400, 20)
             infoFrame:SetPoint("TOP", parent, "TOP", 0, y - 20)

@@ -515,9 +515,7 @@ local function BuildMovementAlertPage(pageName, parent, yOffset)
     do
         local mt = EllesmereUI._MovementBarTextures
         if mt then
-            if EllesmereUI.AppendSharedMediaTextures then
-                EllesmereUI.AppendSharedMediaTextures(mt.names, mt.order, nil, mt.lookup)
-            end
+            EllesmereUI.AppendSharedMediaTextures(mt.names, mt.order, nil, mt.lookup)
             for _, key in ipairs(mt.order) do
                 if key ~= "---" then barTexValues[key] = mt.names[key] or key end
                 barTexOrder[#barTexOrder + 1] = key

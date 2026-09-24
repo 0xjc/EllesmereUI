@@ -60,12 +60,12 @@ initFrame:SetScript("OnEvent", function(self)
             EllesmereUI:RefreshPage(true)
             return
         end
-        if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage() end
+        EllesmereUI:RefreshPage()
     end
 
     local function RebuildPage()
         if _G._EQD_Apply then _G._EQD_Apply() end
-        if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage(true) end
+        EllesmereUI:RefreshPage(true)
     end
 
     -- Which palette the ACTION MENU SETUP section is editing. Transient: the editor
@@ -307,8 +307,8 @@ initFrame:SetScript("OnEvent", function(self)
             local sig = PaletteKeySignature()
             if sig == lastKeySig then return end
             lastKeySig = sig
-            if EllesmereUI.InvalidatePageCache then EllesmereUI:InvalidatePageCache() end
-            if EllesmereUI.IsShown and EllesmereUI:IsShown() and EllesmereUI.RefreshPage then
+            EllesmereUI:InvalidatePageCache()
+            if EllesmereUI:IsShown() and EllesmereUI.RefreshPage then
                 EllesmereUI:RefreshPage(true)
             end
         end)
@@ -523,13 +523,11 @@ initFrame:SetScript("OnEvent", function(self)
                 .. "\n|cff66ccffLeft-click to pick an action from a list."
                 .. "\nYou can also drop an action from the cursor here.|r")
         end
-        if EllesmereUI.ShowWidgetTooltip then
-            EllesmereUI.ShowWidgetTooltip(widget, text)
-        end
+        EllesmereUI.ShowWidgetTooltip(widget, text)
     end
 
     local function HidePreviewTooltip()
-        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+        EllesmereUI.HideWidgetTooltip()
     end
 
     -- Place whatever is on the cursor. An empty cursor is not an error: a bare
@@ -1141,7 +1139,7 @@ initFrame:SetScript("OnEvent", function(self)
     local function EnsurePickerMenu()
         if pickerMenu then return pickerMenu end
 
-        local FONT = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath())
+        local FONT = (EllesmereUI.GetFontPath())
             or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
         local bgR  = EllesmereUI.DD_BG_R or 0.075
         local bgG  = EllesmereUI.DD_BG_G or 0.113
@@ -2240,7 +2238,7 @@ initFrame:SetScript("OnEvent", function(self)
 
     local function RebuildMenuRows()
         local m = EnsureMenuMenu()
-        local FONT = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath())
+        local FONT = (EllesmereUI.GetFontPath())
             or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
         local mH = 4
         local count = PaletteCount()
@@ -2896,12 +2894,10 @@ initFrame:SetScript("OnEvent", function(self)
             dimTex:SetAllPoints()
             dimTex:SetColorTexture(0.06, 0.08, 0.10, 0.70)
             dim:SetScript("OnEnter", function(self)
-                if EllesmereUI.ShowWidgetTooltip then
-                    EllesmereUI.ShowWidgetTooltip(self, "Enable the module to edit action menus.")
-                end
+                EllesmereUI.ShowWidgetTooltip(self, "Enable the module to edit action menus.")
             end)
             dim:SetScript("OnLeave", function()
-                if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                EllesmereUI.HideWidgetTooltip()
             end)
             previewBlock._dim = dim
         end

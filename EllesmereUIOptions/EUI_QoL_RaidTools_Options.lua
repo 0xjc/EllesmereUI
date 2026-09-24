@@ -142,7 +142,7 @@ initFrame:SetScript("OnEvent", function(self)
                 set = function(v)
                     Set("toggleKey", v or false)
                     Refresh()
-                    if EllesmereUI._NotifySettingWrite then EllesmereUI._NotifySettingWrite(rgn) end
+                    EllesmereUI._NotifySettingWrite(rgn)
                 end,
                 disabled = Disabled, disabledTip = "Show Raid Tools",
                 tooltip = "Toggles the Raid Tools panels, in or out of combat.\n\nLeft-click to set a keybind.\nRight-click to unbind.",
@@ -244,9 +244,7 @@ initFrame:SetScript("OnEvent", function(self)
                     set = function(v)
                         Set(key, v or false)
                         Refresh()
-                        if EllesmereUI._NotifySettingWrite then
-                            EllesmereUI._NotifySettingWrite(region)
-                        end
+                        EllesmereUI._NotifySettingWrite(region)
                     end,
                     disabled = QuickFireDisabled, disabledTip = "Enable Quick Fire",
                 })
@@ -335,8 +333,8 @@ initFrame:SetScript("OnEvent", function(self)
     -- callback re-enters the preview when our page is still the one in front.
     -- The page string must match PAGE_RAIDTOOLS in EUI_QoL_Options.lua.
     EllesmereUI:RegisterOnShow(function()
-        if EllesmereUI.GetActiveModule and EllesmereUI:GetActiveModule() == "EllesmereUIQoL"
-           and EllesmereUI.GetActivePage and EllesmereUI:GetActivePage() == "Raid Tools"
+        if EllesmereUI:GetActiveModule() == "EllesmereUIQoL"
+           and EllesmereUI:GetActivePage() == "Raid Tools"
            and _G._EUI_RaidTools_Preview then
             _G._EUI_RaidTools_Preview(true)
         end

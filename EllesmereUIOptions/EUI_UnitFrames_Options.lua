@@ -109,7 +109,7 @@ function ns.UFOpt_ShowTrackedAuras(unitKey)
         -- Non-force: the Debuff Filter dropdown's empty warning (Only Tracked
         -- Auras with its list emptied) re-reads live, without rebuilding the
         -- page under the popup.
-        if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage() end
+        EllesmereUI:RefreshPage()
     end
     EllesmereUI.ShowTrackedAurasPopup({
         eyebrow = "UNIT FRAME AURA FILTERS",
@@ -346,19 +346,17 @@ initFrame:SetScript("OnEvent", function(self)
     -- Rebuild Player Aura Bars on re-open while already on that page: RegisterOnHide
     -- tore _pabRoot down, and unlike a tab switch (buildPage/onPageCacheRestore) a
     -- plain re-open rebuilds nothing. Mirrors RF's RegisterOnShow in EUI_RaidFrames_Options.lua.
-    if EllesmereUI.RegisterOnShow then
-        EllesmereUI:RegisterOnShow(function()
-            if EllesmereUI:GetActiveModule() == "EllesmereUIUnitFrames"
-               and EllesmereUI:GetActivePage() == PAGE_AURA_BARS
-               and not ns._pabRoot then
-                C_Timer.After(0, function()
-                    if EllesmereUI:GetActiveModule() == "EllesmereUIUnitFrames" and ns.PABMP_BuildPage then
-                        ns.PABMP_BuildPage(PAGE_AURA_BARS, nil, -6)
-                    end
-                end)
-            end
-        end)
-    end
+    EllesmereUI:RegisterOnShow(function()
+        if EllesmereUI:GetActiveModule() == "EllesmereUIUnitFrames"
+           and EllesmereUI:GetActivePage() == PAGE_AURA_BARS
+           and not ns._pabRoot then
+            C_Timer.After(0, function()
+                if EllesmereUI:GetActiveModule() == "EllesmereUIUnitFrames" and ns.PABMP_BuildPage then
+                    ns.PABMP_BuildPage(PAGE_AURA_BARS, nil, -6)
+                end
+            end)
+        end
+    end)
 
     -- Tear down _pabRoot on switch to a DIFFERENT top-level module: window stays
     -- open (RegisterOnHide never fires) and the root would overlap the new module's
@@ -453,14 +451,12 @@ initFrame:SetScript("OnEvent", function(self)
     local function BuildBarTexDropdown()
         -- Refresh shared snapshot from LSM; first call also registers the
         -- late-registration callback (idempotent after).
-        if EllesmereUI.AppendSharedMediaTextures then
-            EllesmereUI.AppendSharedMediaTextures(
-                ns.healthBarTextureNames or {},
-                ns.healthBarTextureOrder or {},
-                nil,
-                ns.healthBarTextures
-            )
-        end
+        EllesmereUI.AppendSharedMediaTextures(
+            ns.healthBarTextureNames or {},
+            ns.healthBarTextureOrder or {},
+            nil,
+            ns.healthBarTextures
+        )
 
         local hbtValues, hbtOrder = {}, {}
         local texNames = ns.healthBarTextureNames or {}
@@ -637,7 +633,7 @@ initFrame:SetScript("OnEvent", function(self)
     ---------------------------------------------------------------------------
     --  Preview builder: cosmetic health/power bar + portrait + castbar preview
     ---------------------------------------------------------------------------
-    local PREVIEW_FONT = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames"))
+    local PREVIEW_FONT = (EllesmereUI.GetFontPath("unitFrames"))
         or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
     local SOLID_BACKDROP = { bgFile = "Interface\\Buttons\\WHITE8X8" }
     local BORDER_BACKDROP = { edgeFile = "Interface\\Buttons\\WHITE8X8", edgeSize = 1 }
@@ -2371,7 +2367,7 @@ initFrame:SetScript("OnEvent", function(self)
                 local textHost = CreateFrame("Frame", nil, df)
                 textHost:SetAllPoints(df)
                 textHost:SetFrameLevel(cd:GetFrameLevel() + 1)
-                local pvFontP = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames")) or "Fonts\\FRIZQT__.TTF"
+                local pvFontP = (EllesmereUI.GetFontPath("unitFrames")) or "Fonts\\FRIZQT__.TTF"
                 local durText = textHost:CreateFontString(nil, "OVERLAY", nil, 7)
                 EllesmereUI.ApplyIconTextFont(durText, pvFontP, 10, "unitFrames")
                 durText:SetPoint("CENTER", df, "CENTER", 0, 0)
@@ -3761,11 +3757,11 @@ initFrame:SetScript("OnEvent", function(self)
                         local cc = s.classPowerCustomColor or { r = 1, g = 0.82, b = 0 }
                         cpCr, cpCg, cpCb = cc.r, cc.g, cc.b
                     else
-                        local rc = EllesmereUI.GetResourceColor and EllesmereUI.GetResourceColor(cpPlayerClass)
+                        local rc = EllesmereUI.GetResourceColor(cpPlayerClass)
                         if rc then
                             cpCr, cpCg, cpCb = rc.r, rc.g, rc.b
                         else
-                            local cc = EllesmereUI.GetClassColor and EllesmereUI.GetClassColor(cpPlayerClass)
+                            local cc = EllesmereUI.GetClassColor(cpPlayerClass)
                             if cc then cpCr, cpCg, cpCb = cc.r, cc.g, cc.b
                             else cpCr, cpCg, cpCb = 1, 0.84, 0.30 end
                         end
@@ -4234,7 +4230,7 @@ initFrame:SetScript("OnEvent", function(self)
                     cdTextColor = s.debuffCooldownTextColor or {r=1, g=1, b=1}
                     stackTextColor = s.debuffStackTextColor or {r=1, g=1, b=1}
                 end
-                local fontP = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames")) or "Fonts\\FRIZQT__.TTF"
+                local fontP = (EllesmereUI.GetFontPath("unitFrames")) or "Fonts\\FRIZQT__.TTF"
                 for i = 1, #debuffIcons do
                     local df = debuffIcons[i]
                     local cd, dt, st = df._previewCD, df._durText, df._stackText
@@ -5127,7 +5123,7 @@ initFrame:SetScript("OnEvent", function(self)
                   -- (source was Blizzard/Hidden at login) needs a /reload. The EFFECTIVE
                   -- value decides: an override replaces the shared scalar, so an override
                   -- of Always on a unit whose shared value is "never" un-hides it too.
-                  local visOv = EllesmereUI.VisOverrideValue and EllesmereUI.VisOverrideValue(s)
+                  local visOv = EllesmereUI.VisOverrideValue(s)
                   if (visOv or s.barVisibility or "always") ~= "never" then PromptReloadIfUnspawned({ selectedUnit }) end
               end,
               onOptionChanged = function()
@@ -5284,7 +5280,7 @@ initFrame:SetScript("OnEvent", function(self)
                       db.profile.darkTheme = v
                       ReloadAndUpdate(); UpdatePreview()
                       -- Dark Mode feeds the conditional-override condition.
-                      if EllesmereUI.Conditions_Recheck then EllesmereUI.Conditions_Recheck() end
+                      EllesmereUI.Conditions_Recheck()
                       EllesmereUI:RefreshPage()
                   end });  y = y - h
         -- This toggle IS the Dark Mode condition's input: lock it while a Dark Mode
@@ -6037,10 +6033,10 @@ initFrame:SetScript("OnEvent", function(self)
                                       UNIT_DB_MAP[selectedUnit]().detachedPortraitShape = "none"
                                   end
                                   ReloadAndUpdate(); UpdatePreview()
-                                  if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage(true) end
+                                  EllesmereUI:RefreshPage(true)
                               end,
                               onCancel    = function()
-                                  if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage() end
+                                  EllesmereUI:RefreshPage()
                               end,
                           })
                           return
@@ -7057,7 +7053,7 @@ initFrame:SetScript("OnEvent", function(self)
                 SSet("leftTextClassColor", true)
                 -- Bespoke write: notify for exact Spec Overrides attribution (the
                 -- forced RefreshPage below would otherwise resync-absorb it).
-                if EllesmereUI._NotifySettingWrite then EllesmereUI._NotifySettingWrite(ltClassSwatch) end
+                EllesmereUI._NotifySettingWrite(ltClassSwatch)
                 UpdatePreview(); EllesmereUI:RefreshPage()
             end)
             ltClassSwatch:SetScript("OnEnter", function() EllesmereUI.ShowWidgetTooltip(ltClassSwatch, "Class Colored") end)
@@ -7078,7 +7074,7 @@ initFrame:SetScript("OnEvent", function(self)
                 if SVal("leftTextContent", "name") == "none" then return end
                 if SVal("leftTextClassColor", false) then
                     SSet("leftTextClassColor", false)
-                    if EllesmereUI._NotifySettingWrite then EllesmereUI._NotifySettingWrite(self) end
+                    EllesmereUI._NotifySettingWrite(self)
                     UpdatePreview(); EllesmereUI:RefreshPage(); return
                 end
                 if ltOrigClick then ltOrigClick(self, ...) end
@@ -7232,7 +7228,7 @@ initFrame:SetScript("OnEvent", function(self)
                 SSet("rightTextClassColor", true)
                 -- Bespoke write: notify for exact Spec Overrides attribution (the
                 -- forced RefreshPage below would otherwise resync-absorb it).
-                if EllesmereUI._NotifySettingWrite then EllesmereUI._NotifySettingWrite(rtClassSwatch) end
+                EllesmereUI._NotifySettingWrite(rtClassSwatch)
                 UpdatePreview(); EllesmereUI:RefreshPage()
             end)
             rtClassSwatch:SetScript("OnEnter", function() EllesmereUI.ShowWidgetTooltip(rtClassSwatch, "Class Colored") end)
@@ -7252,7 +7248,7 @@ initFrame:SetScript("OnEvent", function(self)
                 if SVal("rightTextContent", "both") == "none" then return end
                 if SVal("rightTextClassColor", false) then
                     SSet("rightTextClassColor", false)
-                    if EllesmereUI._NotifySettingWrite then EllesmereUI._NotifySettingWrite(self) end
+                    EllesmereUI._NotifySettingWrite(self)
                     UpdatePreview(); EllesmereUI:RefreshPage(); return
                 end
                 if rtOrigClick then rtOrigClick(self, ...) end
@@ -11741,10 +11737,8 @@ initFrame:SetScript("OnEvent", function(self)
         -- into the shared health-bar tables; render resolves via ns.ResolveAbsorbStyleTex
         -- -> the health-bar texture lookup. Shield and heal-absorb share absorbStyleValues, so both gain the SM entries and preview swatch.
         do
-            if EllesmereUI.AppendSharedMediaTextures then
-                EllesmereUI.AppendSharedMediaTextures(
-                    ns.healthBarTextureNames or {}, ns.healthBarTextureOrder or {}, nil, ns.healthBarTextures)
-            end
+            EllesmereUI.AppendSharedMediaTextures(
+                ns.healthBarTextureNames or {}, ns.healthBarTextureOrder or {}, nil, ns.healthBarTextures)
             local smNames = ns.healthBarTextureNames or {}
             local smKeys = {}
             for _, k in ipairs(ns.healthBarTextureOrder or {}) do
@@ -16018,9 +16012,9 @@ initFrame:SetScript("OnEvent", function(self)
         -- Only invalidate + rebuild when the panel is actually open. Invalidating while
         -- closed destroys all cached pages, causing a blank panel on next open.
         if EllesmereUI._mainFrame and EllesmereUI._mainFrame:IsShown() then
-            if EllesmereUI.InvalidatePageCache then EllesmereUI:InvalidatePageCache() end
+            EllesmereUI:InvalidatePageCache()
             C_Timer.After(0.2, function()
-                if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage(true) end
+                EllesmereUI:RefreshPage(true)
             end)
         end
     end)

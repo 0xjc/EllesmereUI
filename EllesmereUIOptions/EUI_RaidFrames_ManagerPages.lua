@@ -64,7 +64,7 @@ local dmSpecSel = "allspecs"
 -- Inherited-tile selection ({ group, id }); wins over dmSel while set.
 local dmInhSel = nil
 
-local function L(s) return EllesmereUI.L and EllesmereUI.L(s) or s end
+local function L(s) return EllesmereUI.L(s) or s end
 
 -- Stable random preview swipe seeds (fraction remaining, 0.2-0.9), keyed by preview
 -- slot index -- generated once and reused so refreshes never reshuffle the frozen swipe
@@ -483,7 +483,7 @@ local function BuildFxEffects(frame, sy, fxOwner)
         addBtn:SetPoint("TOP", frame, "TOP", 0, sy - 17)
         addBtn:SetFrameLevel(frame:GetFrameLevel() + 2)
         local lbl = addBtn:CreateFontString(nil, "OVERLAY")
-        local fp = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("options")) or "Fonts\\FRIZQT__.TTF"
+        local fp = (EllesmereUI.GetFontPath("options")) or "Fonts\\FRIZQT__.TTF"
         lbl:SetFont(fp, 16, "")
         lbl:SetPoint("CENTER", addBtn, "CENTER", 0, 0)
         lbl:SetText(EllesmereUI.L("Add Icon Effects Per-Filter"))
@@ -1483,7 +1483,7 @@ function ns.DMP_RefreshPreview()
     if not p then return end
     local PP = EllesmereUI.PanelPP or EllesmereUI.PP
     local fontPath = pv._dmFontPath
-        or (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames"))
+        or (EllesmereUI.GetFontPath("raidFrames"))
         or "Fonts\\FRIZQT__.TTF"
     local health = pv._health
     local host = (ns.RF_AnchorHost and ns.RF_AnchorHost(health, p)) or health
@@ -1950,7 +1950,7 @@ end
 function ns.DMP_BuildPage(pageName, parent, yOffset)
     local scrollFrame = EllesmereUI._scrollFrame
     if not scrollFrame then return 0 end
-    local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
+    local fontPath = (EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
     local PP = EllesmereUI.PanelPP
 
     local parentW = scrollFrame:GetWidth()
@@ -1969,8 +1969,7 @@ function ns.DMP_BuildPage(pageName, parent, yOffset)
     -- Override-session gate: heals a stale Debuff Manager layer FIRST (so
     -- the page content below renders the edited group's fork) and reports
     -- the full-page overlay to build at the end. nil = normal page.
-    local dmOverlayState = EllesmereUI.SpecOverrides_DmPagePrelude
-        and EllesmereUI.SpecOverrides_DmPagePrelude() or nil
+    local dmOverlayState = EllesmereUI.SpecOverrides_DmPagePrelude() or nil
 
     local dm = DmTable()
 
@@ -2255,7 +2254,7 @@ function ns.DMP_BuildPage(pageName, parent, yOffset)
         local addLabel = addBtn:CreateFontString(nil, "OVERLAY")
         -- Drop shadow via the shadow FontObject, primed BEFORE SetFont
         -- (SetShadowOffset alone does not render).
-        if EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(addLabel, true) end
+        EllesmereUI.PrimeFontShadow(addLabel, true)
         addLabel:SetFont(fontPath, 12, "")
         addLabel:SetPoint("CENTER")
         addLabel:SetText(L("Add New"))
@@ -2743,9 +2742,7 @@ function ns.DMP_BuildPage(pageName, parent, yOffset)
         })
         if btn then
             btn:SetScript("OnClick", function()
-                if EllesmereUI.SpecOverrides_ActivateDm then
-                    EllesmereUI.SpecOverrides_ActivateDm(st.kind, st.gid)
-                end
+                EllesmereUI.SpecOverrides_ActivateDm(st.kind, st.gid)
             end)
         end
     end
@@ -2780,8 +2777,8 @@ function ns.BMP_ShowFilterEditor()
     if ns._bm2FilterEditor then ns._bm2FilterEditor:Hide(); ns._bm2FilterEditor = nil end
     local filters = ns.BM2_Filters and ns.BM2_Filters()
     if not filters then return end
-    local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("options"))
-        or (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames"))
+    local fontPath = (EllesmereUI.GetFontPath("options"))
+        or (EllesmereUI.GetFontPath("raidFrames"))
         or "Fonts\\FRIZQT__.TTF"
     local ar, ag, ab = 1, 0.82, 0.30
     if EllesmereUI.GetAccentColor then ar, ag, ab = EllesmereUI.GetAccentColor() end
@@ -2815,7 +2812,7 @@ function ns.BMP_ShowFilterEditor()
     local popBg = EllesmereUI.SolidTex(popup, "BACKGROUND", 0.06, 0.08, 0.10, 1)
     popBg:SetAllPoints()
     EllesmereUI.MakeBorder(popup, 1, 1, 1, 0.15)
-    local ppScale = EllesmereUI.GetPopupScale and EllesmereUI.GetPopupScale() or 1
+    local ppScale = EllesmereUI.GetPopupScale() or 1
     popup:SetScale(ppScale)
 
     local title = EllesmereUI.MakeFont(popup, 16, "", 1, 1, 1)

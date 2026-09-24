@@ -58,7 +58,7 @@ initFrame:SetScript("OnEvent", function(self)
             local path = EllesmereUI.ResolveFontName(fontName)
             if path and path ~= "" then return path end
         end
-        return (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("auraBuff")) or "Fonts\\ARIALN.TTF"
+        return (EllesmereUI.GetFontPath("auraBuff")) or "Fonts\\ARIALN.TTF"
     end
 
     local PREVIEW_TEXT_ANCHORS = _G._EABR_TEXT_ANCHORS
@@ -948,7 +948,7 @@ initFrame:SetScript("OnEvent", function(self)
 
         -- Click-action info label at the top of the page (below the preview area)
         do
-            local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("auraBuff")) or "Fonts\\FRIZQT__.TTF"
+            local fontPath = (EllesmereUI.GetFontPath("auraBuff")) or "Fonts\\FRIZQT__.TTF"
             local infoFrame = CreateFrame("Frame", nil, parent)
             infoFrame:SetSize(parent:GetWidth(), 20)
             infoFrame:SetPoint("TOP", parent, "TOP", 0, y - 15)
@@ -1958,7 +1958,7 @@ initFrame:SetScript("OnEvent", function(self)
                     local c = CDB()
                     local col = c and c.rcManaWarnColor
                     if col then return col.r, col.g, col.b, 1 end
-                    local mc = EllesmereUI.GetPowerColor and EllesmereUI.GetPowerColor("MANA")
+                    local mc = EllesmereUI.GetPowerColor("MANA")
                     if mc then
                         return math.min(mc.r * 1.5, 1), math.min(mc.g * 1.5, 1), math.min(mc.b * 1.5, 1), 1
                     end
@@ -2109,7 +2109,7 @@ initFrame:SetScript("OnEvent", function(self)
         local W = EllesmereUI.Widgets
         local y = yOffset
         local _, h
-        local fontPath = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("auraBuff"))
+        local fontPath = (EllesmereUI.GetFontPath("auraBuff"))
             or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
 
         parent._showRowDivider = true

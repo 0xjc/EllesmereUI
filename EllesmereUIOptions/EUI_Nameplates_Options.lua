@@ -127,14 +127,12 @@ initFrame:SetScript("OnEvent", function(self)
     --  Health bar texture dropdown values (built from ns tables)
     ---------------------------------------------------------------------------
     -- Append SharedMedia textures to the runtime ns tables first so both the dropdown AND the live nameplate rendering can resolve SM keys.
-    if EllesmereUI.AppendSharedMediaTextures then
-        EllesmereUI.AppendSharedMediaTextures(
-            ns.healthBarTextureNames or {},
-            ns.healthBarTextureOrder or {},
-            nil,
-            ns.healthBarTextures
-        )
-    end
+    EllesmereUI.AppendSharedMediaTextures(
+        ns.healthBarTextureNames or {},
+        ns.healthBarTextureOrder or {},
+        nil,
+        ns.healthBarTextures
+    )
 
     local hbtValues = {}
     local hbtOrder = {}
@@ -208,7 +206,7 @@ initFrame:SetScript("OnEvent", function(self)
     --- @param parentW number  available width
     --- @return number height consumed
     local function BuildNameplatePreview(parent, parentW)
-        local FONT_PATH = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("nameplates")) or DBVal("font")
+        local FONT_PATH = (EllesmereUI.GetFontPath("nameplates")) or DBVal("font")
 
         -- Constants matching the real addon exactly
         local CAST_H = 17
@@ -947,9 +945,9 @@ initFrame:SetScript("OnEvent", function(self)
         --  Update re-reads DB, applies to existing frames. No rebuilds.
         -------------------------------------------------------------------
         pf.Update = function(self)
-            local fontPath   = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("nameplates")) or DBVal("font")
+            local fontPath   = (EllesmereUI.GetFontPath("nameplates")) or DBVal("font")
             -- Body-text outline, already slug-gated at the source (GetFontOutlineFlag).
-            local npOutline  = (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("nameplates")) or "OUTLINE, SLUG"
+            local npOutline  = (EllesmereUI.GetFontOutlineFlag("nameplates")) or "OUTLINE, SLUG"
             local barH       = Snap(DBVal("healthBarHeight"))
             local rawBarW    = BAR_W + DBVal("healthBarWidth")
             local barW       = IsDragging() and rawBarW or Snap(rawBarW)
@@ -3248,7 +3246,7 @@ initFrame:SetScript("OnEvent", function(self)
                     pf:SetFrameStrata("DIALOG"); pf:SetFrameLevel(200)
                     pf:EnableMouse(true); pf:Hide()
                     -- Match panel/popup scale (otherwise renders oversized).
-                    pf:SetScale((EllesmereUI.GetPopupScale and EllesmereUI.GetPopupScale()) or 1)
+                    pf:SetScale((EllesmereUI.GetPopupScale()) or 1)
                     if EllesmereUI._popupFrames then
                         EllesmereUI._popupFrames[#EllesmereUI._popupFrames + 1] = { popup = pf }
                     end
@@ -5014,7 +5012,7 @@ initFrame:SetScript("OnEvent", function(self)
                 pf:Hide()
 
                 -- Match the panel/popup scale so this popup renders at the same size as the shared BuildCogPopup popups (else it stays scale 1.0 and looks oversized); registering it also tracks the panel scale slider.
-                pf:SetScale((EllesmereUI.GetPopupScale and EllesmereUI.GetPopupScale()) or 1)
+                pf:SetScale((EllesmereUI.GetPopupScale()) or 1)
                 if EllesmereUI._popupFrames then
                     EllesmereUI._popupFrames[#EllesmereUI._popupFrames + 1] = { popup = pf }
                 end
@@ -5752,7 +5750,7 @@ initFrame:SetScript("OnEvent", function(self)
             EllesmereUI.ShowTrackedAurasPopup({
                 eyebrow = "NAMEPLATE AURA FILTERS",
                 title = NPF_KIND_TITLES[kind] or "Filters",
-                fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("nameplates")) or DBVal("font"),
+                fontPath = (EllesmereUI.GetFontPath("nameplates")) or DBVal("font"),
                 includeGet = function() return ns.NPF_Include and ns.NPF_Include(side) end,
                 excludeGet = function() return ns.NPF_Exclude and ns.NPF_Exclude(side) end,
                 includePrompt = "Enter the spell ID to always show on nameplates.",
@@ -5915,7 +5913,7 @@ initFrame:SetScript("OnEvent", function(self)
             -- Edit Tracked Auras (slot filters): accent link left of the cog when this row holds a debuff-side aura element, opens the per-kind filter popup; refreshes on the same widget-refresh channel as the cog alpha.
                 local link = CreateFrame("Button", nil, rgn)
                 link:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                local lfp = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("nameplates")) or DBVal("font")
+                local lfp = (EllesmereUI.GetFontPath("nameplates")) or DBVal("font")
                 local lfs = link:CreateFontString(nil, "OVERLAY")
                 lfs:SetFont(lfp, 12, "")
                 local ar, ag, ab = 1, 0.82, 0.30
@@ -7227,8 +7225,8 @@ initFrame:SetScript("OnEvent", function(self)
             PP.Point(swatch, "RIGHT", leftRgn._control, "LEFT", -8, 0)
             leftRgn._lastInline = swatch
             -- Tooltip so the swatch's purpose is clear (shown while interactive, i.e. Border Color on).
-            swatch:SetScript("OnEnter", function() if EllesmereUI.ShowWidgetTooltip then EllesmereUI.ShowWidgetTooltip(swatch, "Border Color") end end)
-            swatch:SetScript("OnLeave", function() if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end end)
+            swatch:SetScript("OnEnter", function() EllesmereUI.ShowWidgetTooltip(swatch, "Border Color") end)
+            swatch:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
             refreshTargetBorderSwatch = function()
                 local off = not ns.GetTargetGlowBorderColor()
                 swatch:SetAlpha(off and 0.15 or 1)
@@ -7248,8 +7246,8 @@ initFrame:SetScript("OnEvent", function(self)
                 end, nil, 20)
             PP.Point(glowSwatch, "RIGHT", leftRgn._lastInline or leftRgn._control, "LEFT", -8, 0)
             leftRgn._lastInline = glowSwatch
-            glowSwatch:SetScript("OnEnter", function() if EllesmereUI.ShowWidgetTooltip then EllesmereUI.ShowWidgetTooltip(glowSwatch, "Glow Color") end end)
-            glowSwatch:SetScript("OnLeave", function() if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end end)
+            glowSwatch:SetScript("OnEnter", function() EllesmereUI.ShowWidgetTooltip(glowSwatch, "Glow Color") end)
+            glowSwatch:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
             refreshTargetGlowSwatch = function()
                 local off = not ns.GetTargetGlowEllesmereUI()
                 glowSwatch:SetAlpha(off and 0.15 or 1)
@@ -7895,8 +7893,8 @@ initFrame:SetScript("OnEvent", function(self)
                 end, nil, 20)
             PP.Point(hvBSwatch, "RIGHT", rightRgn._control, "LEFT", -8, 0)
             rightRgn._lastInline = hvBSwatch
-            hvBSwatch:SetScript("OnEnter", function() if EllesmereUI.ShowWidgetTooltip then EllesmereUI.ShowWidgetTooltip(hvBSwatch, "Border Color") end end)
-            hvBSwatch:SetScript("OnLeave", function() if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end end)
+            hvBSwatch:SetScript("OnEnter", function() EllesmereUI.ShowWidgetTooltip(hvBSwatch, "Border Color") end)
+            hvBSwatch:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
             refreshHoverBorderSwatch = function()
                 local off = not ns.GetHoverGlowBorderColor()
                 hvBSwatch:SetAlpha(off and 0.15 or 1)
@@ -7915,8 +7913,8 @@ initFrame:SetScript("OnEvent", function(self)
                 end, nil, 20)
             PP.Point(hvGSwatch, "RIGHT", rightRgn._lastInline or rightRgn._control, "LEFT", -8, 0)
             rightRgn._lastInline = hvGSwatch
-            hvGSwatch:SetScript("OnEnter", function() if EllesmereUI.ShowWidgetTooltip then EllesmereUI.ShowWidgetTooltip(hvGSwatch, "Glow Color") end end)
-            hvGSwatch:SetScript("OnLeave", function() if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end end)
+            hvGSwatch:SetScript("OnEnter", function() EllesmereUI.ShowWidgetTooltip(hvGSwatch, "Glow Color") end)
+            hvGSwatch:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
             refreshHoverGlowSwatch = function()
                 local off = not ns.GetHoverGlowEllesmereUI()
                 hvGSwatch:SetAlpha(off and 0.15 or 1)
@@ -8478,8 +8476,8 @@ initFrame:SetScript("OnEvent", function(self)
                 UpdatePreview()
                 EllesmereUI:RefreshPage()
             end)
-            ccSwatch:SetScript("OnEnter", function() if EllesmereUI.ShowWidgetTooltip then EllesmereUI.ShowWidgetTooltip(ccSwatch, "Class Color") end end)
-            ccSwatch:SetScript("OnLeave", function() if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end end)
+            ccSwatch:SetScript("OnEnter", function() EllesmereUI.ShowWidgetTooltip(ccSwatch, "Class Color") end)
+            ccSwatch:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
 
             -- Custom color swatch (to the left of class swatch)
             local stColorGet = function() return DBColor("castTargetColor") end
@@ -8504,8 +8502,8 @@ initFrame:SetScript("OnEvent", function(self)
                 end
                 if self._eabOrigClick then self._eabOrigClick(self) end
             end)
-            stSwatch:SetScript("OnEnter", function() if EllesmereUI.ShowWidgetTooltip then EllesmereUI.ShowWidgetTooltip(stSwatch, "Custom Color") end end)
-            stSwatch:SetScript("OnLeave", function() if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end end)
+            stSwatch:SetScript("OnEnter", function() EllesmereUI.ShowWidgetTooltip(stSwatch, "Custom Color") end)
+            stSwatch:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
 
             EllesmereUI.RegisterWidgetRefresh(function()
                 local db = DB()
@@ -8962,7 +8960,7 @@ initFrame:SetScript("OnEvent", function(self)
         local BAR_H = 20
         local SWATCH_SZ = 24
         local SWATCH_GAP = isHalf and 27 or 52
-        local fontPath = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("nameplates")) or DBVal("font")
+        local fontPath = (EllesmereUI.GetFontPath("nameplates")) or DBVal("font")
         local anchor = anchorFrame or parentRow
 
         local container = CreateFrame("Frame", nil, parentRow)
@@ -9037,7 +9035,7 @@ initFrame:SetScript("OnEvent", function(self)
                         break
                     end
                 end
-                local curFont = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("nameplates")) or DBVal("font")
+                local curFont = (EllesmereUI.GetFontPath("nameplates")) or DBVal("font")
                 local curOutline = GetNPOptOutline()
 
                 -- Hide both FontStrings first
@@ -9149,7 +9147,7 @@ initFrame:SetScript("OnEvent", function(self)
                 local anchor = GetFocusLetterAnchor()
                 local x = DBVal("focusLetterX") or defaults.focusLetterX
                 local y = DBVal("focusLetterY") or defaults.focusLetterY
-                local curFont = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("nameplates")) or DBVal("font")
+                local curFont = (EllesmereUI.GetFontPath("nameplates")) or DBVal("font")
                 SetPVFont(focusLetterFS, curFont, size, GetNPOptOutline())
                 focusLetterFS:SetText("F")
                 focusLetterFS:ClearAllPoints()
@@ -10048,9 +10046,9 @@ initFrame:SetScript("OnEvent", function(self)
         if unit ~= "player" then return end
         -- Only invalidate + rebuild when the panel is open; invalidating while closed destroys all cached pages, causing a blank panel on next open.
         if EllesmereUI._mainFrame and EllesmereUI._mainFrame:IsShown() then
-            if EllesmereUI.InvalidatePageCache then EllesmereUI:InvalidatePageCache() end
+            EllesmereUI:InvalidatePageCache()
             C_Timer.After(0.2, function()
-                if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage(true) end
+                EllesmereUI:RefreshPage(true)
             end)
         end
     end)

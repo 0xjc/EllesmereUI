@@ -27,7 +27,7 @@ if not ns then return end  -- module disabled: no options page
 
 local floor, max = math.floor, math.max
 
-local function L(s) return EllesmereUI.L and EllesmereUI.L(s) or s end
+local function L(s) return EllesmereUI.L(s) or s end
 
 local TILE_H = 58
 
@@ -1863,7 +1863,7 @@ local function BuildFxEffects(frame, sy, cfg, apply)
         addBtn:SetPoint("TOP", frame, "TOP", 0, sy - 17)
         addBtn:SetFrameLevel(frame:GetFrameLevel() + 2)
         local lbl = addBtn:CreateFontString(nil, "OVERLAY")
-        local fp = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames")) or "Fonts\\FRIZQT__.TTF"
+        local fp = (EllesmereUI.GetFontPath("unitFrames")) or "Fonts\\FRIZQT__.TTF"
         lbl:SetFont(fp, 16, "")
         lbl:SetPoint("CENTER", addBtn, "CENTER", 0, 0)
         lbl:SetText(EllesmereUI.L("Add Icon Effects Per-Filter"))
@@ -2054,8 +2054,8 @@ local function AddNewButton(parentFrame, y, width, label, onClick)
     -- Drop shadow via the shadow FontObject, primed BEFORE SetFont
     -- (SetShadowOffset alone does not render). Module font, same as the
     -- sibling managers' Add New labels.
-    if EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(lbl, true) end
-    lbl:SetFont((EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames")) or "Fonts\\FRIZQT__.TTF", 12, "")
+    EllesmereUI.PrimeFontShadow(lbl, true)
+    lbl:SetFont((EllesmereUI.GetFontPath("unitFrames")) or "Fonts\\FRIZQT__.TTF", 12, "")
     lbl:SetTextColor(1, 1, 1)
     lbl:SetPoint("CENTER")
     lbl:SetText(label)
@@ -2178,7 +2178,7 @@ end
 function ns.PABMP_ShowFilterEditor()
     if ns._pabFilterEditor then ns._pabFilterEditor:Hide(); ns._pabFilterEditor = nil end
     local filters = SortFiltersCanonical((ns.PAB_Filters and ns.PAB_Filters()) or {})
-    local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames")) or "Fonts\\FRIZQT__.TTF"
+    local fontPath = (EllesmereUI.GetFontPath("unitFrames")) or "Fonts\\FRIZQT__.TTF"
     local ar, ag, ab = 1, 0.82, 0.30
     if EllesmereUI.GetAccentColor then ar, ag, ab = EllesmereUI.GetAccentColor() end
     local eg = EllesmereUI.ELLESMERE_GREEN or { r = 0.05, g = 0.82, b = 0.62 }
@@ -2773,7 +2773,7 @@ end
 function ns.PABMP_BuildPage(pageName, parent, yOffset)
     local scrollFrame = EllesmereUI._scrollFrame
     if not scrollFrame then return 0 end
-    local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames")) or "Fonts\\FRIZQT__.TTF"
+    local fontPath = (EllesmereUI.GetFontPath("unitFrames")) or "Fonts\\FRIZQT__.TTF"
 
     -- Runs every time this page opens, not just when empty: creates any
     -- missing curated presets AND retroactively re-flags already-existing
@@ -2952,15 +2952,13 @@ function ns.PABMP_BuildPage(pageName, parent, yOffset)
             if not v then return end
             if ns.PAB_SetEnabled then ns.PAB_SetEnabled(false) end
             EllesmereUI:RefreshPage(true)
-            if EllesmereUI.ShowConfirmPopup then
-                EllesmereUI:ShowConfirmPopup({
-                    title       = "Reload Recommended",
-                    message     = L("Player Aura Bars are disabled and Blizzard's default display is back. A UI reload is recommended to finish cleanup."),
-                    confirmText = "Reload Now",
-                    cancelText  = "Later",
-                    reload      = true,
-                })
-            end
+            EllesmereUI:ShowConfirmPopup({
+                title       = "Reload Recommended",
+                message     = L("Player Aura Bars are disabled and Blizzard's default display is back. A UI reload is recommended to finish cleanup."),
+                confirmText = "Reload Now",
+                cancelText  = "Later",
+                reload      = true,
+            })
         end)
 
     -- Use Blizzard Buffs: the built-in Buffs/Debuffs bars stand down and

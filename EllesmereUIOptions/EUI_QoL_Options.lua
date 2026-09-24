@@ -57,7 +57,7 @@ local function ShowTransformsPopup()
 
         local POPUP_W = CONTENT_LEFT + CONTENT_RIGHT + numCols * COL_W + (numCols - 1) * COL_GAP
         local POPUP_H = CONTENT_TOP + HDR_H + 4 + maxRows * ROW_H + 24 + 39 + 38
-        local ppScale = EllesmereUI.GetPopupScale and EllesmereUI.GetPopupScale() or 1
+        local ppScale = EllesmereUI.GetPopupScale() or 1
 
         local dimmer = CreateFrame("Frame", nil, UIParent)
         dimmer:SetFrameStrata("FULLSCREEN_DIALOG")
@@ -312,9 +312,7 @@ initFrame:SetScript("OnEvent", function(self)
               setValue=function(v)
                   if not EllesmereUIDB then EllesmereUIDB = {} end
                   EllesmereUIDB.hideBlizzardPartyFrame = v
-                  if EllesmereUI._applyHideBlizzardPartyFrame then
-                      EllesmereUI._applyHideBlizzardPartyFrame()
-                  end
+                  EllesmereUI._applyHideBlizzardPartyFrame()
               end },
             { type="toggle", text="Skip Cinematics",
               tooltip="When you press Escape or Space during a cinematic, the confirmation prompt is automatically accepted.",
@@ -896,7 +894,7 @@ initFrame:SetScript("OnEvent", function(self)
             local fpsClassSw, fpsUpdClass = EllesmereUI.BuildColorSwatch(
                 leftRgn, leftRgn:GetFrameLevel() + 5,
                 function()
-                    local cc = EllesmereUI.GetClassColor and EllesmereUI.GetClassColor(select(2, UnitClass("player")))
+                    local cc = EllesmereUI.GetClassColor(select(2, UnitClass("player")))
                     if cc then return cc.r, cc.g, cc.b end
                     return 1, 1, 1
                 end,
@@ -1335,7 +1333,7 @@ initFrame:SetScript("OnEvent", function(self)
             local ssClass, ssUpdClass = EllesmereUI.BuildColorSwatch(
                 leftRgn, leftRgn:GetFrameLevel() + 5,
                 function()
-                    local cc = EllesmereUI.GetClassColor and EllesmereUI.GetClassColor(select(2, UnitClass("player")))
+                    local cc = EllesmereUI.GetClassColor(select(2, UnitClass("player")))
                     if cc then return cc.r, cc.g, cc.b end
                     return 1, 1, 1
                 end,
@@ -1506,7 +1504,7 @@ initFrame:SetScript("OnEvent", function(self)
                       swatches = {
                           { tooltip = "Class Color",
                             getValue = function()
-                                local cc = EllesmereUI.GetClassColor and EllesmereUI.GetClassColor(select(2, UnitClass("player")))
+                                local cc = EllesmereUI.GetClassColor(select(2, UnitClass("player")))
                                 if cc then return cc.r, cc.g, cc.b end
                                 return 1, 1, 1
                             end,
@@ -2378,7 +2376,7 @@ initFrame:SetScript("OnEvent", function(self)
             EllesmereUIDB.autoLogging = nil
             if _G._EUI_ResetUpgradeCalc then _G._EUI_ResetUpgradeCalc() end
             if _G._EBS_ResetCursor then _G._EBS_ResetCursor() end
-            if EllesmereUI._applyHideBlizzardPartyFrame then EllesmereUI._applyHideBlizzardPartyFrame() end
+            EllesmereUI._applyHideBlizzardPartyFrame()
             if EllesmereUI._applyHideErrorMessages then EllesmereUI._applyHideErrorMessages() end
             if EllesmereUI._applyAnnounceGroupDeaths then EllesmereUI._applyAnnounceGroupDeaths() end
             if EllesmereUI._applyCombatAlert then EllesmereUI._applyCombatAlert() end

@@ -464,7 +464,7 @@ initFrame:SetScript("OnEvent", function(self)
         menuFrame:SetPoint("TOPLEFT", sortBtn, "BOTTOMLEFT", 0, -2)
 
         local mY = -2
-        local FONT = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
+        local FONT = (EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
 
         local radioItems = {
             { key = "INDEX", label = "Group" },
@@ -700,14 +700,12 @@ initFrame:SetScript("OnEvent", function(self)
     ---------------------------------------------------------------------------
     -- Re-append post-login: the OnInitialize append runs too early to catch most
     -- SM texture providers, which register after our ADDON_LOADED.
-    if EllesmereUI.AppendSharedMediaTextures then
-        EllesmereUI.AppendSharedMediaTextures(
-            ns.healthBarTextureNames or {},
-            ns.healthBarTextureOrder or {},
-            nil,
-            ns.healthBarTextures
-        )
-    end
+    EllesmereUI.AppendSharedMediaTextures(
+        ns.healthBarTextureNames or {},
+        ns.healthBarTextureOrder or {},
+        nil,
+        ns.healthBarTextures
+    )
 
     local hbtValues = {}
     local hbtOrder = {}
@@ -785,10 +783,8 @@ initFrame:SetScript("OnEvent", function(self)
     -- Appends SharedMedia statusbar textures after a divider (mirrors Bar Texture dropdown). "sm:" keys land in the shared health-bar tables via AppendSharedMediaTextures; resolution flows through ns.ResolveAbsorbStyleTex -> health-bar lookup.
     -- All three dropdowns share absorbStyleValues, so each gains the SM entries and preview swatch.
     do
-        if EllesmereUI.AppendSharedMediaTextures then
-            EllesmereUI.AppendSharedMediaTextures(
-                ns.healthBarTextureNames or {}, ns.healthBarTextureOrder or {}, nil, ns.healthBarTextures)
-        end
+        EllesmereUI.AppendSharedMediaTextures(
+            ns.healthBarTextureNames or {}, ns.healthBarTextureOrder or {}, nil, ns.healthBarTextures)
         local smNames = ns.healthBarTextureNames or {}
         local smKeys = {}
         for _, k in ipairs(ns.healthBarTextureOrder or {}) do
@@ -854,8 +850,7 @@ initFrame:SetScript("OnEvent", function(self)
         local text
         if (db.profile.previewMode or "overlay") == "real" then
             -- Editing-as session: preview shows THAT session's values (effective overlay off there by design), so name it.
-            local sessName = EllesmereUI.SpecOverrides_EditSessionName
-                and EllesmereUI.SpecOverrides_EditSessionName()
+            local sessName = EllesmereUI.SpecOverrides_EditSessionName()
             if sessName then
                 text = EllesmereUI.Lf("Previewing Override: %1$s", sessName)
             elseif EllesmereUI.SpecOverrides_PeekEffectiveValues then
@@ -885,7 +880,7 @@ initFrame:SetScript("OnEvent", function(self)
     -- Builds the "Preview Mode" row at the top of a page; returns the new y.
     local function BuildPreviewModeRow(parent, y)
         local ROW_H = 50
-        local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
+        local fontPath = (EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
         local contentPad = EllesmereUI.CONTENT_PAD or 45
 
         y = y - 10
@@ -913,7 +908,7 @@ initFrame:SetScript("OnEvent", function(self)
             function(v)
                 db.profile.previewMode = v
                 -- Apply to whichever preview the current tab owns.
-                local page = EllesmereUI.GetActivePage and EllesmereUI:GetActivePage()
+                local page = EllesmereUI:GetActivePage()
                 if page == PAGE_PARTY then
                     if v == "none" then
                         if ns.HidePartyPreview then ns.HidePartyPreview() end
@@ -1147,11 +1142,9 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUI.HideWidgetTooltip()
             end)
 
-            if EllesmereUI.RegisterOnHide then
-                EllesmereUI:RegisterOnHide(function()
-                    if ns._healthAnimActive then StopHealthAnim(); RefreshHealthEye() end
-                end)
-            end
+            EllesmereUI:RegisterOnHide(function()
+                if ns._healthAnimActive then StopHealthAnim(); RefreshHealthEye() end
+            end)
 
             -- One-time eyeball hint, raid/main page only.
             if not _partyCtx and not (EllesmereUIDB and EllesmereUIDB.rfEyeHintSeen) then
@@ -1269,7 +1262,7 @@ initFrame:SetScript("OnEvent", function(self)
               setValue=function(v)
                   SSet("healthColorMode", v)
                   -- "dark" feeds the Dark Mode conditional-override condition.
-                  if EllesmereUI.Conditions_Recheck then EllesmereUI.Conditions_Recheck() end
+                  EllesmereUI.Conditions_Recheck()
                   EllesmereUI:RefreshPage()
               end },
             { type="slider", text="Background", min=0, max=100, step=1,
@@ -2103,11 +2096,9 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUI.HideWidgetTooltip()
             end)
 
-            if EllesmereUI.RegisterOnHide then
-                EllesmereUI:RegisterOnHide(function()
-                    if ns._powerAnimActive then StopPowerAnim(); RefreshPowerEye() end
-                end)
-            end
+            EllesmereUI:RegisterOnHide(function()
+                if ns._powerAnimActive then StopPowerAnim(); RefreshPowerEye() end
+            end)
         end  -- close do (power eyeball)
 
         -- Power bar is off when no role is selected.
@@ -3590,9 +3581,7 @@ initFrame:SetScript("OnEvent", function(self)
                 local bbg = btn:CreateTexture(nil, "BACKGROUND")
                 bbg:SetAllPoints()
                 bbg:SetColorTexture(0.06, 0.08, 0.10, 0.92)
-                if EllesmereUI.MakeBorder then
-                    EllesmereUI.MakeBorder(btn, 1, 1, 1, 0.25)
-                end
+                EllesmereUI.MakeBorder(btn, 1, 1, 1, 0.25)
                 local lbl = btn:CreateFontString(nil, "OVERLAY")
                 EllesmereUI.ApplyModuleFont(lbl, nil, 13, "raidFrames")
                 lbl:SetPoint("CENTER", btn, "CENTER", 0, 0)
@@ -3775,9 +3764,7 @@ initFrame:SetScript("OnEvent", function(self)
                 local kbBg = kbBtn:CreateTexture(nil, "BACKGROUND")
                 kbBg:SetAllPoints()
                 kbBg:SetColorTexture(0.06, 0.08, 0.10, 0.92)
-                if EllesmereUI.MakeBorder then
-                    EllesmereUI.MakeBorder(kbBtn, 1, 1, 1, 0.25)
-                end
+                EllesmereUI.MakeBorder(kbBtn, 1, 1, 1, 0.25)
                 local kbLbl = kbBtn:CreateFontString(nil, "OVERLAY")
                 EllesmereUI.ApplyModuleFont(kbLbl, nil, 13, "raidFrames")
                 kbLbl:SetPoint("CENTER")
@@ -3937,9 +3924,7 @@ initFrame:SetScript("OnEvent", function(self)
                 local bbg = btn:CreateTexture(nil, "BACKGROUND")
                 bbg:SetAllPoints()
                 bbg:SetColorTexture(0.06, 0.08, 0.10, 0.92)
-                if EllesmereUI.MakeBorder then
-                    EllesmereUI.MakeBorder(btn, 1, 1, 1, 0.25)
-                end
+                EllesmereUI.MakeBorder(btn, 1, 1, 1, 0.25)
                 local lbl = btn:CreateFontString(nil, "OVERLAY")
                 EllesmereUI.ApplyModuleFont(lbl, nil, 13, "raidFrames")
                 lbl:SetPoint("CENTER", btn, "CENTER", 0, 0)
@@ -4200,7 +4185,7 @@ initFrame:SetScript("OnEvent", function(self)
                   getValue = function()
                       -- Same resolver chain as the runtime rows: the global
                       -- custom power color first, stock mana color after.
-                      local info = EllesmereUI.GetPowerColor and EllesmereUI.GetPowerColor("MANA")
+                      local info = EllesmereUI.GetPowerColor("MANA")
                       if info then return info.r, info.g, info.b, 1 end
                       local mc = PowerBarColor and PowerBarColor.MANA
                       if mc then return mc.r, mc.g, mc.b, 1 end
@@ -4289,14 +4274,12 @@ initFrame:SetScript("OnEvent", function(self)
                 s:SetAlpha(0.4)
                 EllesmereUI.HideWidgetTooltip()
             end)
-            if EllesmereUI.RegisterOnHide then
-                EllesmereUI:RegisterOnHide(function()
-                    if ns._hmPreview and ns.HM_SetPreview then
-                        ns.HM_SetPreview(false)
-                        RefreshHMEye()
-                    end
-                end)
-            end
+            EllesmereUI:RegisterOnHide(function()
+                if ns._hmPreview and ns.HM_SetPreview then
+                    ns.HM_SetPreview(false)
+                    RefreshHMEye()
+                end
+            end)
         end
 
         -- Hide Blizzard Party Panel shares the exact global setting and apply function as the QoL toggle (EllesmereUIDB.hideBlizzardPartyFrame -> EllesmereUI._applyHideBlizzardPartyFrame); the QoL toggle is disabled while Raid Frames is loaded. Off when unset.
@@ -4307,9 +4290,7 @@ initFrame:SetScript("OnEvent", function(self)
               setValue=function(v)
                   if not EllesmereUIDB then EllesmereUIDB = {} end
                   EllesmereUIDB.hideBlizzardPartyFrame = v
-                  if EllesmereUI._applyHideBlizzardPartyFrame then
-                      EllesmereUI._applyHideBlizzardPartyFrame()
-                  end
+                  EllesmereUI._applyHideBlizzardPartyFrame()
               end },
             { type="multiSwatch", text="Status Colors",
               swatches = {
@@ -5233,9 +5214,7 @@ initFrame:SetScript("OnEvent", function(self)
                           cancelText = "Cancel",
                           reload = true,
                           onConfirm = function()
-                              if EllesmereUI.SpecOverrides_CloseEditSessions then
-                                  EllesmereUI.SpecOverrides_CloseEditSessions()
-                              end
+                              EllesmereUI.SpecOverrides_CloseEditSessions()
                               db.profile.partyFrameStyle = (v == "party") and "party" or nil
                           end,
                       })
@@ -5594,7 +5573,7 @@ initFrame:SetScript("OnEvent", function(self)
         --  _partyCtx makes SGet/SSet/SVal read/write "party_<key>", so the same section builders produce party controls; synced sections get a per-section blocking overlay.
         -------------------------------------------------------------------
         local CPAD = EllesmereUI.CONTENT_PAD or 10
-        local FONT = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
+        local FONT = (EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
 
         local syncOverlays = {}
         ns._syncOverlays = syncOverlays
@@ -5697,7 +5676,7 @@ initFrame:SetScript("OnEvent", function(self)
         -- Hide the container immediately; the dimmer fade masks it.
         if ns._overlayContainer then ns._overlayContainer:Hide() end
         if ns.HidePreview then ns.HidePreview() end
-        local activePage = EllesmereUI.GetActivePage and EllesmereUI:GetActivePage()
+        local activePage = EllesmereUI:GetActivePage()
         if activePage == PAGE_MAIN then
             local mode = db.profile.previewMode or "overlay"
             if mode ~= "none" and ns.ShowPreview then
@@ -5712,7 +5691,7 @@ initFrame:SetScript("OnEvent", function(self)
         ns._testMode = true
 
         local PP = EllesmereUI.PanelPP or EllesmereUI.PP
-        local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
+        local fontPath = (EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
         local accentColor = EllesmereUI.ELLESMERE_GREEN or { r = 0.05, g = 0.82, b = 0.62 }
         local s = db.profile
 
@@ -5778,7 +5757,7 @@ initFrame:SetScript("OnEvent", function(self)
 
         local function MakeFont(p, size, r, g, b, a)
             local fs = p:CreateFontString(nil, "OVERLAY")
-            if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, true) end
+            EllesmereUI.PrimeFontShadow(fs, true)
             fs:SetFont(fontPath, size, "")
             fs:SetTextColor(r or 1, g or 1, b or 1, a or 1)
             return fs
@@ -6296,44 +6275,42 @@ initFrame:SetScript("OnEvent", function(self)
     })
 
     -- Re-open on an RF page: show preview / rebuild BM.
-    if EllesmereUI.RegisterOnShow then
-        EllesmereUI:RegisterOnShow(function()
-            if EllesmereUI:GetActiveModule() == "EllesmereUIRaidFrames" then
-                local page = EllesmereUI:GetActivePage()
-                if page == PAGE_MAIN then
-                    local mode = db.profile.previewMode or "overlay"
-                    if mode ~= "none" and ns.ShowPreview then ns.ShowPreview() end
-                elseif page == PAGE_PARTY then
-                    local mode = db.profile.previewMode or "overlay"
-                    if mode ~= "none" and ns.ShowPartyPreview then ns.ShowPartyPreview() end
-                elseif page == PAGE_BUFFS then
-                    if not ns._bmRoot then
-                        C_Timer.After(0, function()
-                            if EllesmereUI:GetActiveModule() == "EllesmereUIRaidFrames" then
-                                BuildBuffManagerPage(PAGE_BUFFS, nil, -6)
-                            end
-                        end)
-                    end
-                elseif page == PAGE_DM then
-                    if not ns._dmRoot then
-                        C_Timer.After(0, function()
-                            if EllesmereUI:GetActiveModule() == "EllesmereUIRaidFrames" and ns.DMP_BuildPage then
-                                ns.DMP_BuildPage(PAGE_DM, nil, -6)
-                            end
-                        end)
-                    end
-                elseif page == PAGE_CLICKCAST then
-                    if not ns._ccRoot then
-                        C_Timer.After(0, function()
-                            if EllesmereUI:GetActiveModule() == "EllesmereUIRaidFrames" and ns.CC_BuildPage then
-                                ns.CC_BuildPage(PAGE_CLICKCAST, nil, -6)
-                            end
-                        end)
-                    end
+    EllesmereUI:RegisterOnShow(function()
+        if EllesmereUI:GetActiveModule() == "EllesmereUIRaidFrames" then
+            local page = EllesmereUI:GetActivePage()
+            if page == PAGE_MAIN then
+                local mode = db.profile.previewMode or "overlay"
+                if mode ~= "none" and ns.ShowPreview then ns.ShowPreview() end
+            elseif page == PAGE_PARTY then
+                local mode = db.profile.previewMode or "overlay"
+                if mode ~= "none" and ns.ShowPartyPreview then ns.ShowPartyPreview() end
+            elseif page == PAGE_BUFFS then
+                if not ns._bmRoot then
+                    C_Timer.After(0, function()
+                        if EllesmereUI:GetActiveModule() == "EllesmereUIRaidFrames" then
+                            BuildBuffManagerPage(PAGE_BUFFS, nil, -6)
+                        end
+                    end)
+                end
+            elseif page == PAGE_DM then
+                if not ns._dmRoot then
+                    C_Timer.After(0, function()
+                        if EllesmereUI:GetActiveModule() == "EllesmereUIRaidFrames" and ns.DMP_BuildPage then
+                            ns.DMP_BuildPage(PAGE_DM, nil, -6)
+                        end
+                    end)
+                end
+            elseif page == PAGE_CLICKCAST then
+                if not ns._ccRoot then
+                    C_Timer.After(0, function()
+                        if EllesmereUI:GetActiveModule() == "EllesmereUIRaidFrames" and ns.CC_BuildPage then
+                            ns.CC_BuildPage(PAGE_CLICKCAST, nil, -6)
+                        end
+                    end)
                 end
             end
-        end)
-    end
+        end
+    end)
     -- Panel close: hide preview and clean up BM/CC.
     if EllesmereUI.RegisterOnHide then
         EllesmereUI:RegisterOnHide(function()
