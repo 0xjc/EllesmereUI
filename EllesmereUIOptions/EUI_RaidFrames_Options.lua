@@ -5801,6 +5801,7 @@ initFrame:SetScript("OnEvent", function(self)
 
         -- Every checkbox refresher, re-run together for mutual exclusion.
         local allRefreshFns = {}
+        local editGlow   -- shared edit-target glow, made on first use
 
         local function CheckboxRow(label, getVal, setVal, editTarget)
             local row = CreateFrame("Frame", nil, panel)
@@ -5880,33 +5881,8 @@ initFrame:SetScript("OnEvent", function(self)
                                 end
                                 C_Timer.After(0.15, function()
                                     if not target:IsShown() then return end
-                                    local ac = EllesmereUI.ELLESMERE_GREEN
-                                    if not ac then return end
-                                    local glow = CreateFrame("Frame", nil, target)
-                                    glow:SetAllPoints()
-                                    glow:SetFrameLevel(target:GetFrameLevel() + 5)
-                                    local px = 2
-                                    local top = glow:CreateTexture(nil, "OVERLAY", nil, 7)
-                                    top:SetHeight(px); top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT")
-                                    top:SetColorTexture(ac.r, ac.g, ac.b, 1)
-                                    local bot = glow:CreateTexture(nil, "OVERLAY", nil, 7)
-                                    bot:SetHeight(px); bot:SetPoint("BOTTOMLEFT"); bot:SetPoint("BOTTOMRIGHT")
-                                    bot:SetColorTexture(ac.r, ac.g, ac.b, 1)
-                                    local lft = glow:CreateTexture(nil, "OVERLAY", nil, 7)
-                                    lft:SetWidth(px); lft:SetPoint("TOPLEFT", top, "BOTTOMLEFT"); lft:SetPoint("BOTTOMLEFT", bot, "TOPLEFT")
-                                    lft:SetColorTexture(ac.r, ac.g, ac.b, 1)
-                                    local rgt = glow:CreateTexture(nil, "OVERLAY", nil, 7)
-                                    rgt:SetWidth(px); rgt:SetPoint("TOPRIGHT", top, "BOTTOMRIGHT"); rgt:SetPoint("BOTTOMRIGHT", bot, "TOPRIGHT")
-                                    rgt:SetColorTexture(ac.r, ac.g, ac.b, 1)
-                                    glow:SetAlpha(1)
-                                    local elapsed = 0
-                                    glow:SetScript("OnUpdate", function(self, dt)
-                                        elapsed = elapsed + dt
-                                        if elapsed >= 0.75 then
-                                            self:Hide(); self:SetParent(nil); self:SetScript("OnUpdate", nil); return
-                                        end
-                                        self:SetAlpha(1 - elapsed / 0.75)
-                                    end)
+                                    editGlow = editGlow or EllesmereUI.MakeSettingGlow({ color = EllesmereUI.ELLESMERE_GREEN })
+                                    editGlow(target)
                                 end)
                             end)
                         end

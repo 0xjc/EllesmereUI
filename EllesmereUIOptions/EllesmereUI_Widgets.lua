@@ -5816,6 +5816,160 @@ end
 EllesmereUI.PlayWhiteFlash = PlayWhiteFlash
 
 --------------------------------------------------------------------------------
+--  Preview click-to-navigate kit (options pages with a clickable preview)
+--------------------------------------------------------------------------------
+-- MakeSettingGlow: returns play(target, holdWhile). One frame per returned
+-- function, reparented on each play, so a new glow cancels the last one.
+-- opts: color {r,g,b} (read on first play), thickness (number or function,
+-- default 2), noSnap. holdWhile pulses while it returns true and the target
+-- is visible, then plays the normal 0.75s fade.
+EllesmereUI.MakeSettingGlow = function(opts)
+    local glow
+    return function(targetFrame, holdWhile)
+        if not targetFrame then return end
+        if not glow then
+            glow = CreateFrame("Frame")
+            local c = opts.color
+            local px = opts.thickness or 2
+            if type(px) == "function" then px = px() end
+            local function MkEdge()
+                local t = glow:CreateTexture(nil, "OVERLAY", nil, 7)
+                t:SetColorTexture(c.r, c.g, c.b, 1)
+                if opts.noSnap and t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false); t:SetTexelSnappingBias(0) end
+                return t
+            end
+            local top, bot, lft, rgt = MkEdge(), MkEdge(), MkEdge(), MkEdge()
+            top:SetHeight(px); top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT")
+            bot:SetHeight(px); bot:SetPoint("BOTTOMLEFT"); bot:SetPoint("BOTTOMRIGHT")
+            lft:SetWidth(px)
+            lft:SetPoint("TOPLEFT", top, "BOTTOMLEFT"); lft:SetPoint("BOTTOMLEFT", bot, "TOPLEFT")
+            rgt:SetWidth(px)
+            rgt:SetPoint("TOPRIGHT", top, "BOTTOMRIGHT"); rgt:SetPoint("BOTTOMRIGHT", bot, "TOPRIGHT")
+        end
+        glow:SetParent(targetFrame)
+        glow:SetAllPoints(targetFrame)
+        glow:SetFrameLevel(targetFrame:GetFrameLevel() + 5)
+        glow:SetAlpha(1)
+        glow:Show()
+        local elapsed = 0
+        glow:SetScript("OnUpdate", function(self, dt)
+            elapsed = elapsed + dt
+            if holdWhile then
+                if targetFrame:IsVisible() and holdWhile() then
+                    self:SetAlpha(0.35 + 0.65 * math.abs(math.sin(elapsed * 3)))
+                    return
+                end
+                -- Released: restart the clock so the fade plays from full alpha.
+                holdWhile, elapsed = nil, 0
+            end
+            if elapsed >= 0.75 then
+                self:Hide(); self:SetScript("OnUpdate", nil); return
+            end
+            self:SetAlpha(1 - elapsed / 0.75)
+        end)
+    end
+end
+
+-- CreatePreviewHitOverlay: clickable button over a preview element that calls
+-- navigate(key). opts (per call): hlAnchor, hlBehindText, parent, showWith.
+-- style (per page): container = draw the hover border on a child frame (and
+-- hlBehindText adds a frame at element level+1); tightText = AB text sizing.
+-- Returns btn, hlBase, hlCont (the last two only with style.container).
+EllesmereUI.CreatePreviewHitOverlay = function(element, navigate, key, isText, frameLevelOverride, opts, style)
+    local tight = style and style.tightText
+    local anchor = isText and element:GetParent() or element
+    if not anchor.CreateTexture then anchor = anchor:GetParent() end
+    local btn = CreateFrame("Button", nil, anchor)
+    if isText then
+        local minS, pad = tight and 1 or 4, tight and 2 or 4
+        local function ResizeToText()
+            local ok, tw, th = pcall(function()
+                local w = element:GetStringWidth() or 0
+                local hh = element:GetStringHeight() or 0
+                if w < minS then w = minS end
+                if hh < minS then hh = minS end
+                return w, hh
+            end)
+            if not ok then tw = 40; th = 12 end
+            btn:SetSize(tw + pad, th + pad)
+        end
+        ResizeToText()
+        local justify = element:GetJustifyH()
+        if justify == "RIGHT" then btn:SetPoint("RIGHT", element, "RIGHT", tight and 0 or 2, 0)
+        elseif justify == "CENTER" then btn:SetPoint("CENTER", element, "CENTER", tight and -1 or 0, 0)
+        else btn:SetPoint("LEFT", element, "LEFT", -2, 0) end
+        btn:SetScript("OnShow", function() ResizeToText() end)
+        btn._resizeToText = ResizeToText
+    else
+        btn:SetAllPoints(opts and opts.hlAnchor or element)
+    end
+    -- opts.parent hosts the button outside a SetClipsChildren ancestor (which
+    -- blocks mouse to descendants); opts.showWith re-ties its visibility.
+    if opts and opts.parent then btn:SetParent(opts.parent) end
+    btn:SetFrameLevel(frameLevelOverride or (anchor:GetFrameLevel() + 20))
+    btn:RegisterForClicks("LeftButtonDown")
+    local c = EllesmereUI.ELLESMERE_GREEN
+    local hlBase, hlCont, brd
+    if style and style.container then
+        if opts and opts.hlBehindText then
+            hlBase = CreateFrame("Frame", nil, element)
+            hlBase:SetAllPoints()
+            hlBase:SetFrameLevel(element:GetFrameLevel() + 1)
+        else
+            hlBase = (opts and opts.hlAnchor) or btn
+        end
+        hlCont = CreateFrame("Frame", nil, hlBase)
+        hlCont:SetAllPoints()
+        hlCont:SetFrameLevel(hlBase:GetFrameLevel() + 1)
+        brd = EllesmereUI.PP.CreateBorder(hlCont, c.r, c.g, c.b, 1, 2, "OVERLAY", 7)
+    else
+        local hlTarget = (opts and opts.hlBehindText) and element or (opts and opts.hlAnchor) or btn
+        brd = EllesmereUI.PP.CreateBorder(hlTarget, c.r, c.g, c.b, 1, 2, "OVERLAY", 7)
+    end
+    brd:Hide()
+    btn:SetScript("OnEnter", function() brd:Show() end)
+    btn:SetScript("OnLeave", function() brd:Hide() end)
+    btn:SetScript("OnMouseDown", function() navigate(key) end)
+    local sw = opts and opts.showWith
+    if sw then
+        sw:HookScript("OnShow", function() btn:Show() end)
+        sw:HookScript("OnHide", function() btn:Hide() end)
+        btn:SetShown(sw:IsShown())
+    end
+    return btn, hlBase, hlCont
+end
+
+-- DismissPreviewHint: first preview click marks the hint dismissed and fades
+-- it out over 0.3s while the content header shrinks back to headerBaseH.
+-- startY: fallback hint offset; animH: header shrink distance (default hintH).
+EllesmereUI.DismissPreviewHint = function(hint, headerBaseH, hintH, startY, animH)
+    if (EllesmereUIDB and EllesmereUIDB.previewHintDismissed) or not (hint and hint:IsShown()) then return end
+    EllesmereUIDB = EllesmereUIDB or {}
+    EllesmereUIDB.previewHintDismissed = true
+    local _, anchorTo, _, _, y0 = hint:GetPoint(1)
+    y0 = y0 or startY
+    anchorTo = anchorTo or hint:GetParent()
+    local startHeaderH = headerBaseH + hintH
+    animH = animH or hintH
+    local steps = 0
+    local ticker
+    ticker = C_Timer.NewTicker(0.016, function()
+        steps = steps + 1
+        local progress = steps * 0.016 / 0.3
+        if progress >= 1 then
+            hint:Hide(); ticker:Cancel()
+            if headerBaseH > 0 then EllesmereUI:SetContentHeaderHeightSilent(headerBaseH) end
+            return
+        end
+        hint:SetAlpha(0.45 * (1 - progress))
+        hint:ClearAllPoints()
+        hint:SetPoint("BOTTOM", anchorTo, "BOTTOM", 0, y0 + progress * 12)
+        local hh = startHeaderH - animH * progress
+        if hh > 0 then EllesmereUI:SetContentHeaderHeightSilent(hh) end
+    end)
+end
+
+--------------------------------------------------------------------------------
 --  BuildMultiApplyDropdown -- checkbox popup for selective "Apply to Multiple".
 --  Opens a DIALOG-strata popup with checkboxes for each element. The current
 --  element is pre-checked and grayed out (non-interactive); all others are

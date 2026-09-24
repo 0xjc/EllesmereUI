@@ -4963,48 +4963,7 @@ initFrame:SetScript("OnEvent", function(self)
             -------------------------------------------------------------------
             --  CLICK NAVIGATION
             -------------------------------------------------------------------
-            local glowFrame
-            local function PlaySettingGlow(targetFrame)
-                if not targetFrame then return end
-                if not glowFrame then
-                    glowFrame = CreateFrame("Frame")
-                    local c = EllesmereUI.ELLESMERE_GREEN
-                    local function MkEdge()
-                        local t = glowFrame:CreateTexture(nil, "OVERLAY", nil, 7)
-                        t:SetColorTexture(c.r, c.g, c.b, 1)
-                        if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false); t:SetTexelSnappingBias(0) end
-                        return t
-                    end
-                    glowFrame._top = MkEdge()
-                    glowFrame._bot = MkEdge()
-                    glowFrame._lft = MkEdge()
-                    glowFrame._rgt = MkEdge()
-                    local glowPx = PP.Scale(2)
-                    glowFrame._top:SetHeight(glowPx)
-                    glowFrame._top:SetPoint("TOPLEFT"); glowFrame._top:SetPoint("TOPRIGHT")
-                    glowFrame._bot:SetHeight(glowPx)
-                    glowFrame._bot:SetPoint("BOTTOMLEFT"); glowFrame._bot:SetPoint("BOTTOMRIGHT")
-                    glowFrame._lft:SetWidth(glowPx)
-                    glowFrame._lft:SetPoint("TOPLEFT", glowFrame._top, "BOTTOMLEFT")
-                    glowFrame._lft:SetPoint("BOTTOMLEFT", glowFrame._bot, "TOPLEFT")
-                    glowFrame._rgt:SetWidth(glowPx)
-                    glowFrame._rgt:SetPoint("TOPRIGHT", glowFrame._top, "BOTTOMRIGHT")
-                    glowFrame._rgt:SetPoint("BOTTOMRIGHT", glowFrame._bot, "TOPRIGHT")
-                end
-                glowFrame:SetParent(targetFrame)
-                glowFrame:SetAllPoints(targetFrame)
-                glowFrame:SetFrameLevel(targetFrame:GetFrameLevel() + 5)
-                glowFrame:SetAlpha(1)
-                glowFrame:Show()
-                local elapsed = 0
-                glowFrame:SetScript("OnUpdate", function(self, dt)
-                    elapsed = elapsed + dt
-                    if elapsed >= 0.75 then
-                        self:Hide(); self:SetScript("OnUpdate", nil); return
-                    end
-                    self:SetAlpha(1 - elapsed / 0.75)
-                end)
-            end
+            local PlaySettingGlow = EllesmereUI.MakeSettingGlow({ color = EllesmereUI.ELLESMERE_GREEN, thickness = function() return PP.Scale(2) end, noSnap = true })
 
             local clickMappings = {
                 icon       = { section = iconsSectionHeader, target = classColorBorderRow },
@@ -5016,36 +4975,7 @@ initFrame:SetScript("OnEvent", function(self)
                 local m = clickMappings[key]
                 if not m or not m.section or not m.target then return end
 
-                -- Dismiss hint
-                local hintFS = _abPreviewHintFS
-                local headerBaseH = barsHeaderBaseH
-                if not IsPreviewHintDismissed() and hintFS and hintFS:IsShown() then
-                    EllesmereUIDB = EllesmereUIDB or {}
-                    EllesmereUIDB.previewHintDismissed = true
-                    local hint = hintFS
-                    local _, anchorTo, _, _, startY = hint:GetPoint(1)
-                    startY = startY or 17
-                    anchorTo = anchorTo or hint:GetParent()
-                    local hintSize = 29
-                    local startHeaderH = headerBaseH + hintSize
-                    local targetHeaderH = headerBaseH
-                    local steps = 0
-                    local ticker
-                    ticker = C_Timer.NewTicker(0.016, function()
-                        steps = steps + 1
-                        local progress = steps * 0.016 / 0.3
-                        if progress >= 1 then
-                            hint:Hide(); ticker:Cancel()
-                            if targetHeaderH > 0 then EllesmereUI:SetContentHeaderHeightSilent(targetHeaderH) end
-                            return
-                        end
-                        hint:SetAlpha(0.45 * (1 - progress))
-                        hint:ClearAllPoints()
-                        hint:SetPoint("BOTTOM", anchorTo, "BOTTOM", 0, startY + progress * 12)
-                        local hh = startHeaderH - hintSize * progress
-                        if hh > 0 then EllesmereUI:SetContentHeaderHeightSilent(hh) end
-                    end)
-                end
+                EllesmereUI.DismissPreviewHint(_abPreviewHintFS, barsHeaderBaseH, 29, 17)
 
                 local sf = EllesmereUI._scrollFrame
                 if not sf then return end
@@ -5061,43 +4991,9 @@ initFrame:SetScript("OnEvent", function(self)
                 C_Timer.After(0.15, function() PlaySettingGlow(glowTarget) end)
             end
 
-            -- Hit overlay factory
+            local hitStyle = { tightText = true }
             local function CreateHitOverlay(element, mappingKey, isText, frameLevelOverride, opts)
-                local anchor = isText and element:GetParent() or element
-                if not anchor.CreateTexture then anchor = anchor:GetParent() end
-                local btn = CreateFrame("Button", nil, anchor)
-                if isText then
-                    local function ResizeToText()
-                        local ok, tw, th = pcall(function()
-                            local w = element:GetStringWidth() or 0
-                            local hh = element:GetStringHeight() or 0
-                            if w < 1 then w = 1 end
-                            if hh < 1 then hh = 1 end
-                            return w, hh
-                        end)
-                        if not ok then tw = 40; th = 12 end
-                        btn:SetSize(tw + 2, th + 2)
-                    end
-                    ResizeToText()
-                    local justify = element:GetJustifyH()
-                    if justify == "RIGHT" then btn:SetPoint("RIGHT", element, "RIGHT", 0, 0)
-                    elseif justify == "CENTER" then btn:SetPoint("CENTER", element, "CENTER", -1, 0)
-                    else btn:SetPoint("LEFT", element, "LEFT", -2, 0) end
-                    btn:SetScript("OnShow", function() ResizeToText() end)
-                    btn._resizeToText = ResizeToText
-                else
-                    btn:SetAllPoints(opts and opts.hlAnchor or element)
-                end
-                btn:SetFrameLevel(frameLevelOverride or (anchor:GetFrameLevel() + 20))
-                btn:RegisterForClicks("LeftButtonDown")
-                local c = EllesmereUI.ELLESMERE_GREEN
-                local hlTarget = (opts and opts.hlBehindText) and element or (opts and opts.hlAnchor) or btn
-                local brd = EllesmereUI.PP.CreateBorder(hlTarget, c.r, c.g, c.b, 1, 2, "OVERLAY", 7)
-                brd:Hide()
-                btn:SetScript("OnEnter", function() brd:Show() end)
-                btn:SetScript("OnLeave", function() brd:Hide() end)
-                btn:SetScript("OnMouseDown", function() NavigateToSetting(mappingKey) end)
-                return btn
+                return (EllesmereUI.CreatePreviewHitOverlay(element, NavigateToSetting, mappingKey, isText, frameLevelOverride, opts, hitStyle))
             end
 
             local textOverlays = {}

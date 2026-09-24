@@ -380,85 +380,20 @@ initFrame:SetScript("OnEvent", function(self)
         end
     end
 
-    local _eabrGlowFrame
+    local _eabrGlow   -- made on first click: Widgets helpers load with the panel
     local _eabrClickMappings = {}
     local _eabrHitOverlays = {}
 
     local function EABRPlaySettingGlow(targetFrame)
-        if not targetFrame then return end
-        if not _eabrGlowFrame then
-            _eabrGlowFrame = CreateFrame("Frame")
-            local c = EllesmereUI.ELLESMERE_GREEN
-            local function MkEdge()
-                local t = _eabrGlowFrame:CreateTexture(nil, "OVERLAY", nil, 7)
-                t:SetColorTexture(c.r, c.g, c.b, 1)
-                return t
-            end
-            _eabrGlowFrame._top = MkEdge()
-            _eabrGlowFrame._bot = MkEdge()
-            _eabrGlowFrame._lft = MkEdge()
-            _eabrGlowFrame._rgt = MkEdge()
-            _eabrGlowFrame._top:SetHeight(2)
-            _eabrGlowFrame._top:SetPoint("TOPLEFT"); _eabrGlowFrame._top:SetPoint("TOPRIGHT")
-            _eabrGlowFrame._bot:SetHeight(2)
-            _eabrGlowFrame._bot:SetPoint("BOTTOMLEFT"); _eabrGlowFrame._bot:SetPoint("BOTTOMRIGHT")
-            _eabrGlowFrame._lft:SetWidth(2)
-            _eabrGlowFrame._lft:SetPoint("TOPLEFT", _eabrGlowFrame._top, "BOTTOMLEFT")
-            _eabrGlowFrame._lft:SetPoint("BOTTOMLEFT", _eabrGlowFrame._bot, "TOPLEFT")
-            _eabrGlowFrame._rgt:SetWidth(2)
-            _eabrGlowFrame._rgt:SetPoint("TOPRIGHT", _eabrGlowFrame._top, "BOTTOMRIGHT")
-            _eabrGlowFrame._rgt:SetPoint("BOTTOMRIGHT", _eabrGlowFrame._bot, "TOPRIGHT")
-        end
-        _eabrGlowFrame:SetParent(targetFrame)
-        _eabrGlowFrame:SetAllPoints(targetFrame)
-        _eabrGlowFrame:SetFrameLevel(targetFrame:GetFrameLevel() + 5)
-        _eabrGlowFrame:SetAlpha(1)
-        _eabrGlowFrame:Show()
-        local elapsed = 0
-        _eabrGlowFrame:SetScript("OnUpdate", function(self, dt)
-            elapsed = elapsed + dt
-            if elapsed >= 0.75 then
-                self:Hide(); self:SetScript("OnUpdate", nil); return
-            end
-            self:SetAlpha(1 - elapsed / 0.75)
-        end)
+        _eabrGlow = _eabrGlow or EllesmereUI.MakeSettingGlow({ color = EllesmereUI.ELLESMERE_GREEN })
+        _eabrGlow(targetFrame)
     end
 
     local function EABRNavigateToSetting(key)
         local m = _eabrClickMappings[key]
         if not m or not m.section or not m.target then return end
 
-        -- Dismiss the hint text on first click
-        if not IsPreviewHintDismissed() and _previewHintFS and _previewHintFS:IsShown() then
-            EllesmereUIDB = EllesmereUIDB or {}
-            EllesmereUIDB.previewHintDismissed = true
-            local hint = _previewHintFS
-            local _, anchorTo, _, _, startY = hint:GetPoint(1)
-            startY = startY or 5
-            anchorTo = anchorTo or hint:GetParent()
-            local startHeaderH = _eabrHeaderBaseH + 35
-            local targetHeaderH = _eabrHeaderBaseH
-            local steps = 0
-            local ticker
-            ticker = C_Timer.NewTicker(0.016, function()
-                steps = steps + 1
-                local progress = steps * 0.016 / 0.3
-                if progress >= 1 then
-                    hint:Hide(); ticker:Cancel()
-                    if targetHeaderH > 0 then
-                        EllesmereUI:SetContentHeaderHeightSilent(targetHeaderH)
-                    end
-                    return
-                end
-                hint:SetAlpha(0.45 * (1 - progress))
-                hint:ClearAllPoints()
-                hint:SetPoint("BOTTOM", anchorTo, "BOTTOM", 0, startY + progress * 12)
-                local hh = startHeaderH - 35 * progress
-                if hh > 0 then
-                    EllesmereUI:SetContentHeaderHeightSilent(hh)
-                end
-            end)
-        end
+        EllesmereUI.DismissPreviewHint(_previewHintFS, _eabrHeaderBaseH, 35, 5)
 
         local sf = EllesmereUI._scrollFrame
         if not sf then return end
@@ -485,18 +420,7 @@ initFrame:SetScript("OnEvent", function(self)
     end
 
     local function EABRCreateHitOverlay(element, mappingKey, frameLevelOverride)
-        local anchor = element
-        if not anchor.CreateTexture then anchor = anchor:GetParent() end
-        local btn = CreateFrame("Button", nil, anchor)
-        btn:SetAllPoints(element)
-        btn:SetFrameLevel(frameLevelOverride or (anchor:GetFrameLevel() + 20))
-        btn:RegisterForClicks("LeftButtonDown")
-        local c = EllesmereUI.ELLESMERE_GREEN
-        local brd = EllesmereUI.PP.CreateBorder(btn, c.r, c.g, c.b, 1, 2, "OVERLAY", 7)
-        brd:Hide()
-        btn:SetScript("OnEnter", function() brd:Show() end)
-        btn:SetScript("OnLeave", function() brd:Hide() end)
-        btn:SetScript("OnMouseDown", function() EABRNavigateToSetting(mappingKey) end)
+        local btn = EllesmereUI.CreatePreviewHitOverlay(element, EABRNavigateToSetting, mappingKey, false, frameLevelOverride)
         _eabrHitOverlays[#_eabrHitOverlays + 1] = btn
         return btn
     end

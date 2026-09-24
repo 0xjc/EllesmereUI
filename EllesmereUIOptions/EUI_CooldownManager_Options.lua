@@ -3315,39 +3315,7 @@ initFrame:SetScript("OnEvent", function(self)
         --  parent._tbbClickTargets (populated by the bar-mode section build below);
         --  overlays resolve it at click time so a header rebuild never holds stale refs.
         -------------------------------------------------------------------
-        local _navGlowFrame
-        local function PlaySettingGlow(targetFrame)
-            if not targetFrame then return end
-            if not _navGlowFrame then
-                _navGlowFrame = CreateFrame("Frame")
-                local c = EllesmereUI.ELLESMERE_GREEN
-                local function MkEdge()
-                    local t = _navGlowFrame:CreateTexture(nil, "OVERLAY", nil, 7)
-                    t:SetColorTexture(c.r, c.g, c.b, 1)
-                    return t
-                end
-                local top, bot, lft, rgt = MkEdge(), MkEdge(), MkEdge(), MkEdge()
-                top:SetHeight(2); top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT")
-                bot:SetHeight(2); bot:SetPoint("BOTTOMLEFT"); bot:SetPoint("BOTTOMRIGHT")
-                lft:SetWidth(2)
-                lft:SetPoint("TOPLEFT", top, "BOTTOMLEFT"); lft:SetPoint("BOTTOMLEFT", bot, "TOPLEFT")
-                rgt:SetWidth(2)
-                rgt:SetPoint("TOPRIGHT", top, "BOTTOMRIGHT"); rgt:SetPoint("BOTTOMRIGHT", bot, "TOPRIGHT")
-            end
-            _navGlowFrame:SetParent(targetFrame)
-            _navGlowFrame:SetAllPoints(targetFrame)
-            _navGlowFrame:SetFrameLevel(targetFrame:GetFrameLevel() + 5)
-            _navGlowFrame:SetAlpha(1)
-            _navGlowFrame:Show()
-            local elapsed = 0
-            _navGlowFrame:SetScript("OnUpdate", function(self, dt)
-                elapsed = elapsed + dt
-                if elapsed >= 0.75 then
-                    self:Hide(); self:SetScript("OnUpdate", nil); return
-                end
-                self:SetAlpha(1 - elapsed / 0.75)
-            end)
-        end
+        local PlaySettingGlow = EllesmereUI.MakeSettingGlow({ color = EllesmereUI.ELLESMERE_GREEN })
 
         local function NavigateToSetting(key)
             local targets = parent._tbbClickTargets

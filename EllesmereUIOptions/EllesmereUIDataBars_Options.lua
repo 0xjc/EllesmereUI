@@ -1459,56 +1459,9 @@ initFrame:SetScript("OnEvent", function(self)
         --  current build's closure through the _edbNavigateFn upvalue so a
         --  cached/restored header never fires a stale closure.
         -------------------------------------------------------------------
-        local _navGlowFrame
-        -- holdWhile (optional): keeps the glow pulsing for as long as it
-        -- returns true, instead of the one-shot fade. Used when the glow is
-        -- pointing at a setting the player still has to fill in -- a 0.75s
-        -- flash is gone before they have finished reading the page. The pulse
-        -- also releases when the target stops being visible (page rebuilt,
-        -- options closed), so the shared frame can never strand its OnUpdate.
-        local function PlaySettingGlow(targetFrame, holdWhile)
-            if not targetFrame then return end
-            if not _navGlowFrame then
-                _navGlowFrame = CreateFrame("Frame")
-                local c = EllesmereUI.ELLESMERE_GREEN
-                local function MkEdge()
-                    local t = _navGlowFrame:CreateTexture(nil, "OVERLAY", nil, 7)
-                    t:SetColorTexture(c.r, c.g, c.b, 1)
-                    return t
-                end
-                local top, bot, lft, rgt = MkEdge(), MkEdge(), MkEdge(), MkEdge()
-                top:SetHeight(2); top:SetPoint("TOPLEFT"); top:SetPoint("TOPRIGHT")
-                bot:SetHeight(2); bot:SetPoint("BOTTOMLEFT"); bot:SetPoint("BOTTOMRIGHT")
-                lft:SetWidth(2)
-                lft:SetPoint("TOPLEFT", top, "BOTTOMLEFT"); lft:SetPoint("BOTTOMLEFT", bot, "TOPLEFT")
-                rgt:SetWidth(2)
-                rgt:SetPoint("TOPRIGHT", top, "BOTTOMRIGHT"); rgt:SetPoint("BOTTOMRIGHT", bot, "TOPRIGHT")
-            end
-            _navGlowFrame:SetParent(targetFrame)
-            _navGlowFrame:SetAllPoints(targetFrame)
-            _navGlowFrame:SetFrameLevel(targetFrame:GetFrameLevel() + 5)
-            _navGlowFrame:SetAlpha(1)
-            _navGlowFrame:Show()
-            local elapsed = 0
-            _navGlowFrame:SetScript("OnUpdate", function(glowSelf, dt)
-                elapsed = elapsed + dt
-                if holdWhile then
-                    if targetFrame:IsVisible() and holdWhile() then
-                        glowSelf:SetAlpha(0.35 + 0.65 * math.abs(math.sin(elapsed * 3)))
-                        return
-                    end
-                    -- Released: drop the predicate and restart the clock so the
-                    -- fade plays from full alpha instead of expiring at once.
-                    holdWhile, elapsed = nil, 0
-                end
-                if elapsed >= 0.75 then
-                    glowSelf:Hide()
-                    glowSelf:SetScript("OnUpdate", nil)
-                    return
-                end
-                glowSelf:SetAlpha(1 - elapsed / 0.75)
-            end)
-        end
+        -- Second arg holdWhile keeps the glow pulsing while the setting still
+        -- needs filling in (a 0.75s flash is gone before they finish reading).
+        local PlaySettingGlow = EllesmereUI.MakeSettingGlow({ color = EllesmereUI.ELLESMERE_GREEN })
 
         local function GlowTargetOf(m)
             if not m.slotSide then return m.target end
