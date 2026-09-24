@@ -28,7 +28,7 @@ local GLOBAL_KEY = "_EUIGlobal"
 -- Session-only card expand state (never saved).
 local _txExpanded = {}
 
-local function NS(folder) return EllesmereUI._ModuleNS and EllesmereUI._ModuleNS[folder] end
+local NS = EllesmereUI.ModuleNS
 
 -------------------------------------------------------------------------------
 --  Statusbar catalogue helpers
@@ -90,49 +90,10 @@ local function AppendSmTail(values, orders, moduleNames, moduleOrder)
 end
 
 -------------------------------------------------------------------------------
---  Shared row helpers (same shapes as the Fonts page)
+--  Shared row helpers (EllesmereUI_Widgets.lua, shared with the Fonts page)
 -------------------------------------------------------------------------------
 
-local function BLANK() return { type = "label", text = "" } end
-
-local function LinkRow(parent, y, label, module, page, section, highlight)
-    local PP = EllesmereUI.PanelPP
-    local ROW_H = 40
-    local row = CreateFrame("Frame", nil, parent)
-    PP.Size(row, parent:GetWidth() - EllesmereUI.CONTENT_PAD * 2, ROW_H)
-    PP.Point(row, "TOPLEFT", parent, "TOPLEFT", EllesmereUI.CONTENT_PAD, y)
-    row._skipRowDivider = true
-    if EllesmereUI.RowBg then EllesmereUI.RowBg(row, parent) end
-
-    local lbl = EllesmereUI.MakeFont(row, 13, nil, 1, 1, 1)
-    lbl:SetAlpha(0.9)
-    lbl:SetPoint("LEFT", row, "LEFT", 20, 0)
-    lbl:SetText(EllesmereUI.L(label))
-
-    local btn = CreateFrame("Button", nil, row)
-    PP.Size(btn, 122, 26)
-    btn:SetPoint("RIGHT", row, "RIGHT", -20, 0)
-    btn:SetFrameLevel(row:GetFrameLevel() + 2)
-    EllesmereUI.MakeStyledButton(btn, "Open Settings", 11, EllesmereUI.WB_COLOURS, function()
-        EllesmereUI:NavigateToElementSettings(module, page, section, nil, highlight)
-    end)
-
-    return y - ROW_H
-end
-
-local function NoteRow(parent, y, text)
-    local PP = EllesmereUI.PanelPP
-    local ROW_H = 34
-    local row = CreateFrame("Frame", nil, parent)
-    PP.Size(row, parent:GetWidth() - EllesmereUI.CONTENT_PAD * 2, ROW_H)
-    PP.Point(row, "TOPLEFT", parent, "TOPLEFT", EllesmereUI.CONTENT_PAD, y)
-    row._skipRowDivider = true
-    local lbl = EllesmereUI.MakeFont(row, 12, nil, 1, 1, 1)
-    lbl:SetAlpha(0.45)
-    lbl:SetPoint("LEFT", row, "LEFT", 20, 0)
-    lbl:SetText(EllesmereUI.L(text))
-    return y - ROW_H
-end
+local BLANK, LinkRow, NoteRow = EllesmereUI.BlankRowCfg, EllesmereUI.BuildLinkRow, EllesmereUI.BuildNoteRow
 
 local function DisabledTile(parent, y, W, tile)
     return NoteRow(parent, y, EllesmereUI.Lf("Enable %1$s to edit its texture settings.", EllesmereUI.L(tile.display)))
@@ -927,154 +888,31 @@ end
 --  system, so the header hosts no dropdown)
 -------------------------------------------------------------------------------
 
-local TX_ARROW_DOWN = "Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-arrow-down3.png"
-local TX_ARROW_UP   = "Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-arrow-up3.png"
-local TX_HEADER_H   = 54
-local TX_CARD_GAP   = 14
 local TX_GLYPH_TEX  = "Interface\\AddOns\\EllesmereUI\\media\\textures\\melli.tga"
 
 local function BuildTexCard(parent, y, W, tile)
-    local PP = EllesmereUI.PanelPP
-    local EG = EllesmereUI.ELLESMERE_GREEN
-    local L  = EllesmereUI.L
-    -- A disabled module's card is fully inert: no expand, no hover -- just a
-    -- dimmed header with a tooltip explaining why.
-    local enabled = NS(tile.folder) ~= nil
-    local expanded = enabled and _txExpanded[tile.key]
-    local cardTop = y
-    local brd
-
-    local cardW = parent:GetWidth() - EllesmereUI.CONTENT_PAD * 2
-    local hdr = CreateFrame("Button", nil, parent)
-    PP.Size(hdr, cardW, TX_HEADER_H)
-    PP.Point(hdr, "TOPLEFT", parent, "TOPLEFT", EllesmereUI.CONTENT_PAD, y)
-    hdr:SetFrameLevel(parent:GetFrameLevel() + 3)
-
-    local searchName = tile.display .. " " .. (tile.desc or "")
-    hdr._isSectionHeader = true
-    hdr._sectionName = searchName
-    local searchNameLoc = L(tile.display) .. " " .. L(tile.desc or "")
-    if searchNameLoc ~= searchName then hdr._sectionNameLoc = searchNameLoc end
-    if EllesmereUI._RegisterSearchEntry then
-        local titleLoc = L(tile.display)
-        local descSearch = tile.desc or ""
-        local descLoc = L(tile.desc or "")
-        if descLoc ~= descSearch then descSearch = descSearch .. " " .. descLoc end
-        EllesmereUI._RegisterSearchEntry(tile.display,
-            titleLoc ~= tile.display and titleLoc or nil,
-            descSearch,
-            EllesmereUI._buildingModule, EllesmereUI._buildingPage,
-            searchName, nil, nil, true)
-    end
-
-    local hbg = EllesmereUI.SolidTex(hdr, "BACKGROUND", 0, 0, 0, 0)
-    hbg:SetAllPoints()
-
-    -- Mini statusbar glyph: a texture strip in a thin frame.
-    local glyph = CreateFrame("Frame", nil, hdr)
-    PP.Size(glyph, 26, 12)
-    PP.Point(glyph, "LEFT", hdr, "LEFT", 14, 0)
-    local glyphBrd = EllesmereUI.MakeBorder(glyph, 1, 1, 1, 0.3, PP)
-    local glyphTex = glyph:CreateTexture(nil, "ARTWORK")
-    glyphTex:SetPoint("TOPLEFT", glyph, "TOPLEFT", 1, -1)
-    glyphTex:SetPoint("BOTTOMRIGHT", glyph, "BOTTOMRIGHT", -1, 1)
-    glyphTex:SetTexture(TX_GLYPH_TEX)
-    glyphTex:SetVertexColor(EG.r, EG.g, EG.b, 0.8)
-
-    local title = EllesmereUI.MakeFont(hdr, 14, nil, 1, 1, 1, 0.9)
-    PP.Point(title, "TOPLEFT", hdr, "TOPLEFT", 50, -12)
-    title:SetText(L(tile.display))
-
-    local desc = EllesmereUI.MakeFont(hdr, 11, nil, 1, 1, 1, 0.42)
-    PP.Point(desc, "TOPLEFT", title, "BOTTOMLEFT", 0, -4)
-    desc:SetWidth(560)
-    desc:SetJustifyH("LEFT")
-    desc:SetWordWrap(false)
-    desc:SetText(L(tile.desc or ""))
-
-    if not enabled then
-        glyphTex:SetVertexColor(1, 1, 1, 0.15)
-        title:SetAlpha(0.4)
-        desc:SetAlpha(0.22)
-    end
-
-    local chev
-    if enabled then
-        chev = hdr:CreateTexture(nil, "OVERLAY")
-        PP.Size(chev, 16, 16)
-        PP.Point(chev, "RIGHT", hdr, "RIGHT", -16, 0)
-        chev:SetTexture(expanded and TX_ARROW_UP or TX_ARROW_DOWN)
-        chev:SetAlpha(0.45)
-        if expanded then chev:SetVertexColor(EG.r, EG.g, EG.b) end
-    end
-
-    local strip
-    local function ApplyHeaderHover()
-        hbg:SetColorTexture(1, 1, 1, 0.05)
-        title:SetAlpha(1)
-        if chev then chev:SetAlpha(0.85) end
-        if brd then brd:SetColor(1, 1, 1, 0.22) end
-    end
-    local function ClearHeaderHover()
-        if hdr:IsMouseOver() then return end
-        hbg:SetColorTexture(0, 0, 0, 0)
-        title:SetAlpha(0.9)
-        if chev then chev:SetAlpha(0.45) end
-        if brd then brd:SetColor(1, 1, 1, expanded and 0.16 or 0.12) end
-    end
-    if enabled then
-        hdr:SetScript("OnEnter", ApplyHeaderHover)
-        hdr:SetScript("OnLeave", ClearHeaderHover)
-        hdr:SetScript("OnClick", function()
-            _txExpanded[tile.key] = not _txExpanded[tile.key]
-            EllesmereUI:RefreshPage(true)
-        end)
-    else
-        local tag = EllesmereUI.MakeFont(hdr, 11, nil, 1, 1, 1)
-        tag:SetAlpha(0.3)
-        PP.Point(tag, "RIGHT", hdr, "RIGHT", -16, 0)
-        tag:SetText(L("Module Disabled"))
-        hdr:SetScript("OnEnter", function(self)
-            EllesmereUI.ShowWidgetTooltip(self, EllesmereUI.Lf("Enable %1$s to edit these settings.", L(tile.display)))
-        end)
-        hdr:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-    end
-
-    y = y - TX_HEADER_H
-
-    if expanded then
-        local div = hdr:CreateTexture(nil, "ARTWORK")
-        div:SetColorTexture(1, 1, 1, 0.07)
-        div:SetHeight(1)
-        PP.Point(div, "BOTTOMLEFT", hdr, "BOTTOMLEFT", 1, 0)
-        PP.Point(div, "BOTTOMRIGHT", hdr, "BOTTOMRIGHT", -1, 0)
-        PP.DisablePixelSnap(div)
-
-        y = y - 8
-        y = tile.buildContent(parent, y, W, tile)
-        y = y - 8
-    end
-
-    local bg = CreateFrame("Frame", nil, hdr)
-    bg:SetFrameLevel(parent:GetFrameLevel())
-    PP.Size(bg, cardW, cardTop - y)
-    PP.Point(bg, "TOPLEFT", hdr, "TOPLEFT", 0, 0)
-    local fill = EllesmereUI.SolidTex(bg, "BACKGROUND", 0.06, 0.08, 0.10, 0.5)
-    fill:SetAllPoints()
-    brd = EllesmereUI.MakeBorder(bg, 1, 1, 1, expanded and 0.16 or 0.12, PP)
-
-    strip = bg:CreateTexture(nil, "ARTWORK")
-    strip:SetWidth(2)
-    if enabled then
-        strip:SetColorTexture(EG.r, EG.g, EG.b, 0.7)
-    else
-        strip:SetColorTexture(1, 1, 1, 0.10)
-    end
-    PP.Point(strip, "TOPLEFT", hdr, "TOPLEFT", 1, -1)
-    PP.Point(strip, "BOTTOMLEFT", hdr, "BOTTOMLEFT", 1, 1)
-    if strip.SetSnapToPixelGrid then strip:SetSnapToPixelGrid(false); strip:SetTexelSnappingBias(0) end
-
-    return y - TX_CARD_GAP
+    return EllesmereUI.BuildModuleCard(parent, y, W, tile, {
+        enabled = NS(tile.folder) ~= nil,
+        expanded = _txExpanded, descW = 560,
+        -- Mini statusbar glyph: a texture strip in a thin frame.
+        glyph = function(hdr, enabled)
+            local PP = EllesmereUI.PanelPP
+            local EG = EllesmereUI.ELLESMERE_GREEN
+            local glyph = CreateFrame("Frame", nil, hdr)
+            PP.Size(glyph, 26, 12)
+            PP.Point(glyph, "LEFT", hdr, "LEFT", 14, 0)
+            EllesmereUI.MakeBorder(glyph, 1, 1, 1, 0.3, PP)
+            local glyphTex = glyph:CreateTexture(nil, "ARTWORK")
+            glyphTex:SetPoint("TOPLEFT", glyph, "TOPLEFT", 1, -1)
+            glyphTex:SetPoint("BOTTOMRIGHT", glyph, "BOTTOMRIGHT", -1, 1)
+            glyphTex:SetTexture(TX_GLYPH_TEX)
+            if enabled then
+                glyphTex:SetVertexColor(EG.r, EG.g, EG.b, 0.8)
+            else
+                glyphTex:SetVertexColor(1, 1, 1, 0.15)
+            end
+        end,
+    })
 end
 
 -------------------------------------------------------------------------------

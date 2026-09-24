@@ -5354,6 +5354,177 @@ initFrame:SetScript("OnEvent", function(self)
         })
     end
 
+    -- Profile import/export module lists: shared row geometry.
+    local SIDE_PAD, ROW_H_A, CHK_SZ, STATUS_W = 26, 48, 18, 70
+    local INCLUDE_CENTER_X = -(SIDE_PAD + STATUS_W + 30 + CHK_SZ / 2)
+
+    -- One module-list checkbox row. o: active (clickable), inactiveText +
+    -- inactiveColor {r,g,b,a}, visuals (repaint list), onToggle(apply) after
+    -- the value flips, linked() -> members, own key, display map, linkedTip(list),
+    -- blockedTip (hover text on inactive rows; nil = silent).
+    local function BuildAddonListRow(scrollChild, i, item, totalW, o)
+        local EG = EllesmereUI.ELLESMERE_GREEN
+        local READY_R, READY_G, READY_B = 0.196, 0.737, 0.325
+        local rowFrame = CreateFrame("Frame", nil, scrollChild)
+        rowFrame:SetSize(totalW, ROW_H_A)
+        rowFrame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -(i - 1) * ROW_H_A)
+
+        local rowAlpha = (i % 2 == 0) and 0.12 or 0.06
+        local rowBg = rowFrame:CreateTexture(nil, "BACKGROUND")
+        rowBg:SetAllPoints()
+        rowBg:SetColorTexture(0, 0, 0, rowAlpha)
+
+        local nameFs = EllesmereUI.MakeFont(rowFrame, 13, nil, 1, 1, 1, 0.9)
+        nameFs:SetPoint("TOPLEFT", rowFrame, "TOPLEFT", SIDE_PAD, -10)
+        nameFs:SetPoint("RIGHT", rowFrame, "RIGHT", -(CHK_SZ + STATUS_W + SIDE_PAD * 2 + 20), 0)
+        nameFs:SetJustifyH("LEFT")
+        nameFs:SetWordWrap(false)
+        nameFs:SetText(EllesmereUI.L(item.display))
+
+        local descFs = EllesmereUI.MakeFont(rowFrame, 11, nil, 1, 1, 1, 0.30)
+        descFs:SetPoint("TOPLEFT", nameFs, "BOTTOMLEFT", 0, -5)
+        descFs:SetPoint("RIGHT", nameFs, "RIGHT", 0, 0)
+        descFs:SetJustifyH("LEFT")
+        descFs:SetWordWrap(false)
+        descFs:SetText(EllesmereUI.L(item.desc))
+
+        local statusFs = EllesmereUI.MakeFont(rowFrame, 11, nil, 1, 1, 1, 0.40)
+        statusFs:SetPoint("RIGHT", rowFrame, "RIGHT", -SIDE_PAD, 0)
+        statusFs:SetJustifyH("RIGHT")
+
+        -- Checkbox (centered under the Include column header)
+        local chkFrame = CreateFrame("Frame", nil, rowFrame)
+        chkFrame:SetSize(CHK_SZ, CHK_SZ)
+        chkFrame:SetPoint("CENTER", rowFrame, "RIGHT", INCLUDE_CENTER_X, 0)
+
+        local chkBg = chkFrame:CreateTexture(nil, "BACKGROUND")
+        chkBg:SetAllPoints()
+        chkBg:SetColorTexture(0.12, 0.12, 0.14, 1)
+        if chkBg.SetSnapToPixelGrid then chkBg:SetSnapToPixelGrid(false); chkBg:SetTexelSnappingBias(0) end
+
+        local chkBrd = EllesmereUI.MakeBorder(chkFrame, 0.25, 0.25, 0.28, 0.6, PP)
+
+        local chkMark = chkFrame:CreateTexture(nil, "ARTWORK")
+        chkMark:SetPoint("TOPLEFT", chkFrame, "TOPLEFT", 3, -3)
+        chkMark:SetPoint("BOTTOMRIGHT", chkFrame, "BOTTOMRIGHT", -3, 3)
+        chkMark:SetColorTexture(EG.r, EG.g, EG.b, 1)
+        if chkMark.SetSnapToPixelGrid then chkMark:SetSnapToPixelGrid(false); chkMark:SetTexelSnappingBias(0) end
+
+        local function ApplyRowVisual()
+            local on = item.getVal()
+            if not o.active then
+                nameFs:SetAlpha(0.30)
+                descFs:SetAlpha(0.15)
+                chkMark:Hide()
+                chkBg:SetAlpha(0.3)
+                local c = o.inactiveColor
+                statusFs:SetText(o.inactiveText)
+                statusFs:SetTextColor(c[1], c[2], c[3], c[4])
+            elseif on then
+                nameFs:SetAlpha(0.9)
+                descFs:SetAlpha(0.30)
+                chkMark:Show()
+                chkBg:SetAlpha(1)
+                chkBrd:SetColor(EG.r, EG.g, EG.b, 0.15)
+                statusFs:SetText(EllesmereUI.L("Ready"))
+                statusFs:SetTextColor(READY_R, READY_G, READY_B, 1)
+            else
+                nameFs:SetAlpha(0.50)
+                descFs:SetAlpha(0.20)
+                chkMark:Hide()
+                chkBg:SetAlpha(1)
+                chkBrd:SetColor(0.25, 0.25, 0.28, 0.6)
+                statusFs:SetText(EllesmereUI.L("Skipped"))
+                statusFs:SetTextColor(1, 1, 1, 0.35)
+            end
+        end
+        ApplyRowVisual()
+        o.visuals[#o.visuals + 1] = ApplyRowVisual
+
+        local hoverTex = rowFrame:CreateTexture(nil, "ARTWORK")
+        hoverTex:SetAllPoints()
+        hoverTex:SetColorTexture(1, 1, 1, 0.05)
+        hoverTex:Hide()
+
+        if o.active then
+            local clickBtn = CreateFrame("Button", nil, rowFrame)
+            clickBtn:SetAllPoints(rowFrame)
+            clickBtn:SetFrameLevel(rowFrame:GetFrameLevel() + 2)
+            clickBtn:SetScript("OnClick", function()
+                item.setVal(not item.getVal())
+                o.onToggle(ApplyRowVisual)
+            end)
+            clickBtn:SetScript("OnEnter", function()
+                hoverTex:Show()
+                if not item.getVal() then nameFs:SetAlpha(0.75) end
+                -- Linked-modules tooltip; suppressed while layout is off, since nothing couples then.
+                local members, own, display = o.linked()
+                if members then
+                    local names = {}
+                    for f in pairs(members) do
+                        if f ~= own then
+                            names[#names + 1] = EllesmereUI.L(display[f] or f)
+                        end
+                    end
+                    if #names > 0 then
+                        table.sort(names)
+                        EllesmereUI.ShowWidgetTooltip(rowFrame, o.linkedTip(table.concat(names, ", ")))
+                    end
+                end
+            end)
+            clickBtn:SetScript("OnLeave", function()
+                hoverTex:Hide()
+                if not item.getVal() then nameFs:SetAlpha(0.50) end
+                EllesmereUI.HideWidgetTooltip()
+            end)
+        else
+            local blockFrame = CreateFrame("Frame", nil, rowFrame)
+            blockFrame:SetAllPoints()
+            blockFrame:SetFrameLevel(rowFrame:GetFrameLevel() + 5)
+            blockFrame:EnableMouse(true)
+            if o.blockedTip then
+                blockFrame:SetScript("OnEnter", function()
+                    hoverTex:Show()
+                    EllesmereUI.ShowWidgetTooltip(rowFrame, o.blockedTip)
+                end)
+                blockFrame:SetScript("OnLeave", function()
+                    hoverTex:Hide()
+                    EllesmereUI.HideWidgetTooltip()
+                end)
+            else
+                blockFrame:SetScript("OnEnter", function() end)
+                blockFrame:SetScript("OnLeave", function() end)
+            end
+        end
+    end
+
+    -- Done-style button hover: label and border alpha fade 0.7 -> 1 over 0.1s.
+    -- Returns reset(), which snaps the fade state back to idle.
+    local function MakeAccentFade(btn, lbl, brd)
+        local EG = EllesmereUI.ELLESMERE_GREEN
+        local lerp = EllesmereUI.lerp
+        local progress, target = 0, 0
+        local FADE = 0.1
+        local function Apply(t)
+            lbl:SetTextColor(EG.r, EG.g, EG.b, lerp(0.7, 1, t))
+            brd:SetColor(EG.r, EG.g, EG.b, lerp(0.7, 1, t))
+        end
+        local function OnUpdate(self, elapsed)
+            local dir = (target == 1) and 1 or -1
+            progress = progress + dir * (elapsed / FADE)
+            if (dir == 1 and progress >= 1) or (dir == -1 and progress <= 0) then
+                progress = target; self:SetScript("OnUpdate", nil)
+            end
+            Apply(progress)
+        end
+        btn:SetScript("OnEnter", function(self) target = 1; self:SetScript("OnUpdate", OnUpdate) end)
+        btn:SetScript("OnLeave", function(self) target = 0; self:SetScript("OnUpdate", OnUpdate) end)
+        return function()
+            progress, target = 0, 0
+            Apply(0)
+        end
+    end
+
     local function BuildProfilesPage(pageName, parent, yOffset)
         local W = EllesmereUI.Widgets
         local y = yOffset
@@ -5657,17 +5828,11 @@ initFrame:SetScript("OnEvent", function(self)
             local ADDON_DB_MAP_LOCAL = EllesmereUI.VisibleProfileAddons(EllesmereUI._ADDON_DB_MAP)
             local PAD        = EllesmereUI.CONTENT_PAD
             local totalW     = importPage:GetWidth() - PAD * 2
-            local SIDE_PAD   = 26
-            local ROW_H_A    = 48
-            local CHK_SZ     = 18
-            local STATUS_W   = 70
             local HDR_H      = 72
             local COL_HDR_H  = 28
             -- The optional Auto Assign toggle stacks below the count row.
             local nFooterStack = (hasSpecAssign and 1 or 0)
             local FOOTER_H   = 50 + nFooterStack * 24
-            local READY_R, READY_G, READY_B = 0.196, 0.737, 0.325
-            local INCLUDE_CENTER_X = -(SIDE_PAD + STATUS_W + 30 + CHK_SZ / 2)
 
             local ADDON_DESCS = {
                 EllesmereUIActionBars        = "Modern action bars built for performance and clarity.",
@@ -6051,135 +6216,23 @@ initFrame:SetScript("OnEvent", function(self)
             end)
 
             -- Addon rows
-            local rowY = 0
             for i, item in ipairs(addonItems) do
-                local rowFrame = CreateFrame("Frame", nil, scrollChild)
-                rowFrame:SetSize(totalW, ROW_H_A)
-                rowFrame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -rowY)
-
-                local rowAlpha = (i % 2 == 0) and 0.12 or 0.06
-                local rowBg = rowFrame:CreateTexture(nil, "BACKGROUND")
-                rowBg:SetAllPoints()
-                rowBg:SetColorTexture(0, 0, 0, rowAlpha)
-
-                local nameFs = EllesmereUI.MakeFont(rowFrame, 13, nil, 1, 1, 1, 0.9)
-                nameFs:SetPoint("TOPLEFT", rowFrame, "TOPLEFT", SIDE_PAD, -10)
-                nameFs:SetPoint("RIGHT", rowFrame, "RIGHT", -(CHK_SZ + STATUS_W + SIDE_PAD * 2 + 20), 0)
-                nameFs:SetJustifyH("LEFT")
-                nameFs:SetWordWrap(false)
-                nameFs:SetText(EllesmereUI.L(item.display))
-
-                local descFs = EllesmereUI.MakeFont(rowFrame, 11, nil, 1, 1, 1, 0.30)
-                descFs:SetPoint("TOPLEFT", nameFs, "BOTTOMLEFT", 0, -5)
-                descFs:SetPoint("RIGHT", nameFs, "RIGHT", 0, 0)
-                descFs:SetJustifyH("LEFT")
-                descFs:SetWordWrap(false)
-                descFs:SetText(EllesmereUI.L(item.desc))
-
-                local statusFs = EllesmereUI.MakeFont(rowFrame, 11, nil, 1, 1, 1, 0.40)
-                statusFs:SetPoint("RIGHT", rowFrame, "RIGHT", -SIDE_PAD, 0)
-                statusFs:SetJustifyH("RIGHT")
-
-                local chkFrame = CreateFrame("Frame", nil, rowFrame)
-                chkFrame:SetSize(CHK_SZ, CHK_SZ)
-                chkFrame:SetPoint("CENTER", rowFrame, "RIGHT", INCLUDE_CENTER_X, 0)
-
-                local chkBg = chkFrame:CreateTexture(nil, "BACKGROUND")
-                chkBg:SetAllPoints()
-                chkBg:SetColorTexture(0.12, 0.12, 0.14, 1)
-                if chkBg.SetSnapToPixelGrid then chkBg:SetSnapToPixelGrid(false); chkBg:SetTexelSnappingBias(0) end
-
-                local chkBrd = EllesmereUI.MakeBorder(chkFrame, 0.25, 0.25, 0.28, 0.6, PP)
-
-                local chkMark = chkFrame:CreateTexture(nil, "ARTWORK")
-                chkMark:SetPoint("TOPLEFT", chkFrame, "TOPLEFT", 3, -3)
-                chkMark:SetPoint("BOTTOMRIGHT", chkFrame, "BOTTOMRIGHT", -3, 3)
-                chkMark:SetColorTexture(EG.r, EG.g, EG.b, 1)
-                if chkMark.SetSnapToPixelGrid then chkMark:SetSnapToPixelGrid(false); chkMark:SetTexelSnappingBias(0) end
-
-                local function ApplyRowVisual()
-                    local on = item.getVal()
-                    if not item.canImport then
-                        nameFs:SetAlpha(0.30)
-                        descFs:SetAlpha(0.15)
-                        chkMark:Hide()
-                        chkBg:SetAlpha(0.3)
-                        if not item.inPayload then
-                            statusFs:SetText(EllesmereUI.L("Not Included"))
-                            statusFs:SetTextColor(0.9, 0.2, 0.2, 0.7)
-                        else
-                            statusFs:SetText(EllesmereUI.L("Not Loaded"))
-                            statusFs:SetTextColor(1, 1, 1, 0.25)
-                        end
-                    elseif on then
-                        nameFs:SetAlpha(0.9)
-                        descFs:SetAlpha(0.30)
-                        chkMark:Show()
-                        chkBg:SetAlpha(1)
-                        chkBrd:SetColor(EG.r, EG.g, EG.b, 0.15)
-                        statusFs:SetText(EllesmereUI.L("Ready"))
-                        statusFs:SetTextColor(READY_R, READY_G, READY_B, 1)
-                    else
-                        nameFs:SetAlpha(0.50)
-                        descFs:SetAlpha(0.20)
-                        chkMark:Hide()
-                        chkBg:SetAlpha(1)
-                        chkBrd:SetColor(0.25, 0.25, 0.28, 0.6)
-                        statusFs:SetText(EllesmereUI.L("Skipped"))
-                        statusFs:SetTextColor(1, 1, 1, 0.35)
-                    end
-                end
-                ApplyRowVisual()
-                importVisuals[#importVisuals + 1] = ApplyRowVisual
-
-                local hoverTex = rowFrame:CreateTexture(nil, "ARTWORK")
-                hoverTex:SetAllPoints()
-                hoverTex:SetColorTexture(1, 1, 1, 0.05)
-                hoverTex:Hide()
-
-                if item.canImport then
-                    local clickBtn = CreateFrame("Button", nil, rowFrame)
-                    clickBtn:SetAllPoints(rowFrame)
-                    clickBtn:SetFrameLevel(rowFrame:GetFrameLevel() + 2)
-                    clickBtn:SetScript("OnClick", function()
-                        item.setVal(not item.getVal())
-                        ApplyRowVisual()
+                BuildAddonListRow(scrollChild, i, item, totalW, {
+                    active = item.canImport,
+                    inactiveText = item.inPayload and EllesmereUI.L("Not Loaded") or EllesmereUI.L("Not Included"),
+                    inactiveColor = item.inPayload and { 1, 1, 1, 0.25 } or { 0.9, 0.2, 0.2, 0.7 },
+                    visuals = importVisuals,
+                    onToggle = function(apply)
+                        apply()
                         RefreshAllImportVisuals()
-                    end)
-                    clickBtn:SetScript("OnEnter", function()
-                        hoverTex:Show()
-                        if not item.getVal() then nameFs:SetAlpha(0.75) end
-                        -- Linked-modules tooltip; suppressed while layout is off, since nothing couples then.
-                        local members = includeLayoutImport and importComponents and importComponents[item.canon]
-                        if members then
-                            local names = {}
-                            for f in pairs(members) do
-                                if f ~= item.canon then
-                                    names[#names + 1] = EllesmereUI.L(CANON_DISPLAY[f] or f)
-                                end
-                            end
-                            if #names > 0 then
-                                table.sort(names)
-                                EllesmereUI.ShowWidgetTooltip(rowFrame,
-                                    EllesmereUI.Lf("Linked by Anchor/Width/Height Matching to: %1$s. These import together.", table.concat(names, ", ")))
-                            end
-                        end
-                    end)
-                    clickBtn:SetScript("OnLeave", function()
-                        hoverTex:Hide()
-                        if not item.getVal() then nameFs:SetAlpha(0.50) end
-                        EllesmereUI.HideWidgetTooltip()
-                    end)
-                else
-                    local blockFrame = CreateFrame("Frame", nil, rowFrame)
-                    blockFrame:SetAllPoints()
-                    blockFrame:SetFrameLevel(rowFrame:GetFrameLevel() + 5)
-                    blockFrame:EnableMouse(true)
-                    blockFrame:SetScript("OnEnter", function() end)
-                    blockFrame:SetScript("OnLeave", function() end)
-                end
-
-                rowY = rowY + ROW_H_A
+                    end,
+                    linked = function()
+                        return includeLayoutImport and importComponents and importComponents[item.canon], item.canon, CANON_DISPLAY
+                    end,
+                    linkedTip = function(list)
+                        return EllesmereUI.Lf("Linked by Anchor/Width/Height Matching to: %1$s. These import together.", list)
+                    end,
+                })
             end
 
             iy = iy - scrollH
@@ -6381,23 +6434,7 @@ initFrame:SetScript("OnEvent", function(self)
                 RefreshSummary()
             end
 
-            local impProgress, impTarget = 0, 0
-            local IMP_FADE = 0.1
-            local impLerp = EllesmereUI.lerp
-            local function ImpApply(t)
-                impLbl:SetTextColor(EG.r, EG.g, EG.b, impLerp(0.7, 1, t))
-                impBrd:SetColor(EG.r, EG.g, EG.b, impLerp(0.7, 1, t))
-            end
-            local function ImpOnUpdate(self, elapsed)
-                local dir = (impTarget == 1) and 1 or -1
-                impProgress = impProgress + dir * (elapsed / IMP_FADE)
-                if (dir == 1 and impProgress >= 1) or (dir == -1 and impProgress <= 0) then
-                    impProgress = impTarget; self:SetScript("OnUpdate", nil)
-                end
-                ImpApply(impProgress)
-            end
-            importBtn:SetScript("OnEnter", function(self) impTarget = 1; self:SetScript("OnUpdate", ImpOnUpdate) end)
-            importBtn:SetScript("OnLeave", function(self) impTarget = 0; self:SetScript("OnUpdate", ImpOnUpdate) end)
+            MakeAccentFade(importBtn, impLbl, impBrd)
             importBtn:SetScript("OnClick", function()
                 -- Get profile name from the edit box
                 local nameBox = importPage._nameEditBox
@@ -6725,23 +6762,7 @@ initFrame:SetScript("OnEvent", function(self)
             contLbl:SetPoint("CENTER")
             contLbl:SetText(EllesmereUI.L("Continue"))
 
-            local contProgress, contTarget = 0, 0
-            local CONT_FADE = 0.1
-            local contLerp = EllesmereUI.lerp
-            local function ContApply(t)
-                contLbl:SetTextColor(EG.r, EG.g, EG.b, contLerp(0.7, 1, t))
-                contBrd:SetColor(EG.r, EG.g, EG.b, contLerp(0.7, 1, t))
-            end
-            local function ContOnUpdate(self, elapsed)
-                local dir = (contTarget == 1) and 1 or -1
-                contProgress = contProgress + dir * (elapsed / CONT_FADE)
-                if (dir == 1 and contProgress >= 1) or (dir == -1 and contProgress <= 0) then
-                    contProgress = contTarget; self:SetScript("OnUpdate", nil)
-                end
-                ContApply(contProgress)
-            end
-            contBtn:SetScript("OnEnter", function(self) contTarget = 1; self:SetScript("OnUpdate", ContOnUpdate) end)
-            contBtn:SetScript("OnLeave", function(self) contTarget = 0; self:SetScript("OnUpdate", ContOnUpdate) end)
+            local contReset = MakeAccentFade(contBtn, contLbl, contBrd)
             local decodeRun
             contBtn:SetScript("OnClick", function()
                 if decodeRun then return end
@@ -6750,15 +6771,13 @@ initFrame:SetScript("OnEvent", function(self)
                 -- Decode across frames: lock the button and show progress so the client stays responsive on very large strings.
                 contBtn:Disable()
                 contBtn:SetScript("OnUpdate", nil)
-                contProgress, contTarget = 0, 0
-                ContApply(0)
+                contReset()
                 contLbl:SetText(EllesmereUI.L("Processing") .. "...")
                 local function Restore()
                     decodeRun = nil
                     contBtn:Enable()
                     contLbl:SetText(EllesmereUI.L("Continue"))
-                    contProgress, contTarget = 0, 0
-                    ContApply(0)
+                    contReset()
                 end
                 decodeRun = EllesmereUI.DecodeImportStringAsync(importStr,
                     function(payload, err)
@@ -7345,16 +7364,10 @@ initFrame:SetScript("OnEvent", function(self)
             local ADDON_DB_MAP_LOCAL = EllesmereUI.VisibleProfileAddons(EllesmereUI._ADDON_DB_MAP)
             local PAD        = EllesmereUI.CONTENT_PAD
             local totalW     = parent:GetWidth() - PAD * 2
-            local ROW_H_A    = 48
-            local CHK_SZ     = 18
-            local STATUS_W   = 70
-            local SIDE_PAD   = 26
             local HDR_H      = 72
             local COL_HDR_H  = 28
             -- Single footer row: count + "Include layout" + "Include Global Settings" side by side, Export button on the right.
             local FOOTER_H   = 50
-            local READY_R, READY_G, READY_B = 0.196, 0.737, 0.325
-            local SKIP_A     = 0.35
 
             -- Short descriptions per addon folder
             local ADDON_DESCS = {
@@ -7567,8 +7580,6 @@ initFrame:SetScript("OnEvent", function(self)
             colStatus:SetText(EllesmereUI.L("Status"))
             colStatus:SetJustifyH("RIGHT")
 
-            -- Include column: centered at a fixed X so checkboxes can align to it
-            local INCLUDE_CENTER_X = -(SIDE_PAD + STATUS_W + 30 + CHK_SZ / 2)
             local colInclude = EllesmereUI.MakeFont(colHdrFrame, 11, nil, 1, 1, 1, 0.40)
             PP.Point(colInclude, "CENTER", colHdrFrame, "RIGHT", INCLUDE_CENTER_X, 0)
             colInclude:SetText(EllesmereUI.L("Include"))
@@ -7599,142 +7610,21 @@ initFrame:SetScript("OnEvent", function(self)
             end)
 
             -- Addon rows (parented to scrollChild)
-            local rowY = 0
             for i, item in ipairs(addonItems) do
-                local rowFrame = CreateFrame("Frame", nil, scrollChild)
-                rowFrame:SetSize(totalW, ROW_H_A)
-                rowFrame:SetPoint("TOPLEFT", scrollChild, "TOPLEFT", 0, -rowY)
-
-                -- Alternating row bg
-                local rowAlpha = (i % 2 == 0) and 0.12 or 0.06
-                local rowBg = rowFrame:CreateTexture(nil, "BACKGROUND")
-                rowBg:SetAllPoints()
-                rowBg:SetColorTexture(0, 0, 0, rowAlpha)
-
-                -- Addon name
-                local nameFs = EllesmereUI.MakeFont(rowFrame, 13, nil, 1, 1, 1, 0.9)
-                nameFs:SetPoint("TOPLEFT", rowFrame, "TOPLEFT", SIDE_PAD, -10)
-                nameFs:SetPoint("RIGHT", rowFrame, "RIGHT", -(CHK_SZ + STATUS_W + SIDE_PAD * 2 + 20), 0)
-                nameFs:SetJustifyH("LEFT")
-                nameFs:SetWordWrap(false)
-                nameFs:SetText(EllesmereUI.L(item.display))
-
-                -- Addon description
-                local descFs = EllesmereUI.MakeFont(rowFrame, 11, nil, 1, 1, 1, 0.30)
-                descFs:SetPoint("TOPLEFT", nameFs, "BOTTOMLEFT", 0, -5)
-                descFs:SetPoint("RIGHT", nameFs, "RIGHT", 0, 0)
-                descFs:SetJustifyH("LEFT")
-                descFs:SetWordWrap(false)
-                descFs:SetText(EllesmereUI.L(item.desc))
-
-                -- Status badge
-                local statusFs = EllesmereUI.MakeFont(rowFrame, 11, nil, 1, 1, 1, 0.40)
-                statusFs:SetPoint("RIGHT", rowFrame, "RIGHT", -SIDE_PAD, 0)
-                statusFs:SetJustifyH("RIGHT")
-
-                -- Checkbox (centered under Include column header)
-                local chkFrame = CreateFrame("Frame", nil, rowFrame)
-                chkFrame:SetSize(CHK_SZ, CHK_SZ)
-                chkFrame:SetPoint("CENTER", rowFrame, "RIGHT", INCLUDE_CENTER_X, 0)
-
-                local chkBg = chkFrame:CreateTexture(nil, "BACKGROUND")
-                chkBg:SetAllPoints()
-                chkBg:SetColorTexture(0.12, 0.12, 0.14, 1)
-                if chkBg.SetSnapToPixelGrid then chkBg:SetSnapToPixelGrid(false); chkBg:SetTexelSnappingBias(0) end
-
-                local chkBrd = EllesmereUI.MakeBorder(chkFrame, 0.25, 0.25, 0.28, 0.6, PP)
-
-                local chkMark = chkFrame:CreateTexture(nil, "ARTWORK")
-                chkMark:SetPoint("TOPLEFT", chkFrame, "TOPLEFT", 3, -3)
-                chkMark:SetPoint("BOTTOMRIGHT", chkFrame, "BOTTOMRIGHT", -3, 3)
-                chkMark:SetColorTexture(EG.r, EG.g, EG.b, 1)
-                if chkMark.SetSnapToPixelGrid then chkMark:SetSnapToPixelGrid(false); chkMark:SetTexelSnappingBias(0) end
-
-                local function ApplyRowVisual()
-                    local on = item.getVal()
-                    if not item.loaded then
-                        nameFs:SetAlpha(0.30)
-                        descFs:SetAlpha(0.15)
-                        chkMark:Hide()
-                        chkBg:SetAlpha(0.3)
-                        statusFs:SetText(EllesmereUI.L("Not Loaded"))
-                        statusFs:SetTextColor(1, 1, 1, 0.25)
-                    elseif on then
-                        nameFs:SetAlpha(0.9)
-                        descFs:SetAlpha(0.30)
-                        chkMark:Show()
-                        chkBg:SetAlpha(1)
-                        chkBrd:SetColor(EG.r, EG.g, EG.b, 0.15)
-                        statusFs:SetText(EllesmereUI.L("Ready"))
-                        statusFs:SetTextColor(READY_R, READY_G, READY_B, 1)
-                    else
-                        nameFs:SetAlpha(0.50)
-                        descFs:SetAlpha(0.20)
-                        chkMark:Hide()
-                        chkBg:SetAlpha(1)
-                        chkBrd:SetColor(0.25, 0.25, 0.28, 0.6)
-                        statusFs:SetText(EllesmereUI.L("Skipped"))
-                        statusFs:SetTextColor(1, 1, 1, SKIP_A)
-                    end
-                end
-                ApplyRowVisual()
-                addonVisuals[#addonVisuals + 1] = ApplyRowVisual
-
-                -- Hover highlight overlay
-                local hoverTex = rowFrame:CreateTexture(nil, "ARTWORK")
-                hoverTex:SetAllPoints()
-                hoverTex:SetColorTexture(1, 1, 1, 0.05)
-                hoverTex:Hide()
-
-                if item.loaded then
-                    local clickBtn = CreateFrame("Button", nil, rowFrame)
-                    clickBtn:SetAllPoints(rowFrame)
-                    clickBtn:SetFrameLevel(rowFrame:GetFrameLevel() + 2)
-                    clickBtn:SetScript("OnClick", function()
-                        item.setVal(not item.getVal())
-                        -- Hard-couple co-toggles a whole component, so repaint EVERY row -- siblings lighting up is the "linked" affordance.
-                        RefreshAllAddonVisuals()
-                    end)
-                    clickBtn:SetScript("OnEnter", function()
-                        hoverTex:Show()
-                        if not item.getVal() then nameFs:SetAlpha(0.75) end
-                        -- Linked-modules tooltip; suppressed while layout is off, since nothing couples then.
-                        local members = includeLayoutExport and exportComponents and exportComponents[item.folder]
-                        if members then
-                            local names = {}
-                            for f in pairs(members) do
-                                if f ~= item.folder then
-                                    names[#names + 1] = (EllesmereUI.L(FOLDER_DISPLAY[f] or f))
-                                end
-                            end
-                            if #names > 0 then
-                                table.sort(names)
-                                EllesmereUI.ShowWidgetTooltip(rowFrame,
-                                    EllesmereUI.Lf("Linked by Anchor/Width/Height Matching to: %1$s. These export together.", table.concat(names, ", ")))
-                            end
-                        end
-                    end)
-                    clickBtn:SetScript("OnLeave", function()
-                        hoverTex:Hide()
-                        if not item.getVal() then nameFs:SetAlpha(0.50) end
-                        EllesmereUI.HideWidgetTooltip()
-                    end)
-                else
-                    local blockFrame = CreateFrame("Frame", nil, rowFrame)
-                    blockFrame:SetAllPoints()
-                    blockFrame:SetFrameLevel(rowFrame:GetFrameLevel() + 5)
-                    blockFrame:EnableMouse(true)
-                    blockFrame:SetScript("OnEnter", function()
-                        hoverTex:Show()
-                        EllesmereUI.ShowWidgetTooltip(rowFrame, EllesmereUI.L("Addon not loaded"))
-                    end)
-                    blockFrame:SetScript("OnLeave", function()
-                        hoverTex:Hide()
-                        EllesmereUI.HideWidgetTooltip()
-                    end)
-                end
-
-                rowY = rowY + ROW_H_A
+                BuildAddonListRow(scrollChild, i, item, totalW, {
+                    active = item.loaded,
+                    inactiveText = EllesmereUI.L("Not Loaded"), inactiveColor = { 1, 1, 1, 0.25 },
+                    visuals = addonVisuals,
+                    -- Hard-couple co-toggles a whole component, so repaint EVERY row -- siblings lighting up is the "linked" affordance.
+                    onToggle = function() RefreshAllAddonVisuals() end,
+                    linked = function()
+                        return includeLayoutExport and exportComponents and exportComponents[item.folder], item.folder, FOLDER_DISPLAY
+                    end,
+                    linkedTip = function(list)
+                        return EllesmereUI.Lf("Linked by Anchor/Width/Height Matching to: %1$s. These export together.", list)
+                    end,
+                    blockedTip = EllesmereUI.L("Addon not loaded"),
+                })
             end
 
             y = y - scrollH
@@ -7888,23 +7778,7 @@ initFrame:SetScript("OnEvent", function(self)
                 RefreshSummary()
             end
 
-            local eaProgress, eaTarget = 0, 0
-            local EA_FADE = 0.1
-            local eaLerp = EllesmereUI.lerp
-            local function EAApply(t)
-                eaLbl:SetTextColor(EG.r, EG.g, EG.b, eaLerp(0.7, 1, t))
-                eaBrd:SetColor(EG.r, EG.g, EG.b, eaLerp(0.7, 1, t))
-            end
-            local function EAOnUpdate(self, elapsed)
-                local dir = (eaTarget == 1) and 1 or -1
-                eaProgress = eaProgress + dir * (elapsed / EA_FADE)
-                if (dir == 1 and eaProgress >= 1) or (dir == -1 and eaProgress <= 0) then
-                    eaProgress = eaTarget; self:SetScript("OnUpdate", nil)
-                end
-                EAApply(eaProgress)
-            end
-            exportSelBtn:SetScript("OnEnter", function(self) eaTarget = 1; self:SetScript("OnUpdate", EAOnUpdate) end)
-            exportSelBtn:SetScript("OnLeave", function(self) eaTarget = 0; self:SetScript("OnUpdate", EAOnUpdate) end)
+            MakeAccentFade(exportSelBtn, eaLbl, eaBrd)
             exportSelBtn:SetScript("OnClick", function()
                 local folders = {}
                 local hasAny = false

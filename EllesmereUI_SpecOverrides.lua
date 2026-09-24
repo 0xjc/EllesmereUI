@@ -6493,48 +6493,108 @@ end
 -------------------------------------------------------------------------------
 local nameIconPopup
 
+-- Name + icon popup chrome shared by spec groups and conditional groups: an
+-- icon grid built from defs, Create runs onCreate(p). Callers set the title,
+-- button label, name text and icon selection on every show.
+local function BuildNameIconPopup(defs, onCreate)
+    local p = CreateFrame("Frame", nil, UIParent)
+    p:SetSize(380, 300)
+    p:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
+    p:SetFrameStrata("FULLSCREEN_DIALOG")
+    p:SetFrameLevel(220)
+    p:EnableMouse(true)
+    local bg = p:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(0.06, 0.06, 0.07, 0.97)
+    EllesmereUI.MakeBorder(p, 1, 1, 1, 0.15)
+
+    local title = EllesmereUI.MakeFont(p, 14, nil, ACCENT_R, ACCENT_G, ACCENT_B, 1)
+    title:SetPoint("TOP", p, "TOP", 0, -14)
+    p._title = title
+
+    local nameLbl = EllesmereUI.MakeFont(p, 12, nil, 1, 1, 1, 0.6)
+    nameLbl:SetPoint("TOPLEFT", p, "TOPLEFT", 20, -44)
+    nameLbl:SetText(L("Name"))
+
+    local nameBox = CreateFrame("EditBox", nil, p)
+    nameBox:SetSize(340, 26)
+    nameBox:SetPoint("TOPLEFT", p, "TOPLEFT", 20, -62)
+    nameBox:SetAutoFocus(false)
+    nameBox:SetFont(EllesmereUI.EXPRESSWAY or "Fonts\\FRIZQT__.TTF", 13, "")
+    nameBox:SetTextColor(1, 1, 1, 1)
+    nameBox:SetTextInsets(8, 8, 0, 0)
+    nameBox:SetMaxLetters(24)
+    EllesmereUI.SolidTex(nameBox, "BACKGROUND", 0.10, 0.10, 0.11, 0.9)
+    EllesmereUI.MakeBorder(nameBox, 1, 1, 1, 0.12)
+    nameBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    nameBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+    p._nameBox = nameBox
+
+    local iconLbl = EllesmereUI.MakeFont(p, 12, nil, 1, 1, 1, 0.6)
+    iconLbl:SetPoint("TOPLEFT", p, "TOPLEFT", 20, -102)
+    iconLbl:SetText(L("Icon"))
+
+    p._iconBtns = {}
+    local PER_ROW, SZ, GAP = 8, 34, 8
+    for i, def in ipairs(defs) do
+        local col = (i - 1) % PER_ROW
+        local rowI = math.floor((i - 1) / PER_ROW)
+        local b = CreateFrame("Button", nil, p)
+        b:SetSize(SZ, SZ)
+        b:SetPoint("TOPLEFT", p, "TOPLEFT", 20 + col * (SZ + GAP), -122 - rowI * (SZ + GAP))
+        local t = b:CreateTexture(nil, "ARTWORK")
+        t:SetAllPoints()
+        ApplyGroupIcon(t, def)
+        local brd = EllesmereUI.MakeBorder(b, 1, 1, 1, 0.10)
+        b._def = def
+        b._brd = brd
+        b:SetScript("OnClick", function(self)
+            p._selectedIcon = self._def
+            for _, ob in ipairs(p._iconBtns) do
+                if ob._brd and ob._brd.SetColor then
+                    ob._brd:SetColor(1, 1, 1, ob == self and 0 or 0.10)
+                end
+                if ob._brd and ob._brd.SetColor and ob == self then
+                    ob._brd:SetColor(ACCENT_R, ACCENT_G, ACCENT_B, 0.9)
+                end
+                ob:SetAlpha(ob == self and 1 or 0.7)
+            end
+        end)
+        b:SetAlpha(0.7)
+        p._iconBtns[#p._iconBtns + 1] = b
+    end
+
+    local create = CreateFrame("Button", nil, p)
+    create:SetSize(110, 28)
+    -- +44 centers the action+cancel pair (110 + 8 gap + 80 = 198 wide).
+    create:SetPoint("BOTTOM", p, "BOTTOM", 44, 14)
+    EllesmereUI.SolidTex(create, "BACKGROUND", 0.10, 0.10, 0.11, 0.9)
+    local cbrd = EllesmereUI.MakeBorder(create, ACCENT_R, ACCENT_G, ACCENT_B, 0.5)
+    local clbl = EllesmereUI.MakeFont(create, 12, nil, ACCENT_R, ACCENT_G, ACCENT_B, 1)
+    clbl:SetPoint("CENTER")
+    p._createLbl = clbl
+    create:SetScript("OnEnter", function() if cbrd and cbrd.SetColor then cbrd:SetColor(ACCENT_R, ACCENT_G, ACCENT_B, 0.9) end end)
+    create:SetScript("OnLeave", function() if cbrd and cbrd.SetColor then cbrd:SetColor(ACCENT_R, ACCENT_G, ACCENT_B, 0.5) end end)
+    create:SetScript("OnClick", function() onCreate(p) end)
+
+    local cancel = CreateFrame("Button", nil, p)
+    cancel:SetSize(80, 28)
+    cancel:SetPoint("RIGHT", create, "LEFT", -8, 0)
+    EllesmereUI.SolidTex(cancel, "BACKGROUND", 0.10, 0.10, 0.11, 0.9)
+    local xbrd = EllesmereUI.MakeBorder(cancel, 1, 1, 1, 0.22)
+    local xlbl = EllesmereUI.MakeFont(cancel, 12, nil, 1, 1, 1, 0.7)
+    xlbl:SetPoint("CENTER")
+    xlbl:SetText(L("Cancel"))
+    cancel:SetScript("OnEnter", function() if xbrd and xbrd.SetColor then xbrd:SetColor(1, 1, 1, 0.4) end end)
+    cancel:SetScript("OnLeave", function() if xbrd and xbrd.SetColor then xbrd:SetColor(1, 1, 1, 0.22) end end)
+    cancel:SetScript("OnClick", function() p:Hide() end)
+
+    return p
+end
+
 local function ShowNameIconPopup(specIDs, editing)
     if not nameIconPopup then
-        local p = CreateFrame("Frame", nil, UIParent)
-        p:SetSize(380, 300)
-        p:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
-        p:SetFrameStrata("FULLSCREEN_DIALOG")
-        p:SetFrameLevel(220)
-        p:EnableMouse(true)
-        local bg = p:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints()
-        bg:SetColorTexture(0.06, 0.06, 0.07, 0.97)
-        EllesmereUI.MakeBorder(p, 1, 1, 1, 0.15)
-
-        local title = EllesmereUI.MakeFont(p, 14, nil, ACCENT_R, ACCENT_G, ACCENT_B, 1)
-        title:SetPoint("TOP", p, "TOP", 0, -14)
-        title:SetText(L("New Spec Group"))
-        p._title = title
-
-        local nameLbl = EllesmereUI.MakeFont(p, 12, nil, 1, 1, 1, 0.6)
-        nameLbl:SetPoint("TOPLEFT", p, "TOPLEFT", 20, -44)
-        nameLbl:SetText(L("Name"))
-
-        local nameBox = CreateFrame("EditBox", nil, p)
-        nameBox:SetSize(340, 26)
-        nameBox:SetPoint("TOPLEFT", p, "TOPLEFT", 20, -62)
-        nameBox:SetAutoFocus(false)
-        nameBox:SetFont(EllesmereUI.EXPRESSWAY or "Fonts\\FRIZQT__.TTF", 13, "")
-        nameBox:SetTextColor(1, 1, 1, 1)
-        nameBox:SetTextInsets(8, 8, 0, 0)
-        nameBox:SetMaxLetters(24)
-        EllesmereUI.SolidTex(nameBox, "BACKGROUND", 0.10, 0.10, 0.11, 0.9)
-        EllesmereUI.MakeBorder(nameBox, 1, 1, 1, 0.12)
-        nameBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-        nameBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
-        p._nameBox = nameBox
-
-        local iconLbl = EllesmereUI.MakeFont(p, 12, nil, 1, 1, 1, 0.6)
-        iconLbl:SetPoint("TOPLEFT", p, "TOPLEFT", 20, -102)
-        iconLbl:SetText(L("Icon"))
-
         -- Icon grid: multi-spec + 3 modern role icons + 13 modern class icons
-        p._iconBtns = {}
         local defs = { { kind = "multi" } }
         for _, role in ipairs(ROLE_ORDER) do
             defs[#defs + 1] = { kind = "role", key = role }
@@ -6542,48 +6602,7 @@ local function ShowNameIconPopup(specIDs, editing)
         for _, cls in ipairs(CLASS_ORDER) do
             defs[#defs + 1] = { kind = "class", key = cls }
         end
-        local PER_ROW, SZ, GAP = 8, 34, 8
-        for i, def in ipairs(defs) do
-            local col = (i - 1) % PER_ROW
-            local rowI = math.floor((i - 1) / PER_ROW)
-            local b = CreateFrame("Button", nil, p)
-            b:SetSize(SZ, SZ)
-            b:SetPoint("TOPLEFT", p, "TOPLEFT", 20 + col * (SZ + GAP), -122 - rowI * (SZ + GAP))
-            local t = b:CreateTexture(nil, "ARTWORK")
-            t:SetAllPoints()
-            ApplyGroupIcon(t, def)
-            local brd = EllesmereUI.MakeBorder(b, 1, 1, 1, 0.10)
-            b._def = def
-            b._brd = brd
-            b:SetScript("OnClick", function(self)
-                p._selectedIcon = self._def
-                for _, ob in ipairs(p._iconBtns) do
-                    if ob._brd and ob._brd.SetColor then
-                        ob._brd:SetColor(1, 1, 1, ob == self and 0 or 0.10)
-                    end
-                    if ob._brd and ob._brd.SetColor and ob == self then
-                        ob._brd:SetColor(ACCENT_R, ACCENT_G, ACCENT_B, 0.9)
-                    end
-                    ob:SetAlpha(ob == self and 1 or 0.7)
-                end
-            end)
-            b:SetAlpha(0.7)
-            p._iconBtns[#p._iconBtns + 1] = b
-        end
-
-        local create = CreateFrame("Button", nil, p)
-        create:SetSize(110, 28)
-        -- +44 centers the action+cancel pair (110 + 8 gap + 80 = 198 wide).
-        create:SetPoint("BOTTOM", p, "BOTTOM", 44, 14)
-        EllesmereUI.SolidTex(create, "BACKGROUND", 0.10, 0.10, 0.11, 0.9)
-        local cbrd = EllesmereUI.MakeBorder(create, ACCENT_R, ACCENT_G, ACCENT_B, 0.5)
-        local clbl = EllesmereUI.MakeFont(create, 12, nil, ACCENT_R, ACCENT_G, ACCENT_B, 1)
-        clbl:SetPoint("CENTER")
-        clbl:SetText(L("Create Group"))
-        p._createLbl = clbl
-        create:SetScript("OnEnter", function() if cbrd and cbrd.SetColor then cbrd:SetColor(ACCENT_R, ACCENT_G, ACCENT_B, 0.9) end end)
-        create:SetScript("OnLeave", function() if cbrd and cbrd.SetColor then cbrd:SetColor(ACCENT_R, ACCENT_G, ACCENT_B, 0.5) end end)
-        create:SetScript("OnClick", function()
+        nameIconPopup = BuildNameIconPopup(defs, function(p)
             -- EDIT mode: rename/re-icon the existing group (specs were already
             -- applied by the picker's Next step).
             local editing = p._editing
@@ -6619,21 +6638,7 @@ local function ShowNameIconPopup(specIDs, editing)
             if UpdateIndicator then UpdateIndicator() end   -- current spec may have joined
             if RefreshCardsPopup then RefreshCardsPopup() end
         end)
-
-        local cancel = CreateFrame("Button", nil, p)
-        cancel:SetSize(80, 28)
-        cancel:SetPoint("RIGHT", create, "LEFT", -8, 0)
-        EllesmereUI.SolidTex(cancel, "BACKGROUND", 0.10, 0.10, 0.11, 0.9)
-        local xbrd = EllesmereUI.MakeBorder(cancel, 1, 1, 1, 0.22)
-        local xlbl = EllesmereUI.MakeFont(cancel, 12, nil, 1, 1, 1, 0.7)
-        xlbl:SetPoint("CENTER")
-        xlbl:SetText(L("Cancel"))
-        cancel:SetScript("OnEnter", function() if xbrd and xbrd.SetColor then xbrd:SetColor(1, 1, 1, 0.4) end end)
-        cancel:SetScript("OnLeave", function() if xbrd and xbrd.SetColor then xbrd:SetColor(1, 1, 1, 0.22) end end)
-        cancel:SetScript("OnClick", function() p:Hide() end)
-
-        nameIconPopup = p
-        EllesmereUI._specOvNamePopup = p   -- panel-hide hook closes it (lexical: local declared below the hook)
+        EllesmereUI._specOvNamePopup = nameIconPopup   -- panel-hide hook closes it (lexical: local declared below the hook)
     end
     nameIconPopup._specs = specIDs
     nameIconPopup._editing = editing
@@ -7399,92 +7404,14 @@ end
 function Cond.ShowNameIconPopup(conds, keyStr, existing)
     local p = Cond._namePopup
     if not p then
-        p = CreateFrame("Frame", nil, UIParent)
-        p:SetSize(380, 300)
-        p:SetPoint("CENTER", UIParent, "CENTER", 0, 60)
-        p:SetFrameStrata("FULLSCREEN_DIALOG")
-        p:SetFrameLevel(220)
-        p:EnableMouse(true)
-        local bg = p:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints()
-        bg:SetColorTexture(0.06, 0.06, 0.07, 0.97)
-        EllesmereUI.MakeBorder(p, 1, 1, 1, 0.15)
-
-        local title = EllesmereUI.MakeFont(p, 14, nil, ACCENT_R, ACCENT_G, ACCENT_B, 1)
-        title:SetPoint("TOP", p, "TOP", 0, -14)
-        p._title = title
-
-        local nameLbl = EllesmereUI.MakeFont(p, 12, nil, 1, 1, 1, 0.6)
-        nameLbl:SetPoint("TOPLEFT", p, "TOPLEFT", 20, -44)
-        nameLbl:SetText(L("Name"))
-
-        local nameBox = CreateFrame("EditBox", nil, p)
-        nameBox:SetSize(340, 26)
-        nameBox:SetPoint("TOPLEFT", p, "TOPLEFT", 20, -62)
-        nameBox:SetAutoFocus(false)
-        nameBox:SetFont(EllesmereUI.EXPRESSWAY or "Fonts\\FRIZQT__.TTF", 13, "")
-        nameBox:SetTextColor(1, 1, 1, 1)
-        nameBox:SetTextInsets(8, 8, 0, 0)
-        nameBox:SetMaxLetters(24)
-        EllesmereUI.SolidTex(nameBox, "BACKGROUND", 0.10, 0.10, 0.11, 0.9)
-        EllesmereUI.MakeBorder(nameBox, 1, 1, 1, 0.12)
-        nameBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-        nameBox:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
-        p._nameBox = nameBox
-
-        local iconLbl = EllesmereUI.MakeFont(p, 12, nil, 1, 1, 1, 0.6)
-        iconLbl:SetPoint("TOPLEFT", p, "TOPLEFT", 20, -102)
-        iconLbl:SetText(L("Icon"))
-
         -- Conditional icon set (one per condition), in ladder/display order.
-        p._iconBtns = {}
         local defs = {}
         for _, cdef in ipairs(EllesmereUI.CONDITIONS or {}) do
             if Cond.ICONS[cdef.id] then
                 defs[#defs + 1] = { kind = "cond", key = cdef.id }
             end
         end
-        local PER_ROW, SZ, GAP = 8, 34, 8
-        for i, def in ipairs(defs) do
-            local col = (i - 1) % PER_ROW
-            local rowI = math.floor((i - 1) / PER_ROW)
-            local b = CreateFrame("Button", nil, p)
-            b:SetSize(SZ, SZ)
-            b:SetPoint("TOPLEFT", p, "TOPLEFT", 20 + col * (SZ + GAP), -122 - rowI * (SZ + GAP))
-            local t = b:CreateTexture(nil, "ARTWORK")
-            t:SetAllPoints()
-            ApplyGroupIcon(t, def)
-            local brd = EllesmereUI.MakeBorder(b, 1, 1, 1, 0.10)
-            b._def = def
-            b._brd = brd
-            b:SetScript("OnClick", function(self)
-                p._selectedIcon = self._def
-                for _, ob in ipairs(p._iconBtns) do
-                    if ob._brd and ob._brd.SetColor then
-                        ob._brd:SetColor(1, 1, 1, ob == self and 0 or 0.10)
-                    end
-                    if ob._brd and ob._brd.SetColor and ob == self then
-                        ob._brd:SetColor(ACCENT_R, ACCENT_G, ACCENT_B, 0.9)
-                    end
-                    ob:SetAlpha(ob == self and 1 or 0.7)
-                end
-            end)
-            b:SetAlpha(0.7)
-            p._iconBtns[#p._iconBtns + 1] = b
-        end
-
-        local create = CreateFrame("Button", nil, p)
-        create:SetSize(110, 28)
-        -- +44 centers the action+cancel pair (110 + 8 gap + 80 = 198 wide).
-        create:SetPoint("BOTTOM", p, "BOTTOM", 44, 14)
-        EllesmereUI.SolidTex(create, "BACKGROUND", 0.10, 0.10, 0.11, 0.9)
-        local cbrd = EllesmereUI.MakeBorder(create, ACCENT_R, ACCENT_G, ACCENT_B, 0.5)
-        local clbl = EllesmereUI.MakeFont(create, 12, nil, ACCENT_R, ACCENT_G, ACCENT_B, 1)
-        clbl:SetPoint("CENTER")
-        p._createLbl = clbl
-        create:SetScript("OnEnter", function() if cbrd and cbrd.SetColor then cbrd:SetColor(ACCENT_R, ACCENT_G, ACCENT_B, 0.9) end end)
-        create:SetScript("OnLeave", function() if cbrd and cbrd.SetColor then cbrd:SetColor(ACCENT_R, ACCENT_G, ACCENT_B, 0.5) end end)
-        create:SetScript("OnClick", function()
+        p = BuildNameIconPopup(defs, function(p)
             local conds2 = p._conds
             if not conds2 or not next(conds2) then p:Hide(); return end
             local name = p._nameBox:GetText()
@@ -7531,19 +7458,6 @@ function Cond.ShowNameIconPopup(conds, keyStr, existing)
                 EllesmereUI:RefreshPage(true)
             end
         end)
-
-        local cancel = CreateFrame("Button", nil, p)
-        cancel:SetSize(80, 28)
-        cancel:SetPoint("RIGHT", create, "LEFT", -8, 0)
-        EllesmereUI.SolidTex(cancel, "BACKGROUND", 0.10, 0.10, 0.11, 0.9)
-        local xbrd = EllesmereUI.MakeBorder(cancel, 1, 1, 1, 0.22)
-        local xlbl = EllesmereUI.MakeFont(cancel, 12, nil, 1, 1, 1, 0.7)
-        xlbl:SetPoint("CENTER")
-        xlbl:SetText(L("Cancel"))
-        cancel:SetScript("OnEnter", function() if xbrd and xbrd.SetColor then xbrd:SetColor(1, 1, 1, 0.4) end end)
-        cancel:SetScript("OnLeave", function() if xbrd and xbrd.SetColor then xbrd:SetColor(1, 1, 1, 0.22) end end)
-        cancel:SetScript("OnClick", function() p:Hide() end)
-
         Cond._namePopup = p
     end
     p._conds = conds
