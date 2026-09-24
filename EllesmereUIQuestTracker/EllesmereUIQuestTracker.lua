@@ -210,8 +210,6 @@ SlashCmdList.EQT = function(msg)
         if EQT.UpdateVisibility then EQT.UpdateVisibility() end
     else
         if InCombatLockdown and InCombatLockdown() then return end
-        if EllesmereUI and EllesmereUI.ShowModule then
-            EllesmereUI:ShowModule("EllesmereUIQuestTracker")
-        end
+        EllesmereUI:ShowModule("EllesmereUIQuestTracker")
     end
 end

@@ -2529,13 +2529,12 @@ local function ApplyModuleFont(fs)
     if fs.eqdIconText and EllesmereUI.GetIconTextOutlineFlag then
         flags = EllesmereUI.GetIconTextOutlineFlag(FONT_KEY)
     else
-        flags = EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag(FONT_KEY) or ""
+        flags = EllesmereUI.GetFontOutlineFlag(FONT_KEY) or ""
     end
     -- Runtime SetShadowOffset no longer renders on 12.x; the shadow has to be
     -- carried by a FontObject, primed BEFORE the typeface call.
     if EllesmereUI.PrimeFontShadow then
-        local useShadow = flags == "" and EllesmereUI.GetFontUseShadow
-            and EllesmereUI.GetFontUseShadow()
+        local useShadow = flags == "" and EllesmereUI.GetFontUseShadow()
         EllesmereUI.PrimeFontShadow(fs, useShadow and true or false)
     end
     fs:SetFont(EllesmereUI.GetFontPath(FONT_KEY), size, flags)

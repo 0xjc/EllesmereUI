@@ -165,12 +165,12 @@ end
 
 local function ApplyShadow(fs)
     if not fs then return end
-    local useShadow = (EllesmereUI and EllesmereUI.GetFontUseShadow and EllesmereUI.GetFontUseShadow("questTracker")) and true or false
+    local useShadow = (EllesmereUI.GetFontUseShadow("questTracker")) and true or false
     -- 12.0.7: instance shadows no longer render; shadow must ride a FontObject.
     -- These are Blizzard objective-tracker strings, so capture and restore the
     -- current font face around PrimeFontShadow to preserve Blizzard's typeface.
     local _pf, _ps, _pfl = fs:GetFont()
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, useShadow) end
+    EllesmereUI.PrimeFontShadow(fs, useShadow)
     if _pf then fs:SetFont(_pf, _ps, _pfl) end
 end
 
