@@ -3167,6 +3167,148 @@ do
         return nil
     end
 
+    -- Border defaults tables shared by modules with the same size keys and
+    -- tuning. Read-only: modules pass them to RegisterBorderDefaults as is.
+    do
+        local function AllSizes(ox, oy, sx, sy)
+            local t = {}
+            for k = 0, 4 do t[k] = { offsetX = ox, offsetY = oy, shiftX = sx, shiftY = sy } end
+            return t
+        end
+        EllesmereUI.BORDER_DEFAULTS_BARS = {
+            ["glow"] = {
+                defaultSize = 1,
+                sizes = AllSizes(0, 0, 0, 0),
+            },
+            ["blizz"] = {
+                defaultSize = 3,
+                sizes = {
+                    [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
+                    [1] = { offsetX = 2, offsetY = 1, shiftX = 0, shiftY = 0 },
+                    [2] = { offsetX = 3, offsetY = 2, shiftX = 1, shiftY = 0 },
+                    [3] = { offsetX = 4, offsetY = 2, shiftX = 1, shiftY = 0 },
+                    [4] = { offsetX = 4, offsetY = 2, shiftX = 1, shiftY = 0 },
+                },
+            },
+            ["dialog"] = {
+                defaultSize = 1,
+                sizes = {
+                    [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
+                    [1] = { offsetX = 3, offsetY = 3, shiftX = 0, shiftY = 0 },
+                    [2] = { offsetX = 3, offsetY = 5, shiftX = 0, shiftY = 0 },
+                    [3] = { offsetX = 3, offsetY = 5, shiftX = 0, shiftY = 0 },
+                    [4] = { offsetX = 5, offsetY = 10, shiftX = 0, shiftY = 0 },
+                },
+            },
+            ["sm:Blizzard Achievement Wood"] = {
+                defaultSize = 1,
+                sizes = {
+                    [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
+                    [1] = { offsetX = 1, offsetY = 1, shiftX = 0, shiftY = 0 },
+                    [2] = { offsetX = 1, offsetY = 1, shiftX = 0, shiftY = 0 },
+                    [3] = { offsetX = 1, offsetY = 6, shiftX = 0, shiftY = 0 },
+                    [4] = { offsetX = 1, offsetY = 8, shiftX = 0, shiftY = 0 },
+                },
+            },
+        }
+    end
+    do
+        local ALL_SIZES = { "none", "thin", "normal", "heavy", "strong" }
+        local function AllSizes(ox, oy, sx, sy)
+            local t = {}
+            for _, k in ipairs(ALL_SIZES) do t[k] = { offsetX = ox, offsetY = oy, shiftX = sx, shiftY = sy } end
+            return t
+        end
+        EllesmereUI.BORDER_DEFAULTS_BUTTONS = {
+            ["glow"] = {
+                defaultSize = "normal",
+                sizes = AllSizes(0, 0, 0, 0),
+            },
+            ["blizz"] = {
+                defaultSize = "heavy",
+                sizes = {
+                    none   = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
+                    thin   = { offsetX = 2, offsetY = 1, shiftX = 0, shiftY = 0 },
+                    normal = { offsetX = 3, offsetY = 2, shiftX = 0, shiftY = 0 },
+                    heavy  = { offsetX = 4, offsetY = 2, shiftX = 1, shiftY = 0 },
+                    strong = { offsetX = 4, offsetY = 2, shiftX = 2, shiftY = 0 },
+                },
+            },
+            ["dialog"] = {
+                defaultSize = "normal",
+                sizes = AllSizes(4, 4, 0, 0),
+            },
+            ["sm:Blizzard Achievement Wood"] = {
+                defaultSize = "thin",
+                sizes = AllSizes(1, 1, 0, 0),
+            },
+        }
+    end
+    do
+        local ALL_SIZES = { [0] = true, [1] = true, [2] = true, [3] = true, [4] = true }
+        local function AllSizes(ox, oy, sx, sy)
+            local t = {}
+            for k in pairs(ALL_SIZES) do t[k] = { offsetX = ox, offsetY = oy, shiftX = sx, shiftY = sy } end
+            return t
+        end
+        EllesmereUI.BORDER_DEFAULTS_FRAMES = {
+            ["glow"] = {
+                defaultSize = 1,
+                sizes = AllSizes(0, 0, 0, 0),
+            },
+            ["blizz"] = {
+                defaultSize = 4,
+                sizes = {
+                    [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
+                    [1] = { offsetX = 2, offsetY = 1, shiftX = 0, shiftY = 0 },
+                    [2] = { offsetX = 3, offsetY = 1, shiftX = 1, shiftY = 0 },
+                    [3] = { offsetX = 4, offsetY = 2, shiftX = 2, shiftY = 0 },
+                    [4] = { offsetX = 5, offsetY = 3, shiftX = 2, shiftY = 0 },
+                },
+            },
+            ["dialog"] = {
+                defaultSize = 2,
+                sizes = {
+                    [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
+                    [1] = { offsetX = 2, offsetY = 2, shiftX = 0, shiftY = 0 },
+                    [2] = { offsetX = 2, offsetY = 2, shiftX = 0, shiftY = 0 },
+                    [3] = { offsetX = 4, offsetY = 4, shiftX = 0, shiftY = 0 },
+                    [4] = { offsetX = 8, offsetY = 8, shiftX = 0, shiftY = 0 },
+                },
+            },
+            ["sm:Blizzard Achievement Wood"] = {
+                defaultSize = 1,
+                sizes = AllSizes(1, 1, 0, 0),
+            },
+        }
+    end
+
+    -- Icon/portrait shape art (read-only). Code that applies masks stays per module.
+    local SHAPE_MEDIA = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\"
+    EllesmereUI.SHAPE_MASKS = {
+        circle   = SHAPE_MEDIA .. "circle_mask.tga",
+        csquare  = SHAPE_MEDIA .. "csquare_mask.tga",
+        diamond  = SHAPE_MEDIA .. "diamond_mask.tga",
+        hexagon  = SHAPE_MEDIA .. "hexagon_mask.tga",
+        portrait = SHAPE_MEDIA .. "portrait_mask.tga",
+        shield   = SHAPE_MEDIA .. "shield_mask.tga",
+        square   = SHAPE_MEDIA .. "square_mask.tga",
+    }
+    EllesmereUI.SHAPE_BORDERS = {
+        circle   = SHAPE_MEDIA .. "circle_border.tga",
+        csquare  = SHAPE_MEDIA .. "csquare_border.tga",
+        diamond  = SHAPE_MEDIA .. "diamond_border.tga",
+        hexagon  = SHAPE_MEDIA .. "hexagon_border.tga",
+        portrait = SHAPE_MEDIA .. "portrait_border.tga",
+        shield   = SHAPE_MEDIA .. "shield_border.tga",
+        square   = SHAPE_MEDIA .. "square_border.tga",
+    }
+    -- Top pixel inset from a 128px mask's edge to its visible opening.
+    EllesmereUI.SHAPE_INSETS = {
+        circle = 17, csquare = 17, diamond = 14,
+        hexagon = 17, portrait = 17, shield = 13, square = 17,
+    }
+
     -- Built-in border textures (always available, no SharedMedia). defaultOffset = outward extension from the content edge, tuned per-texture (internal padding differs).
     EllesmereUI._builtinBorderTextures = {
         { key = "solid",   name = "Solid" },

@@ -1070,7 +1070,7 @@ initFrame:SetScript("OnEvent", function(self)
                             entry.shapeMask:SetAllPoints(bf)
                         end
                         -- Expand texcoords to fill mask opening
-                        local SHAPE_INSETS = { circle=17, csquare=17, diamond=14, hexagon=17, portrait=17, shield=13, square=17 }
+                        local SHAPE_INSETS = EllesmereUI.SHAPE_INSETS
                         local insetPx = SHAPE_INSETS[btnShape] or 17
                         local visRatio = (128 - 2 * insetPx) / 128
                         local expand = ((1 / visRatio) - 1) * 0.5

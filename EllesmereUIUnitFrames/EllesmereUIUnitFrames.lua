@@ -130,44 +130,7 @@ do
 end
 
 -- Per-addon border texture defaults (size key = borderSize 0-4)
-do
-    local ALL_SIZES = { [0] = true, [1] = true, [2] = true, [3] = true, [4] = true }
-    local function AllSizes(ox, oy, sx, sy)
-        local t = {}
-        for k in pairs(ALL_SIZES) do t[k] = { offsetX = ox, offsetY = oy, shiftX = sx, shiftY = sy } end
-        return t
-    end
-    EllesmereUI.RegisterBorderDefaults("unitframes", {
-        ["glow"] = {
-            defaultSize = 1,
-            sizes = AllSizes(0, 0, 0, 0),
-        },
-        ["blizz"] = {
-            defaultSize = 4,
-            sizes = {
-                [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                [1] = { offsetX = 2, offsetY = 1, shiftX = 0, shiftY = 0 },
-                [2] = { offsetX = 3, offsetY = 1, shiftX = 1, shiftY = 0 },
-                [3] = { offsetX = 4, offsetY = 2, shiftX = 2, shiftY = 0 },
-                [4] = { offsetX = 5, offsetY = 3, shiftX = 2, shiftY = 0 },
-            },
-        },
-        ["dialog"] = {
-            defaultSize = 2,
-            sizes = {
-                [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                [1] = { offsetX = 2, offsetY = 2, shiftX = 0, shiftY = 0 },
-                [2] = { offsetX = 2, offsetY = 2, shiftX = 0, shiftY = 0 },
-                [3] = { offsetX = 4, offsetY = 4, shiftX = 0, shiftY = 0 },
-                [4] = { offsetX = 8, offsetY = 8, shiftX = 0, shiftY = 0 },
-            },
-        },
-        ["sm:Blizzard Achievement Wood"] = {
-            defaultSize = 1,
-            sizes = AllSizes(1, 1, 0, 0),
-        },
-    })
-end
+EllesmereUI.RegisterBorderDefaults("unitframes", EllesmereUI.BORDER_DEFAULTS_FRAMES)
 
 
 -- Portrait UNIT_MODEL_CHANGED on eventless frames (TargetTarget) triggers UnitIsUnit,
@@ -3588,36 +3551,11 @@ function ns.UF_AttachEngineFrame(frame, unit, polled)
 end
 
 -- Mask and border paths for detached portrait shapes.
-local PORTRAIT_MEDIA = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\"
-local PORTRAIT_MASKS = {
-    portrait = PORTRAIT_MEDIA .. "portrait_mask.tga",
-    circle   = PORTRAIT_MEDIA .. "circle_mask.tga",
-    square   = PORTRAIT_MEDIA .. "square_mask.tga",
-    csquare  = PORTRAIT_MEDIA .. "csquare_mask.tga",
-    diamond  = PORTRAIT_MEDIA .. "diamond_mask.tga",
-    hexagon  = PORTRAIT_MEDIA .. "hexagon_mask.tga",
-    shield   = PORTRAIT_MEDIA .. "shield_mask.tga",
-}
-local PORTRAIT_BORDERS = {
-    portrait = PORTRAIT_MEDIA .. "portrait_border.tga",
-    circle   = PORTRAIT_MEDIA .. "circle_border.tga",
-    square   = PORTRAIT_MEDIA .. "square_border.tga",
-    csquare  = PORTRAIT_MEDIA .. "csquare_border.tga",
-    diamond  = PORTRAIT_MEDIA .. "diamond_border.tga",
-    hexagon  = PORTRAIT_MEDIA .. "hexagon_border.tga",
-    shield   = PORTRAIT_MEDIA .. "shield_border.tga",
-}
+local PORTRAIT_MASKS = EllesmereUI.SHAPE_MASKS
+local PORTRAIT_BORDERS = EllesmereUI.SHAPE_BORDERS
 
 -- Top pixel inset for each mask shape (px from edge to visible portrait area in 128px mask)
-local MASK_INSETS = {
-    circle   = 17,
-    csquare  = 17,
-    diamond  = 14,
-    hexagon  = 17,
-    portrait = 17,
-    shield   = 13,
-    square   = 17,
-}
+local MASK_INSETS = EllesmereUI.SHAPE_INSETS
 
 -- Shared with EllesmereUIUnitFrames_PlayerAuraBars.lua (same addon/ns), which reuses
 -- this shape media set for Player Aura Bars' iconShape feature.

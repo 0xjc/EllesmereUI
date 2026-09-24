@@ -377,29 +377,9 @@ local HIGHLIGHT_TEXTURES = {
 }
 ns.HIGHLIGHT_TEXTURES = HIGHLIGHT_TEXTURES
 
-local SHAPE_MEDIA = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\"
-local SHAPE_MASKS = {
-    circle   = SHAPE_MEDIA .. "circle_mask.tga",
-    csquare  = SHAPE_MEDIA .. "csquare_mask.tga",
-    diamond  = SHAPE_MEDIA .. "diamond_mask.tga",
-    hexagon  = SHAPE_MEDIA .. "hexagon_mask.tga",
-    portrait = SHAPE_MEDIA .. "portrait_mask.tga",
-    shield   = SHAPE_MEDIA .. "shield_mask.tga",
-    square   = SHAPE_MEDIA .. "square_mask.tga",
-}
-local SHAPE_BORDERS = {
-    circle   = SHAPE_MEDIA .. "circle_border.tga",
-    csquare  = SHAPE_MEDIA .. "csquare_border.tga",
-    diamond  = SHAPE_MEDIA .. "diamond_border.tga",
-    hexagon  = SHAPE_MEDIA .. "hexagon_border.tga",
-    portrait = SHAPE_MEDIA .. "portrait_border.tga",
-    shield   = SHAPE_MEDIA .. "shield_border.tga",
-    square   = SHAPE_MEDIA .. "square_border.tga",
-}
-local SHAPE_INSETS = {
-    circle = 17, csquare = 17, diamond = 14,
-    hexagon = 17, portrait = 17, shield = 13, square = 17,
-}
+local SHAPE_MASKS = EllesmereUI.SHAPE_MASKS
+local SHAPE_BORDERS = EllesmereUI.SHAPE_BORDERS
+local SHAPE_INSETS = EllesmereUI.SHAPE_INSETS
 local SHAPE_ZOOM_DEFAULTS = {
     none = 5.5, cropped = 2, square = 6.0, circle = 6.0, csquare = 6.0,
     diamond = 6.0, hexagon = 6.0, portrait = 6.0, shield = 6.0,
@@ -440,38 +420,7 @@ ns.BORDER_THICKNESS_DEFAULT_REGULAR = "thin"
 ns.BORDER_THICKNESS_DEFAULT_SHAPE   = "strong"
 
 -- Per-addon border texture defaults (central registry)
-do
-    local ALL_SIZES = { "none", "thin", "normal", "heavy", "strong" }
-    local function AllSizes(ox, oy, sx, sy)
-        local t = {}
-        for _, k in ipairs(ALL_SIZES) do t[k] = { offsetX = ox, offsetY = oy, shiftX = sx, shiftY = sy } end
-        return t
-    end
-    EllesmereUI.RegisterBorderDefaults("actionbars", {
-        ["glow"] = {
-            defaultSize = "normal",
-            sizes = AllSizes(0, 0, 0, 0),
-        },
-        ["blizz"] = {
-            defaultSize = "heavy",
-            sizes = {
-                none   = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                thin   = { offsetX = 2, offsetY = 1, shiftX = 0, shiftY = 0 },
-                normal = { offsetX = 3, offsetY = 2, shiftX = 0, shiftY = 0 },
-                heavy  = { offsetX = 4, offsetY = 2, shiftX = 1, shiftY = 0 },
-                strong = { offsetX = 4, offsetY = 2, shiftX = 2, shiftY = 0 },
-            },
-        },
-        ["dialog"] = {
-            defaultSize = "normal",
-            sizes = AllSizes(4, 4, 0, 0),
-        },
-        ["sm:Blizzard Achievement Wood"] = {
-            defaultSize = "thin",
-            sizes = AllSizes(1, 1, 0, 0),
-        },
-    })
-end
+EllesmereUI.RegisterBorderDefaults("actionbars", EllesmereUI.BORDER_DEFAULTS_BUTTONS)
 
 -------------------------------------------------------------------------------
 --  Defaults

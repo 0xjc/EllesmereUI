@@ -630,36 +630,11 @@ initFrame:SetScript("OnEvent", function(self)
     local ENEMY_PORTRAIT_PATH = "Interface\\AddOns\\EllesmereUI\\media\\enemy-portrait.png"
 
     -- Portrait mask/border media paths (for detached portrait shape preview)
-    local PORTRAIT_MEDIA_P = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\"
-    local PORTRAIT_MASKS_P = {
-        portrait = PORTRAIT_MEDIA_P .. "portrait_mask.tga",
-        circle   = PORTRAIT_MEDIA_P .. "circle_mask.tga",
-        square   = PORTRAIT_MEDIA_P .. "square_mask.tga",
-        csquare  = PORTRAIT_MEDIA_P .. "csquare_mask.tga",
-        diamond  = PORTRAIT_MEDIA_P .. "diamond_mask.tga",
-        hexagon  = PORTRAIT_MEDIA_P .. "hexagon_mask.tga",
-        shield   = PORTRAIT_MEDIA_P .. "shield_mask.tga",
-    }
-    local PORTRAIT_BORDERS_P = {
-        portrait = PORTRAIT_MEDIA_P .. "portrait_border.tga",
-        circle   = PORTRAIT_MEDIA_P .. "circle_border.tga",
-        square   = PORTRAIT_MEDIA_P .. "square_border.tga",
-        csquare  = PORTRAIT_MEDIA_P .. "csquare_border.tga",
-        diamond  = PORTRAIT_MEDIA_P .. "diamond_border.tga",
-        hexagon  = PORTRAIT_MEDIA_P .. "hexagon_border.tga",
-        shield   = PORTRAIT_MEDIA_P .. "shield_border.tga",
-    }
+    local PORTRAIT_MASKS_P = EllesmereUI.SHAPE_MASKS
+    local PORTRAIT_BORDERS_P = EllesmereUI.SHAPE_BORDERS
 
     -- Top pixel inset for each mask shape (px from edge to visible portrait area)
-    local MASK_INSETS = {
-        circle   = 17,
-        csquare  = 17,
-        diamond  = 14,
-        hexagon  = 17,
-        portrait = 17,
-        shield   = 13,
-        square   = 17,
-    }
+    local MASK_INSETS = EllesmereUI.SHAPE_INSETS
 
     local function ApplyClassIconTexture_Preview(tex, classToken, style)
         local coords = CLASS_FULL_COORDS[classToken]

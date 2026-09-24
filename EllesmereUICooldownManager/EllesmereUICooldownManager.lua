@@ -133,38 +133,7 @@ do
 end
 
 -- Per-addon border texture defaults (same as Action Bars -- same size system)
-do
-    local ALL_SIZES = { "none", "thin", "normal", "heavy", "strong" }
-    local function AllSizes(ox, oy, sx, sy)
-        local t = {}
-        for _, k in ipairs(ALL_SIZES) do t[k] = { offsetX = ox, offsetY = oy, shiftX = sx, shiftY = sy } end
-        return t
-    end
-    EllesmereUI.RegisterBorderDefaults("cdm", {
-        ["glow"] = {
-            defaultSize = "normal",
-            sizes = AllSizes(0, 0, 0, 0),
-        },
-        ["blizz"] = {
-            defaultSize = "heavy",
-            sizes = {
-                none   = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                thin   = { offsetX = 2, offsetY = 1, shiftX = 0, shiftY = 0 },
-                normal = { offsetX = 3, offsetY = 2, shiftX = 0, shiftY = 0 },
-                heavy  = { offsetX = 4, offsetY = 2, shiftX = 1, shiftY = 0 },
-                strong = { offsetX = 4, offsetY = 2, shiftX = 2, shiftY = 0 },
-            },
-        },
-        ["dialog"] = {
-            defaultSize = "normal",
-            sizes = AllSizes(4, 4, 0, 0),
-        },
-        ["sm:Blizzard Achievement Wood"] = {
-            defaultSize = "thin",
-            sizes = AllSizes(1, 1, 0, 0),
-        },
-    })
-end
+EllesmereUI.RegisterBorderDefaults("cdm", EllesmereUI.BORDER_DEFAULTS_BUTTONS)
 
 local ECME = EllesmereUI.Lite.NewAddon("EllesmereUICooldownManager")
 ns.ECME = ECME
@@ -257,28 +226,9 @@ ns.DEFAULT_MAPPING_NAME = "Buff Name (eg: Divine Purpose)"
 --  Shape Constants (shared with action bars)
 -------------------------------------------------------------------------------
 local CDM_SHAPES = {
-    masks = {
-        circle   = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\circle_mask.tga",
-        csquare  = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\csquare_mask.tga",
-        diamond  = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\diamond_mask.tga",
-        hexagon  = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\hexagon_mask.tga",
-        portrait = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\portrait_mask.tga",
-        shield   = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\shield_mask.tga",
-        square   = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\square_mask.tga",
-    },
-    borders = {
-        circle   = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\circle_border.tga",
-        csquare  = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\csquare_border.tga",
-        diamond  = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\diamond_border.tga",
-        hexagon  = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\hexagon_border.tga",
-        portrait = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\portrait_border.tga",
-        shield   = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\shield_border.tga",
-        square   = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\square_border.tga",
-    },
-    insets = {
-        circle = 17, csquare = 17, diamond = 14,
-        hexagon = 17, portrait = 17, shield = 13, square = 17,
-    },
+    masks = EllesmereUI.SHAPE_MASKS,
+    borders = EllesmereUI.SHAPE_BORDERS,
+    insets = EllesmereUI.SHAPE_INSETS,
     iconExpand = 7,
     iconExpandOffsets = {
         circle = 2, csquare = 4, diamond = 2, hexagon = 4,

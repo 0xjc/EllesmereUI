@@ -49,25 +49,8 @@ local SATED_DEBUFFS = {
     390435,  -- Exhaustion (Fury of the Aspects)
 }
 
-local SHAPE_MEDIA = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\"
-local SHAPE_MASKS = {
-    circle   = SHAPE_MEDIA .. "circle_mask.tga",
-    csquare  = SHAPE_MEDIA .. "csquare_mask.tga",
-    diamond  = SHAPE_MEDIA .. "diamond_mask.tga",
-    hexagon  = SHAPE_MEDIA .. "hexagon_mask.tga",
-    portrait = SHAPE_MEDIA .. "portrait_mask.tga",
-    shield   = SHAPE_MEDIA .. "shield_mask.tga",
-    square   = SHAPE_MEDIA .. "square_mask.tga",
-}
-local SHAPE_BORDERS = {
-    circle   = SHAPE_MEDIA .. "circle_border.tga",
-    csquare  = SHAPE_MEDIA .. "csquare_border.tga",
-    diamond  = SHAPE_MEDIA .. "diamond_border.tga",
-    hexagon  = SHAPE_MEDIA .. "hexagon_border.tga",
-    portrait = SHAPE_MEDIA .. "portrait_border.tga",
-    shield   = SHAPE_MEDIA .. "shield_border.tga",
-    square   = SHAPE_MEDIA .. "square_border.tga",
-}
+local SHAPE_MASKS = EllesmereUI.SHAPE_MASKS
+local SHAPE_BORDERS = EllesmereUI.SHAPE_BORDERS
 local BORDER_PX = { none = 0, thin = 1, normal = 2, heavy = 3, strong = 4 }
 
 -------------------------------------------------------------------------------

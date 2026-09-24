@@ -113,25 +113,8 @@ initFrame:SetScript("OnEvent", function(self)
     }
 
     -- Action bar shape masks/borders (for preview rendering)
-    local AB_SHAPE_MEDIA = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\"
-    local AB_SHAPE_MASKS = {
-        circle = AB_SHAPE_MEDIA .. "circle_mask.tga",
-        csquare = AB_SHAPE_MEDIA .. "csquare_mask.tga",
-        diamond = AB_SHAPE_MEDIA .. "diamond_mask.tga",
-        hexagon = AB_SHAPE_MEDIA .. "hexagon_mask.tga",
-        portrait = AB_SHAPE_MEDIA .. "portrait_mask.tga",
-        shield = AB_SHAPE_MEDIA .. "shield_mask.tga",
-        square = AB_SHAPE_MEDIA .. "square_mask.tga",
-    }
-    local AB_SHAPE_BORDERS = {
-        circle = AB_SHAPE_MEDIA .. "circle_border.tga",
-        csquare = AB_SHAPE_MEDIA .. "csquare_border.tga",
-        diamond = AB_SHAPE_MEDIA .. "diamond_border.tga",
-        hexagon = AB_SHAPE_MEDIA .. "hexagon_border.tga",
-        portrait = AB_SHAPE_MEDIA .. "portrait_border.tga",
-        shield = AB_SHAPE_MEDIA .. "shield_border.tga",
-        square = AB_SHAPE_MEDIA .. "square_border.tga",
-    }
+    local AB_SHAPE_MASKS = EllesmereUI.SHAPE_MASKS
+    local AB_SHAPE_BORDERS = EllesmereUI.SHAPE_BORDERS
 
     -- Action bar entries (1-8) are stable; CDM bar entries are built dynamically via
     -- BuildBGTargetList since users can add extra cooldown/utility/buff bars beyond defaults.

@@ -12,44 +12,7 @@ local EBS = EllesmereUI.Lite.NewAddon("EllesmereUIMinimap")
 local PP = EllesmereUI.PP
 
 -- Per-size offset/shift defaults for the textured border styles (same as unit frames).
-do
-    local ALL_SIZES = { [0] = true, [1] = true, [2] = true, [3] = true, [4] = true }
-    local function AllSizes(ox, oy, sx, sy)
-        local t = {}
-        for k in pairs(ALL_SIZES) do t[k] = { offsetX = ox, offsetY = oy, shiftX = sx, shiftY = sy } end
-        return t
-    end
-    EllesmereUI.RegisterBorderDefaults("minimap", {
-        ["glow"] = {
-            defaultSize = 1,
-            sizes = AllSizes(0, 0, 0, 0),
-        },
-        ["blizz"] = {
-            defaultSize = 4,
-            sizes = {
-                [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                [1] = { offsetX = 2, offsetY = 1, shiftX = 0, shiftY = 0 },
-                [2] = { offsetX = 3, offsetY = 1, shiftX = 1, shiftY = 0 },
-                [3] = { offsetX = 4, offsetY = 2, shiftX = 2, shiftY = 0 },
-                [4] = { offsetX = 5, offsetY = 3, shiftX = 2, shiftY = 0 },
-            },
-        },
-        ["dialog"] = {
-            defaultSize = 2,
-            sizes = {
-                [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                [1] = { offsetX = 2, offsetY = 2, shiftX = 0, shiftY = 0 },
-                [2] = { offsetX = 2, offsetY = 2, shiftX = 0, shiftY = 0 },
-                [3] = { offsetX = 4, offsetY = 4, shiftX = 0, shiftY = 0 },
-                [4] = { offsetX = 8, offsetY = 8, shiftX = 0, shiftY = 0 },
-            },
-        },
-        ["sm:Blizzard Achievement Wood"] = {
-            defaultSize = 1,
-            sizes = AllSizes(1, 1, 0, 0),
-        },
-    })
-end
+EllesmereUI.RegisterBorderDefaults("minimap", EllesmereUI.BORDER_DEFAULTS_FRAMES)
 
 local EG = EllesmereUI.ELLESMERE_GREEN
 

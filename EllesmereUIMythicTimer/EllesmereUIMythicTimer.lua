@@ -374,49 +374,7 @@ local DB_DEFAULTS = {
 }
 
 -- Per-addon border texture defaults (same as resourcebars/cdm)
-do
-    local function AllSizes(ox, oy, sx, sy)
-        local t = {}
-        for k = 0, 4 do t[k] = { offsetX = ox, offsetY = oy, shiftX = sx, shiftY = sy } end
-        return t
-    end
-    EllesmereUI.RegisterBorderDefaults("MythicPlus", {
-        ["glow"] = {
-            defaultSize = 1,
-            sizes = AllSizes(0, 0, 0, 0),
-        },
-        ["blizz"] = {
-            defaultSize = 3,
-            sizes = {
-                [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                [1] = { offsetX = 2, offsetY = 1, shiftX = 0, shiftY = 0 },
-                [2] = { offsetX = 3, offsetY = 2, shiftX = 1, shiftY = 0 },
-                [3] = { offsetX = 4, offsetY = 2, shiftX = 1, shiftY = 0 },
-                [4] = { offsetX = 4, offsetY = 2, shiftX = 1, shiftY = 0 },
-            },
-        },
-        ["dialog"] = {
-            defaultSize = 1,
-            sizes = {
-                [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                [1] = { offsetX = 3, offsetY = 3, shiftX = 0, shiftY = 0 },
-                [2] = { offsetX = 3, offsetY = 5, shiftX = 0, shiftY = 0 },
-                [3] = { offsetX = 3, offsetY = 5, shiftX = 0, shiftY = 0 },
-                [4] = { offsetX = 5, offsetY = 10, shiftX = 0, shiftY = 0 },
-            },
-        },
-        ["sm:Blizzard Achievement Wood"] = {
-            defaultSize = 1,
-            sizes = {
-                [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                [1] = { offsetX = 1, offsetY = 1, shiftX = 0, shiftY = 0 },
-                [2] = { offsetX = 1, offsetY = 1, shiftX = 0, shiftY = 0 },
-                [3] = { offsetX = 1, offsetY = 6, shiftX = 0, shiftY = 0 },
-                [4] = { offsetX = 1, offsetY = 8, shiftX = 0, shiftY = 0 },
-            },
-        },
-    })
-end
+EllesmereUI.RegisterBorderDefaults("MythicPlus", EllesmereUI.BORDER_DEFAULTS_BARS)
 
 -- State
 local db
