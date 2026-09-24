@@ -11189,6 +11189,11 @@ local BANNER_PX_H = 120
 
 local hudFrame
 
+-- Stable visible-height anchor for other addons that stack controls below the banner.
+function EllesmereUI:GetUnlockModeTopBarAnchor()
+    return hudFrame and hudFrame._hoverZone
+end
+
 local function CreateHUD(parent)
     if hudFrame then return hudFrame end
 

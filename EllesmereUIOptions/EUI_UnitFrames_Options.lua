@@ -7720,7 +7720,7 @@ initFrame:SetScript("OnEvent", function(self)
                 { type="toggle", text="Show Level",
                   tooltip="Shows the unit's level in the frame's level circle, as the default UI does.",
                   getValue=function() return SVal("blizzShowLevel", true) end,
-                  setValue=function(v) SSet("blizzShowLevel", v); UpdatePreview() end },
+                  setValue=function(v) SSet("blizzShowLevel", v); UpdatePreview(); EllesmereUI:RefreshPage() end },
                 { type="label", text="" });  y = y - h
             if not EllesmereUI._prebuilding then
                 EllesmereUI.BuildInlineCog(parent._ufLevelRow._leftRegion, {
@@ -14045,7 +14045,7 @@ initFrame:SetScript("OnEvent", function(self)
                 { type="toggle", text="Show Level",
                   tooltip="Shows the unit's level in the frame's level circle, as the default UI does.",
                   getValue=function() return settingsTable.blizzShowLevel ~= false end,
-                  setValue=function(v) settingsTable.blizzShowLevel = v; ReloadAndUpdate() end },
+                  setValue=function(v) settingsTable.blizzShowLevel = v; ReloadAndUpdate(); EllesmereUI:RefreshPage() end },
                 { type="label", text="" });  y = y - h
             if not EllesmereUI._prebuilding then
                 EllesmereUI.BuildInlineCog(parent._ufLevelRow._leftRegion, {

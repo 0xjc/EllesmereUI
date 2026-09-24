@@ -2186,6 +2186,16 @@ function EllesmereUI.ExportProfile(profileName, includedFolders, includeLayout, 
     return EXPORT_PREFIX .. encoded
 end
 
+-- Public: re-encode a decoded payload back to an import string.
+function EllesmereUI.EncodePayload(payload)
+    if not payload then return nil end
+    local serialized = Serializer.Serialize(payload)
+    if not LibDeflate then return nil end
+    local compressed = LibDeflate:CompressDeflate(serialized)
+    local encoded = LibDeflate:EncodeForPrint(compressed)
+    return EXPORT_PREFIX .. encoded
+end
+
 -------------------------------------------------------------------------------
 --  FULL ACCOUNT EXPORT  (separate format, purely additive)
 --
