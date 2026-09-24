@@ -22,6 +22,7 @@ EllesmereUIQoL_MovementAlert.lua
 EllesmereUIQoL_RaidTools.lua
 EllesmereUIQoL_FlightTimerData.lua
 EllesmereUIQoL_FlightTimer.lua
+EllesmereUIQoL_ThreatMeter.lua
 EUI_UpgradeCalc.lua
 
 # Options
