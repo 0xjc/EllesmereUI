@@ -1139,11 +1139,11 @@ local SOLID_BACKDROP = { bgFile = "Interface\\Buttons\\WHITE8X8" }
 -- glyph-restricted locales (CJK/Cyrillic): keeps a SharedMedia font if it can render the
 -- locale's glyphs, else falls back to the system font. Do NOT re-decide locale fallback
 -- locally or locale clients could never use a custom font here.
-local cachedFontPath = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames"))
+local cachedFontPath = (EllesmereUI.GetFontPath("unitFrames"))
     or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
 local cachedFontPaths = {}  -- per-unit font cache
 local function ResolveFontPath(unitKey)
-    local gPath = EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames")
+    local gPath = EllesmereUI.GetFontPath("unitFrames")
         or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
     cachedFontPath = gPath
     for _, uKey in ipairs({"player", "target", "focus", "boss", "pet", "targettarget", "focustarget"}) do
@@ -2132,19 +2132,17 @@ end
 
 -- Global Dark Mode master: exposes darkTheme so the parent addon's master toggle can
 -- flip it with other modules. setOn mirrors the individual toggle (write flag + reload).
-if EllesmereUI.RegisterDarkModeToggle then
-    EllesmereUI.RegisterDarkModeToggle({
-        id = "unitFrames",
-        isOn = function()
-            return (db and db.profile and db.profile.darkTheme) or false
-        end,
-        setOn = function(on)
-            if not (db and db.profile) then return end
-            db.profile.darkTheme = on
-            if ns.ReloadFrames then ns.ReloadFrames() end
-        end,
-    })
-end
+EllesmereUI.RegisterDarkModeToggle({
+    id = "unitFrames",
+    isOn = function()
+        return (db and db.profile and db.profile.darkTheme) or false
+    end,
+    setOn = function(on)
+        if not (db and db.profile) then return end
+        db.profile.darkTheme = on
+        if ns.ReloadFrames then ns.ReloadFrames() end
+    end,
+})
 
 -- Smart power text: percent for healers/prot pally/arcane mage, numeric for the rest.
 -- Shared by the oUF tag and the resource bars renderer. `displayedPowerType` (optional
@@ -2953,7 +2951,7 @@ end
 --- 200-locals cap.
 function ns.VisEffective(s)
     if not s then return nil end
-    return (EllesmereUI.VisOverrideValue and EllesmereUI.VisOverrideValue(s)) or s.barVisibility
+    return (EllesmereUI.VisOverrideValue(s)) or s.barVisibility
 end
 
 --- True when the unit has no EllesmereUI frame at all -- the enabledFrames flag, which
@@ -4408,7 +4406,7 @@ local ABSORB_STYLE_ALPHA = {
 -- lookup. Shared by the live render and the options preview so an SM key paints identically.
 function ns.ResolveAbsorbStyleTex(style, fallback)
     return ABSORB_STYLE_TEX[style]
-        or (EllesmereUI.ResolveTexturePath and EllesmereUI.ResolveTexturePath(healthBarTextures, style, fallback))
+        or (EllesmereUI.ResolveTexturePath(healthBarTextures, style, fallback))
         or fallback
 end
 
@@ -5962,7 +5960,7 @@ end
 -- (ApplySavedPositions).
 
 local function GetActiveKickSpell()
-    return EllesmereUI and EllesmereUI.GetActiveKickSpell and EllesmereUI.GetActiveKickSpell()
+    return EllesmereUI.GetActiveKickSpell()
 end
 local function ComputeCastBarTint(readyTint, baseTint)
     if EllesmereUI and EllesmereUI.ComputeCastBarTint then
@@ -8480,11 +8478,11 @@ local function CreateCustomClassPower(playerFrame, style)
         cr, cg, cb = cc.r, cc.g, cc.b
     else
         -- Pull from EUI global color system: resource color > class color
-        local rc = EllesmereUI.GetResourceColor and EllesmereUI.GetResourceColor(playerClass)
+        local rc = EllesmereUI.GetResourceColor(playerClass)
         if rc then
             cr, cg, cb = rc.r, rc.g, rc.b
         else
-            local cc = EllesmereUI.GetClassColor and EllesmereUI.GetClassColor(playerClass)
+            local cc = EllesmereUI.GetClassColor(playerClass)
             if cc then cr, cg, cb = cc.r, cc.g, cc.b else cr, cg, cb = 1, 1, 1 end
         end
     end
@@ -8590,8 +8588,8 @@ local function CreateCustomClassPower(playerFrame, style)
                 -- Use class color (DH)
                 if not staggerBar._colorSet then
                     staggerBar._colorSet = true
-                    local rc = EllesmereUI.GetResourceColor and EllesmereUI.GetResourceColor("DEMONHUNTER")
-                    local cc = rc or (EllesmereUI.GetClassColor and EllesmereUI.GetClassColor("DEMONHUNTER"))
+                    local rc = EllesmereUI.GetResourceColor("DEMONHUNTER")
+                    local cc = rc or (EllesmereUI.GetClassColor("DEMONHUNTER"))
                     if cc then
                         staggerBar:GetStatusBarTexture():SetVertexColor(cc.r, cc.g, cc.b, 1)
                     end
@@ -8774,16 +8772,12 @@ local function CreateCustomClassPower(playerFrame, style)
                 if not _G._ERB_AceDB and EllesmereUI then
                     local unit, castGUID, spellID = ...
                     if unit == "player" then
-                        if EllesmereUI.HandleTipOfTheSpear then
-                            EllesmereUI.HandleTipOfTheSpear(event, unit, castGUID, spellID)
-                        end
+                        EllesmereUI.HandleTipOfTheSpear(event, unit, castGUID, spellID)
                     end
                 end
             elseif event == "PLAYER_DEAD" or event == "PLAYER_ALIVE" then
                 if not _G._ERB_AceDB and EllesmereUI then
-                    if EllesmereUI.HandleTipOfTheSpear then
-                        EllesmereUI.HandleTipOfTheSpear(event)
-                    end
+                    EllesmereUI.HandleTipOfTheSpear(event)
                 end
             end
             UpdatePips()
@@ -10510,7 +10504,7 @@ ReloadFramesBody = function()
     end
 
     -- Uses global font
-    local donorFontPath = EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames")
+    local donorFontPath = EllesmereUI.GetFontPath("unitFrames")
         or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
 
     -- Live enable/disable frames without reload
@@ -12310,8 +12304,7 @@ function ns.ResolveVisResting(s, frame, ext, hiddenByOpts, inCombat)
         -- Legacy single mouseover: a configured "Hide if" override that is NOT currently
         -- triggering counts as a positive show, so the frame does not require hover
         -- (fixes "dismount in combat keeps frame hidden" / "hide if no target inverted").
-        local hasAnyHideOpt = EllesmereUI and EllesmereUI.VisHasAnyOption
-                           and EllesmereUI.VisHasAnyOption(s)
+        local hasAnyHideOpt = EllesmereUI.VisHasAnyOption(s)
         if hasAnyHideOpt then return shownAlpha, false end
         return 0, true
     end
@@ -12322,10 +12315,8 @@ end
 -- two inputs the pass would have handed over. State is left nil so the shared engine fills
 -- it from its own combat/group tracking.
 function ns.ResolveVisRestingLive(s, frame)
-    local hiddenByOpts = EllesmereUI and EllesmereUI.CheckVisibilityOptions
-                      and EllesmereUI.CheckVisibilityOptions(s)
-    local ext = EllesmereUI.EvalVisibilityExtended
-        and EllesmereUI.EvalVisibilityExtended(s, "barVisibility", nil, EllesmereUI.VIS_CAPS_DEFAULT)
+    local hiddenByOpts = EllesmereUI.CheckVisibilityOptions(s)
+    local ext = EllesmereUI.EvalVisibilityExtended(s, "barVisibility", nil, EllesmereUI.VIS_CAPS_DEFAULT)
     local alpha, hoverGated = ns.ResolveVisResting(s, frame, ext, hiddenByOpts, InCombatLockdown())
     return alpha, hoverGated, hiddenByOpts
 end
@@ -12338,7 +12329,7 @@ end
 function ns.VisMouseoverWired(s)
     if not s then return false end
     if (s.barVisibility or "always") == "mouseover" then return true end
-    return (EllesmereUI.VisOverrideValue and EllesmereUI.VisOverrideValue(s)) == "mouseover"
+    return (EllesmereUI.VisOverrideValue(s)) == "mouseover"
 end
 
 -- Health visibility is a display-only reveal. The curve result may be secret:
@@ -12501,9 +12492,7 @@ end
 
 function InitializeFrames()
     -- Sync EUI global power colors into oUF at init
-    if EllesmereUI and EllesmereUI.ApplyColorsToOUF then
-        EllesmereUI.ApplyColorsToOUF()
-    end
+    EllesmereUI.ApplyColorsToOUF()
 
     local classPowerStyle = db.profile.player.classPowerStyle or "none"
     if EllesmereUI.IS_FOREVER == true and classPowerStyle == "blizzard" then
@@ -13332,7 +13321,7 @@ function InitializeFrames()
 
                 -- Apply color tint
                 if colorMode == "classcolor" then
-                    local cc = (classToken and EllesmereUI.GetClassColor and EllesmereUI.GetClassColor(classToken)) or { r = 1, g = 1, b = 1 }
+                    local cc = (classToken and EllesmereUI.GetClassColor(classToken)) or { r = 1, g = 1, b = 1 }
                     combat:SetVertexColor(cc.r, cc.g, cc.b, 1)
                 elseif colorMode == "custom" then
                     local cc = ps.combatIndicatorCustomColor or { r = 1, g = 1, b = 1 }
@@ -13855,13 +13844,12 @@ function InitializeFrames()
             -- Visibility "never" no longer clears enabledFrames, so a frame hidden that
             -- way stays on this path and is hidden below, reversibly.
             if frame and not ns.VisUnitDisabled(db.profile, unitKey) and s then
-                local hiddenByOpts = EllesmereUI and EllesmereUI.CheckVisibilityOptions and EllesmereUI.CheckVisibilityOptions(s)
+                local hiddenByOpts = EllesmereUI.CheckVisibilityOptions(s)
                 local vis = s.barVisibility or "always"
 
                 -- Multi-select / dragonriding path: non-nil = engine-owned.
                 -- nil = legacy single mode, untouched.
-                local ext = EllesmereUI.EvalVisibilityExtended
-                    and EllesmereUI.EvalVisibilityExtended(s, "barVisibility", visState, EllesmereUI.VIS_CAPS_DEFAULT)
+                local ext = EllesmereUI.EvalVisibilityExtended(s, "barVisibility", visState, EllesmereUI.VIS_CAPS_DEFAULT)
 
                 -- Secure condition driver: an engine-owned selection compiles into a
                 -- state-visibility driver (the action bar mechanism), replacing the
@@ -13871,8 +13859,7 @@ function InitializeFrames()
                 -- ignores the mouseover key); the alpha bucket + hover handlers do the
                 -- revealing. Registration is out-of-combat only; a selection changed
                 -- during combat rides on alpha until the regen pass registers the driver.
-                local drvSet = EllesmereUI.GetActiveVisibilityModes
-                    and EllesmereUI.GetActiveVisibilityModes(s, "barVisibility")
+                local drvSet = EllesmereUI.GetActiveVisibilityModes(s, "barVisibility")
                 -- Condition scalars ride the driver too: dragonriding (engine owns it
                 -- everywhere) and the combat pair, whose legacy alpha-hide left an
                 -- invisible click-absorbing frame out of combat. Visibility is
@@ -13886,7 +13873,7 @@ function InitializeFrames()
                 local visTail
                 -- An applied Visibility override replaces the whole setting, so the tail
                 -- is a constant and the shared selection never reaches the driver.
-                local visOv = EllesmereUI.VisOverrideValue and EllesmereUI.VisOverrideValue(s)
+                local visOv = EllesmereUI.VisOverrideValue(s)
                 if visOv then
                     visTail = (visOv == "never") and "hide" or "show"
                 elseif s.visibilityMatch == "any" and EllesmereUI.BuildAnyMatchTail then
@@ -14630,7 +14617,7 @@ function SetupOptionsPanel()
         local stackPos = settings.debuffStackTextPosition
         local cdTextColor = settings.debuffCooldownTextColor or {r=1, g=1, b=1}
         local stackTextColor = settings.debuffStackTextColor or {r=1, g=1, b=1}
-        local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames")) or "Fonts\\FRIZQT__.TTF"
+        local fontPath = (EllesmereUI.GetFontPath("unitFrames")) or "Fonts\\FRIZQT__.TTF"
         local now = GetTime()
         for idx, spellID in ipairs(FAKE_DEBUFF_SPELLS) do
             local iconFrame = CreateFrame("Frame", nil, holder)
@@ -15587,14 +15574,12 @@ function EllesmereUF:OnInitialize()
     ResolveFontPath()
 
     -- Append SharedMedia textures to runtime tables so SM texture keys resolve
-    if EllesmereUI.AppendSharedMediaTextures then
-        EllesmereUI.AppendSharedMediaTextures(
-            healthBarTextureNames,
-            healthBarTextureOrder,
-            nil,
-            healthBarTextures
-        )
-    end
+    EllesmereUI.AppendSharedMediaTextures(
+        healthBarTextureNames,
+        healthBarTextureOrder,
+        nil,
+        healthBarTextures
+    )
 
     -- Blizzard options panel is registered centrally in EllesmereUI.lua
 end
@@ -15636,9 +15621,7 @@ local function EnableBody()
     end
     C_Timer.After(0, SetupOptionsPanel)
     C_Timer.After(0, function()
-        if EllesmereUI and EllesmereUI.ApplyColorsToOUF then
-            EllesmereUI.ApplyColorsToOUF()
-        end
+        EllesmereUI.ApplyColorsToOUF()
         -- Restore the player-threat watcher if the option was saved enabled
         -- (zero cost otherwise -- nothing is registered when off).
         if db and db.profile and db.profile.playerThreatBorderEnabled and ns.SetPlayerThreatEnabled then

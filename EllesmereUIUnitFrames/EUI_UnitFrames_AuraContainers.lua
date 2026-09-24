@@ -1382,7 +1382,7 @@ local function BuildStyle(unit, base, s, unitFrame)
         -- Resolved once per (fingerprint-gated) style rebuild instead of on
         -- every ApplyUFText call -- GetFontPath's result only changes when
         -- font settings change, which already forces a fresh style table.
-        fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames")) or FALLBACK_FONT,
+        fontPath = (EllesmereUI.GetFontPath("unitFrames")) or FALLBACK_FONT,
         applyExtra = ApplyUFText,
     }
 end
@@ -2298,7 +2298,7 @@ function ns.UF_ReloadAuraContainers(frame, unit)
         return
     end
 
-    local font = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames")) or ""
+    local font = (EllesmereUI.GetFontPath("unitFrames")) or ""
     -- Containers hidden outside the fingerprinted flow (boss preview) must
     -- re-drive anchor/config/visibility even with matching fingerprints.
     -- cfgDirty: the degradation-recovery lane below (cinematic/faction/
@@ -2497,11 +2497,9 @@ do
         C_Timer.After(2, Queue)
         C_Timer.After(5, Queue)
     end)
-    if EllesmereUI.RegisterUnlockModeListener then
-        EllesmereUI:RegisterUnlockModeListener("EUF_AuraContainers", function(unlockActive)
-            if not unlockActive then Queue() end
-        end)
-    end
+    EllesmereUI:RegisterUnlockModeListener("EUF_AuraContainers", function(unlockActive)
+        if not unlockActive then Queue() end
+    end)
 end
 
 -- One element shell, born directly on our frame (combat-legal since 68914).
@@ -2535,7 +2533,7 @@ local function BuildUnitContainers(frame, unit)
         -- consumes them for the pre-created button batches. Prime their
         -- fingerprints too: the final-stage reload would otherwise queue a
         -- restyle of buttons that were decorated from these exact tables.
-        local font = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames")) or ""
+        local font = (EllesmereUI.GetFontPath("unitFrames")) or ""
         for _, base in ipairs({ "HELPFUL", "HARMFUL" }) do
             local key = StyleKey(unit, base)
             local style = BuildStyle(unit, base, s, frame)

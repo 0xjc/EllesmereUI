@@ -912,7 +912,7 @@ local function PAB_ApplyExtraText(button, d, style)
             d.pabDurFont = fKey
             -- Prime the shadow FontObject before SetFont; Drop Shadow mode (empty
             -- flag) keeps the text legible instead of flat.
-            if EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(d.duration, flag == "") end
+            EllesmereUI.PrimeFontShadow(d.duration, flag == "")
             d.duration:SetFont(path, style.durationFontSize or 11, flag)
         end
         local dp = style.durationPoint or "CENTER"
@@ -948,7 +948,7 @@ local function PAB_ApplyExtraText(button, d, style)
         local fKey = path .. "|" .. (style.stackFontSize or 11) .. "|" .. flag
         if d.pabStackFont ~= fKey then
             d.pabStackFont = fKey
-            if EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(d.stack, flag == "") end
+            EllesmereUI.PrimeFontShadow(d.stack, flag == "")
             d.stack:SetFont(path, style.stackFontSize or 11, flag)
         end
         local sp = style.stackPoint or "BOTTOMRIGHT"
@@ -1038,12 +1038,12 @@ end
 local function ResolveFontFlag(mode)
     if mode == "none" then return "" end
     if mode == "outline" then
-        return (EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE"
+        return (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE"
     end
     if mode == "thick" then
-        return (EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("THICKOUTLINE, SLUG")) or "THICKOUTLINE"
+        return (EllesmereUI.SlugFlag("THICKOUTLINE, SLUG")) or "THICKOUTLINE"
     end
-    return (EllesmereUI.GetIconTextOutlineFlag and EllesmereUI.GetIconTextOutlineFlag("unitFrames")) or "OUTLINE"
+    return (EllesmereUI.GetIconTextOutlineFlag("unitFrames")) or "OUTLINE"
 end
 
 local function BuildStyle(isBuff, cfg)
@@ -1181,7 +1181,7 @@ local function BuildStyle(isBuff, cfg)
         -- does it via the house icon-text rules. Font path and outline flag resolve once
         -- per style rebuild (settings-apply frequency), never per applyExtra call.
         noDefaultFonts = true,
-        fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames")) or STANDARD_TEXT_FONT,
+        fontPath = (EllesmereUI.GetFontPath("unitFrames")) or STANDARD_TEXT_FONT,
         fontFlag = ResolveFontFlag(cfg.fontOutline),
 
         applyExtra = PAB_ApplyExtraText,
@@ -5250,7 +5250,7 @@ end
 -- cancels out algebraically (UIParent's effective scale multiplies both equally), so
 -- only the panel's OWN extra SetScale factor matters.
 local function PreviewScaleFactor()
-    local s = (EllesmereUI.GetPopupScale and EllesmereUI.GetPopupScale()) or 1
+    local s = (EllesmereUI.GetPopupScale()) or 1
     if not s or s <= 0 then return 1 end
     return 1 / s
 end
@@ -5871,7 +5871,7 @@ local function RenderPreviewIcons(box, icons, isBuff, cfg, fontPath, pool)
                 end
                 local size = style.border.size or 1
                 if shapeActive and style.shapeBorderPath and PP.ApplyMaskedShapeBorder then
-                    if EllesmereUI.HideBorderStyle then EllesmereUI.HideBorderStyle(btn.border) end
+                    EllesmereUI.HideBorderStyle(btn.border)
                     if btn.borderState and btn.borderState._secretBorderEdges then
                         for _, tex in pairs(btn.borderState._secretBorderEdges) do tex:Hide() end
                     end
