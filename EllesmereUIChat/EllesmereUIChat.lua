@@ -1248,11 +1248,13 @@ function ECHAT.SeatStockBackground(cf)
 end
 
 -- State sync for what the panels lost by no longer being chat frame children,
--- plus two Blizzard buttons hidden by alpha: Blizzard fades ButtonFrame /
--- ScrollToBottomButton back in on hover (UIFrameFadeIn drives only their
--- alpha) and re-levels chat frames on dock passes. Runs from the interaction
--- follower and the deferred event passes. The stack-hidden gate keeps the
--- shown-follow from re-showing panels the full-hide put away.
+-- plus ScrollToBottomButton, hidden by alpha: Blizzard fades it back in on
+-- hover (UIFrameFadeIn drives only its alpha) and re-levels chat frames on
+-- dock passes. ButtonFrame is emptied of its own art in SkinChatFrame instead
+-- (its alpha fade has nothing left to draw), so it needs no re-assert here.
+-- Runs from the interaction follower and the deferred event passes. The
+-- stack-hidden gate keeps the shown-follow from re-showing panels the
+-- full-hide put away.
 function ECHAT.SyncChatFrameState()
     if ECHAT.SuppressChatEditModeSelection then ECHAT.SuppressChatEditModeSelection() end
     EnsureChatClampInsets()
@@ -5195,19 +5197,20 @@ local function SkinChatFrame(cf)
     if btnFrame then
         btnFrame:SetAlpha(0)
         btnFrame:EnableMouse(false)
-        local minBtn = btnFrame.minimizeButton
-        for _, owner in ipairs({ btnFrame, minBtn }) do
-            for i = 1, select("#", owner:GetRegions()) do
-                local region = select(i, owner:GetRegions())
-                if region:IsObjectType("Texture") then
-                    region:SetTexture("")
-                    region:SetAlpha(0)
-                end
-            end
+        -- Empty the border/background textures so btnFrame's own hover/undock
+        -- alpha fades (0.2-1, never fully off) have nothing left to draw.
+        for i = 1, select("#", btnFrame:GetRegions()) do
+            local region = select(i, btnFrame:GetRegions())
+            if region:IsObjectType("Texture") then region:SetTexture("") end
         end
-        -- Undocking Shows it; alpha does not stop clicks, so it would still
-        -- minimize the window from an empty spot beside it.
-        minBtn:EnableMouse(false)
+        -- The minimize button is a separate object with its own alpha, which
+        -- Blizzard never writes directly (only Show/Hide on dock/undock): zero
+        -- it once. Alpha does not stop a click reaching it, so EnableMouse too.
+        local minBtn = btnFrame.minimizeButton
+        if minBtn then
+            minBtn:SetAlpha(0)
+            minBtn:EnableMouse(false)
+        end
     end
 
     -- Restyle Blizzard's resize button to align with our bg (undocked-capable
