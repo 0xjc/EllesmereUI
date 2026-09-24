@@ -560,17 +560,9 @@ end
 
 local function SolidTex(p,l,r,g,b,a) return EUI.SolidTex(p,l,r,g,b,a) end
 
-local function GetCalcFont()
-    return (EUI.GetFontPath and EUI.GetFontPath("extras")) or "Fonts\\FRIZQT__.TTF"
-end
-local function GetCalcOutline()
-    return (EUI.GetFontOutlineFlag and EUI.GetFontOutlineFlag("extras")) or ""
-end
 local function MFont(p, s, _, r, g, b, a)
     local fs = p:CreateFontString(nil, "OVERLAY")
-    local flags = GetCalcOutline()
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, flags == "") end
-    fs:SetFont(GetCalcFont(), s, flags)
+    EllesmereUI.ApplyModuleFont(fs, nil, s, "extras")
     if r then fs:SetTextColor(r, g or 1, b or 1, a or 1) end
     return fs
 end

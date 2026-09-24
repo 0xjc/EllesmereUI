@@ -1159,14 +1159,7 @@ local function GetSelectedFont(unitKey)
 end
 
 local function SetFSFont(fs, size, flags)
-  if not (fs and fs.SetFont) then return end
-  -- Outline flag is already slug-gated at the source (GetFontOutlineFlag).
-  local f = flags or (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("unitFrames")) or ""
-  -- Drop shadows only render from a FontObject; prime before SetFont.
-  if EllesmereUI and EllesmereUI.PrimeFontShadow then
-    EllesmereUI.PrimeFontShadow(fs, f == "")
-  end
-  fs:SetFont(GetSelectedFont(), size or 12, f)
+  EllesmereUI.ApplyModuleFont(fs, GetSelectedFont(), size or 12, "unitFrames", flags)
 end
 
 -- Shared cast-bar text anchoring (mirrors the nameplate cast text system). Three
@@ -12040,9 +12033,7 @@ ReloadFramesBody = function()
             local function SetMiniFont(fs, sz)
                 if not fs or not fs.SetFont then return end
                 if isMiniFrame then
-                    local f = (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("unitFrames")) or ""
-                    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, f == "") end
-                    fs:SetFont(donorFontPath, sz or 12, f)
+                    EllesmereUI.ApplyModuleFont(fs, donorFontPath, sz or 12, "unitFrames")
                 else
                     SetFSFont(fs, sz)
                 end

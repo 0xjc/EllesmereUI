@@ -129,17 +129,11 @@ local function ResolveFontPath(fontName)
     end
     return "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
 end
-local function GetABROutline()
-    return (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("auraBuff")) or ""
-end
-local function GetABRUseShadow()
-    return not EllesmereUI or not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow("auraBuff")
-end
 local _cachedOutline
 local function SetABRFont(fs, font, size)
     if not (fs and fs.SetFont) then return end
-    if not _cachedOutline then _cachedOutline = GetABROutline() end
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, _cachedOutline == "" and GetABRUseShadow()) end
+    if not _cachedOutline then _cachedOutline = EllesmereUI.GetFontOutlineFlag("auraBuff") end
+    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, _cachedOutline == "" and EllesmereUI.GetFontUseShadow("auraBuff")) end
     fs:SetFont(font, size, _cachedOutline)
 end
 
@@ -5476,8 +5470,8 @@ local SetupReadyCheckManaWarning = function()
         warnFrame:SetPoint("CENTER", UIParent, "CENTER",
             (c and c.rcManaWarnX) or 0, 75 + ((c and c.rcManaWarnY) or 0))
         local font = ResolveFontPath(c and c.rcManaWarnFont)
-        local outline = GetABROutline()
-        if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(warnFS, outline == "" and GetABRUseShadow()) end
+        local outline = EllesmereUI.GetFontOutlineFlag("auraBuff")
+        if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(warnFS, outline == "" and EllesmereUI.GetFontUseShadow("auraBuff")) end
         warnFS:SetFont(font, (c and c.rcManaWarnSize) or 48, outline)
         -- Explicit white instance color: tinted purely via SetVertexColor (curve result); with no instance color it would inherit the primed shadow FontObject's color, which resolves BLACK.
         warnFS:SetTextColor(1, 1, 1, 1)

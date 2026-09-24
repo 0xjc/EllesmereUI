@@ -52,22 +52,8 @@ local GetInventoryItemID = GetInventoryItemID
 -------------------------------------------------------------------------------
 --  Constants
 -------------------------------------------------------------------------------
-local RB_FONT_FALLBACK = "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
-local function GetRBFont()
-    if EllesmereUI and EllesmereUI.GetFontPath then
-        return EllesmereUI.GetFontPath("resourceBars")
-    end
-    return RB_FONT_FALLBACK
-end
-local function GetRBOutline()
-    return (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("resourceBars")) or ""
-end
-local function SetRBFont(fs, font, size)
-    if not (fs and fs.SetFont) then return end
-    local f = GetRBOutline()
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, f == "") end
-    fs:SetFont(font, size, f)
-end
+local function GetRBFont() return EllesmereUI.GetFontPath("resourceBars") end
+local function SetRBFont(fs, font, size) EllesmereUI.ApplyModuleFont(fs, font, size, "resourceBars") end
 -- Shared with EUI_ResourceBars_SwingTimer.lua (same font lane as the cast bar text).
 ns.GetRBFont = GetRBFont
 ns.SetRBFont = SetRBFont
@@ -10031,7 +10017,7 @@ local function LayoutTotemBar()
     local timerSize = tb.timerSize or 11
     local scaledTimerSize = math.max(6, math.floor(timerSize / iconScale + 0.5))
     local fontPath = GetRBFont()
-    local outlineMode = GetRBOutline()
+    local outlineMode = EllesmereUI.GetFontOutlineFlag("resourceBars")
 
     wipe(_totemActiveSet)
     for i, btn in ipairs(buttons) do

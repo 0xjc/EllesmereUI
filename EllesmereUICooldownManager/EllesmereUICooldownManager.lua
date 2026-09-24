@@ -2907,13 +2907,7 @@ InstallProcGlowHooks()
 --  CDM Bars: Our replacement for Blizzard's Cooldown Manager
 --  Captures Blizzard positions on first login, then creates our own bars.
 -------------------------------------------------------------------------------
-local CDM_FONT_FALLBACK = "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
-local function GetCDMFont()
-    if EllesmereUI and EllesmereUI.GetFontPath then
-        return EllesmereUI.GetFontPath("cdm")
-    end
-    return CDM_FONT_FALLBACK
-end
+local function GetCDMFont() return EllesmereUI.GetFontPath("cdm") end
 local function SetBlizzCDMFont(fs, font, size, r, g, b)
     if not (fs and fs.SetFont) then return end
     EllesmereUI.ApplyIconTextFont(fs, font, size, "cdm")

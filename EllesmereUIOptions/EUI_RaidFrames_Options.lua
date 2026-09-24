@@ -306,12 +306,6 @@ initFrame:SetScript("OnEvent", function(self)
     local ReloadFrames = ns.ReloadFrames
     local floor = math.floor
 
-    local function GetOutline()
-        return (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("raidFrames")) or ""
-    end
-    local function GetUseShadow()
-        return not EllesmereUI or not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow("raidFrames")
-    end
 
     ---------------------------------------------------------------------------
     --  Shared helpers
@@ -901,8 +895,7 @@ initFrame:SetScript("OnEvent", function(self)
         y = y - ROW_H
 
         local modeLabel = modeRow:CreateFontString(nil, "OVERLAY")
-        if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(modeLabel, GetOutline() == "" and GetUseShadow()) end
-        modeLabel:SetFont(fontPath, 14, GetOutline())
+        EllesmereUI.ApplyModuleFont(modeLabel, fontPath, 14, "raidFrames")
         modeLabel:SetPoint("TOP", modeRow, "TOP", 0, 0)
         modeLabel:SetText(EllesmereUI.L("Preview Mode"))
         modeLabel:SetTextColor(1, 1, 1, 0.6)
@@ -3601,8 +3594,7 @@ initFrame:SetScript("OnEvent", function(self)
                     EllesmereUI.MakeBorder(btn, 1, 1, 1, 0.25)
                 end
                 local lbl = btn:CreateFontString(nil, "OVERLAY")
-                if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(lbl, GetUseShadow()) end
-                lbl:SetFont(EllesmereUI.GetFontPath("raidFrames"), 13, GetOutline())
+                EllesmereUI.ApplyModuleFont(lbl, nil, 13, "raidFrames")
                 lbl:SetPoint("CENTER", btn, "CENTER", 0, 0)
                 lbl:SetText(EllesmereUI.L("Move Frames"))
 
@@ -3787,8 +3779,7 @@ initFrame:SetScript("OnEvent", function(self)
                     EllesmereUI.MakeBorder(kbBtn, 1, 1, 1, 0.25)
                 end
                 local kbLbl = kbBtn:CreateFontString(nil, "OVERLAY")
-                if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(kbLbl, GetUseShadow()) end
-                kbLbl:SetFont(EllesmereUI.GetFontPath("raidFrames"), 13, GetOutline())
+                EllesmereUI.ApplyModuleFont(kbLbl, nil, 13, "raidFrames")
                 kbLbl:SetPoint("CENTER")
 
                 local function FormatKey(key)
@@ -3950,8 +3941,7 @@ initFrame:SetScript("OnEvent", function(self)
                     EllesmereUI.MakeBorder(btn, 1, 1, 1, 0.25)
                 end
                 local lbl = btn:CreateFontString(nil, "OVERLAY")
-                if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(lbl, GetUseShadow()) end
-                lbl:SetFont(EllesmereUI.GetFontPath("raidFrames"), 13, GetOutline())
+                EllesmereUI.ApplyModuleFont(lbl, nil, 13, "raidFrames")
                 lbl:SetPoint("CENTER", btn, "CENTER", 0, 0)
                 lbl:SetText(EllesmereUI.L("Move Frames"))
 

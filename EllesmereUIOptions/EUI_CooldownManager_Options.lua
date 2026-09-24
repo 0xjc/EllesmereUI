@@ -68,12 +68,7 @@ initFrame:SetScript("OnEvent", function(self)
     local FONT_PATH = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("cdm"))
         or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
 
-    local function GetCDMOptOutline()
-        return (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag()) or ""
-    end
-    local function GetCDMOptUseShadow()
-        return not EllesmereUI or not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow()
-    end
+    local GetCDMOptOutline = EllesmereUI.GetFontOutlineFlag
 
     -- Auto-widens break-out menus (flyouts/Apply-to strip/item pickers) to the longest
     -- RENDERED caption so text doesn't overflow (option rows) or ellipsize (item rows):
@@ -92,11 +87,7 @@ initFrame:SetScript("OnEvent", function(self)
         if fit > MAX_W then fit = MAX_W end
         return fit
     end
-    local function SetPVFont(fs, font, size)
-        if not (fs and fs.SetFont) then return end
-        if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, GetCDMOptUseShadow()) end
-        fs:SetFont(font, size, GetCDMOptOutline())
-    end
+    local SetPVFont = EllesmereUI.ApplyModuleFont
 
     ---------------------------------------------------------------------------
     --  Buff spell list from viewer pool (Bar Glows page glow assignments)

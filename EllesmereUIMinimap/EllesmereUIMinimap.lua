@@ -797,17 +797,7 @@ local locationFrame, locationBg
 local fpsBg
 local diffTextFrame
 
-local function GetMinimapFont()
-    local path = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("minimap") or STANDARD_TEXT_FONT
-    local flag = EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("minimap") or "OUTLINE, SLUG"
-    return path, flag
-end
-
-local function ApplyMinimapFont(fs, size)
-    local path, flag = GetMinimapFont()
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, EllesmereUI.GetFontUseShadow and EllesmereUI.GetFontUseShadow("minimap")) end
-    fs:SetFont(path, size, flag)
-end
+local function ApplyMinimapFont(fs, size) EllesmereUI.ApplyModuleFont(fs, nil, size, "minimap") end
 
 -- Description-text colour (clock AM/PM, the "fps"/"ms" suffixes): custom fpsColor swatch or the live accent; the dynamic values stay white. Returns r, g, b, hex.
 local function GetDescColor(mp)

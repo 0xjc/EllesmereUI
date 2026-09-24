@@ -61,22 +61,7 @@ local function FormatTime(remaining)
     return format("%.1f", remaining)
 end
 
-local CDM_FONT_FALLBACK = "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
-local function GetFont()
-    return (ns.GetCDMFont and ns.GetCDMFont()) or CDM_FONT_FALLBACK
-end
-local function GetOutline()
-    if EllesmereUI and EllesmereUI.GetFontOutlineFlag then
-        return EllesmereUI.GetFontOutlineFlag("cdm")
-    end
-    return "OUTLINE, SLUG"
-end
-local function SetFont(fs, size)
-    if not (fs and fs.SetFont) then return end
-    local useShadow = EllesmereUI and EllesmereUI.GetFontUseShadow and EllesmereUI.GetFontUseShadow("cdm")
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, useShadow) end
-    fs:SetFont(GetFont(), size, GetOutline())
-end
+local function SetFont(fs, size) EllesmereUI.ApplyModuleFont(fs, nil, size, "cdm") end
 
 local function SetTBBTextColor(fs, cfg, prefix)
     if not fs or not cfg then return end

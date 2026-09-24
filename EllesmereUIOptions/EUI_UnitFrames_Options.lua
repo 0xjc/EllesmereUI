@@ -257,16 +257,8 @@ initFrame:SetScript("OnEvent", function(self)
     local floor = math.floor
     local abs = math.abs
 
-    local function GetUFOptOutline()
-        -- Already slug-gated at the source (GetFontOutlineFlag).
-        return (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag()) or ""
-    end
-    local function SetPVFont(fs, font, size)
-        if not (fs and fs.SetFont) then return end
-        local f = GetUFOptOutline()
-        if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, f == "") end
-        fs:SetFont(font, size, f)
-    end
+    local GetUFOptOutline = EllesmereUI.GetFontOutlineFlag
+    local SetPVFont = EllesmereUI.ApplyModuleFont
 
     ---------------------------------------------------------------------------
     --  Shared helpers

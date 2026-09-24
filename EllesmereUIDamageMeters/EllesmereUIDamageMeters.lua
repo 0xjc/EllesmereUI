@@ -1247,25 +1247,8 @@ local function SetCVarSafe(name, value)
     end
 end
 
--- Font helpers
-local function GetDMFont()
-    if EUI and EUI.GetFontPath then
-        return EUI.GetFontPath("damageMeters")
-    end
-    return "Fonts\\FRIZQT__.TTF"
-end
-
-local function GetDMOutline()
-    return (EUI and EUI.GetFontOutlineFlag and EUI.GetFontOutlineFlag("damageMeters")) or ""
-end
-
 local function SetDMFont(fs, size, flagsOverride, fontOverride)
-    if not (fs and fs.SetFont) then return end
-    local font = fontOverride or GetDMFont()
-    local flags = flagsOverride
-    if flags == nil then flags = GetDMOutline() end
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, flags == "") end
-    fs:SetFont(font, size, flags)
+    EllesmereUI.ApplyModuleFont(fs, fontOverride, size, "damageMeters", flagsOverride)
 end
 
 -- Accent color helper

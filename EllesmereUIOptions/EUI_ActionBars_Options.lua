@@ -20,7 +20,6 @@ local TEXT_ANCHOR_LABELS = {
 local TEXT_ANCHOR_DROPDOWN_ORDER = { "default" }
 for i, a in ipairs(EAB and EAB.TEXT_ANCHOR_ORDER or {}) do TEXT_ANCHOR_DROPDOWN_ORDER[i + 1] = a end
 
-local function GetEABOptOutline() return EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag() or "" end
 
 -- The registry offsets/shifts a border renders with when the user has set none
 -- (the Border Options cog's shown Shift defaults; the Width/Height Offset row
@@ -204,7 +203,7 @@ initFrame:SetScript("OnEvent", function(self)
 
             local label = editOverlayFrame:CreateFontString(nil, "OVERLAY")
             local fontPath = EllesmereUI and EllesmereUI.EXPRESSWAY or "Fonts\\FRIZQT__.TTF"
-            label:SetFont(fontPath, 10, GetEABOptOutline())
+            label:SetFont(fontPath, 10, EllesmereUI.GetFontOutlineFlag())
             label:SetTextColor(1, 1, 1, 0.75)
             label:SetPoint("CENTER")
             label:SetWordWrap(false)

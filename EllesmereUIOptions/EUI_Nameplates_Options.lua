@@ -7,10 +7,8 @@ local ADDON_NAME = "EllesmereUINameplates"
 local ns = EllesmereUI._ModuleNS[ADDON_NAME]  -- module namespace (published by the module at its load)
 if not ns then return end  -- module disabled: no options page
 
-local function GetNPOptOutline()
-    -- Body-text preview flag, already slug-gated at the source (GetFontOutlineFlag).
-    return EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("nameplates") or ""
-end
+-- Body-text preview flag, already slug-gated at the source (GetFontOutlineFlag).
+local function GetNPOptOutline() return EllesmereUI.GetFontOutlineFlag("nameplates") end
 
 -- Rows the Blizzard kit replaces but the classic plate leaves to the user
 -- (bar background, cast bar texture, cast background and colours, the
@@ -68,9 +66,7 @@ initFrame:SetScript("OnEvent", function(self)
 
     -- Preview font setter: mirrors SetFSFont shadow logic for direct SetFont calls
     local function SetPVFont(fs, fontPath, size, flags)
-        if not (fs and fs.SetFont) then return end
-        if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, flags == "") end
-        fs:SetFont(fontPath, size, flags)
+        EllesmereUI.ApplyModuleFont(fs, fontPath, size, "nameplates", flags)
     end
     local floor = math.floor
     local NAME_RAID_MARKER_GAP = 3

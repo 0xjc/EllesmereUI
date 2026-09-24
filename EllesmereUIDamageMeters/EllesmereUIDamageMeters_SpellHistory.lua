@@ -96,21 +96,7 @@ local function DB()
     return sh
 end
 
-local function GetDMFont()
-    if EUI and EUI.GetFontPath then return EUI.GetFontPath("damageMeters") end
-    return "Fonts\\FRIZQT__.TTF"
-end
-
-local function GetDMOutline()
-    return (EUI and EUI.GetFontOutlineFlag and EUI.GetFontOutlineFlag("damageMeters")) or ""
-end
-
-local function SetFont(fs, size)
-    if not (fs and fs.SetFont) then return end
-    local font, flags = GetDMFont(), GetDMOutline()
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, flags == "") end
-    fs:SetFont(font, size, flags)
-end
+local function SetFont(fs, size) EllesmereUI.ApplyModuleFont(fs, nil, size, "damageMeters") end
 
 -- Icon size is a coordinate value like the window width and icon spacing, so it
 -- keeps its proportion at any UI scale; only snapped onto the pixel grid.
@@ -1337,7 +1323,7 @@ RefreshBarWindow = function()
     else local tc = sh.textColor; txR = tc and tc.r or 1; txG = tc and tc.g or 1; txB = tc and tc.b or 1 end
 
     -- Re-apply fonts to ALL pool bars when settings change (not just visible ones)
-    local fontKey = fontSize .. "|" .. GetDMFont() .. "|" .. GetDMOutline()
+    local fontKey = fontSize .. "|" .. EUI.GetFontPath("damageMeters") .. "|" .. EUI.GetFontOutlineFlag("damageMeters")
     local fontChanged = (fontKey ~= _barFontCache)
     if fontChanged then
         _barFontCache = fontKey

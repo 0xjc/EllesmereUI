@@ -4852,6 +4852,15 @@ function EllesmereUI.ApplyIconTextFont(fs, fontPath, size, moduleKey)
     fs:SetFont(fontPath, size, flag)
 end
 
+-- Body text in a module's font: fontPath/flags default to the module's (nil key = global)
+-- font and outline; a "" flag (Drop Shadow/None) gets the drop shadow.
+function EllesmereUI.ApplyModuleFont(fs, fontPath, size, moduleKey, flags)
+    if not (fs and fs.SetFont) then return end
+    flags = flags or EllesmereUI.GetFontOutlineFlag(moduleKey)
+    EllesmereUI.PrimeFontShadow(fs, flags == "")
+    fs:SetFont(fontPath or EllesmereUI.GetFontPath(moduleKey), size, flags)
+end
+
 -- Build font dropdown values/order ("EUI Global Font" first) for W:DualRow configs.
 function EllesmereUI.BuildFontDropdownData()
     -- Glyph-restricted locales: bundled Latin fonts cannot render the script (and resolve to the

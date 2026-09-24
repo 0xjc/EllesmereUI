@@ -364,12 +364,6 @@ end
 local MEDIA_DIR = "Interface\\AddOns\\EllesmereUIActionBars\\Media\\"
 local FONT_PATH = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("actionBars"))
     or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
-local function GetEABOutline()
-    return (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("actionBars")) or "OUTLINE, SLUG"
-end
-local function GetEABUseShadow()
-    return not EllesmereUI or not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow("actionBars")
-end
 local HIGHLIGHT_TEXTURES = {
     MEDIA_DIR .. "highlight-2.png",
     MEDIA_DIR .. "highlight-3.png",
@@ -15257,7 +15251,7 @@ local function ApplyDataBarLayout(barKey)
     -- Re-applied here so the options slider and offset cog take effect live
     -- through the existing ApplyDataBarLayout calls.
     if frame._text then
-        frame._text:SetFont(FONT_PATH, s.textSize or 9, GetEABOutline())
+        frame._text:SetFont(FONT_PATH, s.textSize or 9, EllesmereUI.GetFontOutlineFlag("actionBars"))
         frame._text:ClearAllPoints()
         frame._text:SetPoint("CENTER", s.textOffsetX or 0, s.textOffsetY or 0)
     end
@@ -15311,10 +15305,10 @@ local function CreateDataBarFrame(barKey, updateFunc)
         or holder:GetFrameLevel() + 2) + 1)
 
     local text = textHost:CreateFontString(nil, "OVERLAY")
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(text, GetEABUseShadow()) end
+    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(text, EllesmereUI.GetFontUseShadow("actionBars")) end
     local sInit = EAB.db and EAB.db.profile and EAB.db.profile.bars
         and EAB.db.profile.bars[barKey]
-    text:SetFont(FONT_PATH, sInit and sInit.textSize or 9, GetEABOutline())
+    text:SetFont(FONT_PATH, sInit and sInit.textSize or 9, EllesmereUI.GetFontOutlineFlag("actionBars"))
     text:SetPoint("CENTER", sInit and sInit.textOffsetX or 0, sInit and sInit.textOffsetY or 0)
     text:SetTextColor(1, 1, 1, 1)
 

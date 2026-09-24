@@ -37,15 +37,7 @@ initFrame:SetScript("OnEvent", function(self)
     if not EllesmereUI or not EllesmereUI.RegisterModule then return end
     local PP = EllesmereUI.PanelPP
 
-    local function GetABROptOutline()
-        return (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("auraBuff")) or ""
-    end
-    local function SetPVFont(fs, font, size)
-        if not (fs and fs.SetFont) then return end
-        local f = GetABROptOutline()
-        if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, f == "") end
-        fs:SetFont(font, size, f)
-    end
+    local function GetABROptOutline() return EllesmereUI.GetFontOutlineFlag("auraBuff") end
 
     ---------------------------------------------------------------------------
     --  DB helpers
@@ -315,7 +307,7 @@ initFrame:SetScript("OnEvent", function(self)
                 local textSize = d and d.textSize or 11
                 local textXOff = d and d.textXOffset or 0
                 local textYOff = d and d.textYOffset or -2
-                SetPVFont(btn._text, fontPath, textSize)
+                EllesmereUI.ApplyModuleFont(btn._text, fontPath, textSize, "auraBuff")
                 btn._text:ClearAllPoints()
                 local tp, ip = GetPreviewTextAnchor(d)
                 btn._text:SetPoint(tp, btn, ip, textXOff, textYOff)
@@ -619,7 +611,7 @@ initFrame:SetScript("OnEvent", function(self)
                 local tp, ip = GetPreviewTextAnchor(d)
                 text:SetPoint(tp, btn, ip, textXOff, textYOff)
             end
-            SetPVFont(text, fontPath, textSize)
+            EllesmereUI.ApplyModuleFont(text, fontPath, textSize, "auraBuff")
             text:SetTextColor(tc.r, tc.g, tc.b, 1)
             text:SetText(iconData.label or "")
             if not showText then text:Hide() end

@@ -189,15 +189,7 @@ initFrame:SetScript("OnEvent", function(self)
 
     local FONT_PATH = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("resourceBars"))
         or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
-    local function GetRBOptOutline()
-        return (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag()) or ""
-    end
-    local function SetPVFont(fs, font, size)
-        if not (fs and fs.SetFont) then return end
-        local f = GetRBOptOutline()
-        if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, f == "") end
-        fs:SetFont(font, size, f)
-    end
+    local SetPVFont = EllesmereUI.ApplyModuleFont
     local CONTENT_PAD = 45
     local SIDE_PAD = 20
 

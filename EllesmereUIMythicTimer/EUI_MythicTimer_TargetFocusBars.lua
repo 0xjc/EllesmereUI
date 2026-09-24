@@ -31,15 +31,7 @@ end
 --  Fonts (module surface "mythicTimer": family/outline/shadow are global,
 --  only sizes are per-bar settings).
 --------------------------------------------------------------------------------
-local FONT_FALLBACK = "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
-local function SetFSFont(fs, size)
-    if not (fs and fs.SetFont) then return end
-    local path = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("mythicTimer")) or FONT_FALLBACK
-    local outline = (EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("mythicTimer")) or ""
-    local useShadow = EllesmereUI.GetFontUseShadow and EllesmereUI.GetFontUseShadow("mythicTimer")
-    if EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, useShadow) end
-    fs:SetFont(path, size, outline)
-end
+local function SetFSFont(fs, size) EllesmereUI.ApplyModuleFont(fs, nil, size, "mythicTimer") end
 
 --------------------------------------------------------------------------------
 --  State: two bar objects, built lazily. `bars.target` / `bars.focus`.

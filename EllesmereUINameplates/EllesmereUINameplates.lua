@@ -32,32 +32,15 @@ local GetRaidTargetIndex, SetRaidTargetIconTexture = GetRaidTargetIndex, SetRaid
 local C_CVar, NamePlateConstants, Enum = C_CVar, NamePlateConstants, Enum
 local _, PLAYER_CLASS = UnitClass("player")
 
-local function GetFont()
-    if EllesmereUI and EllesmereUI.GetFontPath then
-        return EllesmereUI.GetFontPath("nameplates")
-    end
-    -- `defaults` is declared below this function, so use the literal path.
-    return (p and p.font) or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
-end
-local function GetNPOutline()
-    -- Slug-gated at the source (GetFontOutlineFlag); SetFSFont gates the
-    -- explicit-flag path too, so aura literals are covered.
-    return (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("nameplates")) or "OUTLINE, SLUG"
-end
-local function GetNPUseShadow()
-    return not EllesmereUI or not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow("nameplates")
-end
+local function GetFont() return EllesmereUI.GetFontPath("nameplates") end
+-- Slug-gated at the source (GetFontOutlineFlag); SetFSFont gates the
+-- explicit-flag path too, so aura literals are covered.
+local function GetNPOutline() return EllesmereUI.GetFontOutlineFlag("nameplates") end
+local function GetNPUseShadow() return EllesmereUI.GetFontUseShadow("nameplates") end
 local function SetFSFont(fs, size, flags)
-  if not (fs and fs.SetFont) then return end
-  local f = flags or GetNPOutline()
   -- "Never Show Slug": gates the explicit-flag path so hardcoded aura
   -- "OUTLINE, SLUG" literals drop the slug (body text is gated at the source).
-  if EllesmereUI and EllesmereUI.SlugFlag then f = EllesmereUI.SlugFlag(f) end
-  -- Drop shadows only render from a FontObject; prime before SetFont.
-  if EllesmereUI and EllesmereUI.PrimeFontShadow then
-    EllesmereUI.PrimeFontShadow(fs, f == "")
-  end
-  fs:SetFont(GetFont(), size or 11, f)
+  EllesmereUI.ApplyModuleFont(fs, nil, size or 11, "nameplates", EllesmereUI.SlugFlag(flags or GetNPOutline()))
 end
 
 ns.GetFont = GetFont

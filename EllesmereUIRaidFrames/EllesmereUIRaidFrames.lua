@@ -968,20 +968,7 @@ end
 -------------------------------------------------------------------------------
 --  Font helper (matches UF/CDM pattern)
 -------------------------------------------------------------------------------
-local function GetOutline()
-    -- Slug-gated at the source (GetFontOutlineFlag) by the global "Never Show Slug" toggle.
-    return (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("raidFrames")) or ""
-end
-local function GetUseShadow()
-    return not EllesmereUI or not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow("raidFrames")
-end
-local function ApplyFont(fs, size)
-    if not (fs and fs.SetFont) then return end
-    local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
-    local outline = GetOutline()
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, outline == "" and GetUseShadow()) end
-    fs:SetFont(fontPath, size, outline)
-end
+local function ApplyFont(fs, size) EllesmereUI.ApplyModuleFont(fs, nil, size, "raidFrames") end
 
 -------------------------------------------------------------------------------
 --  Health bar texture helpers
@@ -15177,11 +15164,7 @@ ns._ShowSizePreview = function(tier)
 
         -- Centered unit number.
         if f._nameText then
-            local nameOutline = GetOutline()
-            if EllesmereUI and EllesmereUI.PrimeFontShadow then
-                EllesmereUI.PrimeFontShadow(f._nameText, nameOutline == "" and GetUseShadow())
-            end
-            f._nameText:SetFont(fontPath, math.max(11, nameSize), nameOutline)
+            EllesmereUI.ApplyModuleFont(f._nameText, fontPath, math.max(11, nameSize), "raidFrames")
             f._nameText:SetText(tostring(i))
             f._nameText:SetTextColor(0.9, 0.9, 0.9)
             f._nameText:SetWidth(bw)

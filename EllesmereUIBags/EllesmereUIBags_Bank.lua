@@ -55,11 +55,10 @@ local function GetBankSidebarWidth()
     return collapsed and SIDEBAR_W_COLLAPSED or SIDEBAR_W
 end
 
-local function GetFont() return (EUI.GetFontPath and EUI.GetFontPath("bags")) or "Fonts\\FRIZQT__.TTF" end
-local function GetOutline() return (EUI.GetFontOutlineFlag and EUI.GetFontOutlineFlag("bags")) or "" end
+local function GetFont() return EUI.GetFontPath("bags") end
 local function SetBankFont(fs, size)
     if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, true) end
-    fs:SetFont(GetFont(), size, GetOutline())
+    fs:SetFont(GetFont(), size, EUI.GetFontOutlineFlag("bags"))
 end
 local GetUpgradeTrack = EUI.GetUpgradeTrack
 local ITEM_CLASS_WEAPON = Enum.ItemClass.Weapon

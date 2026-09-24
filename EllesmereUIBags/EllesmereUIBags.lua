@@ -229,11 +229,10 @@ local function GetItemLevelAtLocation(loc, itemLink)
     end
     return itemLink and C_Item.GetDetailedItemLevelInfo(itemLink) or nil
 end
-local function GetFont() return (EUI.GetFontPath and EUI.GetFontPath("bags")) or "Fonts\\FRIZQT__.TTF" end
-local function GetOutline() return (EUI.GetFontOutlineFlag and EUI.GetFontOutlineFlag("bags")) or "" end
+local function GetFont() return EUI.GetFontPath("bags") end
 local function SetBagFont(fs, size)
     if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, true) end
-    fs:SetFont(GetFont(), size, GetOutline())
+    fs:SetFont(GetFont(), size, EUI.GetFontOutlineFlag("bags"))
 end
 local function GetAccentRGB()
     if EUI.GetAccentColor then return EUI.GetAccentColor() end
@@ -971,7 +970,7 @@ local function CreateHeader()
     local search = CreateFrame("EditBox", "EUI_BagSearchBox", header)
     search:SetSize(160, 22)
     search:SetPoint("RIGHT", -35, 0)
-    search:SetFont(GetFont(), 12, GetOutline())
+    search:SetFont(GetFont(), 12, EUI.GetFontOutlineFlag("bags"))
     search:SetAutoFocus(false)
     search:SetTextInsets(5, 26, 0, 0)
     search.bg = search:CreateTexture(nil, "BACKGROUND")
