@@ -3,7 +3,8 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --  EllesmereUIBags.lua -- Enhanced Bags System for EllesmereUI (Midnight): sidebar category filter + flat item grid layout.
 -------------------------------------------------------------------------------
 if not (EllesmereUI and EllesmereUI._ModuleNS) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring
-EllesmereUI._ModuleNS["EllesmereUIBags"] = select(2, ...)  -- LOD options files read this module ns via the registry
+local ns = select(2, ...)
+EllesmereUI._ModuleNS["EllesmereUIBags"] = ns  -- LOD options files read this module ns via the registry
 
 EUI_Bags = CreateFrame("Frame", "EUI_MainBagFrame", UIParent)
 EUI_Bags:Hide()
@@ -2176,6 +2177,299 @@ local function SetInsetBorderThickness(btn, px)
     end
 end
 
+-------------------------------------------------------------------------------
+--  Shared with the bank (EllesmereUIBags_Bank.lua loads after this file) via ns
+-------------------------------------------------------------------------------
+ns.CreateInsetBorder = CreateInsetBorder
+ns.SetInsetBorderColor = SetInsetBorderColor
+
+-- Flat look for a ContainerFrameItemButtonTemplate slot, plus the text overlay
+-- (above the cooldown swipe) with Count, ItemLevelText and BindTypeText.
+-- Methods only: writing properties onto Blizzard template sub-objects taints.
+-- opts: anchorIcon (re-anchor icon to the button), cooldownFont (restyle the
+-- cooldown text), flatHighlight (bank: 8% white highlight, with highlight and
+-- pushed textures looked up by template field first). Returns the overlay.
+function ns.SkinItemButton(btn, opts)
+    if btn.NewItemTexture then btn.NewItemTexture:Hide(); btn.NewItemTexture:SetAlpha(0) end
+    if btn.BattlepayItemTexture then btn.BattlepayItemTexture:Hide(); btn.BattlepayItemTexture:SetAlpha(0) end
+    if btn.flash then btn.flash:Hide(); btn.flash:SetAlpha(0) end
+    if btn.newitemglowAnim then btn.newitemglowAnim:Stop() end
+
+    btn:SetSize(SLOT_SIZE, SLOT_SIZE)
+    if btn.icon then
+        local z = BP().bagItemIconZoom or 0.08
+        btn.icon:SetTexCoord(z, 1 - z, z, 1 - z)
+        if opts.anchorIcon then
+            btn.icon:ClearAllPoints()
+            btn.icon:SetAllPoints(btn)
+        end
+    end
+
+    local ht, pt
+    if opts.flatHighlight then
+        ht = btn.HighlightTexture or btn:GetHighlightTexture()
+        if ht then ht:SetTexture(nil); ht:SetColorTexture(1, 1, 1, 0.08) end
+        pt = btn.PushedTexture or btn:GetPushedTexture()
+    else
+        ht = btn:GetHighlightTexture()
+        pt = btn:GetPushedTexture()
+    end
+    if ht then ht:ClearAllPoints(); ht:SetAllPoints(btn) end
+    if pt then
+        pt:SetAtlas(nil)
+        pt:SetTexture("Interface\\AddOns\\EllesmereUIBags\\Media\\highlight-3.png")
+        pt:SetTexCoord(0, 1, 0, 1)
+        pt:ClearAllPoints(); pt:SetAllPoints(btn)
+        pt:SetVertexColor(0.973, 0.839, 0.604, 1)
+    end
+
+    if btn.NormalTexture then btn.NormalTexture:SetAlpha(0) end
+    if btn.IconBorder then btn.IconBorder:SetAlpha(0) end
+
+    if btn.icon and btn.IconMask then
+        btn.icon:RemoveMaskTexture(btn.IconMask)
+        btn.IconMask:Hide()
+        btn.IconMask:SetTexture(nil)
+        btn.IconMask:ClearAllPoints()
+        btn.IconMask:SetSize(0.001, 0.001)
+    end
+
+    if opts.cooldownFont and btn.Cooldown then
+        local cdText = btn.Cooldown:GetRegions()
+        if cdText and cdText.SetFont then
+            EllesmereUI.ApplyIconTextFont(cdText, GetFont(), 11, "bags")
+        end
+    end
+
+    CreateInsetBorder(btn)
+    SetInsetBorderColor(btn, 0.25, 0.25, 0.25, 1)
+
+    local textOverlay = CreateFrame("Frame", nil, btn)
+    textOverlay:SetAllPoints()
+    textOverlay:SetFrameLevel((btn.Cooldown and btn.Cooldown:GetFrameLevel() or btn:GetFrameLevel()) + 2)
+    btn._textOverlay = textOverlay
+
+    local fontPath = GetFont()
+    local outline = (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG"
+    local countFS = btn.Count
+    if countFS then
+        countFS:SetParent(textOverlay)
+        EllesmereUI.ApplyIconTextFont(countFS, fontPath, BP().bagCountFontSize or 11, "bags")
+        countFS:ClearAllPoints()
+        countFS:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2, 2)
+    end
+
+    -- Item level text (top-left, gear only)
+    if not btn.ItemLevelText then
+        btn.ItemLevelText = textOverlay:CreateFontString(nil, "OVERLAY", nil, 7)
+        btn.ItemLevelText:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
+        btn.ItemLevelText:SetTextColor(1, 1, 1, 1)
+    end
+    btn.ItemLevelText:SetFont(fontPath, BP().itemlevelFontSize or 12, outline)
+    btn.ItemLevelText:SetText("")
+
+    -- Bind Type text (bottom-left)
+    if not btn.BindTypeText then
+        btn.BindTypeText = textOverlay:CreateFontString(nil, "OVERLAY", nil, 7)
+        btn.BindTypeText:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 1, 2)
+        btn.BindTypeText:SetTextColor(1, 1, 1, 1)
+    end
+    btn.BindTypeText:SetFont(fontPath, BP().bagBindTypeFontSize or 11, outline)
+    btn.BindTypeText:SetText("")
+    return textOverlay
+end
+
+-- Sidebar header: label + collapse arrow for the profile flag dbKey. The
+-- caller's OnClick flips the flag, then calls the returned UpdateArrow.
+function ns.CreateSidebarHeader(sidebar, label, dbKey)
+    local hdr = CreateFrame("Frame", nil, sidebar)
+    hdr:SetHeight(24)
+    hdr:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 0, 0)
+    hdr:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", 0, 0)
+
+    hdr._label = hdr:CreateFontString(nil, "OVERLAY")
+    SetBagFont(hdr._label, 10)
+    hdr._label:SetPoint("LEFT", hdr, "LEFT", 8, 0)
+    hdr._label:SetText(label)
+    hdr._label:SetTextColor(0.5, 0.5, 0.5)
+
+    local collapseBtn = CreateFrame("Button", nil, hdr)
+    collapseBtn:SetSize(12, 12)
+    collapseBtn:SetPoint("RIGHT", hdr, "RIGHT", -6, 0)
+    collapseBtn._icon = collapseBtn:CreateTexture(nil, "OVERLAY")
+    collapseBtn._icon:SetAllPoints()
+    collapseBtn._icon:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-arrow-left.png")
+    collapseBtn._icon:SetAlpha(0.4)
+
+    local function UpdateArrow()
+        collapseBtn:ClearAllPoints()
+        if BP()[dbKey] then
+            collapseBtn._icon:SetRotation(math.pi)
+            collapseBtn:SetPoint("CENTER", hdr, "CENTER", 0, 0)
+        else
+            collapseBtn._icon:SetRotation(0)
+            collapseBtn:SetPoint("RIGHT", hdr, "RIGHT", -6, 0)
+        end
+    end
+    UpdateArrow()
+
+    collapseBtn:SetScript("OnEnter", function(self)
+        self._icon:SetAlpha(0.9)
+        if EUI.ShowWidgetTooltip then
+            EUI.ShowWidgetTooltip(self, BP()[dbKey] and "Expand Sidebar" or "Collapse Sidebar")
+        end
+    end)
+    collapseBtn:SetScript("OnLeave", function(self)
+        self._icon:SetAlpha(0.4)
+        if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+    end)
+    return hdr, collapseBtn, UpdateArrow
+end
+
+-- Item-grid scrollbar: a 4px thumb in a 16px hit strip; the caller anchors the
+-- returned track. Scrolls instantly, not smoothed (so not AttachSmoothScrollbar).
+-- clamp: pull the scroll back into range on every update (content may have
+-- shrunk). rawWheel: the wheel reads sf's scroll range directly rather than the
+-- thumb metrics, which give up when the track is too short for a thumb.
+local SCROLLBAR_HIT_W = 16  -- invisible hit area width
+function ns.AttachGridScrollbar(host, sf, clamp, rawWheel)
+    local SCROLLBAR_W = 4   -- thumb width
+    local SCROLL_STEP = 40  -- pixels per mouse wheel tick
+    local THUMB_MIN_H = 20  -- minimum thumb height
+
+    local track = CreateFrame("Button", nil, host)
+    track:SetWidth(SCROLLBAR_HIT_W)
+    track:SetFrameLevel(sf:GetFrameLevel() + 5)
+
+    local trackBg = track:CreateTexture(nil, "BACKGROUND")
+    trackBg:SetWidth(SCROLLBAR_W)
+    trackBg:SetPoint("TOP", track, "TOP", 0, 0)
+    trackBg:SetPoint("BOTTOM", track, "BOTTOM", 0, 0)
+    trackBg:SetPoint("RIGHT", track, "RIGHT", 0, 0)
+    trackBg:SetColorTexture(1, 1, 1, 0.06)
+
+    local thumb = track:CreateTexture(nil, "ARTWORK")
+    thumb:SetWidth(SCROLLBAR_W)
+    thumb:SetColorTexture(1, 1, 1, 0.25)
+    thumb:Hide()
+
+    local _isDragging = false
+    local _dragStartY = 0
+    local _dragStartPct = 0
+
+    local function GetScrollMetrics()
+        local scrollRange = sf:GetVerticalScrollRange()
+        if not scrollRange or scrollRange <= 0 then return nil end
+        local trackH = track:GetHeight()
+        local ext = sf:GetHeight() / (sf:GetHeight() + scrollRange)
+        local thumbH = math.max(THUMB_MIN_H, trackH * ext)
+        local maxTravel = trackH - thumbH
+        if maxTravel <= 0 then return nil end
+        local pct = sf:GetVerticalScroll() / scrollRange
+        return pct, thumbH, maxTravel, scrollRange
+    end
+
+    local function UpdateThumb()
+        if clamp then
+            local range = sf:GetVerticalScrollRange() or 0
+            local cur = sf:GetVerticalScroll()
+            if cur > range then sf:SetVerticalScroll(range) end
+        end
+        local pct, thumbH, maxTravel = GetScrollMetrics()
+        if not pct then
+            thumb:Hide()
+            trackBg:Hide()
+            return
+        end
+        thumb:SetHeight(thumbH)
+        thumb:ClearAllPoints()
+        thumb:SetPoint("TOPRIGHT", track, "TOPRIGHT", 0, -(pct * maxTravel))
+        thumb:Show()
+        trackBg:Show()
+    end
+
+    -- On the scroll frame and on host (items might not cover the full area)
+    local function OnWheel(_, delta)
+        local scrollRange
+        if rawWheel then
+            scrollRange = sf:GetVerticalScrollRange()
+            if scrollRange and scrollRange <= 0 then scrollRange = nil end
+        else
+            scrollRange = select(4, GetScrollMetrics())
+        end
+        if not scrollRange then return end
+        local cur = sf:GetVerticalScroll()
+        local newVal = math.max(0, math.min(scrollRange, cur - delta * SCROLL_STEP))
+        sf:SetVerticalScroll(newVal)
+        UpdateThumb()
+    end
+    sf:SetScript("OnMouseWheel", OnWheel)
+    host:EnableMouseWheel(true)
+    host:SetScript("OnMouseWheel", OnWheel)
+
+    -- Thumb dragging (dragUpdate must be declared before OnMouseDown uses it)
+    local dragUpdate = CreateFrame("Frame")
+    dragUpdate:Hide()
+    dragUpdate:SetScript("OnUpdate", function(self)
+        if not _isDragging then self:Hide(); return end
+        if not IsMouseButtonDown("LeftButton") then
+            _isDragging = false; self:Hide()
+            thumb:SetColorTexture(1, 1, 1, 0.25)
+            return
+        end
+        local pct, thumbH, maxTravel, scrollRange = GetScrollMetrics()
+        if not pct then _isDragging = false; self:Hide(); return end
+        local scale = track:GetEffectiveScale()
+        local _, cy = GetCursorPosition()
+        local deltaY = (_dragStartY - cy / scale)
+        local deltaPct = deltaY / maxTravel
+        local newPct = math.max(0, math.min(1, _dragStartPct + deltaPct))
+        sf:SetVerticalScroll(newPct * scrollRange)
+        UpdateThumb()
+    end)
+
+    track:RegisterForDrag("LeftButton")
+    track:SetScript("OnMouseDown", function(_, button)
+        if button ~= "LeftButton" then return end
+        local pct, thumbH, maxTravel, scrollRange = GetScrollMetrics()
+        if not pct then return end
+
+        local scale = track:GetEffectiveScale()
+        local _, cy = GetCursorPosition()
+        local trackTop = track:GetTop() * scale
+        local cursorLocalY = (trackTop - cy) / scale
+
+        -- Check if cursor is on the thumb
+        local thumbTop = pct * maxTravel
+        local thumbBot = thumbTop + thumbH
+        if cursorLocalY >= thumbTop and cursorLocalY <= thumbBot then
+            _isDragging = true
+            _dragStartY = cy / scale
+            _dragStartPct = pct
+            dragUpdate:Show()
+        else
+            -- Click on track: jump to position
+            local clickPct = math.max(0, math.min(1, (cursorLocalY - thumbH / 2) / maxTravel))
+            sf:SetVerticalScroll(clickPct * scrollRange)
+            UpdateThumb()
+            _isDragging = true
+            _dragStartY = cy / scale
+            _dragStartPct = clickPct
+            dragUpdate:Show()
+        end
+    end)
+
+    track:SetScript("OnMouseUp", function()
+        _isDragging = false
+    end)
+
+    track:SetScript("OnEnter", function() thumb:SetColorTexture(1, 1, 1, 0.4) end)
+    track:SetScript("OnLeave", function()
+        if not _isDragging then thumb:SetColorTexture(1, 1, 1, 0.25) end
+    end)
+    return track, thumb, UpdateThumb
+end
+
 -- Gold border for quest items (overrides the normal quality border).
 local QUEST_BORDER_COLOR = { r = 1.0, g = 0.82, b = 0.0 }
 
@@ -2653,76 +2947,9 @@ local function GetOrCreateSlot(idx)
         EUI_Bags.ShowStackSplitter(self, bag == 5 and { 5, 0, 1, 2, 3, 4 } or { 0, 1, 2, 3, 4 }, EUI_Bags)
     end)
 
-    -- Methods only: writing properties onto Blizzard template sub-objects taints
-    if btn.NewItemTexture then btn.NewItemTexture:Hide(); btn.NewItemTexture:SetAlpha(0) end
-    if btn.BattlepayItemTexture then btn.BattlepayItemTexture:Hide(); btn.BattlepayItemTexture:SetAlpha(0) end
-    if btn.flash then btn.flash:Hide(); btn.flash:SetAlpha(0) end
-    if btn.newitemglowAnim then btn.newitemglowAnim:Stop() end
-
-    btn:SetSize(SLOT_SIZE, SLOT_SIZE)
-    if btn.icon then
-        local z = BP().bagItemIconZoom or 0.08
-        btn.icon:SetTexCoord(z, 1 - z, z, 1 - z)
-        btn.icon:ClearAllPoints()
-        btn.icon:SetAllPoints(btn)
-    end
-
-    local ht = btn:GetHighlightTexture()
-    if ht then ht:ClearAllPoints(); ht:SetAllPoints(btn) end
-    local pt = btn:GetPushedTexture()
-    if pt then
-        pt:SetAtlas(nil)
-        pt:SetTexture("Interface\\AddOns\\EllesmereUIBags\\Media\\highlight-3.png")
-        pt:SetTexCoord(0, 1, 0, 1)
-        pt:ClearAllPoints(); pt:SetAllPoints(btn)
-        pt:SetVertexColor(0.973, 0.839, 0.604, 1)
-    end
-
-    if btn.NormalTexture then btn.NormalTexture:SetAlpha(0) end
-    if btn.IconBorder then btn.IconBorder:SetAlpha(0) end
-
-    if btn.icon and btn.IconMask then
-        btn.icon:RemoveMaskTexture(btn.IconMask)
-        btn.IconMask:Hide()
-        btn.IconMask:SetTexture(nil)
-        btn.IconMask:ClearAllPoints()
-        btn.IconMask:SetSize(0.001, 0.001)
-    end
-
-    if btn.Cooldown then
-        local cdText = btn.Cooldown:GetRegions()
-        if cdText and cdText.SetFont then
-            EllesmereUI.ApplyIconTextFont(cdText, GetFont(), 11, "bags")
-        end
-    end
-
-    CreateInsetBorder(btn)
-    SetInsetBorderColor(btn, 0.25, 0.25, 0.25, 1)
-
-    -- Text overlay frame: sits above Cooldown so count/ilvl aren't covered by swipe
-    local textOverlay = CreateFrame("Frame", nil, btn)
-    textOverlay:SetAllPoints()
-    textOverlay:SetFrameLevel((btn.Cooldown and btn.Cooldown:GetFrameLevel() or btn:GetFrameLevel()) + 2)
-    btn._textOverlay = textOverlay
-
+    local textOverlay = ns.SkinItemButton(btn, { anchorIcon = true, cooldownFont = true })
     local countSize = BP().bagCountFontSize or 11
-    local countFS = btn.Count
-    if countFS then
-        countFS:SetParent(textOverlay)
-        EllesmereUI.ApplyIconTextFont(countFS, GetFont(), countSize, "bags")
-        countFS:ClearAllPoints()
-        countFS:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -2, 2)
-    end
-
-    if not btn.ItemLevelText then
-        btn.ItemLevelText = textOverlay:CreateFontString(nil, "OVERLAY", nil, 7)
-        btn.ItemLevelText:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
-        btn.ItemLevelText:SetTextColor(1, 1, 1, 1)
-    end
-    local fontSize = BP().itemlevelFontSize or 12
     local fontPath = GetFont()
-    btn.ItemLevelText:SetFont(fontPath, fontSize, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
-    btn.ItemLevelText:SetText("")
 
     -- Keystone level text (top-left, same as item level)
     if not btn.KeystoneText then
@@ -2741,16 +2968,6 @@ local function GetOrCreateSlot(idx)
     end
     btn.KeystoneDungeonText:SetFont(fontPath, math.max(countSize - 2, 7), (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
     btn.KeystoneDungeonText:SetText("")
-
-    -- Bind Type text (bottom-left)
-    if not btn.BindTypeText then
-        btn.BindTypeText = textOverlay:CreateFontString(nil, "OVERLAY", nil, 7)
-        btn.BindTypeText:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 1, 2)
-        btn.BindTypeText:SetTextColor(1, 1, 1, 1)
-    end
-    local bindTypeFontSize = BP().bagBindTypeFontSize or 11
-    btn.BindTypeText:SetFont(fontPath, bindTypeFontSize, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
-    btn.BindTypeText:SetText("")
 
     -- Equipment set name FontString is lazy-created in RenderButton: never
     -- built while Show Set Name on Gear is off (zero cost disabled).
@@ -4343,51 +4560,8 @@ local function CreateSidebar()
     sidebar.sep:SetColorTexture(0.15, 0.15, 0.15, 1)
 
     -- Sidebar header: "Categories" label + collapse arrow
-    local SIDEBAR_HDR_H = 24
-    local sidebarHdr = CreateFrame("Frame", nil, sidebar)
-    sidebarHdr:SetHeight(SIDEBAR_HDR_H)
-    sidebarHdr:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 0, 0)
-    sidebarHdr:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", 0, 0)
+    local sidebarHdr, collapseBtn, UpdateCollapseArrow = ns.CreateSidebarHeader(sidebar, EllesmereUI.L("Categories"), "bagSidebarCollapsed")
 
-    sidebarHdr._label = sidebarHdr:CreateFontString(nil, "OVERLAY")
-    SetBagFont(sidebarHdr._label, 10)
-    sidebarHdr._label:SetPoint("LEFT", sidebarHdr, "LEFT", 8, 0)
-    sidebarHdr._label:SetText(EllesmereUI.L("Categories"))
-    sidebarHdr._label:SetTextColor(0.5, 0.5, 0.5)
-
-    local ARROW_ICON = "Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-arrow-left.png"
-    local collapseBtn = CreateFrame("Button", nil, sidebarHdr)
-    collapseBtn:SetSize(12, 12)
-    collapseBtn:SetPoint("RIGHT", sidebarHdr, "RIGHT", -6, 0)
-    collapseBtn._icon = collapseBtn:CreateTexture(nil, "OVERLAY")
-    collapseBtn._icon:SetAllPoints()
-    collapseBtn._icon:SetTexture(ARROW_ICON)
-    collapseBtn._icon:SetAlpha(0.4)
-
-    local function UpdateCollapseArrow()
-        local collapsed = BP().bagSidebarCollapsed
-        collapseBtn:ClearAllPoints()
-        if collapsed then
-            collapseBtn._icon:SetRotation(math.pi)
-            collapseBtn:SetPoint("CENTER", sidebarHdr, "CENTER", 0, 0)
-        else
-            collapseBtn._icon:SetRotation(0)
-            collapseBtn:SetPoint("RIGHT", sidebarHdr, "RIGHT", -6, 0)
-        end
-    end
-    UpdateCollapseArrow()
-
-    collapseBtn:SetScript("OnEnter", function(self)
-        self._icon:SetAlpha(0.9)
-        local collapsed = BP().bagSidebarCollapsed
-        if EUI.ShowWidgetTooltip then
-            EUI.ShowWidgetTooltip(self, collapsed and "Expand Sidebar" or "Collapse Sidebar")
-        end
-    end)
-    collapseBtn:SetScript("OnLeave", function(self)
-        self._icon:SetAlpha(0.4)
-        if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
-    end)
     collapseBtn:SetScript("OnClick", function()
         local center = EUI_Bags:GetCenter()
         local screenW = UIParent:GetWidth()
@@ -5329,11 +5503,6 @@ end
 -------------------------------------------------------------------------------
 --  Scroll Frame + Scrollbar for item grid
 -------------------------------------------------------------------------------
-local SCROLLBAR_W     = 4   -- thumb width
-local SCROLLBAR_HIT_W = 16  -- invisible hit area width
-local SCROLL_STEP     = 40  -- pixels per mouse wheel tick
-local THUMB_MIN_H     = 20  -- minimum thumb height
-
 local function CreateBagScrollFrame()
     if EUI_Bags._scrollFrame then return end
 
@@ -5353,138 +5522,9 @@ local function CreateBagScrollFrame()
     sf:SetScrollChild(child)
 
     -- Track (always visible)
-    local track = CreateFrame("Button", nil, EUI_Bags)
-    track:SetWidth(SCROLLBAR_HIT_W)
+    local track, thumb, UpdateThumb = ns.AttachGridScrollbar(EUI_Bags, sf, true, false)
     track:SetPoint("TOPRIGHT", EUI_Bags, "TOPRIGHT", -1, -(HEADER_H + 1))
     track:SetPoint("BOTTOMRIGHT", EUI_Bags.Footer, "TOPRIGHT", -1, 0)
-    track:SetFrameLevel(sf:GetFrameLevel() + 5)
-
-    local trackBg = track:CreateTexture(nil, "BACKGROUND")
-    trackBg:SetWidth(SCROLLBAR_W)
-    trackBg:SetPoint("TOP", track, "TOP", 0, 0)
-    trackBg:SetPoint("BOTTOM", track, "BOTTOM", 0, 0)
-    trackBg:SetPoint("RIGHT", track, "RIGHT", 0, 0)
-    trackBg:SetColorTexture(1, 1, 1, 0.06)
-
-    local thumb = track:CreateTexture(nil, "ARTWORK")
-    thumb:SetWidth(SCROLLBAR_W)
-    thumb:SetColorTexture(1, 1, 1, 0.25)
-    thumb:Hide()
-
-    local _isDragging = false
-    local _dragStartY = 0
-    local _dragStartPct = 0
-
-    local function GetScrollMetrics()
-        local scrollRange = sf:GetVerticalScrollRange()
-        if not scrollRange or scrollRange <= 0 then return nil end
-        local trackH = track:GetHeight()
-        local ext = sf:GetHeight() / (sf:GetHeight() + scrollRange)
-        local thumbH = math.max(THUMB_MIN_H, trackH * ext)
-        local maxTravel = trackH - thumbH
-        if maxTravel <= 0 then return nil end
-        local pct = sf:GetVerticalScroll() / scrollRange
-        return pct, thumbH, maxTravel, scrollRange
-    end
-
-    local function UpdateThumb()
-        -- Clamp scroll to current range (content may have shrunk)
-        local range = sf:GetVerticalScrollRange() or 0
-        local cur = sf:GetVerticalScroll()
-        if cur > range then sf:SetVerticalScroll(range) end
-        local pct, thumbH, maxTravel = GetScrollMetrics()
-        if not pct then
-            thumb:Hide()
-            trackBg:Hide()
-            return
-        end
-        thumb:SetHeight(thumbH)
-        thumb:ClearAllPoints()
-        thumb:SetPoint("TOPRIGHT", track, "TOPRIGHT", 0, -(pct * maxTravel))
-        thumb:Show()
-        trackBg:Show()
-    end
-
-    sf:SetScript("OnMouseWheel", function(_, delta)
-        local _, _, _, scrollRange = GetScrollMetrics()
-        if not scrollRange then return end
-        local cur = sf:GetVerticalScroll()
-        local newVal = math.max(0, math.min(scrollRange, cur - delta * SCROLL_STEP))
-        sf:SetVerticalScroll(newVal)
-        UpdateThumb()
-    end)
-
-    -- Also enable mouse wheel on the main bag frame (items might not cover full area)
-    EUI_Bags:EnableMouseWheel(true)
-    EUI_Bags:SetScript("OnMouseWheel", function(_, delta)
-        local _, _, _, scrollRange = GetScrollMetrics()
-        if not scrollRange then return end
-        local cur = sf:GetVerticalScroll()
-        local newVal = math.max(0, math.min(scrollRange, cur - delta * SCROLL_STEP))
-        sf:SetVerticalScroll(newVal)
-        UpdateThumb()
-    end)
-
-    -- Thumb dragging (dragUpdate must be declared before OnMouseDown uses it)
-    local dragUpdate = CreateFrame("Frame")
-    dragUpdate:Hide()
-    dragUpdate:SetScript("OnUpdate", function(self)
-        if not _isDragging then self:Hide(); return end
-        if not IsMouseButtonDown("LeftButton") then
-            _isDragging = false; self:Hide()
-            thumb:SetColorTexture(1, 1, 1, 0.25)
-            return
-        end
-        local pct, thumbH, maxTravel, scrollRange = GetScrollMetrics()
-        if not pct then _isDragging = false; self:Hide(); return end
-        local scale = track:GetEffectiveScale()
-        local _, cy = GetCursorPosition()
-        local deltaY = (_dragStartY - cy / scale)
-        local deltaPct = deltaY / maxTravel
-        local newPct = math.max(0, math.min(1, _dragStartPct + deltaPct))
-        sf:SetVerticalScroll(newPct * scrollRange)
-        UpdateThumb()
-    end)
-
-    track:RegisterForDrag("LeftButton")
-    track:SetScript("OnMouseDown", function(_, button)
-        if button ~= "LeftButton" then return end
-        local pct, thumbH, maxTravel, scrollRange = GetScrollMetrics()
-        if not pct then return end
-
-        local scale = track:GetEffectiveScale()
-        local _, cy = GetCursorPosition()
-        local trackTop = track:GetTop() * scale
-        local cursorLocalY = (trackTop - cy) / scale
-
-        -- Check if cursor is on the thumb
-        local thumbTop = pct * maxTravel
-        local thumbBot = thumbTop + thumbH
-        if cursorLocalY >= thumbTop and cursorLocalY <= thumbBot then
-            _isDragging = true
-            _dragStartY = cy / scale
-            _dragStartPct = pct
-            dragUpdate:Show()
-        else
-            -- Click on track: jump to position
-            local clickPct = math.max(0, math.min(1, (cursorLocalY - thumbH / 2) / maxTravel))
-            sf:SetVerticalScroll(clickPct * scrollRange)
-            UpdateThumb()
-            _isDragging = true
-            _dragStartY = cy / scale
-            _dragStartPct = clickPct
-            dragUpdate:Show()
-        end
-    end)
-
-    track:SetScript("OnMouseUp", function()
-        _isDragging = false
-    end)
-
-    track:SetScript("OnEnter", function() thumb:SetColorTexture(1, 1, 1, 0.4) end)
-    track:SetScript("OnLeave", function()
-        if not _isDragging then thumb:SetColorTexture(1, 1, 1, 0.25) end
-    end)
 
     EUI_Bags._scrollFrame = sf
     EUI_Bags._scrollChild = child

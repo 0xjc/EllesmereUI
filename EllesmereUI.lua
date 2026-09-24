@@ -305,6 +305,291 @@ EllesmereUI.SEASON_PORTALS = {
     { spellID = 1286831, short = "KR",  dungeonID = 1785, names = { "kings' rest", "king's rest", "гробница королей" } },
 }
 
+-- Portal flyout (Chat sidebar and Minimap): SEASON_PORTALS spell buttons plus a
+-- hearthstone column, all secure. Build lazily, never in combat; the caller
+-- caches the frame and owns anchoring. opts: name (frame name prefix), bg
+-- ({r,g,b}), labelFont, labelFlags, clamp (clamp to screen), unitEvents
+-- (register the cast events for "player" only).
+function EllesmereUI.CreatePortalFlyout(opts)
+    if InCombatLockdown() then return nil end
+    local floor = math.floor
+    local PP = EllesmereUI.PP
+
+    local BTN_SIZE = 32
+    local SPACING = 1
+    local PADDING = 2
+    local COLS = 4
+    local ROWS = math.ceil(#EllesmereUI.SEASON_PORTALS / COLS)
+
+    local flyH = PADDING * 2 + BTN_SIZE * ROWS + SPACING * (ROWS - 1)
+    local HS_COUNT = 3
+    local HS_H = floor((flyH - PADDING * 2 - SPACING * (HS_COUNT - 1)) / HS_COUNT)
+    local hsX = PADDING + COLS * BTN_SIZE + (COLS - 1) * SPACING + SPACING
+    local flyW = hsX + HS_H + PADDING
+
+    local flyout = CreateFrame("Frame", opts.name .. "PortalFlyout", UIParent)
+    flyout:SetSize(flyW, flyH)
+    flyout:SetFrameStrata("DIALOG")
+    flyout:SetFrameLevel(100)
+    if opts.clamp then flyout:SetClampedToScreen(true) end
+    flyout:Hide()
+
+    local bg = flyout:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(opts.bg[1], opts.bg[2], opts.bg[3], 0.95)
+
+    if PP and PP.CreateBorder then
+        PP.CreateBorder(flyout, 1, 1, 1, 0.06, 1, "OVERLAY", 7)
+    end
+
+    -- Close in combat
+    local guard = CreateFrame("Frame")
+    guard:RegisterEvent("PLAYER_REGEN_DISABLED")
+    guard:SetScript("OnEvent", function() flyout:Hide() end)
+
+    local function NewButton(name, size)
+        local btn = CreateFrame("Button", name, flyout, "SecureActionButtonTemplate")
+        btn:SetSize(size, size)
+        local icon = btn:CreateTexture(nil, "ARTWORK")
+        icon:SetAllPoints()
+        icon:SetTexCoord(6/64, 58/64, 6/64, 58/64)
+        btn.icon = icon
+        if PP and PP.CreateBorder then
+            PP.CreateBorder(btn, 0, 0, 0, 1, 1, "OVERLAY", 7)
+        end
+        local cd = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
+        cd:SetAllPoints()
+        cd:SetHideCountdownNumbers(true)
+        cd:SetDrawSwipe(true)
+        cd:SetDrawBling(false)
+        cd:SetDrawEdge(false)
+        btn.cooldown = cd
+        return btn, cd
+    end
+
+    local function AddHighlights(btn)
+        local hover = btn:CreateTexture(nil, "HIGHLIGHT")
+        hover:SetAllPoints()
+        hover:SetColorTexture(1, 1, 1, 0.20)
+        -- Casting highlight overlay
+        local castHL = btn:CreateTexture(nil, "OVERLAY", nil, 1)
+        castHL:SetAllPoints()
+        castHL:SetColorTexture(1, 1, 1, 0.4)
+        castHL:Hide()
+        btn._castHL = castHL
+    end
+
+    local portalBtns = {}
+    for i, e in ipairs(EllesmereUI.SEASON_PORTALS) do
+        local spellID = e.spellID
+        local col = (i - 1) % COLS
+        local row = floor((i - 1) / COLS)
+        local btn, cd = NewButton(opts.name .. "Portal" .. i, BTN_SIZE)
+        btn:SetPoint("TOPLEFT", flyout, "TOPLEFT",
+            PADDING + col * (BTN_SIZE + SPACING),
+            -(PADDING + row * (BTN_SIZE + SPACING)))
+        btn.spellID = spellID
+        local spellInfo = C_Spell.GetSpellInfo(spellID)
+        if spellInfo then btn.icon:SetTexture(spellInfo.iconID) end
+
+        local short = e.short
+        if short then
+            local labelFrame = CreateFrame("Frame", nil, btn)
+            labelFrame:SetAllPoints()
+            labelFrame:SetFrameLevel(cd:GetFrameLevel() + 2)
+            local label = labelFrame:CreateFontString(nil, "OVERLAY", nil)
+            if EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(label, true) end
+            label:SetFont(opts.labelFont, 8, opts.labelFlags)
+            label:SetPoint("BOTTOM", btn, "BOTTOM", 0, 2)
+            label:SetTextColor(1, 1, 1, 0.9)
+            label:SetText((EllesmereUI.L and EllesmereUI.L(short)) or short)
+        end
+
+        AddHighlights(btn)
+        btn:RegisterForClicks("AnyUp", "AnyDown")
+        btn:SetAttribute("type", "spell")
+        btn:SetAttribute("spell", spellID)
+        btn:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            GameTooltip:SetSpellByID(self.spellID)
+            GameTooltip:Show()
+        end)
+        btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        portalBtns[i] = btn
+    end
+
+    -- Hearthstone column: 3 icons stacked vertically as a 5th column
+    local hearthBtns = {}
+    for i = 1, HS_COUNT do
+        local btn = NewButton(opts.name .. "Hearth" .. i, HS_H)
+        btn:SetPoint("TOPLEFT", flyout, "TOPLEFT",
+            hsX,
+            -(PADDING + (i - 1) * (HS_H + SPACING)))
+        AddHighlights(btn)
+        btn:RegisterForClicks("AnyUp", "AnyDown")
+        btn:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            if self._hsType == "spell" then
+                GameTooltip:SetSpellByID(self._hsID)
+            elseif self._hsType == "item" then
+                if self._hsID ~= 6948 and PlayerHasToy and PlayerHasToy(self._hsID) then
+                    GameTooltip:SetToyByItemID(self._hsID)
+                else
+                    GameTooltip:SetItemByID(self._hsID)
+                end
+            elseif self._hsType == "housing" then
+                GameTooltip:AddLine(EllesmereUI.L("Housing Dashboard"))
+            end
+            GameTooltip:Show()
+        end)
+        btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        btn:HookScript("PostClick", function(self)
+            if self._hsType == "housing" then
+                if HousingFramesUtil and HousingFramesUtil.ToggleHousingDashboard then
+                    HousingFramesUtil.ToggleHousingDashboard()
+                end
+                flyout:Hide()
+            else
+                self._castHL:Show()
+            end
+        end)
+        hearthBtns[i] = btn
+    end
+
+    local function RefreshPortalButtons()
+        for _, btn in ipairs(portalBtns) do
+            local spellID = btn.spellID
+            local known = IsPlayerSpell(spellID)
+            if btn._lastKnown ~= known then
+                btn._lastKnown = known
+                btn.icon:SetDesaturated(not known)
+                btn.icon:SetAlpha(known and 1 or 0.4)
+            end
+            if known then
+                local cdInfo = C_Spell.GetSpellCooldown(spellID)
+                if cdInfo and cdInfo.startTime and cdInfo.duration and cdInfo.duration > 0 then
+                    btn.cooldown:SetCooldown(cdInfo.startTime, cdInfo.duration)
+                else
+                    btn.cooldown:Clear()
+                end
+            else
+                btn.cooldown:Clear()
+            end
+        end
+    end
+
+    -- Swipe-only refresh (SPELL_UPDATE_COOLDOWN); never re-resolves toys.
+    local function RefreshHearthCooldowns()
+        for _, btn in ipairs(hearthBtns) do
+            local aType, id = btn._hsType, btn._hsID
+            if aType == "spell" and C_Spell and C_Spell.GetSpellCooldown then
+                local cdInfo = C_Spell.GetSpellCooldown(id)
+                if cdInfo and cdInfo.startTime and cdInfo.duration and cdInfo.duration > 0 then
+                    btn.cooldown:SetCooldown(cdInfo.startTime, cdInfo.duration)
+                else
+                    btn.cooldown:Clear()
+                end
+            elseif aType == "item" and GetItemCooldown then
+                local ok, start, dur = pcall(GetItemCooldown, id)
+                if ok and start and dur and dur > 0 then
+                    btn.cooldown:SetCooldown(start, dur)
+                else
+                    btn.cooldown:Clear()
+                end
+            else
+                btn.cooldown:Clear()
+            end
+        end
+    end
+
+    -- Full resolve (random toy, icon/macro/attributes). Show only, never on
+    -- cooldown events; attribute writes are combat-illegal, hence the gate.
+    local function ResolveHearthButtons()
+        if InCombatLockdown() then return end
+        local resolvers = {
+            EllesmereUI.ResolveHearthSlot,
+            EllesmereUI.ResolveDalaranSlot,
+            EllesmereUI.ResolveHousingSlot,
+        }
+        for i, btn in ipairs(hearthBtns) do
+            local aType, id, iconTex = resolvers[i]()
+            btn._hsType = aType
+            btn._hsID = id
+            btn.icon:SetTexture(iconTex)
+            btn.icon:SetTexCoord(aType == "housing" and 0 or 6/64,
+                                 aType == "housing" and 1 or 58/64,
+                                 aType == "housing" and 0 or 6/64,
+                                 aType == "housing" and 1 or 58/64)
+            if aType == "housing" then
+                btn:SetAttribute("type", nil)
+                btn:SetAttribute("macrotext", nil)
+            elseif aType == "spell" then
+                btn:SetAttribute("type", "macro")
+                local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(id)
+                local name = info and info.name or ""
+                btn:SetAttribute("macrotext", "/cast " .. name)
+            else
+                btn:SetAttribute("type", "macro")
+                if id == 6948 then
+                    btn:SetAttribute("macrotext", "/use item:" .. id)
+                else
+                    local toyName
+                    if C_ToyBox and C_ToyBox.GetToyInfo then
+                        local _, tn = C_ToyBox.GetToyInfo(id)
+                        toyName = tn
+                    end
+                    btn:SetAttribute("macrotext", toyName and ("/use " .. toyName) or ("/use item:" .. id))
+                end
+            end
+        end
+        RefreshHearthCooldowns()
+    end
+
+    -- Events live only while shown: cooldown + cast highlight refresh.
+    local CAST_EVENTS = { "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_SUCCEEDED",
+                          "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED" }
+    flyout:SetScript("OnShow", function(self)
+        self:RegisterEvent("SPELL_UPDATE_COOLDOWN")
+        for _, ev in ipairs(CAST_EVENTS) do
+            if opts.unitEvents then self:RegisterUnitEvent(ev, "player") else self:RegisterEvent(ev) end
+        end
+        RefreshPortalButtons()
+        ResolveHearthButtons()
+    end)
+    flyout:SetScript("OnHide", function(self)
+        self:UnregisterAllEvents()
+        for _, btn in ipairs(portalBtns) do
+            if btn._castHL then btn._castHL:Hide() end
+        end
+        for _, btn in ipairs(hearthBtns) do
+            if btn._castHL then btn._castHL:Hide() end
+        end
+    end)
+    flyout:SetScript("OnEvent", function(self, event, unit, castGUID, spellID)
+        if event == "SPELL_UPDATE_COOLDOWN" then
+            RefreshPortalButtons()
+            RefreshHearthCooldowns()
+        elseif unit == "player" then
+            local casting = (event == "UNIT_SPELLCAST_START") and spellID or nil
+            for _, btn in ipairs(portalBtns) do
+                if btn._castHL then
+                    btn._castHL:SetShown(casting and casting == btn.spellID)
+                end
+            end
+            -- Cast end clears hearthstone highlights
+            if not casting then
+                for _, btn in ipairs(hearthBtns) do
+                    if btn._castHL then btn._castHL:Hide() end
+                end
+            end
+        end
+    end)
+
+    -- Escape to close
+    EllesmereUI.RegisterEscapeClose(flyout)
+    return flyout
+end
+
 local ADDON_ROSTER = {
     { folder = "EllesmereUIActionBars",        display = "Action Bars",          search_name = "EllesmereUI Action Bars"             },
     { folder = "EllesmereUINameplates",        display = "Nameplates",           search_name = "EllesmereUI Nameplates"              },

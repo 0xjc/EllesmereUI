@@ -644,37 +644,13 @@ end
 --  Content state (mirrors the BattleRes icon so "M+"/"Raid" mean the same
 --  thing: M+ = an active keystone run, Raid = a raid encounter in progress).
 -------------------------------------------------------------------------------
+-- Written by ns.RefreshInstanceState / ns.ApplyInstanceEvent (BattleRes file).
 local _state = {
     inEncounter     = false,
     encounterIsRaid = false,
     inChallenge     = false,
 }
-
-local function _activeKeystoneLevel()
-    if not C_ChallengeMode then return nil end
-    if not C_ChallengeMode.IsChallengeModeActive or not C_ChallengeMode.IsChallengeModeActive() then
-        return nil
-    end
-    if C_ChallengeMode.GetActiveKeystoneInfo then
-        local lvl = C_ChallengeMode.GetActiveKeystoneInfo()
-        return (lvl and lvl > 0) and lvl or nil
-    end
-    return nil
-end
-
-local function _refreshKeystoneState()
-    _state.inChallenge = _activeKeystoneLevel() ~= nil
-end
-
-local function _refreshEncounterState()
-    _state.inEncounter = IsEncounterInProgress() or false
-    if _state.inEncounter then
-        local _, instanceType = GetInstanceInfo()
-        _state.encounterIsRaid = (instanceType == "raid")
-    else
-        _state.encounterIsRaid = false
-    end
-end
+local ns = select(2, ...)
 
 -------------------------------------------------------------------------------
 --  Visibility / text
@@ -714,7 +690,7 @@ local function ShouldShow()
     return false
 end
 
-FormatTime = select(2, ...).FormatTime
+FormatTime = ns.FormatTime
 
 local _lastDurText
 local function _setDur(s)
@@ -891,19 +867,6 @@ local function _onEvent(_, event, _, updateInfo)
     elseif event == "PLAYER_DEAD" then
         -- Buffs drop on death; hide the active-lust overlay even if 40s remain.
         _hideBuffOverlay()
-    elseif event == "ENCOUNTER_START" then
-        _state.inEncounter = true
-        local _, instanceType = GetInstanceInfo()
-        _state.encounterIsRaid = (instanceType == "raid")
-    elseif event == "ENCOUNTER_END" then
-        _state.inEncounter = false
-        _state.encounterIsRaid = false
-    elseif event == "CHALLENGE_MODE_START" or event == "WORLD_STATE_TIMER_START" then
-        _refreshKeystoneState()
-    elseif event == "CHALLENGE_MODE_COMPLETED"
-        or event == "CHALLENGE_MODE_RESET"
-        or event == "WORLD_STATE_TIMER_STOP" then
-        _state.inChallenge = false
     elseif event == "PLAYER_ENTERING_WORLD" then
         _lustIconResolved = false
         _lustIconCache = nil
@@ -913,8 +876,9 @@ local function _onEvent(_, event, _, updateInfo)
         -- suppress edges briefly while the zone's aura table settles.
         _satedWasPresent = _satedActive
         _buffZoneGuard = GetTime() + 1.5
-        _refreshEncounterState()
-        _refreshKeystoneState()
+        ns.RefreshInstanceState(_state)
+    else
+        ns.ApplyInstanceEvent(_state, event)
     end
     UpdateVisibility()
 end
@@ -1042,8 +1006,7 @@ local function Apply()
         -- Baseline so a debuff already present when the tracker is enabled does
         -- not retroactively pop the 40s buff overlay.
         _satedWasPresent = _satedActive
-        _refreshEncounterState()
-        _refreshKeystoneState()
+        ns.RefreshInstanceState(_state)
     end
     UpdateVisibility()
 end
@@ -1056,6 +1019,7 @@ local function RegisterUnlock()
     if not EllesmereUI or not EllesmereUI.RegisterUnlockElements then return end
     local MK = EllesmereUI.MakeUnlockElement
     if not MK then return end
+    local loadPos, clearPos = ns.CenterPosFns(P)
 
     EllesmereUI:RegisterUnlockElements({
         MK({
@@ -1103,16 +1067,8 @@ local function RegisterUnlock()
                     p.pos = { centerX = x, centerY = y }
                 end
             end,
-            loadPos = function()
-                local p = P()
-                if p and p.pos then
-                    return { point = "CENTER", relPoint = "CENTER", x = p.pos.centerX, y = p.pos.centerY }
-                end
-                return nil
-            end,
-            clearPos = function()
-                local p = P(); if p then p.pos = nil end
-            end,
+            loadPos = loadPos,
+            clearPos = clearPos,
             applyPos = function()
                 ApplyPosition()
             end,
