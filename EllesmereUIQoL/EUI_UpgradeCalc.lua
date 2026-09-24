@@ -15,7 +15,7 @@ local EUI  = EllesmereUI
 local PP   = EUI.PP
 
 local function IsLocked()
-    return InCombatLockdown() or (EUI.InProtectedInstance and EUI.InProtectedInstance())
+    return InCombatLockdown() or (EUI.InProtectedInstance())
 end
 
 -------------------------------------------------------------------------------
@@ -888,7 +888,7 @@ for i = 1, 18 do
         else
             self.bg:SetColorTexture(0.5, 0.35, 0.05, 0.2)
         end
-        if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+        EUI.HideWidgetTooltip()
     end)
 
     tileFrames[i] = btn
@@ -921,10 +921,10 @@ qSortBtn:SetWidth(qSortTxt:GetStringWidth() + 4)
 PP.Point(qSortBtn, "RIGHT", queuePane, "RIGHT", 0, 0)
 qSortBtn:SetPoint("TOP", queuePane, "TOP", 0, 0)
 qSortBtn:SetScript("OnEnter", function(self)
-    if EUI.ShowWidgetTooltip then EUI.ShowWidgetTooltip(self, EUI.L("Sort queue by crest type (cheapest first)")) end
+    EUI.ShowWidgetTooltip(self, EUI.L("Sort queue by crest type (cheapest first)"))
 end)
 qSortBtn:SetScript("OnLeave", function()
-    if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+    EUI.HideWidgetTooltip()
 end)
 qSortBtn:Hide()  -- shown only when queue has items
 
@@ -1628,15 +1628,13 @@ end
 refreshBtn:SetScript("OnClick", PopulateGear)
 Calc.PopulateGear = PopulateGear  -- exposed for options page live-refresh
 refreshBtn:HookScript("OnEnter", function(self)
-    if EUI.ShowWidgetTooltip then
-        EUI.ShowWidgetTooltip(self, EUI.L(
-            "Refresh using tooltip scan data.\n"
-            .. "For exact costs, use |cffffffff'Update at Upgrader'|r\n"
-            .. "while at an Item Upgrade NPC."))
-    end
+    EUI.ShowWidgetTooltip(self, EUI.L(
+        "Refresh using tooltip scan data.\n"
+        .. "For exact costs, use |cffffffff'Update at Upgrader'|r\n"
+        .. "while at an Item Upgrade NPC."))
 end)
 refreshBtn:HookScript("OnLeave", function()
-    if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+    EUI.HideWidgetTooltip()
 end)
 
 scanBtn:HookScript("OnEnter", function(self)
@@ -1651,7 +1649,7 @@ scanBtn:HookScript("OnEnter", function(self)
     end
 end)
 scanBtn:HookScript("OnLeave", function()
-    if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+    EUI.HideWidgetTooltip()
 end)
 
 scanBtn:SetScript("OnClick", function()

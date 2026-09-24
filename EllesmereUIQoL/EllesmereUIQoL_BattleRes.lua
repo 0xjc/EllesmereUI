@@ -96,17 +96,17 @@ local function GetBrezFont()
         local path = EllesmereUI.ResolveFontName(key)
         if path then return path end
     end
-    return (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("extras")) or STANDARD_TEXT_FONT
+    return (EllesmereUI.GetFontPath("extras")) or STANDARD_TEXT_FONT
 end
 
 local function GetBrezOutline()
     local p = P()
     local mode = (p and p.outlineMode) or "__global"
-    if mode == "outline" then return (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG" end
-    if mode == "thick" then return (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("THICKOUTLINE, SLUG")) or "THICKOUTLINE, SLUG" end
+    if mode == "outline" then return (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG" end
+    if mode == "thick" then return (EllesmereUI.SlugFlag("THICKOUTLINE, SLUG")) or "THICKOUTLINE, SLUG" end
     if mode == "none" then return "" end
-    return (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("qol"))
-        or (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG"
+    return (EllesmereUI.GetFontOutlineFlag("qol"))
+        or (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG"
 end
 
 -- ONLY the text display ("2 | 4:14") routes through this; the icon's
@@ -116,9 +116,7 @@ end
 local function SetBrezFont(fs, size)
     if not fs then return end
     local flags = GetBrezOutline()
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then
-        EllesmereUI.PrimeFontShadow(fs, flags == "")
-    end
+    EllesmereUI.PrimeFontShadow(fs, flags == "")
     fs:SetFont(GetBrezFont(), size, flags)
 end
 
@@ -126,7 +124,7 @@ end
 -- outline (slug-gated), untouched by the Font / Font Outline settings.
 local function SetBrezIconFont(fs, size)
     if not fs then return end
-    fs:SetFont((EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("extras")) or STANDARD_TEXT_FONT, size, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
+    fs:SetFont((EllesmereUI.GetFontPath("extras")) or STANDARD_TEXT_FONT, size, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
 end
 
 -------------------------------------------------------------------------------
