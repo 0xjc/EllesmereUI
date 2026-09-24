@@ -44,9 +44,14 @@ local function RefreshKickAbility()
     local petHit, playerHit
     for i = 1, #classKicks do
         local spellId = classKicks[i]
-        if C_SpellBook.IsSpellKnownOrInSpellBook(spellId, Enum.SpellBookSpellBank.Pet) then
-            petHit = spellId
-        elseif C_SpellBook.IsSpellKnownOrInSpellBook(spellId) then
+        if C_SpellBook and C_SpellBook.IsSpellKnownOrInSpellBook then
+            if Enum and Enum.SpellBookSpellBank
+                and C_SpellBook.IsSpellKnownOrInSpellBook(spellId, Enum.SpellBookSpellBank.Pet) then
+                petHit = spellId
+            elseif C_SpellBook.IsSpellKnownOrInSpellBook(spellId) then
+                playerHit = spellId
+            end
+        elseif IsSpellKnown and IsSpellKnown(spellId) then
             playerHit = spellId
         end
     end
