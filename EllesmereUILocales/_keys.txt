@@ -239,6 +239,7 @@ Custom Spell ID
 Custom spells cannot track charges.
 Customizing Unlock Mode: %s (changes apply only to this group's specs)
 DEAD
+Damage meter was reset mid-run, some numbers are low
 Dark Overlays\nDisabled
 Dark Overlays\nEnabled
 Deactivate Boss Preview
