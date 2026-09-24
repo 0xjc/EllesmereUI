@@ -1145,14 +1145,14 @@ local function BuildBarWindow()
             end
             btn:SetScript("OnEnter", function()
                 if not ns.DMHdrHover(icon, true) then icon:SetVertexColor(1, 1, 1, ICON_HA) end
-                if EUI.ShowWidgetTooltip then EUI.ShowWidgetTooltip(btn, tooltip) end
+                EUI.ShowWidgetTooltip(btn, tooltip)
             end)
             btn:SetScript("OnLeave", function()
                 if not ns.DMHdrHover(icon, false) then icon:SetVertexColor(1, 1, 1, ICON_A) end
-                if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+                EUI.HideWidgetTooltip()
             end)
             btn:SetScript("OnClick", function()
-                if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+                EUI.HideWidgetTooltip()
                 onClick(btn)
             end)
             btn._icon = icon
@@ -1162,13 +1162,13 @@ local function BuildBarWindow()
         -- Btn 1 (rightmost): Settings
         MakeHdrBtn(MEDIA .. "dm_settings.png", -(btnPad + 2), "Settings", function()
             if ns._optionsOpen then
-                if EUI.Hide then EUI:Hide() end
+                EUI:Hide()
                 return
             end
             if EUI.ShowModule then
                 EUI:ShowModule("EllesmereUIDamageMeters")
                 C_Timer.After(0, function()
-                    if EUI.SelectPage then EUI:SelectPage("Spell History") end
+                    EUI:SelectPage("Spell History")
                 end)
             end
         end, "settings")
@@ -1190,9 +1190,7 @@ local function BuildBarWindow()
         frame._lockBtn = lockBtnHdr
         lockBtnHdr:SetScript("OnEnter", function()
             if not ns.DMHdrHover(lockBtnHdr._icon, true) then lockBtnHdr._icon:SetVertexColor(1, 1, 1, ICON_HA) end
-            if EUI.ShowWidgetTooltip then
-                EUI.ShowWidgetTooltip(lockBtnHdr, frame._locked and "Locked" or "Unlocked")
-            end
+            EUI.ShowWidgetTooltip(lockBtnHdr, frame._locked and "Locked" or "Unlocked")
         end)
 
         -- Btn 3: Resize (width drag)

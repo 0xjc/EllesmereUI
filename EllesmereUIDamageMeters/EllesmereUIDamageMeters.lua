@@ -2393,8 +2393,8 @@ end
 local function EnsureMenuRow(menu, idx)
     local row = menu._pool[idx]
     if row then return row end
-    local fontPath = (EUI.GetFontPath and EUI.GetFontPath("damageMeters")) or "Fonts\\FRIZQT__.TTF"
-    local outline = (EUI.GetFontOutlineFlag and EUI.GetFontOutlineFlag("damageMeters")) or ""
+    local fontPath = (EUI.GetFontPath("damageMeters")) or "Fonts\\FRIZQT__.TTF"
+    local outline = (EUI.GetFontOutlineFlag("damageMeters")) or ""
     row = CreateFrame("Button", nil, menu)
     row._hl = row:CreateTexture(nil, "BACKGROUND", nil, 1); row._hl:SetAllPoints()
     row._lbl = row:CreateFontString(nil, "OVERLAY"); row._lbl:SetFont(fontPath, CTX_FONT_SZ, outline)
@@ -2413,8 +2413,8 @@ end
 
 local function LayoutMenu(menu, items, onDismiss, isChild)
     ApplyInheritedBlizzardBorder(menu, "popupMenu")
-    local fontPath = (EUI.GetFontPath and EUI.GetFontPath("damageMeters")) or "Fonts\\FRIZQT__.TTF"
-    local outline = (EUI.GetFontOutlineFlag and EUI.GetFontOutlineFlag("damageMeters")) or ""
+    local fontPath = (EUI.GetFontPath("damageMeters")) or "Fonts\\FRIZQT__.TTF"
+    local outline = (EUI.GetFontOutlineFlag("damageMeters")) or ""
     local EG = EUI.ELLESMERE_GREEN
     local hlAlpha = EUI.DD_ITEM_HL_A or 0.08
     for _, r in ipairs(menu._pool) do r:Hide() end
@@ -2522,7 +2522,7 @@ local function LayoutMenu(menu, items, onDismiss, isChild)
                     elseif not isChild and _edmSub then _edmSub:Hide() end
                 end)
                 row:SetScript("OnLeave", function(self)
-                    if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+                    EUI.HideWidgetTooltip()
                     self._hl:SetColorTexture(1, 1, 1, active and hlAlpha or 0)
                     if active and EG then self._lbl:SetTextColor(EG.r, EG.g, EG.b, 1) else self._lbl:SetTextColor(1, 1, 1, 1) end
                     if isChild then return end
@@ -2559,7 +2559,7 @@ local function ShowEDMMenu(items, anchorBtn)
         _edmMenu:HookScript("OnHide", function()
             if _edmSub then _edmSub:Hide() end
             _edmMenuAnchor = nil
-            if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+            EUI.HideWidgetTooltip()
         end)
     end
 
@@ -3026,16 +3026,16 @@ local function CreateDMWindow(winIdx)
             end
             -- Suppress tooltip while this button's menu is open
             if _edmMenu and _edmMenu:IsShown() and _edmMenuAnchor == self then return end
-            if EUI.ShowWidgetTooltip then EUI.ShowWidgetTooltip(self, tooltip) end
+            EUI.ShowWidgetTooltip(self, tooltip)
         end)
         btn:SetScript("OnLeave", function()
             if not ns.DMHdrHover(icon, false) then
                 local r, g, b = GetIconColor(); icon:SetVertexColor(r, g, b, ICON_ALPHA)
             end
-            if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+            EUI.HideWidgetTooltip()
         end)
         btn:SetScript("OnClick", function(self)
-            if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+            EUI.HideWidgetTooltip()
             onClick(self)
         end)
         return btn
@@ -3127,7 +3127,7 @@ local function CreateDMWindow(winIdx)
               tooltip = L("Set your window to this Meter Type on dungeon start"),
               children = mStartChildren },
             { text = L("Settings"), onClick = function()
-                if EUI.ShowModule then EUI:ShowModule("EllesmereUIDamageMeters") end
+                EUI:ShowModule("EllesmereUIDamageMeters")
             end },
         }, W.settingsBtn)
     end, "settings")
@@ -3257,8 +3257,8 @@ local function CreateDMWindow(winIdx)
             W.winActionBtn:HookScript("OnEnter", function(self)
                 if #_windows >= MAX_WINDOWS then
                     iconTex:SetAlpha(0.2)
-                    if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
-                    if EUI.ShowWidgetTooltip then EUI.ShowWidgetTooltip(self, EllesmereUI.Lf("You may only have %1$d windows active", MAX_WINDOWS)) end
+                    EUI.HideWidgetTooltip()
+                    EUI.ShowWidgetTooltip(self, EllesmereUI.Lf("You may only have %1$d windows active", MAX_WINDOWS))
                 end
             end)
         else
@@ -3266,8 +3266,8 @@ local function CreateDMWindow(winIdx)
                 if W.windowLocked then
                     local ir, ig, ib = GetIconColor()
                     if not ns.DMHdrHover(iconTex, false, true) then iconTex:SetVertexColor(ir, ig, ib, ICON_ALPHA * 0.5) end
-                    if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
-                    if EUI.ShowWidgetTooltip then EUI.ShowWidgetTooltip(self, "Unlock Window to Close") end
+                    EUI.HideWidgetTooltip()
+                    EUI.ShowWidgetTooltip(self, "Unlock Window to Close")
                 end
             end)
             W.winActionBtn:HookScript("OnLeave", function()
@@ -3450,7 +3450,7 @@ local function CreateDMWindow(winIdx)
 
     header:SetScript("OnMouseDown", function(_, button)
         if button ~= "LeftButton" or W.windowLocked then return end
-        if EUI.InProtectedInstance and EUI.InProtectedInstance() then return end
+        if EUI.InProtectedInstance() then return end
         local cx, cy = GetCursorPosition(); local es = frame:GetEffectiveScale()
         dragStartCX = cx/es; dragStartCY = cy/es
         dragStartLeft = frame:GetLeft(); dragStartTop = frame:GetTop()
@@ -3614,13 +3614,11 @@ local function CreateDMWindow(winIdx)
 
     W.lockBtn:SetScript("OnEnter", function(self)
         self:SetAlpha(0.7)
-        if EUI.ShowWidgetTooltip then
-            EUI.ShowWidgetTooltip(self, W.windowLocked and "Locked" or "Unlocked")
-        end
+        EUI.ShowWidgetTooltip(self, W.windowLocked and "Locked" or "Unlocked")
     end)
     W.lockBtn:SetScript("OnLeave", function(self)
         self:SetAlpha(W.isHovered and 0.3 or 0)
-        if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+        EUI.HideWidgetTooltip()
     end)
     W.lockBtn:SetScript("OnClick", function()
         W.windowLocked = not W.windowLocked
@@ -3634,10 +3632,8 @@ local function CreateDMWindow(winIdx)
             W.resizeGrip:SetAlpha(a)
             W.lockBtn:SetAlpha(a)
         end
-        if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
-        if EUI.ShowWidgetTooltip then
-            EUI.ShowWidgetTooltip(W.lockBtn, W.windowLocked and "Locked" or "Unlocked")
-        end
+        EUI.HideWidgetTooltip()
+        EUI.ShowWidgetTooltip(W.lockBtn, W.windowLocked and "Locked" or "Unlocked")
     end)
     W._updateLockIcon = UpdateLockIcon
 
@@ -3686,7 +3682,7 @@ local function CreateDMWindow(winIdx)
 
     W.resizeGrip:SetScript("OnMouseDown", function(_, button)
         if button ~= "LeftButton" or W.windowLocked then return end
-        if EUI.InProtectedInstance and EUI.InProtectedInstance() then return end
+        if EUI.InProtectedInstance() then return end
         local left, top = frame:GetLeft(), frame:GetTop()
         if left and top then
             frame:ClearAllPoints(); frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left, top)
@@ -4586,8 +4582,8 @@ local function CreateDMWindow(winIdx)
         card._accent:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 0, 0)
         card._accent:Hide()
 
-        local fontPath = (EUI.GetFontPath and EUI.GetFontPath("damageMeters")) or "Fonts\\FRIZQT__.TTF"
-        local outline = (EUI.GetFontOutlineFlag and EUI.GetFontOutlineFlag("damageMeters")) or ""
+        local fontPath = (EUI.GetFontPath("damageMeters")) or "Fonts\\FRIZQT__.TTF"
+        local outline = (EUI.GetFontOutlineFlag("damageMeters")) or ""
         local iconSz = CARD_H - 2
         card._icon = card:CreateTexture(nil, "OVERLAY")
         card._icon:SetSize(iconSz, iconSz)
@@ -4614,8 +4610,8 @@ local function CreateDMWindow(winIdx)
     RefreshHome = function()
         if not homeFrame or not homeFrame:IsShown() then return end
         local bookmarks = GetBookmarks()
-        local fontPath = (EUI.GetFontPath and EUI.GetFontPath("damageMeters")) or "Fonts\\FRIZQT__.TTF"
-        local outline = (EUI.GetFontOutlineFlag and EUI.GetFontOutlineFlag("damageMeters")) or ""
+        local fontPath = (EUI.GetFontPath("damageMeters")) or "Fonts\\FRIZQT__.TTF"
+        local outline = (EUI.GetFontOutlineFlag("damageMeters")) or ""
         local EG = EUI.ELLESMERE_GREEN
         local acR, acG, acB = GetAccentRGB()
 
@@ -4840,7 +4836,7 @@ local function CreateDMWindow(winIdx)
         if EUI._unlockActive or ns._optionsOpen then frame:SetAlpha(1); frame:EnableMouse(true); frame:Show(); return end
         -- Hotkey toggle outranks every configured rule but yields to the two modes above
         if ns._toggleHidden then frame:Hide(); return end
-        local vis = EUI.EvalVisibility and EUI.EvalVisibility(c)
+        local vis = EUI.EvalVisibility(c)
         if not vis or vis == false then frame:Hide(); return end
         -- Per-window instance visibility
         local _, iType = IsInInstance()
@@ -4853,7 +4849,7 @@ local function CreateDMWindow(winIdx)
         else frame:SetAlpha(1); frame:EnableMouse(true); frame:Show() end
     end
 
-    if EUI.RegisterVisibilityUpdater then EUI.RegisterVisibilityUpdater(W.UpdateVisibility) end
+    EUI.RegisterVisibilityUpdater(W.UpdateVisibility)
     if EUI.RegisterMouseoverTarget then
         -- Hover-gated sets only reveal while their conditions pass; a legacy single "mouseover" behaves exactly as before
         EUI.RegisterMouseoverTarget(frame, function()
@@ -4871,7 +4867,7 @@ local function CreateDMWindow(winIdx)
         if W._hoverTicker then W._hoverTicker:Cancel() end
         resizeFrame:SetScript("OnUpdate", nil)
         -- Unregister from global visibility system (prevents ghost resurrection)
-        if EUI.UnregisterVisibilityUpdater then EUI.UnregisterVisibilityUpdater(W.UpdateVisibility) end
+        EUI.UnregisterVisibilityUpdater(W.UpdateVisibility)
         frame:Hide(); frame:SetParent(nil)
         -- Remove from runtime array
         local oldCount = #_windows
@@ -5540,15 +5536,13 @@ do
 end
 
 -- Accent color callback for standalone timer
-if EUI.RegAccent then
-    EUI.RegAccent({ type = "callback", fn = function()
-        if not _saTimer or not _saTimerFS then return end
-        local cfg = DB()
-        if cfg.standaloneTimerUseAccent then
-            ApplySATimerColor()
-        end
-    end })
-end
+EUI.RegAccent({ type = "callback", fn = function()
+    if not _saTimer or not _saTimerFS then return end
+    local cfg = DB()
+    if cfg.standaloneTimerUseAccent then
+        ApplySATimerColor()
+    end
+end })
 
 -- Unlock-mode element for the standalone timer, built on demand by ns.RegisterDMUnlock (lives here since the closures need the _saTimer upvalues above). Sizes to its text and would shift children, so it may anchor TO elements but never serve as an anchor target.
 ns.MakeSATimerUnlockElement = function(MK)
