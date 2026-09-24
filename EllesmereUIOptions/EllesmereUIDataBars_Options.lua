@@ -279,11 +279,11 @@ initFrame:SetScript("OnEvent", function(self)
     ---------------------------------------------------------------------------
     local _edbPopout
     local function PreviewPopoutAllowed()
-        if not (EllesmereUI.IsShown and EllesmereUI:IsShown()) then return false end
+        if not (EllesmereUI:IsShown()) then return false end
         -- nil = mid-build (page state not stamped yet); only a definite
         -- mismatch blocks, mirroring the TBB popout gate.
-        local am = EllesmereUI.GetActiveModule and EllesmereUI:GetActiveModule()
-        local ap = EllesmereUI.GetActivePage and EllesmereUI:GetActivePage()
+        local am = EllesmereUI:GetActiveModule()
+        local ap = EllesmereUI:GetActivePage()
         if am and ap and (am ~= "EllesmereUIDataBars" or ap ~= PAGE_DATABARS) then
             return false
         end
@@ -1754,14 +1754,12 @@ initFrame:SetScript("OnEvent", function(self)
         -- plus SharedMedia statusbars appended live on every build (late-registered
         -- packs always appear), with texture preview backgrounds on the menu items.
         local function BuildBarTexDropdown()
-            if EllesmereUI.AppendSharedMediaTextures then
-                EllesmereUI.AppendSharedMediaTextures(
-                    ns.barTextureNames or {},
-                    ns.barTextureOrder or {},
-                    nil,
-                    ns.barTextures
-                )
-            end
+            EllesmereUI.AppendSharedMediaTextures(
+                ns.barTextureNames or {},
+                ns.barTextureOrder or {},
+                nil,
+                ns.barTextures
+            )
             local btValues, btOrder = {}, {}
             local texNames = ns.barTextureNames or {}
             local texOrder = ns.barTextureOrder or {}
@@ -2824,7 +2822,7 @@ initFrame:SetScript("OnEvent", function(self)
                 -- grouping tables in EllesmereUI_NumberFormat.lua); every other
                 -- locale already gets K/M/B, so the toggle would be a no-op.
                 -- Mirrors the Damage Meters options row (EUI_DamageMeters_Options.lua).
-                if EllesmereUI.LocaleHasNumberAbbreviation and EllesmereUI.LocaleHasNumberAbbreviation() then
+                if EllesmereUI.LocaleHasNumberAbbreviation() then
                     typeRows[#typeRows + 1] = MkToggle("Force English Units (K/M/B)", "forceEnglishUnits",
                         "Always use K/M/B instead of localized units.")
                 end

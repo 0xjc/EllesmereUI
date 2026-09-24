@@ -37,7 +37,7 @@ initFrame:SetScript("OnEvent", function(self)
 
                 -- Info label
                 do
-                    local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("bags")) or "Fonts\\FRIZQT__.TTF"
+                    local fontPath = (EllesmereUI.GetFontPath("bags")) or "Fonts\\FRIZQT__.TTF"
                     local infoFrame = CreateFrame("Frame", nil, parent)
                     infoFrame:SetSize(parent:GetWidth(), 34)
                     infoFrame:SetPoint("TOP", parent, "TOP", 0, y - 10)
@@ -142,7 +142,7 @@ initFrame:SetScript("OnEvent", function(self)
 
             -- Reposition info label
             do
-                local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("bags")) or "Fonts\\FRIZQT__.TTF"
+                local fontPath = (EllesmereUI.GetFontPath("bags")) or "Fonts\\FRIZQT__.TTF"
                 local infoFrame = CreateFrame("Frame", nil, parent)
                 infoFrame:SetSize(parent:GetWidth(), 34)
                 infoFrame:SetPoint("TOP", parent, "TOP", 0, y - 10)

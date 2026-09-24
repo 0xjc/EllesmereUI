@@ -56,14 +56,12 @@ initFrame:SetScript("OnEvent", function(self)
     local dmTexValues = {}
     local dmTexOrder = {}
     do
-        if EllesmereUI.AppendSharedMediaTextures then
-            EllesmereUI.AppendSharedMediaTextures(
-                _G._EDM_BarTextureNames or {},
-                _G._EDM_BarTextureOrder or {},
-                nil,
-                _G._EDM_BarTextures
-            )
-        end
+        EllesmereUI.AppendSharedMediaTextures(
+            _G._EDM_BarTextureNames or {},
+            _G._EDM_BarTextureOrder or {},
+            nil,
+            _G._EDM_BarTextures
+        )
         local texNames = _G._EDM_BarTextureNames or {}
         local texOrder2 = _G._EDM_BarTextureOrder or {}
         local texLookup = _G._EDM_BarTextures or {}
@@ -111,7 +109,7 @@ initFrame:SetScript("OnEvent", function(self)
 
         -- Visibility (one control)
         local function VisApply()
-            if EllesmereUI.RequestVisibilityUpdate then EllesmereUI.RequestVisibilityUpdate() end
+            EllesmereUI.RequestVisibilityUpdate()
         end
         local visRow
         visRow, h = EllesmereUI.BuildVisibilityRow(W, parent, y,
@@ -1275,7 +1273,7 @@ initFrame:SetScript("OnEvent", function(self)
         -- algorithm (currently the CJK wan/yi grouping tables in
         -- EllesmereUI_NumberFormat.lua): every other locale already gets
         -- K/M/B and the toggle would be a no-op, so the row is skipped for them.
-        if EllesmereUI.LocaleHasNumberAbbreviation and EllesmereUI.LocaleHasNumberAbbreviation() then
+        if EllesmereUI.LocaleHasNumberAbbreviation() then
             _, h = W:DualRow(parent, y,
                 { type="toggle", text="Force English Units (K/M/B)",
                   tooltip = "Always use K/M/B instead of localized units.",
@@ -1983,28 +1981,24 @@ initFrame:SetScript("OnEvent", function(self)
     })
 
     -- Show preview when panel opens on DM page, hide when panel closes
-    if EllesmereUI.RegisterOnShow then
-        EllesmereUI:RegisterOnShow(function()
-            if EllesmereUI:GetActiveModule() == "EllesmereUIDamageMeters" then
-                if ns.ShowSATimerPreview and Cfg("standaloneTimer") then ns.ShowSATimerPreview() end
-                ns._optionsOpen = true
-                for _, w in ipairs(ns._windows or {}) do
-                    if w.frame then w.frame:SetAlpha(1); w.frame:EnableMouse(true); w.frame:Show() end
-                end
-                if ns.ApplySpellHistory then ns.ApplySpellHistory() end
-            end
-        end)
-    end
-    if EllesmereUI.RegisterOnHide then
-        EllesmereUI:RegisterOnHide(function()
-            if ns.HideSATimerPreview then ns.HideSATimerPreview() end
-            ns._optionsOpen = false
+    EllesmereUI:RegisterOnShow(function()
+        if EllesmereUI:GetActiveModule() == "EllesmereUIDamageMeters" then
+            if ns.ShowSATimerPreview and Cfg("standaloneTimer") then ns.ShowSATimerPreview() end
+            ns._optionsOpen = true
             for _, w in ipairs(ns._windows or {}) do
-                if w.UpdateVisibility then w.UpdateVisibility() end
+                if w.frame then w.frame:SetAlpha(1); w.frame:EnableMouse(true); w.frame:Show() end
             end
             if ns.ApplySpellHistory then ns.ApplySpellHistory() end
-        end)
-    end
+        end
+    end)
+    EllesmereUI:RegisterOnHide(function()
+        if ns.HideSATimerPreview then ns.HideSATimerPreview() end
+        ns._optionsOpen = false
+        for _, w in ipairs(ns._windows or {}) do
+            if w.UpdateVisibility then w.UpdateVisibility() end
+        end
+        if ns.ApplySpellHistory then ns.ApplySpellHistory() end
+    end)
 end)
 -- LoadOnDemand: this addon loads after PLAYER_LOGIN, so the event above will never fire; run the init now.
 if IsLoggedIn() then initFrame:GetScript("OnEvent")(initFrame) end

@@ -355,7 +355,7 @@ initFrame:SetScript("OnEvent", function(self)
             local classSwatch, updateClass = EllesmereUI.BuildColorSwatch(
                 rgn, borderRow:GetFrameLevel() + 3,
                 function()
-                    local cc = EllesmereUI.GetClassColor and EllesmereUI.GetClassColor(select(2, UnitClass("player")))
+                    local cc = EllesmereUI.GetClassColor(select(2, UnitClass("player")))
                     if cc then return cc.r, cc.g, cc.b, 1 end
                     return 1, 1, 1, 1
                 end,

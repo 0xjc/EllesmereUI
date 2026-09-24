@@ -58,14 +58,12 @@ initFrame:SetScript("OnEvent", function(self)
         C_Timer.After(0.05, function()
             if ns.CDMApplyVisibility then ns.CDMApplyVisibility() end
             if ns.ApplyCachedKeybinds then ns.ApplyCachedKeybinds() end
-            if EllesmereUI and EllesmereUI.RefreshPage then
-                EllesmereUI:RefreshPage(true)
-            end
+            EllesmereUI:RefreshPage(true)
         end)
     end
 
     -- Inline text input helper (no W:InputBox exists)
-    local FONT_PATH = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("cdm"))
+    local FONT_PATH = (EllesmereUI.GetFontPath("cdm"))
         or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
 
     local GetCDMOptOutline = EllesmereUI.GetFontOutlineFlag
@@ -352,7 +350,7 @@ initFrame:SetScript("OnEvent", function(self)
             pf:SetSize(260, totalH); pf:SetFrameStrata("DIALOG"); pf:SetFrameLevel(200)
             pf:EnableMouse(true); pf:Hide()
             -- Match panel/popup scale of the shared BuildCogPopup popups.
-            pf:SetScale((EllesmereUI.GetPopupScale and EllesmereUI.GetPopupScale()) or 1)
+            pf:SetScale((EllesmereUI.GetPopupScale()) or 1)
             if EllesmereUI._popupFrames then
                 EllesmereUI._popupFrames[#EllesmereUI._popupFrames + 1] = { popup = pf }
             end
@@ -1886,10 +1884,10 @@ initFrame:SetScript("OnEvent", function(self)
     -- Bars page. activeModule/activePage alone is NOT enough -- both persist after close,
     -- and event-driven refreshes (saved positions, spec/instance events) rebuild this page with the panel hidden. Every show path funnels through this check.
     local function TBBPreviewAllowed()
-        if not (EllesmereUI.IsShown and EllesmereUI:IsShown()) then return false end
+        if not (EllesmereUI:IsShown()) then return false end
         -- nil = mid-build (page state not stamped); builders only run for the page shown, so only a definite mismatch blocks.
-        local am = EllesmereUI.GetActiveModule and EllesmereUI:GetActiveModule()
-        local ap = EllesmereUI.GetActivePage and EllesmereUI:GetActivePage()
+        local am = EllesmereUI:GetActiveModule()
+        local ap = EllesmereUI:GetActivePage()
         if am and ap and (am ~= "EllesmereUICooldownManager" or ap ~= PAGE_BUFF_BARS) then
             return false
         end
@@ -2161,8 +2159,8 @@ initFrame:SetScript("OnEvent", function(self)
     -- to the SAME page skips SelectPage (currentPage == restorePage), so the page-restore
     -- hook that calls ShowTBBPlaceholders never fires; this OnShow re-asserts them.
     EllesmereUI:RegisterOnShow(function()
-        local am = EllesmereUI.GetActiveModule and EllesmereUI:GetActiveModule()
-        local ap = EllesmereUI.GetActivePage and EllesmereUI:GetActivePage()
+        local am = EllesmereUI:GetActiveModule()
+        local ap = EllesmereUI:GetActivePage()
         if am == "EllesmereUICooldownManager" and ap == PAGE_BUFF_BARS then
             UpdateTBBPlaceholder()
             RefreshTBBPopout()
@@ -2177,11 +2175,9 @@ initFrame:SetScript("OnEvent", function(self)
     local function HandleTBBSpecChange()
         _tbbSelectedBar = 1
         _tbbSelectedGroup = nil
-        if EllesmereUI.InvalidateModulePageCache then
-            EllesmereUI:InvalidateModulePageCache("EllesmereUICooldownManager")
-        end
-        if EllesmereUI.IsShown and EllesmereUI:IsShown()
-            and EllesmereUI.GetActiveModule and EllesmereUI:GetActiveModule() == "EllesmereUICooldownManager"
+        EllesmereUI:InvalidateModulePageCache("EllesmereUICooldownManager")
+        if EllesmereUI:IsShown()
+            and EllesmereUI:GetActiveModule() == "EllesmereUICooldownManager"
             and EllesmereUI.RefreshPage then
             -- Panel open on a CDM page: rebuild now (content-header dropdown + body).
             EllesmereUI:RefreshPage(true)
@@ -2206,9 +2202,9 @@ initFrame:SetScript("OnEvent", function(self)
     -- Bars auto-added while the panel sits on Tracking Bars (e.g. user drags a new spell
     -- into Blizzard's Tracked Bars and returns): rebuild the open page immediately.
     ns.OnTBBBarsAutoAdded = function()
-        if EllesmereUI.IsShown and EllesmereUI:IsShown()
-            and EllesmereUI.GetActiveModule and EllesmereUI:GetActiveModule() == "EllesmereUICooldownManager"
-            and EllesmereUI.GetActivePage and EllesmereUI:GetActivePage() == PAGE_BUFF_BARS
+        if EllesmereUI:IsShown()
+            and EllesmereUI:GetActiveModule() == "EllesmereUICooldownManager"
+            and EllesmereUI:GetActivePage() == PAGE_BUFF_BARS
             and EllesmereUI.RefreshPage then
             EllesmereUI:RefreshPage(true)
         end
@@ -2218,7 +2214,7 @@ initFrame:SetScript("OnEvent", function(self)
     -- pending cold rebuild here so reopening directly onto a CDM page rebuilds fresh.
     EllesmereUI:RegisterOnShow(function()
         if not ns._cdmColdRebuildOnShow then return end
-        if EllesmereUI.GetActiveModule and EllesmereUI:GetActiveModule() == "EllesmereUICooldownManager"
+        if EllesmereUI:GetActiveModule() == "EllesmereUICooldownManager"
             and EllesmereUI.RefreshPage then
             ns._cdmColdRebuildOnShow = false
             EllesmereUI:RefreshPage(true)
@@ -2953,7 +2949,7 @@ initFrame:SetScript("OnEvent", function(self)
         local clickCatcher = CreateFrame("Button", nil, stPopup)
         clickCatcher:SetFrameStrata("FULLSCREEN_DIALOG")
         clickCatcher:SetFrameLevel(stPopup:GetFrameLevel() - 1)
-        clickCatcher:SetAllPoints((EllesmereUI.GetMainFrame and EllesmereUI:GetMainFrame()) or UIParent)
+        clickCatcher:SetAllPoints((EllesmereUI:GetMainFrame()) or UIParent)
         clickCatcher:SetScript("OnClick", function() stPopup:Hide() end)
         clickCatcher:Hide()
         -- Close on entering combat
@@ -3074,7 +3070,7 @@ initFrame:SetScript("OnEvent", function(self)
         input:SetFrameLevel(rf:GetFrameLevel() + 2)
         input:SetAutoFocus(false)
         input:SetFontObject(GameFontHighlightSmall)
-        local inFont = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("main") or "Fonts\\FRIZQT__.TTF"
+        local inFont = EllesmereUI.GetFontPath("main") or "Fonts\\FRIZQT__.TTF"
         input:SetFont(inFont, 12, "")
         input:SetTextColor(1, 1, 1, 0.75)
         input:SetJustifyH("CENTER")
@@ -4616,14 +4612,12 @@ initFrame:SetScript("OnEvent", function(self)
         end
 
         -- Append SharedMedia textures to runtime ns tables (for bar rendering)
-        if EllesmereUI.AppendSharedMediaTextures then
-            EllesmereUI.AppendSharedMediaTextures(
-                ns.TBB_TEXTURE_NAMES or {},
-                ns.TBB_TEXTURE_ORDER or {},
-                nil,
-                ns.TBB_TEXTURES
-            )
-        end
+        EllesmereUI.AppendSharedMediaTextures(
+            ns.TBB_TEXTURE_NAMES or {},
+            ns.TBB_TEXTURE_ORDER or {},
+            nil,
+            ns.TBB_TEXTURES
+        )
 
         -- Texture dropdown values (built from ns tables, now including SM entries)
         local texValues = {}
@@ -6203,7 +6197,7 @@ initFrame:SetScript("OnEvent", function(self)
             if not slot._previewCD then return end
             local fSize = (bd.cooldownFontSize or 12) - 2
             if fSize < 6 then fSize = 6 end
-            local fontPath = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("cdm")) or STANDARD_TEXT_FONT
+            local fontPath = (EllesmereUI.GetFontPath("cdm")) or STANDARD_TEXT_FONT
             for _, region in ipairs({ slot._previewCD:GetRegions() }) do
                 if region:GetObjectType() == "FontString" then
                     SetPVFont(region, fontPath, fSize)
@@ -10742,7 +10736,7 @@ initFrame:SetScript("OnEvent", function(self)
                                 function(v)
                                     EnsureSS(); SetOwn("alwaysShow", v)
                                     -- Refresh the page so "Keep Buffs in Same Place" grays/ungrays as this per-icon override flips.
-                                    if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage() end
+                                    EllesmereUI:RefreshPage()
                                 end,
                                 function() return ss.alwaysShow == nil end,
                                 nil,
@@ -11289,12 +11283,10 @@ initFrame:SetScript("OnEvent", function(self)
                             or "Custom shapes always use Shape Glow. Set the bar's Icon Shape to None or Cropped to pick a different glow."
                         procRow:SetAlpha(0.35)
                         procRow:SetScript("OnEnter", function()
-                            if EllesmereUI.ShowWidgetTooltip then
-                                EllesmereUI.ShowWidgetTooltip(procRow, procDisabledTip)
-                            end
+                            EllesmereUI.ShowWidgetTooltip(procRow, procDisabledTip)
                         end)
                         procRow:SetScript("OnLeave", function()
-                            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                            EllesmereUI.HideWidgetTooltip()
                         end)
                     end
 
@@ -11470,12 +11462,10 @@ initFrame:SetScript("OnEvent", function(self)
                     if isCustomInjected and activeRow then
                         activeRow:SetAlpha(0.35)
                         activeRow:SetScript("OnEnter", function()
-                            if EllesmereUI.ShowWidgetTooltip then
-                                EllesmereUI.ShowWidgetTooltip(activeRow, customDisabledTip)
-                            end
+                            EllesmereUI.ShowWidgetTooltip(activeRow, customDisabledTip)
                         end)
                         activeRow:SetScript("OnLeave", function()
-                            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                            EllesmereUI.HideWidgetTooltip()
                         end)
                     end
 
@@ -11493,12 +11483,10 @@ initFrame:SetScript("OnEvent", function(self)
                     if isCustomInjected and glowRow then
                         glowRow:SetAlpha(0.35)
                         glowRow:SetScript("OnEnter", function()
-                            if EllesmereUI.ShowWidgetTooltip then
-                                EllesmereUI.ShowWidgetTooltip(glowRow, customDisabledTip)
-                            end
+                            EllesmereUI.ShowWidgetTooltip(glowRow, customDisabledTip)
                         end)
                         glowRow:SetScript("OnLeave", function()
-                            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                            EllesmereUI.HideWidgetTooltip()
                         end)
                     end
 
@@ -11514,12 +11502,10 @@ initFrame:SetScript("OnEvent", function(self)
                     if isCustomInjected and maxStacksGlowRow then
                         maxStacksGlowRow:SetAlpha(0.35)
                         maxStacksGlowRow:SetScript("OnEnter", function()
-                            if EllesmereUI.ShowWidgetTooltip then
-                                EllesmereUI.ShowWidgetTooltip(maxStacksGlowRow, customDisabledTip)
-                            end
+                            EllesmereUI.ShowWidgetTooltip(maxStacksGlowRow, customDisabledTip)
                         end)
                         maxStacksGlowRow:SetScript("OnLeave", function()
-                            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                            EllesmereUI.HideWidgetTooltip()
                         end)
                     end
 
@@ -11538,12 +11524,10 @@ initFrame:SetScript("OnEvent", function(self)
                     if isCustomInjected and nonActiveRow then
                         nonActiveRow:SetAlpha(0.35)
                         nonActiveRow:SetScript("OnEnter", function()
-                            if EllesmereUI.ShowWidgetTooltip then
-                                EllesmereUI.ShowWidgetTooltip(nonActiveRow, customDisabledTip)
-                            end
+                            EllesmereUI.ShowWidgetTooltip(nonActiveRow, customDisabledTip)
                         end)
                         nonActiveRow:SetScript("OnLeave", function()
-                            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                            EllesmereUI.HideWidgetTooltip()
                         end)
                     end
 
@@ -11567,12 +11551,10 @@ initFrame:SetScript("OnEvent", function(self)
                     if isCustomInjected and cdSatRow then
                         cdSatRow:SetAlpha(0.35)
                         cdSatRow:SetScript("OnEnter", function()
-                            if EllesmereUI.ShowWidgetTooltip then
-                                EllesmereUI.ShowWidgetTooltip(cdSatRow, customDisabledTip)
-                            end
+                            EllesmereUI.ShowWidgetTooltip(cdSatRow, customDisabledTip)
                         end)
                         cdSatRow:SetScript("OnLeave", function()
-                            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                            EllesmereUI.HideWidgetTooltip()
                         end)
                     end
 
@@ -11647,12 +11629,10 @@ initFrame:SetScript("OnEvent", function(self)
                     if isCustomInjected and cdStateRow then
                         cdStateRow:SetAlpha(0.35)
                         cdStateRow:SetScript("OnEnter", function()
-                            if EllesmereUI.ShowWidgetTooltip then
-                                EllesmereUI.ShowWidgetTooltip(cdStateRow, customDisabledTip)
-                            end
+                            EllesmereUI.ShowWidgetTooltip(cdStateRow, customDisabledTip)
                         end)
                         cdStateRow:SetScript("OnLeave", function()
-                            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                            EllesmereUI.HideWidgetTooltip()
                         end)
                     end
 
@@ -11753,12 +11733,10 @@ initFrame:SetScript("OnEvent", function(self)
                     if isCustomInjected and cdReadySoundRow then
                         cdReadySoundRow:SetAlpha(0.35)
                         cdReadySoundRow:SetScript("OnEnter", function()
-                            if EllesmereUI.ShowWidgetTooltip then
-                                EllesmereUI.ShowWidgetTooltip(cdReadySoundRow, customDisabledTip)
-                            end
+                            EllesmereUI.ShowWidgetTooltip(cdReadySoundRow, customDisabledTip)
                         end)
                         cdReadySoundRow:SetScript("OnLeave", function()
-                            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                            EllesmereUI.HideWidgetTooltip()
                         end)
                     end
 
@@ -14007,12 +13985,9 @@ initFrame:SetScript("OnEvent", function(self)
                 -- Override editing sessions: per-spell settings and spell
                 -- placement are never part of the override system -- refuse
                 -- the interaction with an explanatory tooltip.
-                if EllesmereUI.SpecOverrides_EditSessionActive
-                   and EllesmereUI.SpecOverrides_EditSessionActive() then
-                    if EllesmereUI.ShowWidgetTooltip then
-                        EllesmereUI.ShowWidgetTooltip(self,
-                            "Per-spell settings are not part of the override system.")
-                    end
+                if EllesmereUI.SpecOverrides_EditSessionActive() then
+                    EllesmereUI.ShowWidgetTooltip(self,
+                        "Per-spell settings are not part of the override system.")
                     return
                 end
                 local bd = SelectedCDMBar()
@@ -14394,12 +14369,9 @@ initFrame:SetScript("OnEvent", function(self)
             slot:SetScript("OnMouseDown", function(self, button)
                 if button ~= "LeftButton" then return end
                 -- Override editing sessions: spell placement never overrides.
-                if EllesmereUI.SpecOverrides_EditSessionActive
-                   and EllesmereUI.SpecOverrides_EditSessionActive() then
-                    if EllesmereUI.ShowWidgetTooltip then
-                        EllesmereUI.ShowWidgetTooltip(self,
-                            "Per-spell settings are not part of the override system.")
-                    end
+                if EllesmereUI.SpecOverrides_EditSessionActive() then
+                    EllesmereUI.ShowWidgetTooltip(self,
+                        "Per-spell settings are not part of the override system.")
                     return
                 end
                 -- Buff-family drag-reorder: extra/custom buff bars reorder via
@@ -14485,7 +14457,7 @@ initFrame:SetScript("OnEvent", function(self)
             local ar, ag, ab = EllesmereUI.GetAccentColor()
             addLbl:SetTextColor(ar, ag, ab, 0.6)
             if addBrd then addBrd:Hide() end
-            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+            EllesmereUI.HideWidgetTooltip()
         end)
         addBtn:SetScript("OnClick", function(self)
             local bd = SelectedCDMBar()
@@ -14569,14 +14541,12 @@ initFrame:SetScript("OnEvent", function(self)
         buffAddBtn:SetScript("OnEnter", function()
             buffAddLbl:SetTextColor(BUFF_ADD_R, BUFF_ADD_G, BUFF_ADD_B, 1)
             if buffAddBrd then buffAddBrd:Show() end
-            if EllesmereUI.ShowWidgetTooltip then
-                EllesmereUI.ShowWidgetTooltip(buffAddBtn, EllesmereUI.L("Add a Buff Spell"))
-            end
+            EllesmereUI.ShowWidgetTooltip(buffAddBtn, EllesmereUI.L("Add a Buff Spell"))
         end)
         buffAddBtn:SetScript("OnLeave", function()
             buffAddLbl:SetTextColor(BUFF_ADD_R, BUFF_ADD_G, BUFF_ADD_B, 0.7)
             if buffAddBrd then buffAddBrd:Hide() end
-            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+            EllesmereUI.HideWidgetTooltip()
         end)
         buffAddBtn:SetScript("OnClick", function(self)
             local bd = SelectedCDMBar()
@@ -15321,7 +15291,7 @@ initFrame:SetScript("OnEvent", function(self)
             if not P then
                 P = { rows = {} }
                 ns._rptSrcPopup = P
-                local scale = (EllesmereUI.GetPopupScale and EllesmereUI.GetPopupScale()) or 1
+                local scale = (EllesmereUI.GetPopupScale()) or 1
                 local dimmer = CreateFrame("Frame", nil, UIParent)
                 dimmer:SetFrameStrata("FULLSCREEN_DIALOG")
                 dimmer:SetAllPoints(UIParent)
@@ -18763,9 +18733,7 @@ initFrame:SetScript("OnEvent", function(self)
                             if not c or c.rotationAssistStyle == "blizzard" then return end
                             c.rotationAssistColorMode = mode
                             if ns.UpdateRotationHighlights then ns.UpdateRotationHighlights() end
-                            if EllesmereUI._NotifySettingWrite then
-                                EllesmereUI._NotifySettingWrite(colorRgn)
-                            end
+                            EllesmereUI._NotifySettingWrite(colorRgn)
                         end,
                         getCustomRGB = function()
                             local c = RotationBars()
@@ -19094,7 +19062,7 @@ initFrame:SetScript("OnEvent", function(self)
             if arrowFill.SetSnapToPixelGrid then arrowFill:SetSnapToPixelGrid(false); arrowFill:SetTexelSnappingBias(0) end
 
             -- Message
-            local FONT_PATH2 = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("cdm"))
+            local FONT_PATH2 = (EllesmereUI.GetFontPath("cdm"))
                 or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
             local msg = tip:CreateFontString(nil, "OVERLAY")
             msg:SetFont(FONT_PATH2, 12, "")

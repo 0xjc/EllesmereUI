@@ -389,7 +389,7 @@ initFrame:SetScript("OnEvent", function(self)
         -- Pre-create all 12 per-button sub-frames/textures; show/hide by
         -- numButtonsShowable --------------------------------------------------
         local buttons = {}
-        local DEFAULT_FONT = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("actionBars"))
+        local DEFAULT_FONT = (EllesmereUI.GetFontPath("actionBars"))
             or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.ttf"
 
         for i = 1, maxBtns do
@@ -427,8 +427,8 @@ initFrame:SetScript("OnEvent", function(self)
 
             -- Macro name text (bottom-center, mirrors real button Name position)
             local macroFS = bf:CreateFontString(nil, "OVERLAY")
-            if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(macroFS, false) end
-            macroFS:SetFont(DEFAULT_FONT, 12, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
+            EllesmereUI.PrimeFontShadow(macroFS, false)
+            macroFS:SetFont(DEFAULT_FONT, 12, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
             macroFS:SetTextColor(1, 1, 1)
             macroFS:SetPoint("BOTTOMLEFT", bf, "BOTTOMLEFT", 1, 4)
             macroFS:SetPoint("BOTTOMRIGHT", bf, "BOTTOMRIGHT", -1, 4)
@@ -591,7 +591,7 @@ initFrame:SetScript("OnEvent", function(self)
             local hideKB    = settings.hideKeybind
 
             -- Font path (global setting)
-            local fontPath  = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("actionBars")) or DEFAULT_FONT
+            local fontPath  = (EllesmereUI.GetFontPath("actionBars")) or DEFAULT_FONT
 
             local kbSize    = settings.keybindFontSize or 12
             local kbColor   = settings.keybindFontColor or { r = 1, g = 1, b = 1 }
@@ -1048,8 +1048,8 @@ initFrame:SetScript("OnEvent", function(self)
                             end
                             macroFS:SetText(mcText)
                         end
-                        if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(macroFS, false) end
-                        macroFS:SetFont(fontPath, scaledMCSize, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
+                        EllesmereUI.PrimeFontShadow(macroFS, false)
+                        macroFS:SetFont(fontPath, scaledMCSize, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
                         macroFS:SetTextColor(mcColor.r, mcColor.g, mcColor.b)
                         local mcOX = (settings.macroOffsetX or 0) * totalScale
                         local mcOY = (settings.macroOffsetY or 0) * totalScale
@@ -1160,12 +1160,10 @@ initFrame:SetScript("OnEvent", function(self)
     }
 
     -- Spec Overrides capture: label captured entries with the selected bar's element (e.g. "Action Bars > Bar 1 > ...").
-    if EllesmereUI.RegisterCaptureContext then
-        EllesmereUI.RegisterCaptureContext("EllesmereUIActionBars", function()
-            local key = SelectedKey()
-            return SHORT_LABELS[key] or key
-        end)
-    end
+    EllesmereUI.RegisterCaptureContext("EllesmereUIActionBars", function()
+        local key = SelectedKey()
+        return SHORT_LABELS[key] or key
+    end)
 
     -- Legacy boolean flags and the visibility-mode dropdown must stay in sync: the runtime reads both shapes.
     local function GetVisibilityKey(s)
@@ -1940,7 +1938,7 @@ initFrame:SetScript("OnEvent", function(self)
                     set = function(v)
                         SB().toggleVisKey = v
                         EAB:RebuildVisToggleBindings()
-                        if EllesmereUI._NotifySettingWrite then EllesmereUI._NotifySettingWrite(rgn) end
+                        EllesmereUI._NotifySettingWrite(rgn)
                     end,
                     disabled = function()
                         local v = SB().barVisibility or "always"
@@ -5561,7 +5559,7 @@ initFrame:SetScript("OnEvent", function(self)
                               EllesmereUI:RefreshPage()
                           end,
                           onCancel    = function()
-                              if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage() end
+                              EllesmereUI:RefreshPage()
                           end,
                       })
                       return

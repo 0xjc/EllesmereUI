@@ -44,12 +44,12 @@ initFrame:SetScript("OnEvent", function(self)
 
     local function Refresh()
         if _G._EMT_Apply then _G._EMT_Apply() end
-        if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage() end
+        EllesmereUI:RefreshPage()
     end
 
     local function RebuildPage()
         if _G._EMT_Apply then _G._EMT_Apply() end
-        if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage(true) end
+        EllesmereUI:RefreshPage(true)
     end
 
     local function BuildBarTexDropdown()

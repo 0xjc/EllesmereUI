@@ -133,15 +133,13 @@ initFrame:SetScript("OnEvent", function(self)
                   if not EllesmereUIDB then EllesmereUIDB = {} end
                   EllesmereUIDB.reskinPopupsMenus = v
                   EllesmereUI:RefreshPage()  -- update the border cog + swatch disabled states
-                  if EllesmereUI.ShowConfirmPopup then
-                      EllesmereUI:ShowConfirmPopup({
-                          title       = "Reload Required",
-                          message     = "Reskin setting requires a UI reload to fully apply.",
-                          confirmText = "Reload Now",
-                          cancelText  = "Later",
-                          reload      = true,
-                      })
-                  end
+                  EllesmereUI:ShowConfirmPopup({
+                      title       = "Reload Required",
+                      message     = "Reskin setting requires a UI reload to fully apply.",
+                      confirmText = "Reload Now",
+                      cancelText  = "Later",
+                      reload      = true,
+                  })
               end },
             { type="toggle", text="Resurrect Accept Glow",
               tooltip="Adds a glowing, pulsating border around the Accept button of resurrection popups so a pending resurrect is hard to miss. Follows the Element & Text Color setting. Applies instantly, no reload needed.",
@@ -224,7 +222,7 @@ initFrame:SetScript("OnEvent", function(self)
             local rgn = queueRow._rightRegion
             local toggle = rgn._control
             if toggle then
-                local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath()) or "Fonts\\FRIZQT__.TTF"
+                local fontPath = (EllesmereUI.GetFontPath()) or "Fonts\\FRIZQT__.TTF"
                 local warnBtn = CreateFrame("Button", nil, rgn)
                 warnBtn:SetSize(28, 28)
                 warnBtn:SetPoint("RIGHT", toggle, "LEFT", -4, 0)
@@ -262,15 +260,13 @@ initFrame:SetScript("OnEvent", function(self)
               setValue=function(v)
                   if not EllesmereUIDB then EllesmereUIDB = {} end
                   EllesmereUIDB.reskinGameMenu = v
-                  if EllesmereUI.ShowConfirmPopup then
-                      EllesmereUI:ShowConfirmPopup({
-                          title       = "Reload Required",
-                          message     = "Changing the pause menu reskin requires a UI reload.",
-                          confirmText = "Reload Now",
-                          cancelText  = "Later",
-                          reload      = true,
-                      })
-                  end
+                  EllesmereUI:ShowConfirmPopup({
+                      title       = "Reload Required",
+                      message     = "Changing the pause menu reskin requires a UI reload.",
+                      confirmText = "Reload Now",
+                      cancelText  = "Later",
+                      reload      = true,
+                  })
               end }
         );  y = y - h
 
@@ -362,15 +358,13 @@ initFrame:SetScript("OnEvent", function(self)
                   EllesmereUIDB.customTooltips = v
                   if EllesmereUI.SyncAuraTooltipSkin then EllesmereUI.SyncAuraTooltipSkin() end
                   EllesmereUI:RefreshPage()  -- gray/ungray the rest of the section now
-                  if EllesmereUI.ShowConfirmPopup then
-                      EllesmereUI:ShowConfirmPopup({
-                          title       = "Reload Required",
-                          message     = "Reskin setting requires a UI reload to fully apply.",
-                          confirmText = "Reload Now",
-                          cancelText  = "Later",
-                          reload      = true,
-                      })
-                  end
+                  EllesmereUI:ShowConfirmPopup({
+                      title       = "Reload Required",
+                      message     = "Reskin setting requires a UI reload to fully apply.",
+                      confirmText = "Reload Now",
+                      cancelText  = "Later",
+                      reload      = true,
+                  })
               end },
             { type="toggle", text="Anchor to Cursor",
               tooltip="Makes the game tooltip follow your mouse cursor instead of showing at its fixed screen position (drag the Tooltip box in Unlock Mode to change that). Use the arrows icon to pick the position relative to the cursor and fine-tune the X/Y offset.",
@@ -751,15 +745,13 @@ initFrame:SetScript("OnEvent", function(self)
                   -- Reload-bound, like the window packs: turned OFF, the skin
                   -- registers no events at all rather than running and
                   -- returning early, so the decision is taken once at login.
-                  if EllesmereUI.ShowConfirmPopup then
-                      EllesmereUI:ShowConfirmPopup({
-                          title       = "Reload Required",
-                          message     = "Widget bar reskin requires a UI reload to apply.",
-                          confirmText = "Reload Now",
-                          cancelText  = "Later",
-                          reload      = true,
-                      })
-                  end
+                  EllesmereUI:ShowConfirmPopup({
+                      title       = "Reload Required",
+                      message     = "Widget bar reskin requires a UI reload to apply.",
+                      confirmText = "Reload Now",
+                      cancelText  = "Later",
+                      reload      = true,
+                  })
               end },
             { type="toggle", text="Reskin Extra Action Buttons",
               tooltip="Squares the extra action and zone ability buttons and gives them a thin black border.\n\nOff by default. The size slider below works whether this is on or off.",
@@ -917,7 +909,7 @@ initFrame:SetScript("OnEvent", function(self)
                          if EllesmereUI._updateStatCategoryVisibility then
                              EllesmereUI._updateStatCategoryVisibility()
                          end
-                         local sf = CharacterFrame and EllesmereUI._GetFFD and EllesmereUI._GetFFD(CharacterFrame).scrollFrame
+                         local sf = CharacterFrame and EllesmereUI._GetFFD(CharacterFrame).scrollFrame
                          if sf then sf:SetVerticalScroll(0) end
                          EllesmereUI:RefreshPage()
                      end }
@@ -1306,15 +1298,13 @@ initFrame:SetScript("OnEvent", function(self)
               setValue=function(v)
                   if not EllesmereUIDB then EllesmereUIDB = {} end
                   EllesmereUIDB.themedInspectSheet = v
-                  if EllesmereUI.ShowConfirmPopup then
-                      EllesmereUI:ShowConfirmPopup({
-                          title       = "Reload Required",
-                          message     = "Inspect Sheet theme setting requires a UI reload to fully apply.",
-                          confirmText = "Reload Now",
-                          cancelText  = "Later",
-                          reload      = true,
-                      })
-                  end
+                  EllesmereUI:ShowConfirmPopup({
+                      title       = "Reload Required",
+                      message     = "Inspect Sheet theme setting requires a UI reload to fully apply.",
+                      confirmText = "Reload Now",
+                      cancelText  = "Later",
+                      reload      = true,
+                  })
                   EllesmereUI:RefreshPage()
               end },
             { type="toggle", text="Show Enchants",
@@ -1461,19 +1451,17 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUIDB.merchantShowAsList = v
 
                 -- Enabling the setting breaks the UI immediately, a reload is required
-                if EllesmereUI.ShowConfirmPopup then
-                      EllesmereUI:ShowConfirmPopup({
-                          title       = "Reload Required",
-                          message     = "Merchant Show As List setting requires a UI reload to fully apply.",
-                          confirmText = "Reload Now",
-                          cancelText  = "Cancel",
-                          reload      = true,
-                          onCancel    = function()
-                              EllesmereUIDB.merchantShowAsList = previousValue;
-                              EllesmereUI:RefreshPage()
-                          end,
-                      })
-                  end
+                EllesmereUI:ShowConfirmPopup({
+                    title       = "Reload Required",
+                    message     = "Merchant Show As List setting requires a UI reload to fully apply.",
+                    confirmText = "Reload Now",
+                    cancelText  = "Cancel",
+                    reload      = true,
+                    onCancel    = function()
+                        EllesmereUIDB.merchantShowAsList = previousValue;
+                        EllesmereUI:RefreshPage()
+                    end,
+                })
               end },
             { type="slider", text="Row Height", min=24, max=40, step=1,
               disabled=merchantShowAsListOff, disabledTooltip="Show As List",
@@ -1569,15 +1557,13 @@ initFrame:SetScript("OnEvent", function(self)
     local _wsApplyAllStyle = "eui"  -- set-all dropdown pick (session-only)
 
     local function WSReloadPopup(message)
-        if EllesmereUI.ShowConfirmPopup then
-            EllesmereUI:ShowConfirmPopup({
-                title       = "Reload Required",
-                message     = message,
-                confirmText = "Reload Now",
-                cancelText  = "Later",
-                reload      = true,
-            })
-        end
+        EllesmereUI:ShowConfirmPopup({
+            title       = "Reload Required",
+            message     = message,
+            confirmText = "Reload Now",
+            cancelText  = "Later",
+            reload      = true,
+        })
     end
 
     -- Style vocabulary shared by the per-card dropdowns and the set-all row.
@@ -2392,7 +2378,7 @@ initFrame:SetScript("OnEvent", function(self)
     -- EllesmereUI.BlizzWindowSkinsKilled(). Skins install at load, so every
     -- toggle shows the reload popup.
     local function WSKillSwitchSet(disabled)
-        local prof = EllesmereUI.GetActiveProfileData and EllesmereUI.GetActiveProfileData()
+        local prof = EllesmereUI.GetActiveProfileData()
         if not prof then return end
         prof.disableWindowSkins = disabled and true or nil
         -- Structural change (settings <-> hero takeover): force a rebuild,
@@ -2793,7 +2779,7 @@ initFrame:SetScript("OnEvent", function(self)
         local t = EDR_Cfg(k); if t then t[field] = v end
     end
     local function EDR_Rebuild() if ns.edrRebuild then ns.edrRebuild() end
-        if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage() end
+        EllesmereUI:RefreshPage()
     end
     local function EDR_Redraw() if ns.edrRedraw then ns.edrRedraw() end end
 
@@ -2813,14 +2799,12 @@ initFrame:SetScript("OnEvent", function(self)
         parent._showRowDivider = true
 
         -- Append SharedMedia textures (safe to call multiple times)
-        if EllesmereUI.AppendSharedMediaTextures then
-            EllesmereUI.AppendSharedMediaTextures(
-                EDR_BAR_TEXTURE_NAMES,
-                EDR_BAR_TEXTURE_ORDER,
-                nil,
-                EDR_BAR_TEXTURES
-            )
-        end
+        EllesmereUI.AppendSharedMediaTextures(
+            EDR_BAR_TEXTURE_NAMES,
+            EDR_BAR_TEXTURE_ORDER,
+            nil,
+            EDR_BAR_TEXTURES
+        )
         local edrTexValues = {}
         local edrTexOrder  = {}
         for _, key in ipairs(EDR_BAR_TEXTURE_ORDER) do
@@ -3035,7 +3019,7 @@ initFrame:SetScript("OnEvent", function(self)
             -- Per-profile master kill switch: reset re-enables skins for the
             -- ACTIVE profile (other profiles keep their own choice).
             do
-                local prof = EllesmereUI.GetActiveProfileData and EllesmereUI.GetActiveProfileData()
+                local prof = EllesmereUI.GetActiveProfileData()
                 if prof then prof.disableWindowSkins = nil end
             end
             if EllesmereUIDB then
@@ -3059,7 +3043,7 @@ initFrame:SetScript("OnEvent", function(self)
                 -- Per-profile fixed tooltip position: clearing it re-seeds from
                 -- Blizzard's CURRENT Edit Mode spot on the next tooltip show.
                 do
-                    local prof = EllesmereUI.GetActiveProfileData and EllesmereUI.GetActiveProfileData()
+                    local prof = EllesmereUI.GetActiveProfileData()
                     if prof then prof.tooltipFixedPos = nil end
                 end
                 EllesmereUIDB.uberTooltips = nil
@@ -3166,7 +3150,7 @@ initFrame:SetScript("OnEvent", function(self)
                 -- reload. Root copies are moved onto profiles at load, so
                 -- they are cleared too.
                 do
-                    local prof = EllesmereUI.GetActiveProfileData and EllesmereUI.GetActiveProfileData()
+                    local prof = EllesmereUI.GetActiveProfileData()
                     if prof then
                         prof.charSheetUseBlizzardStyle = nil
                         prof.charSheetUseClassicStyle = nil
