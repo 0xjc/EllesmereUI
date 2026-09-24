@@ -695,11 +695,7 @@ EllesmereUI.GetProfilesDB = GetProfilesDB
 --    LEFT/RIGHT: offsetY relative to target TOP edge
 --
 --- Check if an addon is loaded
-local function IsAddonLoaded(name)
-    if C_AddOns and C_AddOns.IsAddOnLoaded then return C_AddOns.IsAddOnLoaded(name) end
-    if _G.IsAddOnLoaded then return _G.IsAddOnLoaded(name) end
-    return false
-end
+local IsAddonLoaded = C_AddOns.IsAddOnLoaded
 
 --- Is the module behind this profile folder actually installed/loaded?
 --- Resolves through hostAddon for sub-modules (e.g. Dragon Riding lives inside

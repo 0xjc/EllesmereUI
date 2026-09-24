@@ -462,11 +462,7 @@ for _, info in ipairs(ADDON_ROSTER) do
     EllesmereUI._addonInfoByFolder[info.folder] = info
 end
 
-local function IsAddonLoaded(name)
-    if C_AddOns and C_AddOns.IsAddOnLoaded then return C_AddOns.IsAddOnLoaded(name)
-    elseif IsAddOnLoaded then return IsAddOnLoaded(name) end
-    return false
-end
+local IsAddonLoaded = C_AddOns.IsAddOnLoaded
 
 -------------------------------------------------------------------------------
 --  Profile Sync System (mirror groups)
@@ -12400,8 +12396,7 @@ initFrame:SetScript("OnEvent", function(self, event)
             if hasDupLine(tooltip, name, "SpellID") then return end
             tooltip:AddDoubleLine("SpellID", tostring(data.id), 1, 1, 1, 1, 1, 1)
             if EllesmereUIDB.showIconID ~= false then
-                local iconID = C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(data.id)
-                    or (GetSpellTexture and GetSpellTexture(data.id))
+                local iconID = C_Spell.GetSpellTexture(data.id)
                 if iconID then
                     tooltip:AddDoubleLine("IconID", tostring(iconID), 1, 1, 1, 1, 1, 1)
                 end
@@ -12473,8 +12468,7 @@ initFrame:SetScript("OnEvent", function(self, event)
             if hasDupLine(tooltip, name, "SpellID") then return end
             tooltip:AddDoubleLine("SpellID", tostring(spellID), 1, 1, 1, 1, 1, 1)
             if EllesmereUIDB.showIconID ~= false then
-                local iconID = C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(spellID)
-                    or (GetSpellTexture and GetSpellTexture(spellID))
+                local iconID = C_Spell.GetSpellTexture(spellID)
                 if iconID then
                     tooltip:AddDoubleLine("IconID", tostring(iconID), 1, 1, 1, 1, 1, 1)
                 end
@@ -12518,29 +12512,27 @@ initFrame:SetScript("OnEvent", function(self, event)
     end
 
     -- Consolidated Blizzard AddOns > Options panel (single entry for all Ellesmere addons)
-    if Settings and Settings.RegisterCanvasLayoutCategory then
-        local panel = CreateFrame("Frame")
-        panel.name = "EllesmereUI"
-        local btn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-        btn:SetSize(200, 30)
-        btn:SetPoint("CENTER", panel, "CENTER", 0, 0)
-        btn:SetText("Open EllesmereUI")
-        btn:SetScript("OnClick", function()
-            if InCombatLockdown() then
-                EllesmereUI.Print("|cffff6060[EllesmereUI]|r Cannot open options during combat.")
-                return
-            end
-            -- Close Blizzard settings first, then open ours on next frame to avoid taint
-            if SettingsPanel and SettingsPanel:IsShown() then
-                HideUIPanel(SettingsPanel)
-            end
-            C_Timer.After(0, function()
-                if EllesmereUI then EllesmereUI:Show() end
-            end)
+    local panel = CreateFrame("Frame")
+    panel.name = "EllesmereUI"
+    local btn = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    btn:SetSize(200, 30)
+    btn:SetPoint("CENTER", panel, "CENTER", 0, 0)
+    btn:SetText("Open EllesmereUI")
+    btn:SetScript("OnClick", function()
+        if InCombatLockdown() then
+            EllesmereUI.Print("|cffff6060[EllesmereUI]|r Cannot open options during combat.")
+            return
+        end
+        -- Close Blizzard settings first, then open ours on next frame to avoid taint
+        if SettingsPanel and SettingsPanel:IsShown() then
+            HideUIPanel(SettingsPanel)
+        end
+        C_Timer.After(0, function()
+            if EllesmereUI then EllesmereUI:Show() end
         end)
-        local category = Settings.RegisterCanvasLayoutCategory(panel, "EllesmereUI")
-        Settings.RegisterAddOnCategory(category)
-    end
+    end)
+    local category = Settings.RegisterCanvasLayoutCategory(panel, "EllesmereUI")
+    Settings.RegisterAddOnCategory(category)
 
     local dT, dS, dD = {}, {}, {}
     local demoConfigs = {

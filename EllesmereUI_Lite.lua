@@ -290,15 +290,7 @@ end
 
 local function DeepCopy(src)
     if type(src) ~= "table" then return src end
-    local copy = {}
-    for k, v in pairs(src) do
-        if type(v) == "table" then
-            copy[k] = DeepCopy(v)
-        else
-            copy[k] = v
-        end
-    end
-    return copy
+    return CopyTable(src)
 end
 
 EUILite.DeepCopy = DeepCopy

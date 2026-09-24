@@ -175,13 +175,7 @@ local _defaultView = false   -- panel open in Default Editing Mode: live holds
 -------------------------------------------------------------------------------
 --  Small utilities
 -------------------------------------------------------------------------------
-local function DeepCopy(src)
-    local t = {}
-    for k, v in pairs(src) do
-        if type(v) == "table" then t[k] = DeepCopy(v) else t[k] = v end
-    end
-    return t
-end
+local DeepCopy = EllesmereUI.Lite.DeepCopy
 
 local function CurrentSpecID()
     local id = EllesmereUI._specID
