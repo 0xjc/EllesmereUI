@@ -1,5 +1,5 @@
 if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
-local GetSpecialization = (C_SpecializationInfo and C_SpecializationInfo.GetSpecialization) or GetSpecialization
+local GetSpecialization = C_SpecializationInfo.GetSpecialization
 local addonName, ns = ...
 if not (EllesmereUI and EllesmereUI._ModuleNS) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring
 EllesmereUI._ModuleNS[addonName] = ns  -- LOD options files read this module ns via the registry
@@ -7157,6 +7157,53 @@ local function CreateTargetAuras(frame, unit)
     return ns.UF_CreateAuraContainers(frame, unit or "target")
 end
 
+-- "Absorb Short" zero-hide: a binary StatusBar gate (max 1) fed the raw absorb clips
+-- the abbreviated text away at zero shield, secret-safely (absorb only feeds SetValue,
+-- never compared). The zone FontString is reparented into a clip frame that tracks the
+-- gate fill; the HealthPrediction Override drives it. Lazy: _absGate/_absClip stay nil
+-- until a zone uses Absorb Short. content "absorbshort" gates shield absorbs,
+-- "healabsorbshort" heal absorbs (g._euiHealGate); anything else tears the gate down.
+local function ApplyAbsorbGate(frame, unit, textOverlay, zone, fs, content)
+    local isHeal = (content == "healabsorbshort")
+    local wantGate = (content == "absorbshort" or isHeal)
+    local g = frame._absGate and frame._absGate[zone]
+    if wantGate then
+        if not g then
+            frame._absGate = frame._absGate or {}
+            frame._absClip = frame._absClip or {}
+            g = CreateFrame("StatusBar", nil, textOverlay)
+            g:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+            g:SetStatusBarColor(1, 1, 1, 0)  -- geometry only; never drawn
+            g:SetMinMaxValues(0, 1)
+            g:SetValue(0)
+            local clip = CreateFrame("Frame", nil, textOverlay)
+            clip:SetClipsChildren(true)
+            clip:SetFrameLevel(textOverlay:GetFrameLevel() + 1)
+            clip:SetPoint("TOPLEFT", g, "TOPLEFT", 0, 0)
+            clip:SetPoint("BOTTOMRIGHT", g:GetStatusBarTexture(), "BOTTOMRIGHT", 0, 0)
+            frame._absGate[zone] = g
+            frame._absClip[zone] = clip
+        end
+        local clip = frame._absClip[zone]
+        g._euiHealGate = isHeal
+        g:ClearAllPoints()
+        g:SetAllPoints(fs)  -- gate spans the zone's text allocation (live)
+        if fs:GetParent() ~= clip then fs:SetParent(clip) end
+        g:Show(); clip:Show()
+        local amt
+        if isHeal then
+            amt = (UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit)) or 0
+        else
+            amt = (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)) or 0
+        end
+        g:SetValue(amt)
+    elseif g then
+        local clip = frame._absClip[zone]
+        if fs:GetParent() == clip then fs:SetParent(textOverlay) end
+        g:Hide(); if clip then clip:Hide() end
+    end
+end
+
 local function StyleFullFrame(frame, unit)
     local settings = GetSettingsForUnit(unit)
     local powerPos = settings.powerPosition or "below"
@@ -7364,56 +7411,6 @@ local function StyleFullFrame(frame, unit)
     frame.NameText = leftText
     frame.HealthValue = rightText
 
-    -- "Absorb Short" zero-hide: a binary StatusBar gate (max 1) fed the raw absorb clips
-    -- the abbreviated absorb text away at zero shield, secret-safely (absorb only feeds
-    -- SetValue, never compared to zero). The clip frame tracks the gate's fill texture;
-    -- the zone FontString is reparented into it. Driven every absorb update by the
-    -- HealthPrediction Override. Lazy: _absGate/_absClip stay nil until a zone is set to
-    -- Absorb Short, so unused frames pay ZERO cost (Override skips when self._absGate is
-    -- nil). content is the zone's resolved key: "absorbshort" gates shield absorbs,
-    -- "healabsorbshort" gates heal absorbs (g._euiHealGate marks the source so the
-    -- Override feeds the right amount). Anything else tears the gate down.
-    local function ApplyAbsorbGate(zone, fs, content)
-        local isHeal = (content == "healabsorbshort")
-        local wantGate = (content == "absorbshort" or isHeal)
-        local g = frame._absGate and frame._absGate[zone]
-        if wantGate then
-            if not g then
-                frame._absGate = frame._absGate or {}
-                frame._absClip = frame._absClip or {}
-                g = CreateFrame("StatusBar", nil, textOverlay)
-                g:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-                g:SetStatusBarColor(1, 1, 1, 0)  -- geometry only; never drawn
-                g:SetMinMaxValues(0, 1)
-                g:SetValue(0)
-                local clip = CreateFrame("Frame", nil, textOverlay)
-                clip:SetClipsChildren(true)
-                clip:SetFrameLevel(textOverlay:GetFrameLevel() + 1)
-                clip:SetPoint("TOPLEFT", g, "TOPLEFT", 0, 0)
-                clip:SetPoint("BOTTOMRIGHT", g:GetStatusBarTexture(), "BOTTOMRIGHT", 0, 0)
-                frame._absGate[zone] = g
-                frame._absClip[zone] = clip
-            end
-            local clip = frame._absClip[zone]
-            g._euiHealGate = isHeal
-            g:ClearAllPoints()
-            g:SetAllPoints(fs)  -- gate spans the zone's text allocation (live)
-            if fs:GetParent() ~= clip then fs:SetParent(clip) end
-            g:Show(); clip:Show()
-            local amt
-            if isHeal then
-                amt = (UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit)) or 0
-            else
-                amt = (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)) or 0
-            end
-            g:SetValue(amt)
-        elseif g then
-            local clip = frame._absClip[zone]
-            if fs:GetParent() == clip then fs:SetParent(textOverlay) end
-            g:Hide(); if clip then clip:Hide() end
-        end
-    end
-
     -- Apply tags based on content. Extra Text is handled identically to the other
     -- zones (same ContentToTag + absorb gate); only positioning differs (alignment-
     -- based anchor, 95%-of-bar-width clamp with ellipsis truncation).
@@ -7423,10 +7420,10 @@ local function StyleFullFrame(frame, unit)
         ns.SetTextZone(frame, rightText, rc, "rightText", settings)
         ns.SetTextZone(frame, centerText, cc, "centerText", settings)
         ns.SetTextZone(frame, extraText, ec, "extraText", settings)
-        ApplyAbsorbGate("left", leftText, lc)
-        ApplyAbsorbGate("right", rightText, rc)
-        ApplyAbsorbGate("center", centerText, cc)
-        ApplyAbsorbGate("extra", extraText, ec)
+        ApplyAbsorbGate(frame, unit, textOverlay, "left", leftText, lc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "right", rightText, rc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "center", centerText, cc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "extra", extraText, ec)
         ns.UF_PaintText(frame, frame._euiUnit or unit)
     end
     ApplyTextTags(leftContent, rightContent, centerContent, extraContent)
@@ -7686,56 +7683,6 @@ local function StyleFocusFrame(frame, unit)
     frame.NameText = leftText
     frame.HealthValue = rightText
 
-    -- "Absorb Short" zero-hide: a binary StatusBar gate (max 1) fed the raw absorb clips
-    -- the abbreviated absorb text away at zero shield, secret-safely (absorb only feeds
-    -- SetValue, never compared to zero). The clip frame tracks the gate's fill texture;
-    -- the zone FontString is reparented into it. Driven every absorb update by the
-    -- HealthPrediction Override. Lazy: _absGate/_absClip stay nil until a zone is set to
-    -- Absorb Short, so unused frames pay ZERO cost (Override skips when self._absGate is
-    -- nil). content is the zone's resolved key: "absorbshort" gates shield absorbs,
-    -- "healabsorbshort" gates heal absorbs (g._euiHealGate marks the source so the
-    -- Override feeds the right amount). Anything else tears the gate down.
-    local function ApplyAbsorbGate(zone, fs, content)
-        local isHeal = (content == "healabsorbshort")
-        local wantGate = (content == "absorbshort" or isHeal)
-        local g = frame._absGate and frame._absGate[zone]
-        if wantGate then
-            if not g then
-                frame._absGate = frame._absGate or {}
-                frame._absClip = frame._absClip or {}
-                g = CreateFrame("StatusBar", nil, textOverlay)
-                g:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-                g:SetStatusBarColor(1, 1, 1, 0)  -- geometry only; never drawn
-                g:SetMinMaxValues(0, 1)
-                g:SetValue(0)
-                local clip = CreateFrame("Frame", nil, textOverlay)
-                clip:SetClipsChildren(true)
-                clip:SetFrameLevel(textOverlay:GetFrameLevel() + 1)
-                clip:SetPoint("TOPLEFT", g, "TOPLEFT", 0, 0)
-                clip:SetPoint("BOTTOMRIGHT", g:GetStatusBarTexture(), "BOTTOMRIGHT", 0, 0)
-                frame._absGate[zone] = g
-                frame._absClip[zone] = clip
-            end
-            local clip = frame._absClip[zone]
-            g._euiHealGate = isHeal
-            g:ClearAllPoints()
-            g:SetAllPoints(fs)  -- gate spans the zone's text allocation (live)
-            if fs:GetParent() ~= clip then fs:SetParent(clip) end
-            g:Show(); clip:Show()
-            local amt
-            if isHeal then
-                amt = (UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit)) or 0
-            else
-                amt = (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)) or 0
-            end
-            g:SetValue(amt)
-        elseif g then
-            local clip = frame._absClip[zone]
-            if fs:GetParent() == clip then fs:SetParent(textOverlay) end
-            g:Hide(); if clip then clip:Hide() end
-        end
-    end
-
     -- Apply tags based on content. Extra Text is handled identically to the other
     -- zones (same ContentToTag + absorb gate); only positioning differs (alignment-
     -- based anchor, 95%-of-bar-width clamp with ellipsis truncation).
@@ -7745,10 +7692,10 @@ local function StyleFocusFrame(frame, unit)
         ns.SetTextZone(frame, rightText, rc, "rightText", settings)
         ns.SetTextZone(frame, centerText, cc, "centerText", settings)
         ns.SetTextZone(frame, extraText, ec, "extraText", settings)
-        ApplyAbsorbGate("left", leftText, lc)
-        ApplyAbsorbGate("right", rightText, rc)
-        ApplyAbsorbGate("center", centerText, cc)
-        ApplyAbsorbGate("extra", extraText, ec)
+        ApplyAbsorbGate(frame, unit, textOverlay, "left", leftText, lc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "right", rightText, rc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "center", centerText, cc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "extra", extraText, ec)
         ns.UF_PaintText(frame, frame._euiUnit or unit)
     end
     ApplyTextTags(leftContent, rightContent, centerContent, extraContent)
@@ -7887,7 +7834,7 @@ local function StyleSimpleFrame(frame, unit)
     bg:SetColorTexture(0, 0, 0, 0.5)
     health.bg = bg
 
-    health.colorClass = true
+    if unit ~= "pet" then health.colorClass = true end
     health.colorReaction = true
     health.colorTapped = true
     health.colorDisconnected = true
@@ -7907,7 +7854,7 @@ local function StyleSimpleFrame(frame, unit)
     -- Blizzard Style only: the stock small-frame power bar (nil otherwise).
     frame.Power = ns.UF_BlizzMiniPower(frame, unit, settings)
 
-    -- Always create portrait; hide backdrop when disabled. Mirrors StylePetFrame.
+    -- Always create portrait; hide backdrop when disabled.
     frame.Portrait = CreatePortrait(frame, pSide, settings.healthHeight, unit)
     EllesmereUI._ufPortraitSide[frame] = pSide
     if frame.Portrait and not showPortrait then
@@ -7967,303 +7914,13 @@ local function StyleSimpleFrame(frame, unit)
     frame.NameText = leftText
     frame.HealthValue = rightText
 
-    -- "Absorb Short" zero-hide: the [eui-absorbshort] tag shows the abbreviated absorb
-    -- but cannot blank at zero (no has-absorb boolean exists), so we clip the text away
-    -- when there is no shield, secret-safely: a binary StatusBar gate (max 1) is fed the
-    -- raw absorb so its fill texture is full width with any shield and zero width with
-    -- none; a clip frame tracks that fill rect and the zone FontString is reparented
-    -- into it, clipping the text to nothing at zero absorb. Absorb is never compared to
-    -- zero in Lua -- only fed to SetValue (accepts secrets natively). Driven every
-    -- absorb update by the HealthPrediction Override. Lazy: _absGate/_absClip stay nil
-    -- until a zone is set to Absorb Short, so unused frames pay ZERO cost. content is the
-    -- zone's resolved key: "absorbshort" gates shield absorbs, "healabsorbshort" gates
-    -- heal absorbs (g._euiHealGate marks the source for the Override).
-    local function ApplyAbsorbGate(zone, fs, content)
-        local isHeal = (content == "healabsorbshort")
-        local wantGate = (content == "absorbshort" or isHeal)
-        local g = frame._absGate and frame._absGate[zone]
-        if wantGate then
-            if not g then
-                frame._absGate = frame._absGate or {}
-                frame._absClip = frame._absClip or {}
-                g = CreateFrame("StatusBar", nil, textOverlay)
-                g:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-                g:SetStatusBarColor(1, 1, 1, 0)  -- geometry only; never drawn
-                g:SetMinMaxValues(0, 1)
-                g:SetValue(0)
-                local clip = CreateFrame("Frame", nil, textOverlay)
-                clip:SetClipsChildren(true)
-                clip:SetFrameLevel(textOverlay:GetFrameLevel() + 1)
-                clip:SetPoint("TOPLEFT", g, "TOPLEFT", 0, 0)
-                clip:SetPoint("BOTTOMRIGHT", g:GetStatusBarTexture(), "BOTTOMRIGHT", 0, 0)
-                frame._absGate[zone] = g
-                frame._absClip[zone] = clip
-            end
-            local clip = frame._absClip[zone]
-            g._euiHealGate = isHeal
-            g:ClearAllPoints()
-            g:SetAllPoints(fs)  -- gate spans the zone's text allocation (live)
-            if fs:GetParent() ~= clip then fs:SetParent(clip) end
-            g:Show(); clip:Show()
-            -- Seed once so the text is correct before the next absorb event.
-            local amt
-            if isHeal then
-                amt = (UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit)) or 0
-            else
-                amt = (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)) or 0
-            end
-            g:SetValue(amt)
-        elseif g then
-            local clip = frame._absClip[zone]
-            if fs:GetParent() == clip then fs:SetParent(textOverlay) end
-            g:Hide(); if clip then clip:Hide() end
-        end
-    end
-
     local function ApplyTextTags(lc, rc, cc)
         ns.SetTextZone(frame, leftText, lc, "leftText", settings)
         ns.SetTextZone(frame, rightText, rc, "rightText", settings)
         ns.SetTextZone(frame, centerText, cc, "centerText", settings)
-        ApplyAbsorbGate("left", leftText, lc)
-        ApplyAbsorbGate("right", rightText, rc)
-        ApplyAbsorbGate("center", centerText, cc)
-        ns.UF_PaintText(frame, frame._euiUnit or unit)
-    end
-    ApplyTextTags(leftContent, rightContent, centerContent)
-    frame._applyTextTags = ApplyTextTags
-
-    local function ApplyTextPositions(s)
-        local lc = s.leftTextContent or "name"
-        local rc = s.rightTextContent or "none"
-        local cc = s.centerTextContent or "none"
-        local lsz = s.leftTextSize or s.textSize or 12
-        local rsz = s.rightTextSize or s.textSize or 12
-        local csz = s.centerTextSize or s.textSize or 12
-        local lxo = s.leftTextX or 0
-        local lyo = s.leftTextY or 0
-        local rxo = s.rightTextX or 0
-        local ryo = s.rightTextY or 0
-        local cxo = s.centerTextX or 0
-        local cyo = s.centerTextY or 0
-        local barW = s.frameWidth or 100
-        -- Each text position renders independently; Center no longer hides Left/Right.
-        SetFSFont(centerText, csz)
-        centerText:ClearAllPoints()
-        if cc ~= "none" then
-            centerText:SetJustifyH("CENTER")
-            PP.Point(centerText, "CENTER", textOverlay, "CENTER", cxo, cyo)
-            PP.Width(centerText, barW * 0.9 * SlotWidthMul(s, "centerText"))
-            centerText:Show()
-            ApplyClassColor(centerText, unit, s.centerTextClassColor, s.centerTextColorR, s.centerTextColorG, s.centerTextColorB)
-        else centerText:Hide() end
-
-        SetFSFont(leftText, lsz)
-        if lc ~= "none" then
-            leftText:ClearAllPoints()
-            leftText:SetJustifyH("LEFT")
-            PP.Point(leftText, "LEFT", textOverlay, "LEFT", 5 + lxo, lyo)
-            if rc ~= "none" then
-                local rightUsed = EstimateUFTextWidth(rc)
-                PP.Width(leftText, math.max(barW - rightUsed - 10, 20) * SlotWidthMul(s, "leftText"))
-            else
-                PP.Width(leftText, barW * 0.9 * SlotWidthMul(s, "leftText"))
-            end
-            leftText:Show()
-            ApplyClassColor(leftText, unit, s.leftTextClassColor, s.leftTextColorR, s.leftTextColorG, s.leftTextColorB)
-        else leftText:Hide() end
-        SetFSFont(rightText, rsz)
-        if rc ~= "none" then
-            rightText:ClearAllPoints()
-            rightText:SetJustifyH("RIGHT")
-            PP.Point(rightText, "RIGHT", textOverlay, "RIGHT", -5 + rxo, ryo)
-            if lc ~= "none" then
-                local leftUsed = EstimateUFTextWidth(lc)
-                PP.Width(rightText, math.max(barW - leftUsed - 10, 20) * SlotWidthMul(s, "rightText"))
-            else
-                PP.Width(rightText, barW * 0.9 * SlotWidthMul(s, "rightText"))
-            end
-            rightText:Show()
-            ApplyClassColor(rightText, unit, s.rightTextClassColor, s.rightTextColorR, s.rightTextColorG, s.rightTextColorB)
-        else rightText:Hide() end
-    end
-    ApplyTextPositions(settings)
-    frame._applyTextPositions = ApplyTextPositions
-end
-
-
-local function StylePetFrame(frame, unit)
-    local settings = GetSettingsForUnit(unit)
-    local pStyle = settings.portraitStyle or db.profile.portraitStyle or "attached"
-    if pStyle == "detached" then pStyle = "attached" end
-    local showPortrait = pStyle ~= "none" and settings.showPortrait ~= false
-    local pSide = settings.portraitSide or "left"
-    local totalWidth = settings.frameWidth
-    local portraitOffset = 0
-    local healthRightInset = 0
-
-    if showPortrait then
-        totalWidth = settings.healthHeight + settings.frameWidth
-        if pSide == "right" then
-            healthRightInset = settings.healthHeight
-        else
-            portraitOffset = settings.healthHeight
-        end
-    end
-
-    PP.Size(frame, totalWidth, settings.healthHeight)
-
-    local health = CreateFrame("StatusBar", nil, frame)
-    PP.Point(health, "TOPLEFT", frame, "TOPLEFT", portraitOffset, 0)
-    PP.Point(health, "RIGHT", frame, "RIGHT", -healthRightInset, 0)
-    PP.Height(health, settings.healthHeight)
-    health:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-    health:GetStatusBarTexture():SetHorizTile(false)
-
-    local bg = health:CreateTexture(nil, "BACKGROUND")
-    PP.Point(bg, "TOPLEFT", health, "TOPLEFT", 0, 0)
-    PP.Point(bg, "BOTTOMRIGHT", health, "BOTTOMRIGHT", 0, 0)
-    bg:SetColorTexture(0, 0, 0, 0.5)
-    health.bg = bg
-
-    health.colorReaction = true
-    health.colorTapped = true
-    health.colorDisconnected = true
-    health._euiUnitKey = UnitToSettingsKey(unit)
-
-    -- Inherit health bar texture from donor frame (focus > target > player),
-    -- unless this frame set its own override.
-    local donor = GetMiniDonorSettings()
-    local unitKey = UnitToSettingsKey(unit)
-    ApplyHealthBarTexture(health, unitKey, ns.ResolveHealthBarTextureKey(settings, donor))
-    ApplyHealthBarAlpha(health, unitKey)
-    health:SetReverseFill(settings.healthReverseFill and true or false)
-    ns.ApplyHealthOrientation(health, settings)
-    ApplyDarkTheme(health, unit)
-
-    frame.Health = health
-    -- Blizzard Style only: the stock small-frame power bar (nil otherwise).
-    frame.Power = ns.UF_BlizzMiniPower(frame, unit, settings)
-
-    -- Always create portrait; hide backdrop when disabled
-    frame.Portrait = CreatePortrait(frame, pSide, settings.healthHeight, unit)
-    EllesmereUI._ufPortraitSide[frame] = pSide
-    if frame.Portrait and not showPortrait then        frame.Portrait.backdrop:Hide()
-    end
-    -- Re-anchor health bar using healthHeight as the portrait width to avoid
-    -- sub-pixel GetWidth() mismatches at frame creation time
-    if frame.Portrait and frame.Portrait.backdrop and showPortrait then
-        local portW = math.max(settings.healthHeight, 1)
-        health:ClearAllPoints()
-        if pSide == "right" then
-            PP.Point(health, "TOPLEFT", frame, "TOPLEFT", 0, 0)
-            PP.Point(health, "RIGHT", frame, "RIGHT", -portW, 0)
-            health._xOffset = 0
-            health._rightInset = portW
-        else
-            PP.Point(health, "TOPLEFT", frame, "TOPLEFT", portW, 0)
-            PP.Point(health, "RIGHT", frame, "RIGHT", 0, 0)
-            health._xOffset = portW
-            health._rightInset = 0
-        end
-        PP.Height(health, settings.healthHeight)
-        health._topOffset = 0
-    end
-
-    CreateUnifiedBorder(frame, unit)
-    UpdateBordersForScale(frame, unit)
-    ReparentBarsToClip(frame, settings.powerPosition, settings)
-
-    -- Text overlay frame (parented to frame, not health, to avoid clipping)
-    local textOverlay = CreateFrame("Frame", nil, frame)
-    textOverlay:SetAllPoints(health)
-    textOverlay:SetFrameLevel(health:GetFrameLevel() + 12)
-    frame._textOverlay = textOverlay
-
-    local leftContent = settings.leftTextContent or "name"
-    local rightContent = settings.rightTextContent or "none"
-    local centerContent = settings.centerTextContent or "none"
-
-    local leftText = textOverlay:CreateFontString(nil, "OVERLAY")
-    SetFSFont(leftText, settings.leftTextSize or settings.textSize or 12)
-    leftText:SetWordWrap(false)
-    leftText:SetTextColor(1, 1, 1)
-    frame.LeftText = leftText
-
-    local rightText = textOverlay:CreateFontString(nil, "OVERLAY")
-    SetFSFont(rightText, settings.rightTextSize or settings.textSize or 12)
-    rightText:SetWordWrap(false)
-    rightText:SetTextColor(1, 1, 1)
-    frame.RightText = rightText
-
-    local centerText = textOverlay:CreateFontString(nil, "OVERLAY")
-    SetFSFont(centerText, settings.centerTextSize or settings.textSize or 12)
-    centerText:SetWordWrap(false)
-    centerText:SetTextColor(1, 1, 1)
-    frame.CenterText = centerText
-
-    frame.NameText = leftText
-    frame.HealthValue = rightText
-
-    -- "Absorb Short" zero-hide: the [eui-absorbshort] tag shows the abbreviated absorb
-    -- but cannot blank at zero (no has-absorb boolean exists), so we clip the text away
-    -- when there is no shield, secret-safely: a binary StatusBar gate (max 1) is fed the
-    -- raw absorb so its fill texture is full width with any shield and zero width with
-    -- none; a clip frame tracks that fill rect and the zone FontString is reparented
-    -- into it, clipping the text to nothing at zero absorb. Absorb is never compared to
-    -- zero in Lua -- only fed to SetValue (accepts secrets natively). Driven every
-    -- absorb update by the HealthPrediction Override. Lazy: _absGate/_absClip stay nil
-    -- until a zone is set to Absorb Short, so unused frames pay ZERO cost. content is the
-    -- zone's resolved key: "absorbshort" gates shield absorbs, "healabsorbshort" gates
-    -- heal absorbs (g._euiHealGate marks the source for the Override).
-    local function ApplyAbsorbGate(zone, fs, content)
-        local isHeal = (content == "healabsorbshort")
-        local wantGate = (content == "absorbshort" or isHeal)
-        local g = frame._absGate and frame._absGate[zone]
-        if wantGate then
-            if not g then
-                frame._absGate = frame._absGate or {}
-                frame._absClip = frame._absClip or {}
-                g = CreateFrame("StatusBar", nil, textOverlay)
-                g:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-                g:SetStatusBarColor(1, 1, 1, 0)  -- geometry only; never drawn
-                g:SetMinMaxValues(0, 1)
-                g:SetValue(0)
-                local clip = CreateFrame("Frame", nil, textOverlay)
-                clip:SetClipsChildren(true)
-                clip:SetFrameLevel(textOverlay:GetFrameLevel() + 1)
-                clip:SetPoint("TOPLEFT", g, "TOPLEFT", 0, 0)
-                clip:SetPoint("BOTTOMRIGHT", g:GetStatusBarTexture(), "BOTTOMRIGHT", 0, 0)
-                frame._absGate[zone] = g
-                frame._absClip[zone] = clip
-            end
-            local clip = frame._absClip[zone]
-            g._euiHealGate = isHeal
-            g:ClearAllPoints()
-            g:SetAllPoints(fs)  -- gate spans the zone's text allocation (live)
-            if fs:GetParent() ~= clip then fs:SetParent(clip) end
-            g:Show(); clip:Show()
-            -- Seed once so the text is correct before the next absorb event.
-            local amt
-            if isHeal then
-                amt = (UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit)) or 0
-            else
-                amt = (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)) or 0
-            end
-            g:SetValue(amt)
-        elseif g then
-            local clip = frame._absClip[zone]
-            if fs:GetParent() == clip then fs:SetParent(textOverlay) end
-            g:Hide(); if clip then clip:Hide() end
-        end
-    end
-
-    local function ApplyTextTags(lc, rc, cc)
-        ns.SetTextZone(frame, leftText, lc, "leftText", settings)
-        ns.SetTextZone(frame, rightText, rc, "rightText", settings)
-        ns.SetTextZone(frame, centerText, cc, "centerText", settings)
-        ApplyAbsorbGate("left", leftText, lc)
-        ApplyAbsorbGate("right", rightText, rc)
-        ApplyAbsorbGate("center", centerText, cc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "left", leftText, lc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "right", rightText, rc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "center", centerText, cc)
         ns.UF_PaintText(frame, frame._euiUnit or unit)
     end
     ApplyTextTags(leftContent, rightContent, centerContent)
@@ -8460,59 +8117,6 @@ local function StyleBossFrame(frame, unit)
     frame.NameText = leftText
     frame.HealthValue = rightText
 
-    -- "Absorb Short" zero-hide: the [eui-absorbshort] tag shows the abbreviated absorb
-    -- but cannot blank at zero (no has-absorb boolean exists), so we clip the text away
-    -- when there is no shield, secret-safely: a binary StatusBar gate (max 1) is fed the
-    -- raw absorb so its fill texture is full width with any shield and zero width with
-    -- none; a clip frame tracks that fill rect and the zone FontString is reparented
-    -- into it, clipping the text to nothing at zero absorb. Absorb is never compared to
-    -- zero in Lua -- only fed to SetValue (accepts secrets natively). Driven every
-    -- absorb update by the HealthPrediction Override. Lazy: _absGate/_absClip stay nil
-    -- until a zone is set to Absorb Short, so unused frames pay ZERO cost. content is the
-    -- zone's resolved key: "absorbshort" gates shield absorbs, "healabsorbshort" gates
-    -- heal absorbs (g._euiHealGate marks the source for the Override).
-    local function ApplyAbsorbGate(zone, fs, content)
-        local isHeal = (content == "healabsorbshort")
-        local wantGate = (content == "absorbshort" or isHeal)
-        local g = frame._absGate and frame._absGate[zone]
-        if wantGate then
-            if not g then
-                frame._absGate = frame._absGate or {}
-                frame._absClip = frame._absClip or {}
-                g = CreateFrame("StatusBar", nil, textOverlay)
-                g:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-                g:SetStatusBarColor(1, 1, 1, 0)  -- geometry only; never drawn
-                g:SetMinMaxValues(0, 1)
-                g:SetValue(0)
-                local clip = CreateFrame("Frame", nil, textOverlay)
-                clip:SetClipsChildren(true)
-                clip:SetFrameLevel(textOverlay:GetFrameLevel() + 1)
-                clip:SetPoint("TOPLEFT", g, "TOPLEFT", 0, 0)
-                clip:SetPoint("BOTTOMRIGHT", g:GetStatusBarTexture(), "BOTTOMRIGHT", 0, 0)
-                frame._absGate[zone] = g
-                frame._absClip[zone] = clip
-            end
-            local clip = frame._absClip[zone]
-            g._euiHealGate = isHeal
-            g:ClearAllPoints()
-            g:SetAllPoints(fs)  -- gate spans the zone's text allocation (live)
-            if fs:GetParent() ~= clip then fs:SetParent(clip) end
-            g:Show(); clip:Show()
-            -- Seed once so the text is correct before the next absorb event.
-            local amt
-            if isHeal then
-                amt = (UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit)) or 0
-            else
-                amt = (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)) or 0
-            end
-            g:SetValue(amt)
-        elseif g then
-            local clip = frame._absClip[zone]
-            if fs:GetParent() == clip then fs:SetParent(textOverlay) end
-            g:Hide(); if clip then clip:Hide() end
-        end
-    end
-
     local function ApplyTextTags(lc, rc, cc, ec)
         -- Callers that predate the Extra Text zone pass 3 args; fall back to
         -- the stored content so those sites keep working (same as Main Frames).
@@ -8521,10 +8125,10 @@ local function StyleBossFrame(frame, unit)
         ns.SetTextZone(frame, rightText, rc, "rightText", settings)
         ns.SetTextZone(frame, centerText, cc, "centerText", settings)
         ns.SetTextZone(frame, extraText, ec, "extraText", settings)
-        ApplyAbsorbGate("left", leftText, lc)
-        ApplyAbsorbGate("right", rightText, rc)
-        ApplyAbsorbGate("center", centerText, cc)
-        ApplyAbsorbGate("extra", extraText, ec)
+        ApplyAbsorbGate(frame, unit, textOverlay, "left", leftText, lc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "right", rightText, rc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "center", centerText, cc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "extra", extraText, ec)
         ns.UF_PaintText(frame, frame._euiUnit or unit)
     end
     ApplyTextTags(leftContent, rightContent, centerContent, extraContent)
@@ -8613,7 +8217,7 @@ end
 
 
 -- (Styles are no longer registered anywhere: the spawn sites call
--- StyleFullFrame/StyleFocusFrame/StylePetFrame/StyleSimpleFrame/StyleBossFrame
+-- StyleFullFrame/StyleFocusFrame/StyleSimpleFrame/StyleBossFrame
 -- directly, and the engine's portrait painter always routes through the shared
 -- gated PortraitOverride.)
 
@@ -14036,7 +13640,7 @@ function InitializeFrames()
     local petFrameSource = ns.GetUnitFrameSource("pet")
     if petFrameSource == "eui" then
         frames.pet = ns.Engine.SpawnUnitFrame("pet", "EllesmereUIUnitFrames_Pet")
-        StylePetFrame(frames.pet, "pet")
+        StyleSimpleFrame(frames.pet, "pet")
         ns.UF_AttachEngineFrame(frames.pet, "pet")
         ApplyFramePosition(frames.pet, "pet")
         SetupUnitMenu(frames.pet, "pet")

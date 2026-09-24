@@ -4171,13 +4171,7 @@ function ns.PAB_CopyCustomBar(isBuff, src, bucketKey)
     if not (s and src) then return nil end
     local target = ns.PAB_BucketBars(isBuff, bucketKey, true)
     if not target then return nil end
-    local function Copy(v)
-        if type(v) ~= "table" then return v end
-        local o = {}
-        for k, v2 in pairs(v) do o[k] = Copy(v2) end
-        return o
-    end
-    local bar = Copy(src)
+    local bar = CopyTable(src)
     bar.id = NextBarId(s)
     target[#target + 1] = bar
     return bar
