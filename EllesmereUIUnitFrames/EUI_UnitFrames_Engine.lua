@@ -723,9 +723,7 @@ function Engine.SpawnUnitFrame(unit, name)
     frame:SetAttribute("unit", unit)
     frame:SetAttribute("*type1", "target")
     frame:SetAttribute("toggleForVehicle", true)
-    if EllesmereUI.AttachSecureUnitMenu then
-        EllesmereUI.AttachSecureUnitMenu(frame)
-    end
+    EllesmereUI.AttachSecureUnitMenu(frame)
     -- The secure environment rewrites the unit attribute on vehicle and pet
     -- transitions; re-resolve whenever it moves.
     frame:HookScript("OnAttributeChanged", function(self, attr)

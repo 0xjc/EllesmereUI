@@ -130,44 +130,7 @@ do
 end
 
 -- Per-addon border texture defaults (size key = borderSize 0-4)
-do
-    local ALL_SIZES = { [0] = true, [1] = true, [2] = true, [3] = true, [4] = true }
-    local function AllSizes(ox, oy, sx, sy)
-        local t = {}
-        for k in pairs(ALL_SIZES) do t[k] = { offsetX = ox, offsetY = oy, shiftX = sx, shiftY = sy } end
-        return t
-    end
-    EllesmereUI.RegisterBorderDefaults("unitframes", {
-        ["glow"] = {
-            defaultSize = 1,
-            sizes = AllSizes(0, 0, 0, 0),
-        },
-        ["blizz"] = {
-            defaultSize = 4,
-            sizes = {
-                [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                [1] = { offsetX = 2, offsetY = 1, shiftX = 0, shiftY = 0 },
-                [2] = { offsetX = 3, offsetY = 1, shiftX = 1, shiftY = 0 },
-                [3] = { offsetX = 4, offsetY = 2, shiftX = 2, shiftY = 0 },
-                [4] = { offsetX = 5, offsetY = 3, shiftX = 2, shiftY = 0 },
-            },
-        },
-        ["dialog"] = {
-            defaultSize = 2,
-            sizes = {
-                [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                [1] = { offsetX = 2, offsetY = 2, shiftX = 0, shiftY = 0 },
-                [2] = { offsetX = 2, offsetY = 2, shiftX = 0, shiftY = 0 },
-                [3] = { offsetX = 4, offsetY = 4, shiftX = 0, shiftY = 0 },
-                [4] = { offsetX = 8, offsetY = 8, shiftX = 0, shiftY = 0 },
-            },
-        },
-        ["sm:Blizzard Achievement Wood"] = {
-            defaultSize = 1,
-            sizes = AllSizes(1, 1, 0, 0),
-        },
-    })
-end
+EllesmereUI.RegisterBorderDefaults("unitframes", EllesmereUI.BORDER_DEFAULTS_FRAMES)
 
 
 -- Portrait UNIT_MODEL_CHANGED on eventless frames (TargetTarget) triggers UnitIsUnit,
@@ -1176,11 +1139,11 @@ local SOLID_BACKDROP = { bgFile = "Interface\\Buttons\\WHITE8X8" }
 -- glyph-restricted locales (CJK/Cyrillic): keeps a SharedMedia font if it can render the
 -- locale's glyphs, else falls back to the system font. Do NOT re-decide locale fallback
 -- locally or locale clients could never use a custom font here.
-local cachedFontPath = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames"))
+local cachedFontPath = (EllesmereUI.GetFontPath("unitFrames"))
     or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
 local cachedFontPaths = {}  -- per-unit font cache
 local function ResolveFontPath(unitKey)
-    local gPath = EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames")
+    local gPath = EllesmereUI.GetFontPath("unitFrames")
         or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
     cachedFontPath = gPath
     for _, uKey in ipairs({"player", "target", "focus", "boss", "pet", "targettarget", "focustarget"}) do
@@ -1195,19 +1158,8 @@ local function GetSelectedFont(unitKey)
     return cachedFontPath
 end
 
-local function GetUFUseShadow()
-    return not EllesmereUI or not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow("unitFrames")
-end
-
 local function SetFSFont(fs, size, flags)
-  if not (fs and fs.SetFont) then return end
-  -- Outline flag is already slug-gated at the source (GetFontOutlineFlag).
-  local f = flags or (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("unitFrames")) or ""
-  -- Drop shadows only render from a FontObject; prime before SetFont.
-  if EllesmereUI and EllesmereUI.PrimeFontShadow then
-    EllesmereUI.PrimeFontShadow(fs, f == "")
-  end
-  fs:SetFont(GetSelectedFont(), size or 12, f)
+  EllesmereUI.ApplyModuleFont(fs, GetSelectedFont(), size or 12, "unitFrames", flags)
 end
 
 -- Shared cast-bar text anchoring (mirrors the nameplate cast text system). Three
@@ -2180,19 +2132,17 @@ end
 
 -- Global Dark Mode master: exposes darkTheme so the parent addon's master toggle can
 -- flip it with other modules. setOn mirrors the individual toggle (write flag + reload).
-if EllesmereUI.RegisterDarkModeToggle then
-    EllesmereUI.RegisterDarkModeToggle({
-        id = "unitFrames",
-        isOn = function()
-            return (db and db.profile and db.profile.darkTheme) or false
-        end,
-        setOn = function(on)
-            if not (db and db.profile) then return end
-            db.profile.darkTheme = on
-            if ns.ReloadFrames then ns.ReloadFrames() end
-        end,
-    })
-end
+EllesmereUI.RegisterDarkModeToggle({
+    id = "unitFrames",
+    isOn = function()
+        return (db and db.profile and db.profile.darkTheme) or false
+    end,
+    setOn = function(on)
+        if not (db and db.profile) then return end
+        db.profile.darkTheme = on
+        if ns.ReloadFrames then ns.ReloadFrames() end
+    end,
+})
 
 -- Smart power text: percent for healers/prot pally/arcane mage, numeric for the rest.
 -- Shared by the oUF tag and the resource bars renderer. `displayedPowerType` (optional
@@ -2831,10 +2781,9 @@ do
         local c = settings[prefix .. "TargetSepColor"]
         local esc
         if type(c) == "table" then
-            esc = sf("|cff%02x%02x%02x", math.floor((c.r or 1) * 255 + 0.5),
-                math.floor((c.g or 1) * 255 + 0.5), math.floor((c.b or 1) * 255 + 0.5))
+            esc = EllesmereUI.HexColor(c.r or 1, c.g or 1, c.b or 1)
         else
-            esc = "|cffffffff"
+            esc = EllesmereUI.COLOR_CODES.WHITE
         end
         local colored = esc .. sep .. "|r"
         return function(u)
@@ -3001,7 +2950,7 @@ end
 --- 200-locals cap.
 function ns.VisEffective(s)
     if not s then return nil end
-    return (EllesmereUI.VisOverrideValue and EllesmereUI.VisOverrideValue(s)) or s.barVisibility
+    return (EllesmereUI.VisOverrideValue(s)) or s.barVisibility
 end
 
 --- True when the unit has no EllesmereUI frame at all -- the enabledFrames flag, which
@@ -3286,40 +3235,6 @@ function ns.GetBossDebuffSpacing(s, simpleOn)
     return (s and s.debuffSpacing) or 1
 end
 
-local function GetPlayerTargetHealthTag(unit)
-    local tbl = (unit == "target") and db.profile.target or db.profile.player
-    local display = tbl.healthDisplay or "both"
-    if display == "curhpshort" then
-        return "[curhpshort]"
-    elseif display == "perhp" then
-        return "[eui-perhp]%"
-    else
-        return "[curhpshort] | [eui-perhp]%"
-    end
-end
-
-local function GetFocusHealthTag()
-    local display = db.profile.focus.healthDisplay or "perhp"
-    if display == "curhpshort" then
-        return "[curhpshort]"
-    elseif display == "both" then
-        return "[curhpshort] | [eui-perhp]%"
-    else
-        return "[eui-perhp]%"
-    end
-end
-
-local function GetBossHealthTag()
-    local display = db.profile.boss.healthDisplay or "perhp"
-    if display == "curhpshort" then
-        return "[curhpshort]"
-    elseif display == "both" then
-        return "[curhpshort] | [eui-perhp]%"
-    else
-        return "[eui-perhp]%"
-    end
-end
-
 -- Per-slot Width % of the slot's computed clamp width (100 = normal truncation,
 -- above 100 grants extra room). Applied by the position code to the slot
 -- FontString's width box.
@@ -3429,6 +3344,25 @@ local function ApplyClassIconTexture(tex, classToken, style)
     return true
 end
 
+-- Class art for a player unit. A readable token paints the pack's sprite cell.
+-- A secret one (identity-restricted players, e.g. enemies in instanced PvP)
+-- cannot key the sprite table, so the stock class atlas carries it: a secret
+-- string concatenates to a secret string and SetAtlas takes secrets from addon
+-- code, so the class is never read in Lua. SetAtlas keeps the texture's
+-- coords (a sprite cell or the question-mark crop from an earlier paint) and
+-- applies them inside the atlas, so they reset first; the next readable paint
+-- re-asserts file and coords. Returns false when there is no class to paint.
+function ns.UF_PaintClassIcon(tex, unit, style)
+    local _, ct = UnitClass(unit)
+    if issecretvalue(ct) then
+        tex:SetTexCoord(0, 1, 0, 1)
+        tex:SetAtlas("classicon-" .. ct)
+        return true
+    end
+    if not ct then return false end
+    return ApplyClassIconTexture(tex, ct, style)
+end
+
 
 -- Shared portrait element Override (2D texture and 3D model objects; class texture
 -- keeps its own). The vendored oUF Update only guid-gates the eventless OnUpdate poll,
@@ -3524,16 +3458,26 @@ function PortraitOverride(self, event, evtUnit)
             -- re-reading the style here lets art-style changes ride any
             -- repaint. Unit swaps (target changes) land through the same
             -- guid gate as every other portrait mode.
-            if isAvailable then
-                local _, ct = UnitClass(u)
-                if issecretvalue(ct) then ct = nil end
+            -- Only players take class art (UnitClass reports most NPCs as
+            -- warriors); anyone else shows its 2D portrait on the backdrop's
+            -- 2D texture, as Blizzard's own class portraits do. UnitIsPlayer
+            -- is never secret.
+            local npcTex = element.backdrop and element.backdrop._2d
+            if isAvailable and npcTex and not UnitIsPlayer(u) then
+                element:Hide()
+                SetPortraitTexture(npcTex, u, npcTex._blizzNoMask)
+                if npcTex.PostUpdate then npcTex:PostUpdate(u) end
+                npcTex:Show()
+            else
+                if npcTex then npcTex:Hide() end
+                element:Show()
                 local uKeyC = UnitToSettingsKey(u)
                 local uSC = uKeyC and db.profile[uKeyC]
-                ApplyClassIconTexture(element, ct or "WARRIOR",
-                    (uSC and uSC.classThemeStyle) or "modern")
-            else
-                element:SetTexCoord(0.15, 0.85, 0.15, 0.85)
-                element:SetTexture([[Interface\Icons\INV_Misc_QuestionMark]])
+                if not (isAvailable and ns.UF_PaintClassIcon(element, u,
+                        (uSC and uSC.classThemeStyle) or "modern")) then
+                    element:SetTexCoord(0.15, 0.85, 0.15, 0.85)
+                    element:SetTexture([[Interface\Icons\INV_Misc_QuestionMark]])
+                end
             end
         else
             if isAvailable then
@@ -3643,36 +3587,11 @@ function ns.UF_AttachEngineFrame(frame, unit, polled)
 end
 
 -- Mask and border paths for detached portrait shapes.
-local PORTRAIT_MEDIA = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\"
-local PORTRAIT_MASKS = {
-    portrait = PORTRAIT_MEDIA .. "portrait_mask.tga",
-    circle   = PORTRAIT_MEDIA .. "circle_mask.tga",
-    square   = PORTRAIT_MEDIA .. "square_mask.tga",
-    csquare  = PORTRAIT_MEDIA .. "csquare_mask.tga",
-    diamond  = PORTRAIT_MEDIA .. "diamond_mask.tga",
-    hexagon  = PORTRAIT_MEDIA .. "hexagon_mask.tga",
-    shield   = PORTRAIT_MEDIA .. "shield_mask.tga",
-}
-local PORTRAIT_BORDERS = {
-    portrait = PORTRAIT_MEDIA .. "portrait_border.tga",
-    circle   = PORTRAIT_MEDIA .. "circle_border.tga",
-    square   = PORTRAIT_MEDIA .. "square_border.tga",
-    csquare  = PORTRAIT_MEDIA .. "csquare_border.tga",
-    diamond  = PORTRAIT_MEDIA .. "diamond_border.tga",
-    hexagon  = PORTRAIT_MEDIA .. "hexagon_border.tga",
-    shield   = PORTRAIT_MEDIA .. "shield_border.tga",
-}
+local PORTRAIT_MASKS = EllesmereUI.SHAPE_MASKS
+local PORTRAIT_BORDERS = EllesmereUI.SHAPE_BORDERS
 
 -- Top pixel inset for each mask shape (px from edge to visible portrait area in 128px mask)
-local MASK_INSETS = {
-    circle   = 17,
-    csquare  = 17,
-    diamond  = 14,
-    hexagon  = 17,
-    portrait = 17,
-    shield   = 13,
-    square   = 17,
-}
+local MASK_INSETS = EllesmereUI.SHAPE_INSETS
 
 -- Shared with EllesmereUIUnitFrames_PlayerAuraBars.lua (same addon/ns), which reuses
 -- this shape media set for Player Aura Bars' iconShape feature.
@@ -4532,7 +4451,7 @@ local ABSORB_STYLE_ALPHA = {
 -- lookup. Shared by the live render and the options preview so an SM key paints identically.
 function ns.ResolveAbsorbStyleTex(style, fallback)
     return ABSORB_STYLE_TEX[style]
-        or (EllesmereUI.ResolveTexturePath and EllesmereUI.ResolveTexturePath(healthBarTextures, style, fallback))
+        or (EllesmereUI.ResolveTexturePath(healthBarTextures, style, fallback))
         or fallback
 end
 
@@ -5994,10 +5913,9 @@ local function CreatePortrait(frame, side, frameHeight, unit)
     PP.Point(texClass, "TOPLEFT", backdrop, "TOPLEFT", classInset, -classInset)
     PP.Point(texClass, "BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", -classInset, classInset)
     texClass:SetAlpha(0.8)
-    local _, classToken = UnitClass(unit)
-    if issecretvalue(classToken) then classToken = nil end
-    local classStyle = (uSettings and uSettings.classThemeStyle) or "modern"
-    ApplyClassIconTexture(texClass, classToken or "WARRIOR", classStyle)
+    if unit and UnitIsPlayer(unit) then
+        ns.UF_PaintClassIcon(texClass, unit, (uSettings and uSettings.classThemeStyle) or "modern")
+    end
     texClass:Hide()
 
     backdrop._3d = model3D
@@ -6086,7 +6004,7 @@ end
 -- (ApplySavedPositions).
 
 local function GetActiveKickSpell()
-    return EllesmereUI and EllesmereUI.GetActiveKickSpell and EllesmereUI.GetActiveKickSpell()
+    return EllesmereUI.GetActiveKickSpell()
 end
 local function ComputeCastBarTint(readyTint, baseTint)
     if EllesmereUI and EllesmereUI.ComputeCastBarTint then
@@ -7212,6 +7130,53 @@ local function CreateTargetAuras(frame, unit)
     return ns.UF_CreateAuraContainers(frame, unit or "target")
 end
 
+-- "Absorb Short" zero-hide: a binary StatusBar gate (max 1) fed the raw absorb clips
+-- the abbreviated text away at zero shield, secret-safely (absorb only feeds SetValue,
+-- never compared). The zone FontString is reparented into a clip frame that tracks the
+-- gate fill; the HealthPrediction Override drives it. Lazy: _absGate/_absClip stay nil
+-- until a zone uses Absorb Short. content "absorbshort" gates shield absorbs,
+-- "healabsorbshort" heal absorbs (g._euiHealGate); anything else tears the gate down.
+local function ApplyAbsorbGate(frame, unit, textOverlay, zone, fs, content)
+    local isHeal = (content == "healabsorbshort")
+    local wantGate = (content == "absorbshort" or isHeal)
+    local g = frame._absGate and frame._absGate[zone]
+    if wantGate then
+        if not g then
+            frame._absGate = frame._absGate or {}
+            frame._absClip = frame._absClip or {}
+            g = CreateFrame("StatusBar", nil, textOverlay)
+            g:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+            g:SetStatusBarColor(1, 1, 1, 0)  -- geometry only; never drawn
+            g:SetMinMaxValues(0, 1)
+            g:SetValue(0)
+            local clip = CreateFrame("Frame", nil, textOverlay)
+            clip:SetClipsChildren(true)
+            clip:SetFrameLevel(textOverlay:GetFrameLevel() + 1)
+            clip:SetPoint("TOPLEFT", g, "TOPLEFT", 0, 0)
+            clip:SetPoint("BOTTOMRIGHT", g:GetStatusBarTexture(), "BOTTOMRIGHT", 0, 0)
+            frame._absGate[zone] = g
+            frame._absClip[zone] = clip
+        end
+        local clip = frame._absClip[zone]
+        g._euiHealGate = isHeal
+        g:ClearAllPoints()
+        g:SetAllPoints(fs)  -- gate spans the zone's text allocation (live)
+        if fs:GetParent() ~= clip then fs:SetParent(clip) end
+        g:Show(); clip:Show()
+        local amt
+        if isHeal then
+            amt = (UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit)) or 0
+        else
+            amt = (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)) or 0
+        end
+        g:SetValue(amt)
+    elseif g then
+        local clip = frame._absClip[zone]
+        if fs:GetParent() == clip then fs:SetParent(textOverlay) end
+        g:Hide(); if clip then clip:Hide() end
+    end
+end
+
 local function StyleFullFrame(frame, unit)
     local settings = GetSettingsForUnit(unit)
     local powerPos = settings.powerPosition or "below"
@@ -7419,56 +7384,6 @@ local function StyleFullFrame(frame, unit)
     frame.NameText = leftText
     frame.HealthValue = rightText
 
-    -- "Absorb Short" zero-hide: a binary StatusBar gate (max 1) fed the raw absorb clips
-    -- the abbreviated absorb text away at zero shield, secret-safely (absorb only feeds
-    -- SetValue, never compared to zero). The clip frame tracks the gate's fill texture;
-    -- the zone FontString is reparented into it. Driven every absorb update by the
-    -- HealthPrediction Override. Lazy: _absGate/_absClip stay nil until a zone is set to
-    -- Absorb Short, so unused frames pay ZERO cost (Override skips when self._absGate is
-    -- nil). content is the zone's resolved key: "absorbshort" gates shield absorbs,
-    -- "healabsorbshort" gates heal absorbs (g._euiHealGate marks the source so the
-    -- Override feeds the right amount). Anything else tears the gate down.
-    local function ApplyAbsorbGate(zone, fs, content)
-        local isHeal = (content == "healabsorbshort")
-        local wantGate = (content == "absorbshort" or isHeal)
-        local g = frame._absGate and frame._absGate[zone]
-        if wantGate then
-            if not g then
-                frame._absGate = frame._absGate or {}
-                frame._absClip = frame._absClip or {}
-                g = CreateFrame("StatusBar", nil, textOverlay)
-                g:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-                g:SetStatusBarColor(1, 1, 1, 0)  -- geometry only; never drawn
-                g:SetMinMaxValues(0, 1)
-                g:SetValue(0)
-                local clip = CreateFrame("Frame", nil, textOverlay)
-                clip:SetClipsChildren(true)
-                clip:SetFrameLevel(textOverlay:GetFrameLevel() + 1)
-                clip:SetPoint("TOPLEFT", g, "TOPLEFT", 0, 0)
-                clip:SetPoint("BOTTOMRIGHT", g:GetStatusBarTexture(), "BOTTOMRIGHT", 0, 0)
-                frame._absGate[zone] = g
-                frame._absClip[zone] = clip
-            end
-            local clip = frame._absClip[zone]
-            g._euiHealGate = isHeal
-            g:ClearAllPoints()
-            g:SetAllPoints(fs)  -- gate spans the zone's text allocation (live)
-            if fs:GetParent() ~= clip then fs:SetParent(clip) end
-            g:Show(); clip:Show()
-            local amt
-            if isHeal then
-                amt = (UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit)) or 0
-            else
-                amt = (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)) or 0
-            end
-            g:SetValue(amt)
-        elseif g then
-            local clip = frame._absClip[zone]
-            if fs:GetParent() == clip then fs:SetParent(textOverlay) end
-            g:Hide(); if clip then clip:Hide() end
-        end
-    end
-
     -- Apply tags based on content. Extra Text is handled identically to the other
     -- zones (same ContentToTag + absorb gate); only positioning differs (alignment-
     -- based anchor, 95%-of-bar-width clamp with ellipsis truncation).
@@ -7478,10 +7393,10 @@ local function StyleFullFrame(frame, unit)
         ns.SetTextZone(frame, rightText, rc, "rightText", settings)
         ns.SetTextZone(frame, centerText, cc, "centerText", settings)
         ns.SetTextZone(frame, extraText, ec, "extraText", settings)
-        ApplyAbsorbGate("left", leftText, lc)
-        ApplyAbsorbGate("right", rightText, rc)
-        ApplyAbsorbGate("center", centerText, cc)
-        ApplyAbsorbGate("extra", extraText, ec)
+        ApplyAbsorbGate(frame, unit, textOverlay, "left", leftText, lc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "right", rightText, rc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "center", centerText, cc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "extra", extraText, ec)
         ns.UF_PaintText(frame, frame._euiUnit or unit)
     end
     ApplyTextTags(leftContent, rightContent, centerContent, extraContent)
@@ -7741,56 +7656,6 @@ local function StyleFocusFrame(frame, unit)
     frame.NameText = leftText
     frame.HealthValue = rightText
 
-    -- "Absorb Short" zero-hide: a binary StatusBar gate (max 1) fed the raw absorb clips
-    -- the abbreviated absorb text away at zero shield, secret-safely (absorb only feeds
-    -- SetValue, never compared to zero). The clip frame tracks the gate's fill texture;
-    -- the zone FontString is reparented into it. Driven every absorb update by the
-    -- HealthPrediction Override. Lazy: _absGate/_absClip stay nil until a zone is set to
-    -- Absorb Short, so unused frames pay ZERO cost (Override skips when self._absGate is
-    -- nil). content is the zone's resolved key: "absorbshort" gates shield absorbs,
-    -- "healabsorbshort" gates heal absorbs (g._euiHealGate marks the source so the
-    -- Override feeds the right amount). Anything else tears the gate down.
-    local function ApplyAbsorbGate(zone, fs, content)
-        local isHeal = (content == "healabsorbshort")
-        local wantGate = (content == "absorbshort" or isHeal)
-        local g = frame._absGate and frame._absGate[zone]
-        if wantGate then
-            if not g then
-                frame._absGate = frame._absGate or {}
-                frame._absClip = frame._absClip or {}
-                g = CreateFrame("StatusBar", nil, textOverlay)
-                g:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-                g:SetStatusBarColor(1, 1, 1, 0)  -- geometry only; never drawn
-                g:SetMinMaxValues(0, 1)
-                g:SetValue(0)
-                local clip = CreateFrame("Frame", nil, textOverlay)
-                clip:SetClipsChildren(true)
-                clip:SetFrameLevel(textOverlay:GetFrameLevel() + 1)
-                clip:SetPoint("TOPLEFT", g, "TOPLEFT", 0, 0)
-                clip:SetPoint("BOTTOMRIGHT", g:GetStatusBarTexture(), "BOTTOMRIGHT", 0, 0)
-                frame._absGate[zone] = g
-                frame._absClip[zone] = clip
-            end
-            local clip = frame._absClip[zone]
-            g._euiHealGate = isHeal
-            g:ClearAllPoints()
-            g:SetAllPoints(fs)  -- gate spans the zone's text allocation (live)
-            if fs:GetParent() ~= clip then fs:SetParent(clip) end
-            g:Show(); clip:Show()
-            local amt
-            if isHeal then
-                amt = (UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit)) or 0
-            else
-                amt = (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)) or 0
-            end
-            g:SetValue(amt)
-        elseif g then
-            local clip = frame._absClip[zone]
-            if fs:GetParent() == clip then fs:SetParent(textOverlay) end
-            g:Hide(); if clip then clip:Hide() end
-        end
-    end
-
     -- Apply tags based on content. Extra Text is handled identically to the other
     -- zones (same ContentToTag + absorb gate); only positioning differs (alignment-
     -- based anchor, 95%-of-bar-width clamp with ellipsis truncation).
@@ -7800,10 +7665,10 @@ local function StyleFocusFrame(frame, unit)
         ns.SetTextZone(frame, rightText, rc, "rightText", settings)
         ns.SetTextZone(frame, centerText, cc, "centerText", settings)
         ns.SetTextZone(frame, extraText, ec, "extraText", settings)
-        ApplyAbsorbGate("left", leftText, lc)
-        ApplyAbsorbGate("right", rightText, rc)
-        ApplyAbsorbGate("center", centerText, cc)
-        ApplyAbsorbGate("extra", extraText, ec)
+        ApplyAbsorbGate(frame, unit, textOverlay, "left", leftText, lc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "right", rightText, rc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "center", centerText, cc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "extra", extraText, ec)
         ns.UF_PaintText(frame, frame._euiUnit or unit)
     end
     ApplyTextTags(leftContent, rightContent, centerContent, extraContent)
@@ -7942,7 +7807,7 @@ local function StyleSimpleFrame(frame, unit)
     bg:SetColorTexture(0, 0, 0, 0.5)
     health.bg = bg
 
-    health.colorClass = true
+    if unit ~= "pet" then health.colorClass = true end
     health.colorReaction = true
     health.colorTapped = true
     health.colorDisconnected = true
@@ -7962,7 +7827,7 @@ local function StyleSimpleFrame(frame, unit)
     -- Blizzard Style only: the stock small-frame power bar (nil otherwise).
     frame.Power = ns.UF_BlizzMiniPower(frame, unit, settings)
 
-    -- Always create portrait; hide backdrop when disabled. Mirrors StylePetFrame.
+    -- Always create portrait; hide backdrop when disabled.
     frame.Portrait = CreatePortrait(frame, pSide, settings.healthHeight, unit)
     EllesmereUI._ufPortraitSide[frame] = pSide
     if frame.Portrait and not showPortrait then
@@ -8022,303 +7887,13 @@ local function StyleSimpleFrame(frame, unit)
     frame.NameText = leftText
     frame.HealthValue = rightText
 
-    -- "Absorb Short" zero-hide: the [eui-absorbshort] tag shows the abbreviated absorb
-    -- but cannot blank at zero (no has-absorb boolean exists), so we clip the text away
-    -- when there is no shield, secret-safely: a binary StatusBar gate (max 1) is fed the
-    -- raw absorb so its fill texture is full width with any shield and zero width with
-    -- none; a clip frame tracks that fill rect and the zone FontString is reparented
-    -- into it, clipping the text to nothing at zero absorb. Absorb is never compared to
-    -- zero in Lua -- only fed to SetValue (accepts secrets natively). Driven every
-    -- absorb update by the HealthPrediction Override. Lazy: _absGate/_absClip stay nil
-    -- until a zone is set to Absorb Short, so unused frames pay ZERO cost. content is the
-    -- zone's resolved key: "absorbshort" gates shield absorbs, "healabsorbshort" gates
-    -- heal absorbs (g._euiHealGate marks the source for the Override).
-    local function ApplyAbsorbGate(zone, fs, content)
-        local isHeal = (content == "healabsorbshort")
-        local wantGate = (content == "absorbshort" or isHeal)
-        local g = frame._absGate and frame._absGate[zone]
-        if wantGate then
-            if not g then
-                frame._absGate = frame._absGate or {}
-                frame._absClip = frame._absClip or {}
-                g = CreateFrame("StatusBar", nil, textOverlay)
-                g:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-                g:SetStatusBarColor(1, 1, 1, 0)  -- geometry only; never drawn
-                g:SetMinMaxValues(0, 1)
-                g:SetValue(0)
-                local clip = CreateFrame("Frame", nil, textOverlay)
-                clip:SetClipsChildren(true)
-                clip:SetFrameLevel(textOverlay:GetFrameLevel() + 1)
-                clip:SetPoint("TOPLEFT", g, "TOPLEFT", 0, 0)
-                clip:SetPoint("BOTTOMRIGHT", g:GetStatusBarTexture(), "BOTTOMRIGHT", 0, 0)
-                frame._absGate[zone] = g
-                frame._absClip[zone] = clip
-            end
-            local clip = frame._absClip[zone]
-            g._euiHealGate = isHeal
-            g:ClearAllPoints()
-            g:SetAllPoints(fs)  -- gate spans the zone's text allocation (live)
-            if fs:GetParent() ~= clip then fs:SetParent(clip) end
-            g:Show(); clip:Show()
-            -- Seed once so the text is correct before the next absorb event.
-            local amt
-            if isHeal then
-                amt = (UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit)) or 0
-            else
-                amt = (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)) or 0
-            end
-            g:SetValue(amt)
-        elseif g then
-            local clip = frame._absClip[zone]
-            if fs:GetParent() == clip then fs:SetParent(textOverlay) end
-            g:Hide(); if clip then clip:Hide() end
-        end
-    end
-
     local function ApplyTextTags(lc, rc, cc)
         ns.SetTextZone(frame, leftText, lc, "leftText", settings)
         ns.SetTextZone(frame, rightText, rc, "rightText", settings)
         ns.SetTextZone(frame, centerText, cc, "centerText", settings)
-        ApplyAbsorbGate("left", leftText, lc)
-        ApplyAbsorbGate("right", rightText, rc)
-        ApplyAbsorbGate("center", centerText, cc)
-        ns.UF_PaintText(frame, frame._euiUnit or unit)
-    end
-    ApplyTextTags(leftContent, rightContent, centerContent)
-    frame._applyTextTags = ApplyTextTags
-
-    local function ApplyTextPositions(s)
-        local lc = s.leftTextContent or "name"
-        local rc = s.rightTextContent or "none"
-        local cc = s.centerTextContent or "none"
-        local lsz = s.leftTextSize or s.textSize or 12
-        local rsz = s.rightTextSize or s.textSize or 12
-        local csz = s.centerTextSize or s.textSize or 12
-        local lxo = s.leftTextX or 0
-        local lyo = s.leftTextY or 0
-        local rxo = s.rightTextX or 0
-        local ryo = s.rightTextY or 0
-        local cxo = s.centerTextX or 0
-        local cyo = s.centerTextY or 0
-        local barW = s.frameWidth or 100
-        -- Each text position renders independently; Center no longer hides Left/Right.
-        SetFSFont(centerText, csz)
-        centerText:ClearAllPoints()
-        if cc ~= "none" then
-            centerText:SetJustifyH("CENTER")
-            PP.Point(centerText, "CENTER", textOverlay, "CENTER", cxo, cyo)
-            PP.Width(centerText, barW * 0.9 * SlotWidthMul(s, "centerText"))
-            centerText:Show()
-            ApplyClassColor(centerText, unit, s.centerTextClassColor, s.centerTextColorR, s.centerTextColorG, s.centerTextColorB)
-        else centerText:Hide() end
-
-        SetFSFont(leftText, lsz)
-        if lc ~= "none" then
-            leftText:ClearAllPoints()
-            leftText:SetJustifyH("LEFT")
-            PP.Point(leftText, "LEFT", textOverlay, "LEFT", 5 + lxo, lyo)
-            if rc ~= "none" then
-                local rightUsed = EstimateUFTextWidth(rc)
-                PP.Width(leftText, math.max(barW - rightUsed - 10, 20) * SlotWidthMul(s, "leftText"))
-            else
-                PP.Width(leftText, barW * 0.9 * SlotWidthMul(s, "leftText"))
-            end
-            leftText:Show()
-            ApplyClassColor(leftText, unit, s.leftTextClassColor, s.leftTextColorR, s.leftTextColorG, s.leftTextColorB)
-        else leftText:Hide() end
-        SetFSFont(rightText, rsz)
-        if rc ~= "none" then
-            rightText:ClearAllPoints()
-            rightText:SetJustifyH("RIGHT")
-            PP.Point(rightText, "RIGHT", textOverlay, "RIGHT", -5 + rxo, ryo)
-            if lc ~= "none" then
-                local leftUsed = EstimateUFTextWidth(lc)
-                PP.Width(rightText, math.max(barW - leftUsed - 10, 20) * SlotWidthMul(s, "rightText"))
-            else
-                PP.Width(rightText, barW * 0.9 * SlotWidthMul(s, "rightText"))
-            end
-            rightText:Show()
-            ApplyClassColor(rightText, unit, s.rightTextClassColor, s.rightTextColorR, s.rightTextColorG, s.rightTextColorB)
-        else rightText:Hide() end
-    end
-    ApplyTextPositions(settings)
-    frame._applyTextPositions = ApplyTextPositions
-end
-
-
-local function StylePetFrame(frame, unit)
-    local settings = GetSettingsForUnit(unit)
-    local pStyle = settings.portraitStyle or db.profile.portraitStyle or "attached"
-    if pStyle == "detached" then pStyle = "attached" end
-    local showPortrait = pStyle ~= "none" and settings.showPortrait ~= false
-    local pSide = settings.portraitSide or "left"
-    local totalWidth = settings.frameWidth
-    local portraitOffset = 0
-    local healthRightInset = 0
-
-    if showPortrait then
-        totalWidth = settings.healthHeight + settings.frameWidth
-        if pSide == "right" then
-            healthRightInset = settings.healthHeight
-        else
-            portraitOffset = settings.healthHeight
-        end
-    end
-
-    PP.Size(frame, totalWidth, settings.healthHeight)
-
-    local health = CreateFrame("StatusBar", nil, frame)
-    PP.Point(health, "TOPLEFT", frame, "TOPLEFT", portraitOffset, 0)
-    PP.Point(health, "RIGHT", frame, "RIGHT", -healthRightInset, 0)
-    PP.Height(health, settings.healthHeight)
-    health:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-    health:GetStatusBarTexture():SetHorizTile(false)
-
-    local bg = health:CreateTexture(nil, "BACKGROUND")
-    PP.Point(bg, "TOPLEFT", health, "TOPLEFT", 0, 0)
-    PP.Point(bg, "BOTTOMRIGHT", health, "BOTTOMRIGHT", 0, 0)
-    bg:SetColorTexture(0, 0, 0, 0.5)
-    health.bg = bg
-
-    health.colorReaction = true
-    health.colorTapped = true
-    health.colorDisconnected = true
-    health._euiUnitKey = UnitToSettingsKey(unit)
-
-    -- Inherit health bar texture from donor frame (focus > target > player),
-    -- unless this frame set its own override.
-    local donor = GetMiniDonorSettings()
-    local unitKey = UnitToSettingsKey(unit)
-    ApplyHealthBarTexture(health, unitKey, ns.ResolveHealthBarTextureKey(settings, donor))
-    ApplyHealthBarAlpha(health, unitKey)
-    health:SetReverseFill(settings.healthReverseFill and true or false)
-    ns.ApplyHealthOrientation(health, settings)
-    ApplyDarkTheme(health, unit)
-
-    frame.Health = health
-    -- Blizzard Style only: the stock small-frame power bar (nil otherwise).
-    frame.Power = ns.UF_BlizzMiniPower(frame, unit, settings)
-
-    -- Always create portrait; hide backdrop when disabled
-    frame.Portrait = CreatePortrait(frame, pSide, settings.healthHeight, unit)
-    EllesmereUI._ufPortraitSide[frame] = pSide
-    if frame.Portrait and not showPortrait then        frame.Portrait.backdrop:Hide()
-    end
-    -- Re-anchor health bar using healthHeight as the portrait width to avoid
-    -- sub-pixel GetWidth() mismatches at frame creation time
-    if frame.Portrait and frame.Portrait.backdrop and showPortrait then
-        local portW = math.max(settings.healthHeight, 1)
-        health:ClearAllPoints()
-        if pSide == "right" then
-            PP.Point(health, "TOPLEFT", frame, "TOPLEFT", 0, 0)
-            PP.Point(health, "RIGHT", frame, "RIGHT", -portW, 0)
-            health._xOffset = 0
-            health._rightInset = portW
-        else
-            PP.Point(health, "TOPLEFT", frame, "TOPLEFT", portW, 0)
-            PP.Point(health, "RIGHT", frame, "RIGHT", 0, 0)
-            health._xOffset = portW
-            health._rightInset = 0
-        end
-        PP.Height(health, settings.healthHeight)
-        health._topOffset = 0
-    end
-
-    CreateUnifiedBorder(frame, unit)
-    UpdateBordersForScale(frame, unit)
-    ReparentBarsToClip(frame, settings.powerPosition, settings)
-
-    -- Text overlay frame (parented to frame, not health, to avoid clipping)
-    local textOverlay = CreateFrame("Frame", nil, frame)
-    textOverlay:SetAllPoints(health)
-    textOverlay:SetFrameLevel(health:GetFrameLevel() + 12)
-    frame._textOverlay = textOverlay
-
-    local leftContent = settings.leftTextContent or "name"
-    local rightContent = settings.rightTextContent or "none"
-    local centerContent = settings.centerTextContent or "none"
-
-    local leftText = textOverlay:CreateFontString(nil, "OVERLAY")
-    SetFSFont(leftText, settings.leftTextSize or settings.textSize or 12)
-    leftText:SetWordWrap(false)
-    leftText:SetTextColor(1, 1, 1)
-    frame.LeftText = leftText
-
-    local rightText = textOverlay:CreateFontString(nil, "OVERLAY")
-    SetFSFont(rightText, settings.rightTextSize or settings.textSize or 12)
-    rightText:SetWordWrap(false)
-    rightText:SetTextColor(1, 1, 1)
-    frame.RightText = rightText
-
-    local centerText = textOverlay:CreateFontString(nil, "OVERLAY")
-    SetFSFont(centerText, settings.centerTextSize or settings.textSize or 12)
-    centerText:SetWordWrap(false)
-    centerText:SetTextColor(1, 1, 1)
-    frame.CenterText = centerText
-
-    frame.NameText = leftText
-    frame.HealthValue = rightText
-
-    -- "Absorb Short" zero-hide: the [eui-absorbshort] tag shows the abbreviated absorb
-    -- but cannot blank at zero (no has-absorb boolean exists), so we clip the text away
-    -- when there is no shield, secret-safely: a binary StatusBar gate (max 1) is fed the
-    -- raw absorb so its fill texture is full width with any shield and zero width with
-    -- none; a clip frame tracks that fill rect and the zone FontString is reparented
-    -- into it, clipping the text to nothing at zero absorb. Absorb is never compared to
-    -- zero in Lua -- only fed to SetValue (accepts secrets natively). Driven every
-    -- absorb update by the HealthPrediction Override. Lazy: _absGate/_absClip stay nil
-    -- until a zone is set to Absorb Short, so unused frames pay ZERO cost. content is the
-    -- zone's resolved key: "absorbshort" gates shield absorbs, "healabsorbshort" gates
-    -- heal absorbs (g._euiHealGate marks the source for the Override).
-    local function ApplyAbsorbGate(zone, fs, content)
-        local isHeal = (content == "healabsorbshort")
-        local wantGate = (content == "absorbshort" or isHeal)
-        local g = frame._absGate and frame._absGate[zone]
-        if wantGate then
-            if not g then
-                frame._absGate = frame._absGate or {}
-                frame._absClip = frame._absClip or {}
-                g = CreateFrame("StatusBar", nil, textOverlay)
-                g:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-                g:SetStatusBarColor(1, 1, 1, 0)  -- geometry only; never drawn
-                g:SetMinMaxValues(0, 1)
-                g:SetValue(0)
-                local clip = CreateFrame("Frame", nil, textOverlay)
-                clip:SetClipsChildren(true)
-                clip:SetFrameLevel(textOverlay:GetFrameLevel() + 1)
-                clip:SetPoint("TOPLEFT", g, "TOPLEFT", 0, 0)
-                clip:SetPoint("BOTTOMRIGHT", g:GetStatusBarTexture(), "BOTTOMRIGHT", 0, 0)
-                frame._absGate[zone] = g
-                frame._absClip[zone] = clip
-            end
-            local clip = frame._absClip[zone]
-            g._euiHealGate = isHeal
-            g:ClearAllPoints()
-            g:SetAllPoints(fs)  -- gate spans the zone's text allocation (live)
-            if fs:GetParent() ~= clip then fs:SetParent(clip) end
-            g:Show(); clip:Show()
-            -- Seed once so the text is correct before the next absorb event.
-            local amt
-            if isHeal then
-                amt = (UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit)) or 0
-            else
-                amt = (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)) or 0
-            end
-            g:SetValue(amt)
-        elseif g then
-            local clip = frame._absClip[zone]
-            if fs:GetParent() == clip then fs:SetParent(textOverlay) end
-            g:Hide(); if clip then clip:Hide() end
-        end
-    end
-
-    local function ApplyTextTags(lc, rc, cc)
-        ns.SetTextZone(frame, leftText, lc, "leftText", settings)
-        ns.SetTextZone(frame, rightText, rc, "rightText", settings)
-        ns.SetTextZone(frame, centerText, cc, "centerText", settings)
-        ApplyAbsorbGate("left", leftText, lc)
-        ApplyAbsorbGate("right", rightText, rc)
-        ApplyAbsorbGate("center", centerText, cc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "left", leftText, lc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "right", rightText, rc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "center", centerText, cc)
         ns.UF_PaintText(frame, frame._euiUnit or unit)
     end
     ApplyTextTags(leftContent, rightContent, centerContent)
@@ -8515,59 +8090,6 @@ local function StyleBossFrame(frame, unit)
     frame.NameText = leftText
     frame.HealthValue = rightText
 
-    -- "Absorb Short" zero-hide: the [eui-absorbshort] tag shows the abbreviated absorb
-    -- but cannot blank at zero (no has-absorb boolean exists), so we clip the text away
-    -- when there is no shield, secret-safely: a binary StatusBar gate (max 1) is fed the
-    -- raw absorb so its fill texture is full width with any shield and zero width with
-    -- none; a clip frame tracks that fill rect and the zone FontString is reparented
-    -- into it, clipping the text to nothing at zero absorb. Absorb is never compared to
-    -- zero in Lua -- only fed to SetValue (accepts secrets natively). Driven every
-    -- absorb update by the HealthPrediction Override. Lazy: _absGate/_absClip stay nil
-    -- until a zone is set to Absorb Short, so unused frames pay ZERO cost. content is the
-    -- zone's resolved key: "absorbshort" gates shield absorbs, "healabsorbshort" gates
-    -- heal absorbs (g._euiHealGate marks the source for the Override).
-    local function ApplyAbsorbGate(zone, fs, content)
-        local isHeal = (content == "healabsorbshort")
-        local wantGate = (content == "absorbshort" or isHeal)
-        local g = frame._absGate and frame._absGate[zone]
-        if wantGate then
-            if not g then
-                frame._absGate = frame._absGate or {}
-                frame._absClip = frame._absClip or {}
-                g = CreateFrame("StatusBar", nil, textOverlay)
-                g:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
-                g:SetStatusBarColor(1, 1, 1, 0)  -- geometry only; never drawn
-                g:SetMinMaxValues(0, 1)
-                g:SetValue(0)
-                local clip = CreateFrame("Frame", nil, textOverlay)
-                clip:SetClipsChildren(true)
-                clip:SetFrameLevel(textOverlay:GetFrameLevel() + 1)
-                clip:SetPoint("TOPLEFT", g, "TOPLEFT", 0, 0)
-                clip:SetPoint("BOTTOMRIGHT", g:GetStatusBarTexture(), "BOTTOMRIGHT", 0, 0)
-                frame._absGate[zone] = g
-                frame._absClip[zone] = clip
-            end
-            local clip = frame._absClip[zone]
-            g._euiHealGate = isHeal
-            g:ClearAllPoints()
-            g:SetAllPoints(fs)  -- gate spans the zone's text allocation (live)
-            if fs:GetParent() ~= clip then fs:SetParent(clip) end
-            g:Show(); clip:Show()
-            -- Seed once so the text is correct before the next absorb event.
-            local amt
-            if isHeal then
-                amt = (UnitGetTotalHealAbsorbs and UnitGetTotalHealAbsorbs(unit)) or 0
-            else
-                amt = (UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit)) or 0
-            end
-            g:SetValue(amt)
-        elseif g then
-            local clip = frame._absClip[zone]
-            if fs:GetParent() == clip then fs:SetParent(textOverlay) end
-            g:Hide(); if clip then clip:Hide() end
-        end
-    end
-
     local function ApplyTextTags(lc, rc, cc, ec)
         -- Callers that predate the Extra Text zone pass 3 args; fall back to
         -- the stored content so those sites keep working (same as Main Frames).
@@ -8576,10 +8098,10 @@ local function StyleBossFrame(frame, unit)
         ns.SetTextZone(frame, rightText, rc, "rightText", settings)
         ns.SetTextZone(frame, centerText, cc, "centerText", settings)
         ns.SetTextZone(frame, extraText, ec, "extraText", settings)
-        ApplyAbsorbGate("left", leftText, lc)
-        ApplyAbsorbGate("right", rightText, rc)
-        ApplyAbsorbGate("center", centerText, cc)
-        ApplyAbsorbGate("extra", extraText, ec)
+        ApplyAbsorbGate(frame, unit, textOverlay, "left", leftText, lc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "right", rightText, rc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "center", centerText, cc)
+        ApplyAbsorbGate(frame, unit, textOverlay, "extra", extraText, ec)
         ns.UF_PaintText(frame, frame._euiUnit or unit)
     end
     ApplyTextTags(leftContent, rightContent, centerContent, extraContent)
@@ -8668,7 +8190,7 @@ end
 
 
 -- (Styles are no longer registered anywhere: the spawn sites call
--- StyleFullFrame/StyleFocusFrame/StylePetFrame/StyleSimpleFrame/StyleBossFrame
+-- StyleFullFrame/StyleFocusFrame/StyleSimpleFrame/StyleBossFrame
 -- directly, and the engine's portrait painter always routes through the shared
 -- gated PortraitOverride.)
 
@@ -8711,13 +8233,8 @@ local function SwapPortraitMode(frame)
     if bd._class then bd._class:Hide() end
 
     if wantMode == "class" and bd._class then
-        -- Re-apply class art style texture (may have changed since creation)
-        local uKey2 = UnitToSettingsKey(unit)
-        local s2 = uKey2 and db.profile[uKey2]
-        local classStyle = (s2 and s2.classThemeStyle) or "modern"
-        local _, ct = UnitClass(unit)
-        if issecretvalue(ct) then ct = nil end
-        ApplyClassIconTexture(bd._class, ct or "WARRIOR", classStyle)
+        -- The art comes from the engine painter's class lane on the
+        -- repaint below (players: class art, anyone else: 2D portrait).
         bd._class:Show()
         bd._2d:Hide()
         bd._class.backdrop = bd
@@ -9000,11 +8517,11 @@ local function CreateCustomClassPower(playerFrame, style)
         cr, cg, cb = cc.r, cc.g, cc.b
     else
         -- Pull from EUI global color system: resource color > class color
-        local rc = EllesmereUI.GetResourceColor and EllesmereUI.GetResourceColor(playerClass)
+        local rc = EllesmereUI.GetResourceColor(playerClass)
         if rc then
             cr, cg, cb = rc.r, rc.g, rc.b
         else
-            local cc = EllesmereUI.GetClassColor and EllesmereUI.GetClassColor(playerClass)
+            local cc = EllesmereUI.GetClassColor(playerClass)
             if cc then cr, cg, cb = cc.r, cc.g, cc.b else cr, cg, cb = 1, 1, 1 end
         end
     end
@@ -9110,8 +8627,8 @@ local function CreateCustomClassPower(playerFrame, style)
                 -- Use class color (DH)
                 if not staggerBar._colorSet then
                     staggerBar._colorSet = true
-                    local rc = EllesmereUI.GetResourceColor and EllesmereUI.GetResourceColor("DEMONHUNTER")
-                    local cc = rc or (EllesmereUI.GetClassColor and EllesmereUI.GetClassColor("DEMONHUNTER"))
+                    local rc = EllesmereUI.GetResourceColor("DEMONHUNTER")
+                    local cc = rc or (EllesmereUI.GetClassColor("DEMONHUNTER"))
                     if cc then
                         staggerBar:GetStatusBarTexture():SetVertexColor(cc.r, cc.g, cc.b, 1)
                     end
@@ -9294,16 +8811,12 @@ local function CreateCustomClassPower(playerFrame, style)
                 if not _G._ERB_AceDB and EllesmereUI then
                     local unit, castGUID, spellID = ...
                     if unit == "player" then
-                        if EllesmereUI.HandleTipOfTheSpear then
-                            EllesmereUI.HandleTipOfTheSpear(event, unit, castGUID, spellID)
-                        end
+                        EllesmereUI.HandleTipOfTheSpear(event, unit, castGUID, spellID)
                     end
                 end
             elseif event == "PLAYER_DEAD" or event == "PLAYER_ALIVE" then
                 if not _G._ERB_AceDB and EllesmereUI then
-                    if EllesmereUI.HandleTipOfTheSpear then
-                        EllesmereUI.HandleTipOfTheSpear(event)
-                    end
+                    EllesmereUI.HandleTipOfTheSpear(event)
                 end
             end
             UpdatePips()
@@ -9646,7 +9159,6 @@ function ns.UF_Style()
 end
 -- Stock-art mode: a kit dictates the geometry (true for both stock styles).
 function ns.UF_Blizz() return ns.UF_Style() ~= "eui" end
-function ns.UF_Classic() return ns.UF_Style() == "classic" end
 -- Blizzard Style's coloured type strip over the target-family name ("Blizz
 -- Colored Target Header", on unless the unit's settings turn it off, which
 -- leaves the header uncoloured like the player frame's). Classic keeps its
@@ -11031,7 +10543,7 @@ ReloadFramesBody = function()
     end
 
     -- Uses global font
-    local donorFontPath = EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames")
+    local donorFontPath = EllesmereUI.GetFontPath("unitFrames")
         or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
 
     -- Live enable/disable frames without reload
@@ -11208,19 +10720,6 @@ ReloadFramesBody = function()
                 -- Always ForceUpdate so zoom/camDistanceScale applies even without mode change
                 if frame:IsElementEnabled("Portrait") and frame.Portrait.ForceUpdate then
                     frame.Portrait:ForceUpdate()
-                end
-            end
-
-            -- Refresh class art style texture (may have changed without mode change)
-            if frame.Portrait and frame.Portrait.backdrop and frame.Portrait.backdrop._class then
-                local uKey = UnitToSettingsKey(unit) or unit
-                local uSettings = uKey and db.profile[uKey]
-                local isClassMode = ((uSettings and uSettings.portraitMode) or "2d") == "class"
-                if isClassMode then
-                    local classStyle = (uSettings and uSettings.classThemeStyle) or "modern"
-                    local _, ct = UnitClass(unit)
-                    if issecretvalue(ct) then ct = nil end
-                    ApplyClassIconTexture(frame.Portrait.backdrop._class, ct or "WARRIOR", classStyle)
                 end
             end
 
@@ -12554,9 +12053,7 @@ ReloadFramesBody = function()
             local function SetMiniFont(fs, sz)
                 if not fs or not fs.SetFont then return end
                 if isMiniFrame then
-                    local f = (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("unitFrames")) or ""
-                    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, f == "") end
-                    fs:SetFont(donorFontPath, sz or 12, f)
+                    EllesmereUI.ApplyModuleFont(fs, donorFontPath, sz or 12, "unitFrames")
                 else
                     SetFSFont(fs, sz)
                 end
@@ -12833,8 +12330,7 @@ function ns.ResolveVisResting(s, frame, ext, hiddenByOpts, inCombat)
         -- Legacy single mouseover: a configured "Hide if" override that is NOT currently
         -- triggering counts as a positive show, so the frame does not require hover
         -- (fixes "dismount in combat keeps frame hidden" / "hide if no target inverted").
-        local hasAnyHideOpt = EllesmereUI and EllesmereUI.VisHasAnyOption
-                           and EllesmereUI.VisHasAnyOption(s)
+        local hasAnyHideOpt = EllesmereUI.VisHasAnyOption(s)
         if hasAnyHideOpt then return shownAlpha, false end
         return 0, true
     end
@@ -12845,10 +12341,8 @@ end
 -- two inputs the pass would have handed over. State is left nil so the shared engine fills
 -- it from its own combat/group tracking.
 function ns.ResolveVisRestingLive(s, frame)
-    local hiddenByOpts = EllesmereUI and EllesmereUI.CheckVisibilityOptions
-                      and EllesmereUI.CheckVisibilityOptions(s)
-    local ext = EllesmereUI.EvalVisibilityExtended
-        and EllesmereUI.EvalVisibilityExtended(s, "barVisibility", nil, EllesmereUI.VIS_CAPS_DEFAULT)
+    local hiddenByOpts = EllesmereUI.CheckVisibilityOptions(s)
+    local ext = EllesmereUI.EvalVisibilityExtended(s, "barVisibility", nil, EllesmereUI.VIS_CAPS_DEFAULT)
     local alpha, hoverGated = ns.ResolveVisResting(s, frame, ext, hiddenByOpts, InCombatLockdown())
     return alpha, hoverGated, hiddenByOpts
 end
@@ -12861,7 +12355,7 @@ end
 function ns.VisMouseoverWired(s)
     if not s then return false end
     if (s.barVisibility or "always") == "mouseover" then return true end
-    return (EllesmereUI.VisOverrideValue and EllesmereUI.VisOverrideValue(s)) == "mouseover"
+    return (EllesmereUI.VisOverrideValue(s)) == "mouseover"
 end
 
 -- Health visibility is a display-only reveal. The curve result is always secret
@@ -13037,9 +12531,7 @@ end
 
 function InitializeFrames()
     -- Sync EUI global power colors into oUF at init
-    if EllesmereUI and EllesmereUI.ApplyColorsToOUF then
-        EllesmereUI.ApplyColorsToOUF()
-    end
+    EllesmereUI.ApplyColorsToOUF()
 
     local classPowerStyle = db.profile.player.classPowerStyle or "none"
     if EllesmereUI.IS_FOREVER == true and classPowerStyle == "blizzard" then
@@ -13898,7 +13390,7 @@ function InitializeFrames()
 
                 -- Apply color tint
                 if colorMode == "classcolor" then
-                    local cc = (classToken and EllesmereUI.GetClassColor and EllesmereUI.GetClassColor(classToken)) or { r = 1, g = 1, b = 1 }
+                    local cc = (classToken and EllesmereUI.GetClassColor(classToken)) or { r = 1, g = 1, b = 1 }
                     combat:SetVertexColor(cc.r, cc.g, cc.b, 1)
                 elseif colorMode == "custom" then
                     local cc = ps.combatIndicatorCustomColor or { r = 1, g = 1, b = 1 }
@@ -14135,7 +13627,7 @@ function InitializeFrames()
     local petFrameSource = ns.GetUnitFrameSource("pet")
     if petFrameSource == "eui" then
         frames.pet = ns.Engine.SpawnUnitFrame("pet", "EllesmereUIUnitFrames_Pet")
-        StylePetFrame(frames.pet, "pet")
+        StyleSimpleFrame(frames.pet, "pet")
         ns.UF_AttachEngineFrame(frames.pet, "pet")
         ApplyFramePosition(frames.pet, "pet")
         SetupUnitMenu(frames.pet, "pet")
@@ -14421,13 +13913,12 @@ function InitializeFrames()
             -- Visibility "never" no longer clears enabledFrames, so a frame hidden that
             -- way stays on this path and is hidden below, reversibly.
             if frame and not ns.VisUnitDisabled(db.profile, unitKey) and s then
-                local hiddenByOpts = EllesmereUI and EllesmereUI.CheckVisibilityOptions and EllesmereUI.CheckVisibilityOptions(s)
+                local hiddenByOpts = EllesmereUI.CheckVisibilityOptions(s)
                 local vis = s.barVisibility or "always"
 
                 -- Multi-select / dragonriding path: non-nil = engine-owned.
                 -- nil = legacy single mode, untouched.
-                local ext = EllesmereUI.EvalVisibilityExtended
-                    and EllesmereUI.EvalVisibilityExtended(s, "barVisibility", visState, EllesmereUI.VIS_CAPS_DEFAULT)
+                local ext = EllesmereUI.EvalVisibilityExtended(s, "barVisibility", visState, EllesmereUI.VIS_CAPS_DEFAULT)
 
                 -- Secure condition driver: an engine-owned selection compiles into a
                 -- state-visibility driver (the action bar mechanism), replacing the
@@ -14437,8 +13928,7 @@ function InitializeFrames()
                 -- ignores the mouseover key); the alpha bucket + hover handlers do the
                 -- revealing. Registration is out-of-combat only; a selection changed
                 -- during combat rides on alpha until the regen pass registers the driver.
-                local drvSet = EllesmereUI.GetActiveVisibilityModes
-                    and EllesmereUI.GetActiveVisibilityModes(s, "barVisibility")
+                local drvSet = EllesmereUI.GetActiveVisibilityModes(s, "barVisibility")
                 -- Condition scalars ride the driver too: dragonriding (engine owns it
                 -- everywhere) and the combat pair, whose legacy alpha-hide left an
                 -- invisible click-absorbing frame out of combat. Visibility is
@@ -14452,7 +13942,7 @@ function InitializeFrames()
                 local visTail
                 -- An applied Visibility override replaces the whole setting, so the tail
                 -- is a constant and the shared selection never reaches the driver.
-                local visOv = EllesmereUI.VisOverrideValue and EllesmereUI.VisOverrideValue(s)
+                local visOv = EllesmereUI.VisOverrideValue(s)
                 if visOv then
                     visTail = (visOv == "never") and "hide" or "show"
                 elseif s.visibilityMatch == "any" and EllesmereUI.BuildAnyMatchTail then
@@ -14771,15 +14261,6 @@ function InitializeFrames()
         if uSettings and uSettings.detachedPortraitClassColor then
             ApplyDetachedPortraitShape(backdrop, uSettings, unitKey)
         end
-        -- Refresh class icon texture so it shows the actual unit class (not WARRIOR fallback)
-        if backdrop._class and uSettings and (uSettings.portraitMode or "2d") == "class" then
-            local _, ct = UnitClass(unitKey)
-            if issecretvalue(ct) then ct = nil end
-            if ct then
-                local classStyle = (uSettings and uSettings.classThemeStyle) or "modern"
-                ApplyClassIconTexture(backdrop._class, ct, classStyle)
-            end
-        end
     end)
 
     ---------------------------------------------------------------------------
@@ -14890,30 +14371,6 @@ function InitializeFrames()
     end
     frames._bossTargetBorderUpdater:SetScript("OnEvent", ns.UpdateBossTargetBorders)
     ns.UpdateBossTargetBorders()
-
-    -- Deferred class portrait fix: at frame creation time UnitClass() may return nil
-    -- for dynamic units (target, focus) since no unit is selected yet on login/reload,
-    -- causing the WARRIOR fallback. Re-apply the correct class icon once the client
-    -- has finished loading and unit data is available.
-    C_Timer.After(0, function()
-        for _, unitKey in ipairs({"player", "target", "focus"}) do
-            local frame = frames[unitKey]
-            if frame and frame.Portrait then
-                local backdrop = frame.Portrait.backdrop
-                if backdrop and backdrop._class then
-                    local uSettings = db.profile[unitKey]
-                    if uSettings and (uSettings.portraitMode or "2d") == "class" then
-                        local _, ct = UnitClass(unitKey)
-                        if issecretvalue(ct) then ct = nil end
-                        if ct then
-                            local classStyle = (uSettings and uSettings.classThemeStyle) or "modern"
-                            ApplyClassIconTexture(backdrop._class, ct, classStyle)
-                        end
-                    end
-                end
-            end
-        end
-    end)
 
     -- Deferred normalization: some late-login updates can re-anchor power bars
     -- after frame construction. Re-apply two-point attached anchors once more.
@@ -15199,7 +14656,7 @@ function SetupOptionsPanel()
         local stackPos = settings.debuffStackTextPosition
         local cdTextColor = settings.debuffCooldownTextColor or {r=1, g=1, b=1}
         local stackTextColor = settings.debuffStackTextColor or {r=1, g=1, b=1}
-        local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("unitFrames")) or "Fonts\\FRIZQT__.TTF"
+        local fontPath = (EllesmereUI.GetFontPath("unitFrames")) or "Fonts\\FRIZQT__.TTF"
         local now = GetTime()
         for idx, spellID in ipairs(FAKE_DEBUFF_SPELLS) do
             local iconFrame = CreateFrame("Frame", nil, holder)
@@ -16156,14 +15613,12 @@ function EllesmereUF:OnInitialize()
     ResolveFontPath()
 
     -- Append SharedMedia textures to runtime tables so SM texture keys resolve
-    if EllesmereUI.AppendSharedMediaTextures then
-        EllesmereUI.AppendSharedMediaTextures(
-            healthBarTextureNames,
-            healthBarTextureOrder,
-            nil,
-            healthBarTextures
-        )
-    end
+    EllesmereUI.AppendSharedMediaTextures(
+        healthBarTextureNames,
+        healthBarTextureOrder,
+        nil,
+        healthBarTextures
+    )
 
     -- Blizzard options panel is registered centrally in EllesmereUI.lua
 end
@@ -16205,9 +15660,7 @@ local function EnableBody()
     end
     C_Timer.After(0, SetupOptionsPanel)
     C_Timer.After(0, function()
-        if EllesmereUI and EllesmereUI.ApplyColorsToOUF then
-            EllesmereUI.ApplyColorsToOUF()
-        end
+        EllesmereUI.ApplyColorsToOUF()
         -- Restore the player-threat watcher if the option was saved enabled
         -- (zero cost otherwise -- nothing is registered when off).
         if db and db.profile and db.profile.playerThreatBorderEnabled and ns.SetPlayerThreatEnabled then

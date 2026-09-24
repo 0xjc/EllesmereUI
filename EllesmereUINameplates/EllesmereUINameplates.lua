@@ -32,32 +32,15 @@ local GetRaidTargetIndex, SetRaidTargetIconTexture = GetRaidTargetIndex, SetRaid
 local C_CVar, NamePlateConstants, Enum = C_CVar, NamePlateConstants, Enum
 local _, PLAYER_CLASS = UnitClass("player")
 
-local function GetFont()
-    if EllesmereUI and EllesmereUI.GetFontPath then
-        return EllesmereUI.GetFontPath("nameplates")
-    end
-    -- `defaults` is declared below this function, so use the literal path.
-    return (p and p.font) or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
-end
-local function GetNPOutline()
-    -- Slug-gated at the source (GetFontOutlineFlag); SetFSFont gates the
-    -- explicit-flag path too, so aura literals are covered.
-    return (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("nameplates")) or "OUTLINE, SLUG"
-end
-local function GetNPUseShadow()
-    return not EllesmereUI or not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow("nameplates")
-end
+local function GetFont() return EllesmereUI.GetFontPath("nameplates") end
+-- Slug-gated at the source (GetFontOutlineFlag); SetFSFont gates the
+-- explicit-flag path too, so aura literals are covered.
+local function GetNPOutline() return EllesmereUI.GetFontOutlineFlag("nameplates") end
+local function GetNPUseShadow() return EllesmereUI.GetFontUseShadow("nameplates") end
 local function SetFSFont(fs, size, flags)
-  if not (fs and fs.SetFont) then return end
-  local f = flags or GetNPOutline()
   -- "Never Show Slug": gates the explicit-flag path so hardcoded aura
   -- "OUTLINE, SLUG" literals drop the slug (body text is gated at the source).
-  if EllesmereUI and EllesmereUI.SlugFlag then f = EllesmereUI.SlugFlag(f) end
-  -- Drop shadows only render from a FontObject; prime before SetFont.
-  if EllesmereUI and EllesmereUI.PrimeFontShadow then
-    EllesmereUI.PrimeFontShadow(fs, f == "")
-  end
-  fs:SetFont(GetFont(), size or 11, f)
+  EllesmereUI.ApplyModuleFont(fs, nil, size or 11, "nameplates", EllesmereUI.SlugFlag(flags or GetNPOutline()))
 end
 
 ns.GetFont = GetFont
@@ -1328,9 +1311,6 @@ local function GetDebuffTextColor()
     return c.r, c.g, c.b, 1
 end
 ns.GetDebuffTextColor = GetDebuffTextColor
-local function GetPandemicGlow()
-    return (p and p.pandemicGlow) or defaults.pandemicGlow
-end
 
 -- Pandemic glow style definitions.
 -- 1 = Pixel Glow (procedural ants), 2 = Action Button Glow (animated ants texture),
@@ -1364,10 +1344,6 @@ local function GetPandemicGlowStyle()
     return 1
 end
 ns.GetPandemicGlowStyle = GetPandemicGlowStyle
-local function GetPandemicGlowColor()
-    local c = (p and p.pandemicGlowColor) or defaults.pandemicGlowColor
-    return c.r, c.g, c.b
-end
 local function GetPandemicGlowLines()
     return (p and p.pandemicGlowLines) or defaults.pandemicGlowLines
 end
@@ -1380,102 +1356,22 @@ local function GetPandemicGlowSpeed()
     return (p and p.pandemicGlowSpeed) or defaults.pandemicGlowSpeed
 end
 ns.GetPandemicGlowSpeed = GetPandemicGlowSpeed
--- On ns, not file-scope locals (Lua 5.1 200-local cap); both still close over the p/defaults upvalues.
-function ns.GetPandemicGlowBackground()
-    return p and p.pandemicGlowBackground == true
-end
-function ns.GetPandemicGlowBackgroundColor()
-    local c = (p and p.pandemicGlowBackgroundColor) or defaults.pandemicGlowBackgroundColor
-    return c.r or 0, c.g or 0, c.b or 0
-end
 
--- Offensive dispel capability. This asks what the PLAYER knows, never what an
--- aura is, so it keeps working in restricted content, where a tainted addon's
--- aura reads are denied outright rather than merely classified.
+-- Offensive dispel capability: the shared parent detector (AuraKit), which
+-- asks what the PLAYER knows, never what an aura is, so it keeps working in
+-- restricted content.
 do
-    local _, playerClass = UnitClass("player")
-    -- { spellID, category ("Magic", "Enrage", or "Both"), requiredClass or nil, requiredTalent or nil }
-    local OFFENSIVE_DISPEL_SPELLS = {
-        { 370,    "Magic",  nil       },  -- Purge (Shaman)
-        { 378773, "Magic",  nil       },  -- Greater Purge (Shaman)
-        { 528,    "Magic",  nil       },  -- Dispel Magic (Priest)
-        { 32375,  "Magic",  nil       },  -- Mass Dispel (Priest)
-        { 278326, "Magic",  nil       },  -- Consume Magic (Demon Hunter)
-        { 19505,  "Magic",  "WARLOCK" },  -- Devour Magic (Felhunter)
-        { 19801,  "Both",   nil       },  -- Tranquilizing Shot (Hunter)
-        { 2908,   "Enrage", nil       },  -- Soothe (Druid)
-        { 30449,  "Magic",  nil       },  -- Spellsteal (Mage)
-        { 115078, "Enrage", "MONK", 450432 },  -- Paralysis (w/ Pressure Points talent)
-    }
-    local canDispelMagic, canDispelEnrage = false, false
-    local built = false
-    local BANK = Enum and Enum.SpellBookSpellBank
-
-    -- IsSpellKnown answers "does the player have this", which is the question a
-    -- PASSIVE talent needs -- IsSpellInSpellBook says no for one. The globals
-    -- this used to call (IsPlayerSpell, IsSpellKnown) exist only in
-    -- Blizzard_DeprecatedSpellBook, behind the loadDeprecationFallbacks CVar and
-    -- removed next expansion; with that CVar off the talent branch never fired.
-    local function Knows(spellID, bank)
-        if not (C_SpellBook and C_SpellBook.IsSpellKnown and BANK) then return false end
-        local ok, v = pcall(C_SpellBook.IsSpellKnown, spellID, bank or BANK.Player)
-        return ok and v == true
-    end
-    local function InBook(spellID, bank)
-        if not (C_SpellBook and BANK) then return false end
-        if not C_SpellBook.IsSpellKnownOrInSpellBook then return Knows(spellID, bank) end
-        local ok, v = pcall(C_SpellBook.IsSpellKnownOrInSpellBook, spellID, bank or BANK.Player)
-        return ok and v == true
-    end
-
-    local function RebuildDispelTypes()
-        local wasMagic, wasEnrage = canDispelMagic, canDispelEnrage
-        canDispelMagic, canDispelEnrage = false, false
-        for _, entry in ipairs(OFFENSIVE_DISPEL_SPELLS) do
-            local spellID, cat, reqClass, reqTalent = entry[1], entry[2], entry[3], entry[4]
-            if not (reqClass and playerClass ~= reqClass) then
-                local known
-                if reqTalent then
-                    known = Knows(reqTalent)
-                elseif reqClass then
-                    -- Pet bank: true only while that pet is actually out, which
-                    -- is why UNIT_PET is registered below.
-                    known = InBook(spellID, BANK and BANK.Pet)
-                else
-                    known = InBook(spellID)
-                end
-                if known then
-                    if cat == "Magic" or cat == "Both" then canDispelMagic = true end
-                    if cat == "Enrage" or cat == "Both" then canDispelEnrage = true end
-                end
-            end
-        end
-        -- Capability picks the buff row's candidate filter, so a change has to
-        -- rebuild the containers, not merely repaint them. The first pass has
-        -- nothing to compare against and nothing built yet, so it never
-        -- notifies -- the pool build reads capability when it runs.
-        if built and (wasMagic ~= canDispelMagic or wasEnrage ~= canDispelEnrage) then
-            if ns.NPC_ReloadAll then ns.NPC_ReloadAll() end
-        end
-        built = true
-    end
-    local dispelFrame = CreateFrame("Frame")
-    dispelFrame:RegisterEvent("SPELLS_CHANGED")
-    dispelFrame:RegisterEvent("UNIT_PET")
-    -- A talent swap does not reliably reach SPELLS_CHANGED first, and without
-    -- these a talent-gated entry is only correct after a /reload.
-    dispelFrame:RegisterEvent("TRAIT_CONFIG_UPDATED")
-    dispelFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    dispelFrame:SetScript("OnEvent", function(_, event, unit)
-        if event == "UNIT_PET" and unit ~= "player" then return end
-        RebuildDispelTypes()
+    local AKd = EllesmereUI.AuraKit
+    -- Capability picks the buff row's candidate filter, so a change has to
+    -- rebuild the containers, not merely repaint them.
+    AKd.OnOffensiveDispelChange(function()
+        if ns.NPC_ReloadAll then ns.NPC_ReloadAll() end
     end)
-    RebuildDispelTypes()
 
     -- canDispelMagic, canDispelEnrage. Consumed by the buff row to pick its
     -- candidate filter and by the glow gate.
     ns.GetOffensiveDispelTypes = function()
-        return canDispelMagic, canDispelEnrage
+        return AKd.OffensiveDispelTypes()
     end
 
     ns.GetDispelGlow = function()
@@ -3947,11 +3843,8 @@ do
     end)
 end
 
-local function InitDB()
-    -- No-op stub (NewDB + DeepMergeDefaults handles defaults); kept so stray call sites don't error.
-end
 function ns.GetActiveKickSpell()
-    return EllesmereUI and EllesmereUI.GetActiveKickSpell and EllesmereUI.GetActiveKickSpell()
+    return EllesmereUI.GetActiveKickSpell()
 end
 -- Cast overlay uses the same tint as the on-plate cast bar.
 ns.ComputeCastBarTint = function(readyTint, baseTint)
@@ -4018,13 +3911,6 @@ function ns.RefreshCastBorderColor()
         if plate.ApplyCastBorderColor then plate:ApplyCastBorderColor() end
     end
     if ns.GetWrapBorderCastbar() then ns.ApplyBorderWrapToAll() end
-end
-function ns.RefreshNameplateYOffset()
-    local yOff = GetNameplateYOffset()
-    for _, plate in pairs(ns.plates) do
-        plate.health:ClearAllPoints()
-        plate.health:SetPoint("CENTER", plate, "CENTER", 0, yOff)
-    end
 end
 
 function ns.RefreshStackingBounds()
@@ -4557,12 +4443,12 @@ local function GetClassPipColor(classFile, powerKey)
         if powerKey then
             local alias = powerKey:match("^(.+)_BAR$")
             local key = alias or powerKey
-            local c = EllesmereUI.GetPowerColor and EllesmereUI.GetPowerColor(key)
+            local c = EllesmereUI.GetPowerColor(key)
             if c then return { c.r, c.g, c.b } end
         end
-        local rc = EllesmereUI.GetResourceColor and EllesmereUI.GetResourceColor(classFile)
+        local rc = EllesmereUI.GetResourceColor(classFile)
         if rc then return { rc.r, rc.g, rc.b } end
-        local cc = EllesmereUI.GetClassColor and EllesmereUI.GetClassColor(classFile)
+        local cc = EllesmereUI.GetClassColor(classFile)
         if cc then return { cc.r, cc.g, cc.b } end
     end
     return CP_DEFAULT_COLOR
@@ -5361,16 +5247,12 @@ local function EnableClassPowerWatcher()
                 end
                 local unit, castGUID, spellID = ...
                 if unit == "player" and EllesmereUI then
-                    if EllesmereUI.HandleTipOfTheSpear then
-                        EllesmereUI.HandleTipOfTheSpear(event, unit, castGUID, spellID)
-                    end
+                    EllesmereUI.HandleTipOfTheSpear(event, unit, castGUID, spellID)
                 end
                 RefreshClassPower()
             elseif event == "PLAYER_DEAD" or event == "PLAYER_ALIVE" then
                 if not _G._ERB_AceDB and EllesmereUI then
-                    if EllesmereUI.HandleTipOfTheSpear then
-                        EllesmereUI.HandleTipOfTheSpear(event)
-                    end
+                    EllesmereUI.HandleTipOfTheSpear(event)
                 end
                 RefreshClassPower()
             elseif event == "PLAYER_REGEN_ENABLED" then
@@ -6091,13 +5973,6 @@ local hookedSoftTargetIcons = {}
 local npOffscreenParent = CreateFrame("Frame")
 npOffscreenParent:Hide()
 local storedParents = {}
-local function HideBlizzardElement(element)
-    if element then
-        element:SetAlpha(0)
-        element:Hide()
-        if element.SetScale then element:SetScale(0.001) end
-    end
-end
 local function MoveToOffscreen(element, unit)
     if not element then return end
     -- PERF: skip SetParent if already offscreen (saves ~14 calls per plate respawn)
@@ -8910,7 +8785,7 @@ function NameplateFrame:ShowInterrupted(interrupterGUID)
         self.castName:SetWidth(hasInterrupter and math.max(castW - 8, 20) or castW * cnWPct / 100)
     end
 
-    local interruptedText = (EllesmereUI and EllesmereUI.L and EllesmereUI.L("Interrupted")) or "Interrupted"
+    local interruptedText = (EllesmereUI.L("Interrupted")) or "Interrupted"
     if hasInterrupter then
         -- The base FontString color carries SECRET class RGB; only the clean
         -- localized label/punctuation uses an inline profile-color escape.
@@ -9791,14 +9666,12 @@ function npAddon:OnInitialize()
     -- so the apply loop no-ops; SetUnit fades new plates as they spawn).
     if ns.NT_RefreshSetting then ns.NT_RefreshSetting() end
     -- Append SharedMedia textures to runtime tables so SM texture keys resolve at runtime
-    if EllesmereUI.AppendSharedMediaTextures then
-        EllesmereUI.AppendSharedMediaTextures(
-            ns.healthBarTextureNames,
-            ns.healthBarTextureOrder,
-            nil,
-            ns.healthBarTextures
-        )
-    end
+    EllesmereUI.AppendSharedMediaTextures(
+        ns.healthBarTextureNames,
+        ns.healthBarTextureOrder,
+        nil,
+        ns.healthBarTextures
+    )
 end
 function npAddon:OnEnable()
     -- Re-read profile: PreSeedSpecProfile may have re-pointed db.profile between OnInitialize and OnEnable.

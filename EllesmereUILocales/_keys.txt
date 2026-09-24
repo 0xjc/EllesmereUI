@@ -67,7 +67,6 @@ A quick view of every font setting in one place.
 A quick view of every texture setting in one place.
 ADD NEW
 AFK
-Abilities
 Activate Boss Preview
 Activate Custom Buff Manager
 Activate Custom Debuff Manager
@@ -241,6 +240,7 @@ Custom Spell ID
 Custom spells cannot track charges.
 Customizing Unlock Mode: %s (changes apply only to this group's specs)
 DEAD
+Damage meter was reset mid-run, some numbers are low
 Dark Overlays\nDisabled
 Dark Overlays\nEnabled
 Deactivate Boss Preview

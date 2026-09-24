@@ -15,49 +15,7 @@ local PP = EllesmereUI.PP
 
 -- Per-addon border texture defaults (size key = borderSize 0-4); shared by
 -- TBB, class/power/health bars, and cast bar
-do
-    local function AllSizes(ox, oy, sx, sy)
-        local t = {}
-        for k = 0, 4 do t[k] = { offsetX = ox, offsetY = oy, shiftX = sx, shiftY = sy } end
-        return t
-    end
-    EllesmereUI.RegisterBorderDefaults("resourcebars", {
-        ["glow"] = {
-            defaultSize = 1,
-            sizes = AllSizes(0, 0, 0, 0),
-        },
-        ["blizz"] = {
-            defaultSize = 3,
-            sizes = {
-                [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                [1] = { offsetX = 2, offsetY = 1, shiftX = 0, shiftY = 0 },
-                [2] = { offsetX = 3, offsetY = 2, shiftX = 1, shiftY = 0 },
-                [3] = { offsetX = 4, offsetY = 2, shiftX = 1, shiftY = 0 },
-                [4] = { offsetX = 4, offsetY = 2, shiftX = 1, shiftY = 0 },
-            },
-        },
-        ["dialog"] = {
-            defaultSize = 1,
-            sizes = {
-                [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                [1] = { offsetX = 3, offsetY = 3, shiftX = 0, shiftY = 0 },
-                [2] = { offsetX = 3, offsetY = 5, shiftX = 0, shiftY = 0 },
-                [3] = { offsetX = 3, offsetY = 5, shiftX = 0, shiftY = 0 },
-                [4] = { offsetX = 5, offsetY = 10, shiftX = 0, shiftY = 0 },
-            },
-        },
-        ["sm:Blizzard Achievement Wood"] = {
-            defaultSize = 1,
-            sizes = {
-                [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                [1] = { offsetX = 1, offsetY = 1, shiftX = 0, shiftY = 0 },
-                [2] = { offsetX = 1, offsetY = 1, shiftX = 0, shiftY = 0 },
-                [3] = { offsetX = 1, offsetY = 6, shiftX = 0, shiftY = 0 },
-                [4] = { offsetX = 1, offsetY = 8, shiftX = 0, shiftY = 0 },
-            },
-        },
-    })
-end
+EllesmereUI.RegisterBorderDefaults("resourcebars", EllesmereUI.BORDER_DEFAULTS_BARS)
 
 -- Snap x/y to the physical pixel grid. Optional `pos` (CENTER/CENTER anchor)
 -- gets dim-aware snapping, preserving the +0.5 offset odd-pixel-dim frames
@@ -94,25 +52,8 @@ local GetInventoryItemID = GetInventoryItemID
 -------------------------------------------------------------------------------
 --  Constants
 -------------------------------------------------------------------------------
-local RB_FONT_FALLBACK = "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
-local function GetRBFont()
-    if EllesmereUI and EllesmereUI.GetFontPath then
-        return EllesmereUI.GetFontPath("resourceBars")
-    end
-    return RB_FONT_FALLBACK
-end
-local function GetRBOutline()
-    return (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("resourceBars")) or ""
-end
-local function GetRBUseShadow()
-    return not EllesmereUI or not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow("resourceBars")
-end
-local function SetRBFont(fs, font, size)
-    if not (fs and fs.SetFont) then return end
-    local f = GetRBOutline()
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, f == "") end
-    fs:SetFont(font, size, f)
-end
+local function GetRBFont() return EllesmereUI.GetFontPath("resourceBars") end
+local function SetRBFont(fs, font, size) EllesmereUI.ApplyModuleFont(fs, font, size, "resourceBars") end
 -- Shared with EUI_ResourceBars_SwingTimer.lua (same font lane as the cast bar text).
 ns.GetRBFont = GetRBFont
 ns.SetRBFont = SetRBFont
@@ -2840,14 +2781,14 @@ local function ApplyBarAnchor(frame, anchorKey, anchorPos, offsetX, offsetY, gro
         end)
         return true
     elseif anchorKey == "partyframe" then
-        local partyFrame = EllesmereUI and EllesmereUI.FindPlayerPartyFrame and EllesmereUI.FindPlayerPartyFrame()
+        local partyFrame = EllesmereUI.FindPlayerPartyFrame()
         if not partyFrame then return false end
         local framePoint, targetPoint = GetAnchorPoints()
         frame:ClearAllPoints()
         frame:SetPoint(framePoint, partyFrame, targetPoint, offsetX, offsetY)
         return true
     elseif anchorKey == "playerframe" then
-        local playerFrame = EllesmereUI and EllesmereUI.FindPlayerUnitFrame and EllesmereUI.FindPlayerUnitFrame()
+        local playerFrame = EllesmereUI.FindPlayerUnitFrame()
         if not playerFrame then return false end
         local framePoint, targetPoint = GetAnchorPoints()
         frame:ClearAllPoints()
@@ -6402,7 +6343,7 @@ end
 local function ShouldShowSecondary()
     local sp = _G._ERB_ResolveSecondaryCfg()
     -- Check visibility options first
-    if EllesmereUI and EllesmereUI.CheckVisibilityOptions and EllesmereUI.CheckVisibilityOptions(sp) then return false end
+    if EllesmereUI.CheckVisibilityOptions(sp) then return false end
     -- Multi-select / dragonriding path (nil = legacy single mode below)
     if EllesmereUI and EllesmereUI.EvalVisibilityExtended then
         local st = ERB._visState
@@ -6434,7 +6375,7 @@ end
 
 local function ShouldShowBar(barProfile)
     -- Check visibility options first
-    if EllesmereUI and EllesmereUI.CheckVisibilityOptions and EllesmereUI.CheckVisibilityOptions(barProfile) then return false end
+    if EllesmereUI.CheckVisibilityOptions(barProfile) then return false end
     -- Multi-select / dragonriding path (nil = legacy single mode below)
     if EllesmereUI and EllesmereUI.EvalVisibilityExtended then
         local st = ERB._visState
@@ -7843,9 +7784,7 @@ BuildCastBar = function()
     -- ResourceBars only claims Blizzard's player cast bar while its own
     -- replacement bar is active. The shared helper arbitrates ownership
     -- across EUI modules and releases control cleanly for other addons.
-    if EllesmereUI and EllesmereUI.SetPlayerCastBarSuppressed then
-        EllesmereUI.SetPlayerCastBarSuppressed("ResourceBars", cb.enabled)
-    end
+    EllesmereUI.SetPlayerCastBarSuppressed("ResourceBars", cb.enabled)
 
     if not cb.enabled then
         if castBarFrame then EllesmereUI.SetElementVisibility(castBarFrame, false) end
@@ -10110,7 +10049,7 @@ local function LayoutTotemBar()
     local timerSize = tb.timerSize or 11
     local scaledTimerSize = math.max(6, math.floor(timerSize / iconScale + 0.5))
     local fontPath = GetRBFont()
-    local outlineMode = GetRBOutline()
+    local outlineMode = EllesmereUI.GetFontOutlineFlag("resourceBars")
 
     wipe(_totemActiveSet)
     for i, btn in ipairs(buttons) do
@@ -10551,9 +10490,7 @@ function ERB:ApplyAll()
 end
 
 local function ScheduleRosterApply()
-    if EllesmereUI and EllesmereUI.InvalidateFrameCache then
-        EllesmereUI.InvalidateFrameCache()
-    end
+    EllesmereUI.InvalidateFrameCache()
     C_Timer.After(0.2, function()
         ERB:ApplyAll()
     end)
@@ -10770,9 +10707,7 @@ local function OnEvent(self, event, ...)
             HandleIronfurCast(spellID)
             IP.HandleCast(spellID)
             if EllesmereUI then
-                if EllesmereUI.HandleTipOfTheSpear then
-                    EllesmereUI.HandleTipOfTheSpear(event, unit, castGUID, spellID)
-                end
+                EllesmereUI.HandleTipOfTheSpear(event, unit, castGUID, spellID)
             end
             if cachedSecondary and (cachedSecondary.type == "custom"
                or cachedSecondary.power == "IRONFUR_BAR") then
@@ -10785,9 +10720,7 @@ local function OnEvent(self, event, ...)
         ironfurGoEUntil = 0
         IP.hashEndTime = 0
         if EllesmereUI then
-            if EllesmereUI.HandleTipOfTheSpear then
-                EllesmereUI.HandleTipOfTheSpear(event)
-            end
+            EllesmereUI.HandleTipOfTheSpear(event)
         end
     elseif event == "PLAYER_ENTERING_WORLD" then
         C_Timer.After(0.5, function()
@@ -11135,42 +11068,34 @@ function ERB:OnEnable()
     -- Re-render when the global Dark Mode palette changes so the class resource
     -- bar's dark colours update live (colours are fetched live each render, so a
     -- plain rebuild is enough). ApplyAll touches secure positioning, so guard combat.
-    if EllesmereUI.RegisterDarkModeRefresh then
-        EllesmereUI.RegisterDarkModeRefresh(function()
-            if InCombatLockdown() then return end
-            ERB:ApplyAll()
-        end)
-    end
+    EllesmereUI.RegisterDarkModeRefresh(function()
+        if InCombatLockdown() then return end
+        ERB:ApplyAll()
+    end)
 
     -- Global Dark Mode master: expose the class resource bar's darkTheme flag so
     -- the parent addon's master toggle can flip it alongside other modules.
     -- Combat-guarded like the palette refresher above.
-    if EllesmereUI.RegisterDarkModeToggle then
-        EllesmereUI.RegisterDarkModeToggle({
-            id = "resourceBars",
-            isOn = function()
-                return (ERB.db and ERB.db.profile and ERB.db.profile.secondary
-                    and ERB.db.profile.secondary.darkTheme) or false
-            end,
-            setOn = function(on)
-                if not (ERB.db and ERB.db.profile and ERB.db.profile.secondary) then return end
-                ERB.db.profile.secondary.darkTheme = on
-                if not InCombatLockdown() then ERB:ApplyAll() end
-            end,
-        })
-    end
+    EllesmereUI.RegisterDarkModeToggle({
+        id = "resourceBars",
+        isOn = function()
+            return (ERB.db and ERB.db.profile and ERB.db.profile.secondary
+                and ERB.db.profile.secondary.darkTheme) or false
+        end,
+        setOn = function(on)
+            if not (ERB.db and ERB.db.profile and ERB.db.profile.secondary) then return end
+            ERB.db.profile.secondary.darkTheme = on
+            if not InCombatLockdown() then ERB:ApplyAll() end
+        end,
+    })
 
     -- Collapse/restore expandIfNoResource when EUI options panel opens/closes
-    if EllesmereUI.RegisterOnShow then
-        EllesmereUI:RegisterOnShow(function()
-            if _G._ERB_SuppressExpand then _G._ERB_SuppressExpand() end
-        end)
-    end
-    if EllesmereUI.RegisterOnHide then
-        EllesmereUI:RegisterOnHide(function()
-            if _G._ERB_RestoreExpand then _G._ERB_RestoreExpand() end
-        end)
-    end
+    EllesmereUI:RegisterOnShow(function()
+        if _G._ERB_SuppressExpand then _G._ERB_SuppressExpand() end
+    end)
+    EllesmereUI:RegisterOnHide(function()
+        if _G._ERB_RestoreExpand then _G._ERB_RestoreExpand() end
+    end)
 end
 
 -- Slash commands
@@ -11185,8 +11110,6 @@ SlashCmdList.ERB = function(msg)
         return
     end
     if InCombatLockdown and InCombatLockdown() then return end
-    if EllesmereUI and EllesmereUI.ShowModule then
-        EllesmereUI:ShowModule("EllesmereUIResourceBars")
-    end
+    EllesmereUI:ShowModule("EllesmereUIResourceBars")
 end
 

@@ -1925,30 +1925,6 @@ function ns.CC_RemoveGlobalBinding(index)
     ns.CC_ApplyBindings()
 end
 
-function ns.CC_SetGlobalBindingKey(bindingType, newKey)
-    local cc = GetClickCastDB()
-    if not cc then return end
-    for _, b in ipairs(cc.globals) do
-        if b.type == bindingType then
-            b.key = newKey
-            break
-        end
-    end
-    ns.CC_ApplyBindings()
-end
-
-function ns.CC_ToggleBinding(binding)
-    binding.enabled = not binding.enabled
-    ns.CC_ApplyBindings()
-end
-
-function ns.CC_FindBinding(keyStr)
-    for _, b in ipairs(GetActiveBindings()) do
-        if b.key == keyStr then return b end
-    end
-    return nil
-end
-
 -- Expose getters
 ns.CC_GetActiveBindings  = GetActiveBindings
 ns.CC_GetSpecBindings    = GetSpecBindings
@@ -2283,8 +2259,8 @@ function ns.CC_BuildPage(pageName, parent, yOffset)
     local cc = GetClickCastDB()
     if not cc then return 0 end
 
-    local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
-    local outlineFlag = (EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("raidFrames")) or ""
+    local fontPath = (EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
+    local outlineFlag = (EllesmereUI.GetFontOutlineFlag("raidFrames")) or ""
     local useShadow = not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow("raidFrames")
     local accentColor = EllesmereUI.ELLESMERE_GREEN or { r = 0.05, g = 0.82, b = 0.62 }
 
@@ -2318,7 +2294,7 @@ function ns.CC_BuildPage(pageName, parent, yOffset)
 
     local function MakeFont(p, size, r, g, b, a)
         local fs = p:CreateFontString(nil, "OVERLAY")
-        if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, outlineFlag == "" and useShadow) end
+        EllesmereUI.PrimeFontShadow(fs, outlineFlag == "" and useShadow)
         fs:SetFont(fontPath, size, outlineFlag)
         fs:SetTextColor(r or 1, g or 1, b or 1, a or 1)
         return fs

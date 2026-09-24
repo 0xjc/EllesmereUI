@@ -149,7 +149,9 @@ local function MeterReady()
 end
 
 local function WalkSources(session, totals, perSec, identityRoster, countRows)
+    local n = 0
     for _, src in ipairs(session.combatSources) do
+        n = n + 1
         local guid  = PlainString(src.sourceGUID)
         local total = PlainNumber(src.totalAmount)
         if countRows then
@@ -165,10 +167,13 @@ local function WalkSources(session, totals, perSec, identityRoster, countRows)
             rec.class    = rec.class or PlainString(src.classFilename)
         end
     end
+    return n
 end
 
 -- Fills totals[guid] and, when perSec is given, perSec[guid]. Returns false if
--- the session could not be read at all.
+-- the session could not be read at all, else true plus how many source rows
+-- the session held (nil when the walk raised), so an empty session can be
+-- told apart from rows that are still classified.
 -- identityRoster, when given, also banks classFilename and specIconID onto it.
 -- Both are NeverSecret, so they read even when the amounts beside them do not.
 local function HarvestTotals(dmType, totals, perSec, identityRoster, countRows)
@@ -180,8 +185,8 @@ local function HarvestTotals(dmType, totals, perSec, identityRoster, countRows)
     -- The whole walk sits inside the pcall, not just the call that produced
     -- the session: type() answers "table" for a secret table too, so indexing
     -- one raises rather than reading nil.
-    pcall(WalkSources, session, totals, perSec, identityRoster, countRows)
-    return true
+    local walked, rows = pcall(WalkSources, session, totals, perSec, identityRoster, countRows)
+    return true, walked and rows or nil
 end
 
 local function SessionDuration()
@@ -203,13 +208,23 @@ local baseTotals        -- [metricKey][guid] = total at key start
 local baseDuration      -- Overall session duration at key start
 local hasBaseline       -- false when the key start sample failed or was skipped
 local inspectPending    -- guid of the outstanding NotifyInspect
+-- Meter resets mid-key (another meter resetting after each pull, a Reset
+-- button, Blizzard's auto-reset) would cut the Overall session short, so the
+-- run banks what the meter gained at each checkpoint (a pull ended and the
+-- combat restriction lifted) and folds it in on a reset:
+--   bank[metric][guid] = gains banked before a reset, bankDur = their seconds,
+--   snap[metric][guid] = Overall totals at the last checkpoint, snapDur = its
+--   duration, unbanked = a pull began since that checkpoint, gaps = a reset
+--   landed on unbanked gains (the run's numbers are short).
+-- The finished run carries it on (lastRun.seg) while it waits for the meter.
+local seg
 
 -- Everything the finishing phase needs, captured when the key completes and
 -- deliberately out of ResetCollector's reach. The key resets behind us on the
 -- way out of the instance while the run is still waiting on the meter, on the
 -- chest and on the late score push, so none of that may live in state the
 -- reset wipes.
-local lastRun           -- { record, rst, ord, base, baseDur, based, awaitingMeter, lootArmed, settled }
+local lastRun           -- { record, rst, ord, base, baseDur, based, seg, awaitingMeter, lootArmed, settled }
 
 -- Collecting-phase state only. The finished run lives in lastRun.
 local function ResetCollector()
@@ -220,6 +235,7 @@ local function ResetCollector()
     baseDuration  = nil
     hasBaseline   = false
     inspectPending = nil
+    seg = { bank = {}, snap = {}, bankDur = 0, unbanked = false, gaps = false }
 end
 ResetCollector()
 
@@ -290,7 +306,7 @@ end
 -- and by short name otherwise. Never overwrites an item already recorded.
 local ITEM_CLASS   = Enum and Enum.ItemClass
 local ITEM_QUALITY = Enum and Enum.ItemQuality
-local GetInstant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+local GetInstant = C_Item.GetItemInfoInstant
 
 local ITEM_BIND   = Enum and Enum.ItemBind
 local GetFullInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
@@ -583,7 +599,12 @@ local function SyncEvents()
     SetEvent("GROUP_ROSTER_UPDATE", on and (collecting or settling))
     SetEvent("CHALLENGE_MODE_MEMBER_INFO_UPDATED", on and (collecting or settling))
     SetEvent("PLAYER_REGEN_ENABLED", on and (collecting or settling))
-    SetEvent("ADDON_RESTRICTION_STATE_CHANGED", waiting)
+    -- While the key runs, and while the finished run still waits for the
+    -- meter: the combat restriction's edges are the per-pull checkpoints, and
+    -- a meter reset folds into the bank (see seg).
+    local keyRunning = on and collecting and not lastRun
+    SetEvent("ADDON_RESTRICTION_STATE_CHANGED", waiting or keyRunning)
+    SetEvent("DAMAGE_METER_RESET", waiting or keyRunning)
     SetEvent("CHALLENGE_MODE_COMPLETED_REWARDS", settling)
     SetEvent("ENCOUNTER_LOOT_RECEIVED", settling)
     SetEvent("CHAT_MSG_LOOT", settling)
@@ -615,6 +636,14 @@ local function StartCollecting(skipBaseline)
         -- An unread baseline is not a zero baseline: without this flag a failed
         -- read silently turns into "the whole session counts as this run".
         hasBaseline = allRead
+        -- The first checkpoint is the baseline itself, so a reset before the
+        -- first pull (a meter clearing itself at key start) banks nothing.
+        for _, m in ipairs(METRICS) do
+            local s = {}
+            for guid, v in pairs(baseTotals[m.key]) do s[guid] = v end
+            seg.snap[m.key] = s
+        end
+        seg.snapDur = baseDuration
     end
     SyncEvents()
     InspectSweep()
@@ -629,16 +658,18 @@ local function StopCollecting()
     SyncEvents()
 end
 
--- Reads the four meter types, subtracts the key start baseline and writes the
--- numbers onto the run's roster. The baseline is passed in rather than read
--- from the live upvalue: retries land after the key has reset, which wipes it.
+-- Reads the four meter types, subtracts the key start baseline, adds what was
+-- banked before any mid-key meter reset (see seg) and writes the numbers onto
+-- the run's roster. Baseline and bank are passed in rather than read from the
+-- live upvalues: retries land after the key has reset, which wipes them.
 local scratchTotals, scratchPerSec = {}, {}
 
-local function HarvestInto(record, rst, base, baseDur, based)
+local function HarvestInto(record, rst, base, baseDur, based, sg)
     rst  = rst or roster
     base = base or baseTotals
     if baseDur == nil then baseDur = baseDuration end
     if based == nil then based = hasBaseline end
+    sg = sg or seg
     if not MeterReady() then
         -- Must be recorded here too, or the panel shows empty combat columns
         -- with no word of why the meter had nothing to give.
@@ -654,22 +685,45 @@ local function HarvestInto(record, rst, base, baseDur, based)
     -- Without a trustworthy key start sample the session duration covers
     -- everything since login, so it must not be used as the run's duration.
     -- amountPerSecond is Blizzard's own figure and is the honest fallback.
-    if based and duration and baseDur and duration > baseDur then
-        deltaDuration = duration - baseDur
+    if based and baseDur then
+        local live = (duration and duration > baseDur) and (duration - baseDur) or 0
+        local d = live + sg.bankDur
+        if d > 0 then deltaDuration = d end
     end
     record.hasBaseline = based and true or false
+    -- A mid-key meter reset cost a pull no checkpoint had banked.
+    if sg.gaps then record.meterGaps = true end
 
     for _, m in ipairs(METRICS) do
         wipe(totals); wipe(perSec)
         local isDamage = (m.key == "damage")
-        if HarvestTotals(m.dmType, totals, isDamage and perSec or nil, isDamage and rst or nil, m.countRows) then
+        local read, rows = HarvestTotals(m.dmType, totals, isDamage and perSec or nil, isDamage and rst or nil, m.countRows)
+        if read then
             okAny = true
             local b = base[m.key]
+            local bk = sg.bank[m.key]
+            -- Members with banked gains but no row since the reset still count.
+            -- When the meter sits empty since a reset that landed after the last
+            -- checkpoint, the bank IS the whole run, so it matches on its own.
+            if bk then
+                local complete = isDamage and rows == 0 and not sg.unbanked
+                for guid, v in pairs(bk) do
+                    local rec = rst[guid]
+                    if rec and totals[guid] == nil then
+                        rec[m.key] = v
+                        if isDamage and deltaDuration and deltaDuration > 1 then
+                            rec.dps = v / deltaDuration
+                        end
+                        if complete then matched = matched + 1 end
+                    end
+                end
+            end
             for guid, total in pairs(totals) do
                 local rec = rst[guid]
                 if rec then
                     local delta = total - ((b and b[guid]) or 0)
                     if delta < 0 then delta = total end
+                    delta = delta + ((bk and bk[guid]) or 0)
                     rec[m.key] = delta
                     if isDamage then
                         matched = matched + 1
@@ -690,6 +744,70 @@ local function HarvestInto(record, rst, base, baseDur, based)
     -- what the retries below wait out.
     record._matched = matched
     return okAny
+end
+
+-- Whose reset state the meter events feed: the running key's, or the finished
+-- run's while it still waits for the meter (a reset between the last pull and
+-- the final read would otherwise take that pull with it). Only from a trusted
+-- baseline; nothing once the run's numbers are in. Returns the seg, plus the
+-- finished run when the seg is its.
+local function ResetScope()
+    local lr = lastRun
+    if lr then
+        if lr.awaitingMeter and lr.based then return lr.seg, lr end
+    elseif collecting and hasBaseline then
+        return seg
+    end
+end
+
+-- A checkpoint: a pull ended and the combat restriction lifted, so the Overall
+-- totals read plain. A row still classified keeps its last value, and the
+-- pull only counts as banked once the damage rows came back readable (or the
+-- meter is simply empty).
+local function Checkpoint(sg)
+    if not MeterReady() then return end
+    local readable = false
+    for _, m in ipairs(METRICS) do
+        wipe(scratchTotals)
+        local read, rows = HarvestTotals(m.dmType, scratchTotals, nil, nil, m.countRows)
+        if read then
+            local s = sg.snap[m.key]
+            if not s then s = {}; sg.snap[m.key] = s end
+            for guid, v in pairs(scratchTotals) do s[guid] = v end
+            if m.key == "damage" and (rows == 0 or next(scratchTotals) ~= nil) then
+                readable = true
+            end
+        end
+    end
+    local d = SessionDuration()
+    if d then sg.snapDur = d end
+    if readable then sg.unbanked = false end
+end
+
+-- The meter was reset: bank what it gained up to the last checkpoint and count
+-- on from zero. A reset landing on a pull no checkpoint banked loses that
+-- pull, which the panel then says instead of passing short numbers off as the
+-- whole run. Returns the new baseline duration.
+local function BankReset(base, sg, baseDur)
+    if sg.unbanked then sg.gaps = true end
+    for _, m in ipairs(METRICS) do
+        local bank = sg.bank[m.key]
+        if not bank then bank = {}; sg.bank[m.key] = bank end
+        local snap, b = sg.snap[m.key], base[m.key]
+        if snap then
+            for guid, v in pairs(snap) do
+                local gain = v - ((b and b[guid]) or 0)
+                if gain > 0 then bank[guid] = (bank[guid] or 0) + gain end
+            end
+            wipe(snap)
+        end
+        if b then wipe(b) else base[m.key] = {} end
+    end
+    if sg.snapDur and baseDur and sg.snapDur > baseDur then
+        sg.bankDur = sg.bankDur + (sg.snapDur - baseDur)
+    end
+    sg.snapDur = 0
+    return 0
 end
 
 local function ApplyScores(record, rst, ord)
@@ -782,7 +900,7 @@ local function TryFinishHarvest()
     local lr = lastRun
     if not (lr and lr.awaitingMeter) then return end
     if RestrictionActive() then return end
-    HarvestInto(lr.record, lr.rst, lr.base, lr.baseDur, lr.based)
+    HarvestInto(lr.record, lr.rst, lr.base, lr.baseDur, lr.based, lr.seg)
     BuildMembers(lr.record, lr.rst, lr.ord)
     if RefreshWindowIfOpen then RefreshWindowIfOpen() end
     if (lr.record._matched or 0) > 0 then
@@ -865,11 +983,12 @@ local function FinishRun()
     local lr = {
         record = record, rst = roster, ord = rosterOrder,
         base = baseTotals, baseDur = baseDuration, based = hasBaseline,
+        seg = seg,
         bonus = {},
     }
     lastRun = lr
     PurgeOldSeasons()
-    HarvestInto(record, lr.rst, lr.base, lr.baseDur, lr.based)
+    HarvestInto(record, lr.rst, lr.base, lr.baseDur, lr.based, lr.seg)
     ApplyScores(record, lr.rst, lr.ord)
     BuildMembers(record, lr.rst, lr.ord)
     StoreRun(record)
@@ -1046,7 +1165,28 @@ local function OnEvent(_, event, ...)
         InspectSweep()
 
     elseif event == "ADDON_RESTRICTION_STATE_CHANGED" then
+        -- The combat restriction's edges (see ResetScope): switching on means
+        -- a pull began (its gains are unbanked until the next checkpoint);
+        -- switching off is the checkpoint itself.
+        local rtype, rstate = PlainNumber((select(1, ...))), PlainNumber((select(2, ...)))
+        local R, S = Enum.AddOnRestrictionType, Enum.AddOnRestrictionState
+        local sg = ResetScope()
+        if sg and rtype and R and S and rtype == R.Combat then
+            if rstate == S.Inactive then
+                Checkpoint(sg)
+            else
+                sg.unbanked = true
+            end
+        end
         TryFinishHarvest()
+
+    elseif event == "DAMAGE_METER_RESET" then
+        local sg, lr = ResetScope()
+        if lr then
+            lr.baseDur = BankReset(lr.base, sg, lr.baseDur)
+        elseif sg then
+            baseDuration = BankReset(baseTotals, sg, baseDuration)
+        end
 
     elseif event == "PLAYER_REGEN_ENABLED" then
         -- A pull ended: an inspect still pending from before it was dropped,
@@ -1191,10 +1331,10 @@ end
 --------------------------------------------------------------------------------
 -- flags = nil follows the module's font setting; pass "" for an unbolded run.
 local function SetFS(fs, size, flags)
-    local path    = (EUI.GetFontPath and EUI.GetFontPath("mythicTimer")) or FONT_FALLBACK
+    local path    = (EUI.GetFontPath("mythicTimer")) or FONT_FALLBACK
     local outline = flags
     if outline == nil then
-        outline = (EUI.GetFontOutlineFlag and EUI.GetFontOutlineFlag("mythicTimer")) or ""
+        outline = (EUI.GetFontOutlineFlag("mythicTimer")) or ""
     end
     fs:SetFont(path, size or FONT_SZ, outline)
 end
@@ -1221,7 +1361,7 @@ end
 -- shape Damage Meters already uses on its own rows.
 local function ClassHex(class)
     if class and not IsSecret(class) and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class] then
-        local cc = EUI.GetClassColor and EUI.GetClassColor(class)
+        local cc = EUI.GetClassColor(class)
         if cc then return Hex(cc.r, cc.g, cc.b) end
     end
     return "ffffff"
@@ -1732,6 +1872,8 @@ local function RenderHeader(record)
         warn = EllesmereUI.L("Blizzard damage meter is off")
     elseif (record._matched or 0) == 0 then
         warn = EllesmereUI.L("Combat data stayed restricted for this run")
+    elseif record.meterGaps then
+        warn = EllesmereUI.L("Damage meter was reset mid-run, some numbers are low")
     end
     if warn then sub = sub .. "   |cffff8040" .. warn .. "|r" end
     subFS:SetText(sub)
@@ -1885,7 +2027,7 @@ ShowPicker = function(anchor)
         items[1] = { text = EllesmereUI.L("No runs recorded yet"), isDisabled = function() return true end }
     end
     -- Hung below the picker, at least its width: a dropdown, not a cursor menu.
-    if EUI.ShowContextMenu then EUI.ShowContextMenu(anchor, items, { below = true, minWidth = PICKER_W }) end
+    EUI.ShowContextMenu(anchor, items, { below = true, minWidth = PICKER_W })
 end
 
 -- Opens the n-th most recent run (1 = newest).
@@ -1894,7 +2036,7 @@ function ns.RS_Show(index)
     if i < 1 then i = 1 end
     local rec = ns.RS_GetRuns()[i]
     if not rec then
-        EUI.Print("|cffff6060[EllesmereUI]|r " .. EllesmereUI.L("No runs recorded yet"))
+        EUI.PrintError(EllesmereUI.L("No runs recorded yet"))
         return
     end
     ShowWindow(rec)
@@ -1961,7 +2103,7 @@ SLASH_EUIMPLUS1 = "/ov"
 SLASH_EUIMPLUS2 = "/euimplus"
 SlashCmdList.EUIMPLUS = function(msg)
     if not Enabled() then
-        EUI.Print("|cffff6060[EllesmereUI]|r " .. EllesmereUI.L("Run Summary is disabled in Mythic+ Tools."))
+        EUI.PrintError(EllesmereUI.L("Run Summary is disabled in Mythic+ Tools."))
         return
     end
     local lower = msg and msg:lower() or ""

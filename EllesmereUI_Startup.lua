@@ -167,8 +167,7 @@ do
                     if type(physH) == "number" and physH > 0 then
                         local seeded = max(1, min(physH / 1440, 2))
                         EllesmereUIDB.panelScale =
-                            (EllesmereUI and EllesmereUI.SnapPanelScale
-                                and EllesmereUI.SnapPanelScale(seeded)) or seeded
+                            (EllesmereUI.SnapPanelScale(seeded)) or seeded
                     end
                 end
             end
