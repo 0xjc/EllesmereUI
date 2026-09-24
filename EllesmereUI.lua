@@ -2070,6 +2070,27 @@ EllesmereUI.SYNC_ICON       = MEDIA_PATH .. "icons\\sync.png"
 EllesmereUI.EYE_VISIBLE_ICON   = MEDIA_PATH .. "icons\\eui-visible.png"
 EllesmereUI.EYE_INVISIBLE_ICON = MEDIA_PATH .. "icons\\eui-invisible.png"
 
+-- Shared chat/tooltip colour escapes. Leave codes inside L()/Lf() literals alone:
+-- that text is the translation key.
+EllesmereUI.COLOR_CODES = {
+    WHITE = "|cffffffff",
+    DIM   = "|cff888888",
+    BAD   = "|cffff5959",
+    ERROR = "|cffff6060",
+    BRAND = "|cff0cd29d",  -- ADDON_COLORS["EllesmereUI"]
+}
+
+-- 0-1 r, g, b -> "|cffRRGGBB" (each channel rounded).
+function EllesmereUI.HexColor(r, g, b)
+    return string.format("|cff%02x%02x%02x", math.floor(r * 255 + 0.5),
+        math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5))
+end
+
+-- Red "[EllesmereUI]" chat line through Print (same combat/instance muting).
+function EllesmereUI.PrintError(msg)
+    EllesmereUI.Print(EllesmereUI.COLOR_CODES.ERROR .. "[EllesmereUI]|r " .. msg)
+end
+
 -- Shared options-dropdown data, read-only. The menu renders ONLY the keys its order array
 -- lists, so a subset-order site may share the full labels dict. Never mutate these or feed
 -- them to the SharedMedia appenders (which mutate args in place); sites with a different sequence (none-first, bottomright-first, "same"-prefixed) keep local orders.
@@ -6454,7 +6475,7 @@ function EllesmereUI.EnsureOptionsLoaded()
     if C_AddOns.IsAddOnLoaded("EllesmereUIOptions") then return true end
     local ok, reason = C_AddOns.LoadAddOn("EllesmereUIOptions")
     if not ok then
-        EllesmereUI.Print("|cffff6060[EllesmereUI]|r Options could not load (" .. tostring(reason) .. "). Enable the \"EllesmereUI Options\" addon in the AddOn List.")
+        EllesmereUI.PrintError("Options could not load (" .. tostring(reason) .. "). Enable the \"EllesmereUI Options\" addon in the AddOn List.")
     end
     return ok and true or false
 end
@@ -8232,7 +8253,7 @@ local function CreateMainFrame()
         -- there, so the row renders disabled with a red tooltip saying why
         -- (SelectModule refuses the page as well, whatever opens it).
         if EllesmereUI.FOREVER_SV_BUG then
-            btn._standDown = "|cffff5959" .. EllesmereUI.L("Profiles are switched off on the WoW Forever beta until Blizzard's client saves settings again.") .. "|r"
+            btn._standDown = EllesmereUI.COLOR_CODES.BAD .. EllesmereUI.L("Profiles are switched off on the WoW Forever beta until Blizzard's client saves settings again.") .. "|r"
             btn._loaded = false
             label:SetTextColor(NAV_DISABLED_TEXT.r, NAV_DISABLED_TEXT.g, NAV_DISABLED_TEXT.b, NAV_DISABLED_TEXT.a)
             icon:SetDesaturated(true)
@@ -9181,7 +9202,7 @@ local function CreateMainFrame()
             if fps > 0 then
                 pct = cpuVal / (1000 / fps) * 100
             end
-            resCpuText:SetText("|cffffffff" .. string.format("%.3f MS (%.1f%%)", cpuVal, pct) .. "|r")
+            resCpuText:SetText(EllesmereUI.COLOR_CODES.WHITE .. string.format("%.3f MS (%.1f%%)", cpuVal, pct) .. "|r")
         else
             resCpuText:SetText("|cffffffffN/A|r")
         end
@@ -9769,7 +9790,7 @@ local function CreateMainFrame()
     -- with a red tooltip saying why in place of the hover fade and the click.
     if EllesmereUI.FOREVER_SV_BUG then
         reloadBtn:SetAlpha(0.3)
-        local why = "|cffff5959" .. EllesmereUI.L("Reloading resets your settings on the WoW Forever beta until Blizzard fixes the client.") .. "|r"
+        local why = EllesmereUI.COLOR_CODES.BAD .. EllesmereUI.L("Reloading resets your settings on the WoW Forever beta until Blizzard fixes the client.") .. "|r"
         reloadBtn:SetScript("OnEnter", function(self)
             if EllesmereUI.ShowWidgetTooltip then EllesmereUI.ShowWidgetTooltip(self, why) end
         end)
@@ -11535,7 +11556,7 @@ local function RefreshSidebarStates()
                     stood = "client"
                 end
                 if stood then
-                    btn._standDown = "|cffff5959" .. EllesmereUI.Lf("%1$s is switched off on the WoW Forever beta until Blizzard's client can run secure handlers again.", EllesmereUI.L(info.display)) .. "|r"
+                    btn._standDown = EllesmereUI.COLOR_CODES.BAD .. EllesmereUI.Lf("%1$s is switched off on the WoW Forever beta until Blizzard's client can run secure handlers again.", EllesmereUI.L(info.display)) .. "|r"
                 else
                     btn._standDown = false
                 end
@@ -12047,7 +12068,7 @@ EllesmereUI._RunConflictCheck = function()
                     modal       = true,
                 })
             else
-                EllesmereUI.Print("|cffff6060[EllesmereUI]|r " .. msg:gsub("\n", " "))
+                EllesmereUI.PrintError(msg:gsub("\n", " "))
                 ShowNextConflict()
             end
         end
@@ -12077,7 +12098,7 @@ SLASH_EUIOPTIONS3 = "/ellesmereui"
 SlashCmdList.EUIOPTIONS = function()
     C_Timer.After(0, function()
         if InCombatLockdown() then
-            EllesmereUI.Print("|cffff6060[EllesmereUI]|r Cannot open options during combat.")
+            EllesmereUI.PrintError("Cannot open options during combat.")
             return
         end
         EllesmereUI:Toggle()
@@ -12089,7 +12110,7 @@ SLASH_EUIQUICK1 = "/ee"
 SlashCmdList.EUIQUICK = function()
     C_Timer.After(0, function()
         if InCombatLockdown() then
-            EllesmereUI.Print("|cffff6060[EllesmereUI]|r Cannot open options during combat.")
+            EllesmereUI.PrintError("Cannot open options during combat.")
             return
         end
         EllesmereUI:Toggle()
@@ -12101,7 +12122,7 @@ SLASH_EUIPARTYMODE1 = "/epm"
 SlashCmdList.EUIPARTYMODE = function()
     C_Timer.After(0, function()
         if InCombatLockdown() then
-            EllesmereUI.Print("|cffff6060[EllesmereUI]|r Cannot open options during combat.")
+            EllesmereUI.PrintError("Cannot open options during combat.")
             return
         end
         EllesmereUI:ShowModule("EllesmereUIPartyMode")
@@ -12115,7 +12136,7 @@ SlashCmdList.PARTYMODETOGGLE = function()
         if EllesmereUI_TogglePartyMode then
             EllesmereUI_TogglePartyMode()
         else
-            EllesmereUI.Print("|cffff6060[EllesmereUI]|r Party Mode addon is not loaded.")
+            EllesmereUI.PrintError("Party Mode addon is not loaded.")
         end
     end)
 end
@@ -12128,14 +12149,14 @@ SLASH_EUIUNLOCK1 = "/unlock"
 SlashCmdList.EUIUNLOCK = function()
     C_Timer.After(0, function()
         if InCombatLockdown() then
-            EllesmereUI.Print("|cffff6060[EllesmereUI]|r Cannot open options during combat.")
+            EllesmereUI.PrintError("Cannot open options during combat.")
             return
         end
         EllesmereUI:EnsureUnlockCore()
         if EllesmereUI._openUnlockMode then
             EllesmereUI._openUnlockMode()
         else
-            EllesmereUI.Print("|cffff6060[EllesmereUI]|r Unlock Mode is not available.")
+            EllesmereUI.PrintError("Unlock Mode is not available.")
         end
     end)
 end
@@ -12280,7 +12301,7 @@ end
 -- Open the panel with a specific addon's tab selected
 function EllesmereUI:ShowModule(folderName)
     if InCombatLockdown() then
-        EllesmereUI.Print("|cffff6060[EllesmereUI]|r Cannot open options during combat.")
+        EllesmereUI.PrintError("Cannot open options during combat.")
         return
     end
     if self._openPending then return end
@@ -12452,7 +12473,7 @@ initFrame:SetScript("OnEvent", function(self, event)
     if event == "PLAYER_REGEN_DISABLED" then
         if mainFrame and mainFrame:IsShown() then
             EllesmereUI:Hide()
-            EllesmereUI.Print("|cffff6060[EllesmereUI]|r Options closed -- entering combat.")
+            EllesmereUI.PrintError("Options closed -- entering combat.")
         end
         return
     end
@@ -12537,7 +12558,7 @@ initFrame:SetScript("OnEvent", function(self, event)
         btn:SetSize(200, 35)
         btn:SetScript("OnClick", function()
             if InCombatLockdown() then
-                EllesmereUI.Print("|cffff6060[EllesmereUI]|r Cannot open options during combat.")
+                EllesmereUI.PrintError("Cannot open options during combat.")
                 return
             end
             HideUIPanel(GameMenuFrame)
@@ -12549,7 +12570,7 @@ initFrame:SetScript("OnEvent", function(self, event)
         unlockBtn:SetSize(200, 35)
         unlockBtn:SetScript("OnClick", function()
             if InCombatLockdown() then
-                EllesmereUI.Print("|cffff6060[EllesmereUI]|r Cannot toggle Unlock Mode during combat.")
+                EllesmereUI.PrintError("Cannot toggle Unlock Mode during combat.")
                 return
             end
             HideUIPanel(GameMenuFrame)
@@ -12673,9 +12694,7 @@ initFrame:SetScript("OnEvent", function(self, event)
             local brandHex
             if elemMode == "native" then
                 local EG = EllesmereUI.ELLESMERE_GREEN or { r = .27, g = .86, b = .49 }
-                brandHex = string.format("|cff%02x%02x%02x",
-                    math.floor(EG.r * 255 + 0.5), math.floor(EG.g * 255 + 0.5),
-                    math.floor(EG.b * 255 + 0.5))
+                brandHex = EllesmereUI.HexColor(EG.r, EG.g, EG.b)
             end
 
             if showEUI then
@@ -13001,7 +13020,7 @@ initFrame:SetScript("OnEvent", function(self, event)
     btn:SetText("Open EllesmereUI")
     btn:SetScript("OnClick", function()
         if InCombatLockdown() then
-            EllesmereUI.Print("|cffff6060[EllesmereUI]|r Cannot open options during combat.")
+            EllesmereUI.PrintError("Cannot open options during combat.")
             return
         end
         -- Close Blizzard settings first, then open ours on next frame to avoid taint

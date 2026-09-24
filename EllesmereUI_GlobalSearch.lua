@@ -898,9 +898,7 @@ local function EnsureSearchUI()
         -- Accent-colored "Page:"/"Section:" prefixes. Hex is computed per
         -- search, so a live accent change is picked up on the next keystroke.
         local EG = EllesmereUI.ELLESMERE_GREEN
-        local accentHex = EG and string.format("|cff%02x%02x%02x",
-            math.floor(EG.r * 255 + 0.5), math.floor(EG.g * 255 + 0.5),
-            math.floor(EG.b * 255 + 0.5)) or "|cffffffff"
+        local accentHex = EG and EllesmereUI.HexColor(EG.r, EG.g, EG.b) or EllesmereUI.COLOR_CODES.WHITE
         for i, row in ipairs(resultRows) do
             local entry = results[i]
             if entry then
