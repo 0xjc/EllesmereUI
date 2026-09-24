@@ -12886,9 +12886,6 @@ end
 -------------------------------------------------------------------------------
 
 function ns.ShowUnlockTip()
-    -- TEMPORARY, WoW Forever only (EllesmereUI.FOREVER_SV_BUG): the seen stamp
-    -- cannot persist there, so the tip would greet every unlock session.
-    if EllesmereUI.FOREVER_SV_BUG then return end
     if EllesmereUIDB and EllesmereUIDB.unlockTipSeen then return end
     if unlockTipFrame and unlockTipFrame:IsShown() then return end
 

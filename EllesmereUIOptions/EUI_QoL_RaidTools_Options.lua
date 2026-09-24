@@ -246,7 +246,8 @@ initFrame:SetScript("OnEvent", function(self)
                         Refresh()
                         EllesmereUI._NotifySettingWrite(region)
                     end,
-                    disabled = QuickFireDisabled, disabledTip = "Enable Quick Fire",
+                    disabled = QuickFireDisabled,
+                    disabledTip = function() return Disabled() and "Show Raid Tools" or "Enable Quick Fire" end,
                 })
                 PP.Point(button, "RIGHT", region, "RIGHT", -20, 0)
                 EllesmereUI.RegisterWidgetRefresh(refresh)

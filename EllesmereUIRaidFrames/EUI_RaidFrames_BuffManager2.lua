@@ -465,12 +465,11 @@ end
 -- "nonhealer" bucket -- every spec outside the editor's healer list shares ONE
 -- config (class-agnostic display; filters resolve it at runtime).
 -- Resolved WITHOUT borrow (BM_SpecKeyForSpecID, never BM_CurrentSpecKey):
--- BM_CurrentSpecKey routes Ret/Prot -> Holy and Ele/Enh -> Resto, which is the
--- LEGACY simple-grid model where a castability strip then narrowed the borrowed
--- set to the spec's own spells. v2 disabled that strip, so borrowing here handed
--- Ret/Prot Holy's FULL healer config and kept them out of the All Non Healers/Aug
--- bucket (field reports, maintainer ruling 2026-08-13: non-healer specs edit and
--- render the shared bucket; the simple grid keeps its borrow separately).
+-- BM_CurrentSpecKey routes Ret/Prot -> Holy and Ele/Enh -> Resto, and v2 has no
+-- castability strip to narrow a borrowed set, so borrowing here would hand
+-- Ret/Prot Holy's FULL healer config and keep them out of the All Non
+-- Healers/Aug bucket (maintainer ruling 2026-08-13: non-healer specs edit and
+-- render the shared bucket).
 function ns.BM2_SpecKey()
     local specIdx = GetSpecialization and GetSpecialization()
     local specID = specIdx and GetSpecializationInfo and GetSpecializationInfo(specIdx)

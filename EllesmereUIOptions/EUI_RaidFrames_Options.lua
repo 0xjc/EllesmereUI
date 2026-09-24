@@ -3846,50 +3846,21 @@ initFrame:SetScript("OnEvent", function(self)
             end
             if not EllesmereUI._prebuilding then
                 local rgn = row._leftRegion
-                local kbBtn = CreateFrame("Button", nil, row)
-                kbBtn:SetSize(140, 26)
-                kbBtn:SetPoint("RIGHT", rgn, "RIGHT", -20, 0)
-                kbBtn:SetFrameLevel(row:GetFrameLevel() + 5)
-                kbBtn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-                local kbBg = kbBtn:CreateTexture(nil, "BACKGROUND")
-                kbBg:SetAllPoints()
-                kbBg:SetColorTexture(0.06, 0.08, 0.10, 0.92)
-                EllesmereUI.MakeBorder(kbBtn, 1, 1, 1, 0.25)
-                local kbLbl = kbBtn:CreateFontString(nil, "OVERLAY")
-                EllesmereUI.ApplyModuleFont(kbLbl, nil, 13, "raidFrames")
-                kbLbl:SetPoint("CENTER")
-
-                local function FormatKey(key)
-                    if not key then return EllesmereUI.L("Not Bound") end
-                    local parts = {}
-                    for mod in key:gmatch("(%u+)%-") do
-                        parts[#parts + 1] = mod:sub(1, 1) .. mod:sub(2):lower()
-                    end
-                    local actualKey = key:match("[^%-]+$") or key
-                    parts[#parts + 1] = actualKey
-                    return table.concat(parts, " + ")
-                end
-
-                local function RefreshLabel()
-                    kbLbl:SetText(FormatKey(EllesmereUIDB and EllesmereUIDB.extraFramesKey))
-                end
-                RefreshLabel()
-
-                local listening = false
-
-                kbBtn:SetScript("OnClick", function(self, button)
-                    if button == "RightButton" then
-                        if listening then
-                            listening = false
-                            self:EnableKeyboard(false)
-                        end
+                local kbBtn, refresh = EllesmereUI.BuildKeybindButton(row, {
+                    w = 140, h = 26, font = 13, level = 5,
+                    tooltip = "Left-click to set a keybind. Right-click to unbind.\nPress the key while hovering a raid frame to add or remove that player from the Extra Frames group.",
+                    get = function() return EllesmereUIDB and EllesmereUIDB.extraFramesKey end,
+                    set = function(key)
                         if not EllesmereUIDB then EllesmereUIDB = {} end
-                        if EllesmereUIDB.extraFramesKey and _G["ERFExtraFramesBindBtn"] then
-                            ClearOverrideBindings(_G["ERFExtraFramesBindBtn"])
+                        local bindBtn = _G["ERFExtraFramesBindBtn"]
+                        if bindBtn then
+                            -- Override bindings cannot change in combat: keep the old key.
+                            if InCombatLockdown() then return end
+                            if key or EllesmereUIDB.extraFramesKey then ClearOverrideBindings(bindBtn) end
+                            if key then SetOverrideBindingClick(bindBtn, true, key, "ERFExtraFramesBindBtn") end
                         end
                         local wasConfigured = XFConfigured()
-                        EllesmereUIDB.extraFramesKey = nil
-                        RefreshLabel()
+                        EllesmereUIDB.extraFramesKey = key
                         -- The mover can't stay up once the feature goes dark.
                         if not XFConfigured() and ns.XF_SetMoverShown then
                             ns.XF_SetMoverShown(false)
@@ -3900,93 +3871,10 @@ initFrame:SetScript("OnEvent", function(self)
                         else
                             EllesmereUI:RefreshPage()
                         end
-                        return
-                    end
-                    if listening then return end
-                    listening = true
-                    kbLbl:SetText(EllesmereUI.L("Press a key..."))
-                    kbBtn:EnableKeyboard(true)
-                end)
-
-                kbBtn:SetScript("OnKeyDown", function(self, key)
-                    if not listening then
-                        self:SetPropagateKeyboardInput(true)
-                        return
-                    end
-                    if key == "LSHIFT" or key == "RSHIFT" or key == "LCTRL" or key == "RCTRL"
-                       or key == "LALT" or key == "RALT" or key == "LMETA" or key == "RMETA" then
-                        self:SetPropagateKeyboardInput(true)
-                        return
-                    end
-                    self:SetPropagateKeyboardInput(false)
-                    if key == "ESCAPE" then
-                        listening = false
-                        self:EnableKeyboard(false)
-                        RefreshLabel()
-                        return
-                    end
-                    -- Blizzard's canonical chord order is ALT-CTRL-SHIFT-KEY,
-                    -- and CreateKeyChordStringUsingMetaKeyState is what
-                    -- produces it. Hand-rolling the modifiers built
-                    -- SHIFT-CTRL-ALT-KEY, a chord string the engine never
-                    -- generates, so any bind using more than one modifier was
-                    -- stored in a form nothing could match. Single-modifier
-                    -- binds happen to agree, which is why this survived.
-                    local fullKey
-                    if CreateKeyChordStringUsingMetaKeyState then
-                        fullKey = CreateKeyChordStringUsingMetaKeyState(key)
-                    else
-                        local mods = ""
-                        if IsAltKeyDown() then mods = mods .. "ALT-" end
-                        if IsControlKeyDown() then mods = mods .. "CTRL-" end
-                        if IsShiftKeyDown() then mods = mods .. "SHIFT-" end
-                        if IsMetaKeyDown and IsMetaKeyDown() then
-                            mods = mods .. "META-"
-                        end
-                        fullKey = mods .. key
-                    end
-
-                    if not EllesmereUIDB then EllesmereUIDB = {} end
-                    local bindBtn = _G["ERFExtraFramesBindBtn"]
-                    if bindBtn then
-                        if InCombatLockdown() then
-                            listening = false
-                            self:EnableKeyboard(false)
-                            RefreshLabel()
-                            return
-                        end
-                        ClearOverrideBindings(bindBtn)
-                        SetOverrideBindingClick(bindBtn, true, fullKey, "ERFExtraFramesBindBtn")
-                    end
-                    local wasConfigured = XFConfigured()
-                    EllesmereUIDB.extraFramesKey = fullKey
-
-                    listening = false
-                    self:EnableKeyboard(false)
-                    RefreshLabel()
-                    -- Binding the first hotkey flips the configured state, so the hidden rows below need the full rebuild.
-                    if XFConfigured() ~= wasConfigured then
-                        EllesmereUI:RefreshPage(true)
-                    else
-                        EllesmereUI:RefreshPage()
-                    end
-                end)
-
-                kbBtn:SetScript("OnEnter", function(self)
-                    EllesmereUI.ShowWidgetTooltip(self,
-                        "Left-click to set a keybind. Right-click to unbind.\nPress the key while hovering a raid frame to add or remove that player from the Extra Frames group.")
-                end)
-                kbBtn:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-
-                EllesmereUI.RegisterWidgetRefresh(RefreshLabel)
-
-                rgn:SetScript("OnHide", function()
-                    if listening then
-                        listening = false
-                        kbBtn:EnableKeyboard(false)
-                        RefreshLabel()
-                    end
-                end)
+                    end,
+                })
+                EllesmereUI.PanelPP.Point(kbBtn, "RIGHT", rgn, "RIGHT", -20, 0)
+                EllesmereUI.RegisterWidgetRefresh(refresh)
             end
 
             -- Rows 2-4 are HIDDEN while unconfigured (no tanks toggle AND no hotkey); the triggers above rebuild when that state flips.
@@ -5191,7 +5079,11 @@ initFrame:SetScript("OnEvent", function(self)
                   setValue=function() end },
                 { type="toggle", text="Merge Groups",
                   getValue=function() return SVal("mergeGroups", false) end,
-                  setValue=function(v)
+                  -- Custom Group Order only applies to separated groups, so a flip that
+                  -- changes whether it applies rebuilds the Show Groups dropdown.
+                  setValue=EllesmereUI.DependentSetValue(function()
+                      return db.profile.customGroupOrder and not db.profile.mergeGroups
+                  end, function(v)
                       -- Fix up an already-saved same-axis Group/Unit Growth pair so the
                       -- SAVED profile and the dropdowns stay honest about what's rendering
                       -- (the runtime's own read-time backstop, ns._RFEffectiveGrowth, already
@@ -5206,15 +5098,17 @@ initFrame:SetScript("OnEvent", function(self)
                       end
                       SSet("mergeGroups", v)
                       EllesmereUI:RefreshPage()
-                  end });  y = y - h
+                  end) });  y = y - h
 
             -- Left dropdown becomes a checkbox dropdown for groups 1-8.
             if not EllesmereUI._prebuilding then
             local rgn = showGroupsRow._leftRegion
             if rgn._control then rgn._control:Hide() end
 
+            -- The order is ignored while groups are merged, so only offer dragging when it applies.
+            local useCustomOrder = db.profile.customGroupOrder and not db.profile.mergeGroups
             local groupItems = {}
-            if db.profile.customGroupOrder then
+            if useCustomOrder then
                 local savedGroupOrder = ns._RFValidatedGroupOrder(db.profile.groupOrder)
                 for i = 1, 8 do
                     local group = savedGroupOrder and savedGroupOrder[i] or i
@@ -5239,7 +5133,7 @@ initFrame:SetScript("OnEvent", function(self)
             end
 
             local cbDD, cbDDRefresh
-            if db.profile.customGroupOrder then
+            if useCustomOrder then
                 cbDD, cbDDRefresh = EllesmereUI.BuildReorderCBDropdown(
                     rgn, 170, rgn:GetFrameLevel() + 2,
                     groupItems, GroupVisible, SetGroupVisible, {
@@ -5289,11 +5183,8 @@ initFrame:SetScript("OnEvent", function(self)
                           if cogShow and cogShow._popupFrame then cogShow._popupFrame:Hide() end
                           EllesmereUI:RefreshPage(true)
                       end,
-                      disabled=function() return InCombatLockdown() or db.profile.mergeGroups end,
-                      disabledTooltip=function()
-                          if InCombatLockdown() then return EllesmereUI.L("Unavailable in combat") end
-                          return EllesmereUI.L("Turn off Merge Groups to change group order")
-                      end, rawTooltip=true },
+                      disabled=function() return InCombatLockdown() end,
+                      disabledTooltip=EllesmereUI.L("Unavailable in combat"), rawTooltip=true },
             }
             cogShow = select(2, EllesmereUI.BuildInlineCog(rgn, { title = "Show Groups", rows = cogRows }))
         end
@@ -5816,7 +5707,7 @@ initFrame:SetScript("OnEvent", function(self)
     --  Buff Manager page (placeholder)
     ---------------------------------------------------------------------------
     local function BuildBuffManagerPage(pageName, parent, yOffset)
-        -- Buff Manager v2 runs INSIDE the legacy page shell; the storage accessor swaps under the activation flag.
+        -- Buff Manager v2 runs INSIDE the legacy page shell.
         -- The from-scratch replacement page was rejected in field review and is not routed to; do not wire it up.
         if ns.BM_BuildPage then
             return ns.BM_BuildPage(pageName, parent, yOffset)

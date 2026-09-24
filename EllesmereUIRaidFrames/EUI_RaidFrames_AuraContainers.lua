@@ -1096,8 +1096,8 @@ end
 -- every own-only toggle). CHAIN groups bake own-only into their declaration-fixed
 -- filter string, so their uniform state IS structural and swaps.
 local function BmSignature(inds, specKey, mode)
-    -- Spec-scoped sentinel: the simple grid's container exists only for
-    -- tracked specs, so a spec change must swap even in simple mode.
+    -- Spec-scoped sentinel: with no indicators the signature still carries the
+    -- spec, so a spec change swaps the container.
     if mode == "simple" or not inds then return "simple:" .. tostring(specKey) end
     local parts = { specKey or "?" }
     for i = 1, #inds do

@@ -18882,9 +18882,6 @@ initFrame:SetScript("OnEvent", function(self)
     ---------------------------------------------------------------------------
     local _cdmButtonTip
     local function ShowCDMButtonTip()
-        -- TEMPORARY, WoW Forever only (EllesmereUI.FOREVER_SV_BUG): the seen stamp
-        -- cannot persist there, so the tip would greet every login.
-        if EllesmereUI.FOREVER_SV_BUG then return end
         if EllesmereUIDB and EllesmereUIDB.cdmButtonTipSeen then return end
         local preview = EllesmereUI._contentHeaderPreview
         if not preview then return end

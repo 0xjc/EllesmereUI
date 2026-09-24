@@ -644,8 +644,8 @@ local defaults = {
         defDurTextOffsetX = 0,
         defDurTextOffsetY = 0,
 
-        -- Buff Manager "Simple Setup": isolated namespace sharing no keys with
-        -- bmIndicators or def*. Mirrors the Defensives & Externals controls but drives the simple grid of the spec's tracked buffs.
+        -- Buff Manager "Simple Setup" (retired display): kept only as legacy
+        -- input for the v2 conversion and spec-override banking; nothing renders it.
         bmSimple = {
             showBuffs       = true,
             ownOnly         = true,
@@ -3343,7 +3343,7 @@ function ns.DispellableDebuffSize(s)
     return s.debuffSize or 18
 end
 
--- Mirrors the Buff Manager's AnchorSimpleGrid. opts (optional) overrides pos/grow/ox/oy/size for a
+-- Grid placement for debuff icons. opts (optional) overrides pos/grow/ox/oy/size for a
 -- sub-group (e.g. dispellable debuffs on their own anchor); spacing/wrap/perRow stay shared.
 function ns.DebuffGridPoint(s, idx0, total, opts)
     local pos    = (opts and opts.pos)  or s.debuffPosition or "bottomleft"

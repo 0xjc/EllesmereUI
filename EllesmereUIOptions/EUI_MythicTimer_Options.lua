@@ -380,6 +380,15 @@ initFrame:SetScript("OnEvent", function(self)
         local timerBarStyleOrder = { "TICKS", "SEGMENTS" }
         local texValues, texOrder = BuildBarTexDropdown()
 
+        -- Cog disabled tooltips: a cog greys out with the module OR its section
+        -- toggle, so name whichever is actually off.
+        local function ModuleOr(noun)
+            return function()
+                if Cfg("enabled") == false then return "the module" end
+                return noun
+            end
+        end
+
         _, h = W:SectionHeader(parent, "TITLE", y); y = y - h
 
         row, h = W:DualRow(parent, y,
@@ -412,7 +421,7 @@ initFrame:SetScript("OnEvent", function(self)
               disabledTooltip="Show Key Level on Timer",
               get=function() return Cfg("keyLevelTimerSpacing") or 8 end,
               set=function(v) Set("keyLevelTimerSpacing", v); Refresh() end },
-        }, disabled = function() return Cfg("enabled") == false or Cfg("showTitle") == false end, disabledTooltip = "Show Title" })
+        }, disabled = function() return Cfg("enabled") == false or Cfg("showTitle") == false end, disabledTooltip = ModuleOr("Show Title") })
         -- Inline accent + custom colour swatches on the Title Size slider.
         _AttachInlineAccentSwatches(row._rightRegion, "titleUseAccent", "titleColor", 1, 1, 1,
             function() return Cfg("enabled") == false or Cfg("showTitle") == false end, "Show Title")
@@ -440,7 +449,7 @@ initFrame:SetScript("OnEvent", function(self)
             { type="slider", label="Size", min=6, max=20, step=1,
               get=function() return Cfg("affixSize") or 12 end,
               set=function(v) Set("affixSize", v); Refresh() end },
-        }, disabled = function() return Cfg("enabled") == false or Cfg("showAffixes") == false end, disabledTooltip = "Show Affix" })
+        }, disabled = function() return Cfg("enabled") == false or Cfg("showAffixes") == false end, disabledTooltip = ModuleOr("Show Affix") })
         -- Title/Affix Spacing cog on Position (now the right-side widget)
         EllesmereUI.BuildInlineCog(row._rightRegion, { icon = EllesmereUI.RESIZE_ICON, title = "Title/Affix Spacing", gap = 6, rows = {
             { type="slider", pixel=true, label="Death Gap", min=-10, max=30, step=1,
@@ -521,7 +530,7 @@ initFrame:SetScript("OnEvent", function(self)
             { type="toggle", label="Left Text",
               get=function() return Cfg("timerInBarLeftText") == true end,
               set=function(v) Set("timerInBarLeftText", v); Refresh() end },
-        }, disabled = function() return Cfg("enabled") == false or Cfg("showTimerBar") == false end, disabledTooltip = "Show Timer Bar" })
+        }, disabled = function() return Cfg("enabled") == false or Cfg("showTimerBar") == false end, disabledTooltip = ModuleOr("Show Timer Bar") })
         end
         y = y - h
 
@@ -551,7 +560,7 @@ initFrame:SetScript("OnEvent", function(self)
               tooltip="Show the border style and size controls for the timer bars.",
               get=function() return Cfg("customBorderStyle") == true end,
               set=function(v) Set("customBorderStyle", v); ApplyBorder(); EllesmereUI:RefreshPage(true) end },
-        }, disabled = function() return Cfg("enabled") == false or Cfg("showTimerBar") == false end, disabledTooltip = "Show Timer Bar" })
+        }, disabled = function() return Cfg("enabled") == false or Cfg("showTimerBar") == false end, disabledTooltip = ModuleOr("Show Timer Bar") })
         y = y - h
 
         --Border Style (+ cog) | Border Size (+ inline swatch)
@@ -709,7 +718,7 @@ initFrame:SetScript("OnEvent", function(self)
                       get=function() return Cfg(offsetYKey) or Cfg("thresholdTextOffsetY") or 0 end,
                       set=function(v) Set(offsetYKey, v); Refresh() end },
                 }, disabled = function() return Cfg("enabled") == false or not IsTimerTextShown() end,
-                   disabledTooltip = cfg.text })
+                   disabledTooltip = ModuleOr(cfg.text) })
             end
 
             return cfg, attach
@@ -749,7 +758,7 @@ initFrame:SetScript("OnEvent", function(self)
               disabledTooltip="Gaps",
               get=function() return Cfg("timerBarSegmentGap") or 2 end,
               set=function(v) Set("timerBarSegmentGap", v); Refresh() end },
-        }, disabled = function() return Cfg("enabled") == false or Cfg("showTimerBar") == false end, disabledTooltip = "Show Timer Bar" })
+        }, disabled = function() return Cfg("enabled") == false or Cfg("showTimerBar") == false end, disabledTooltip = ModuleOr("Show Timer Bar") })
         p3attach(row._rightRegion)
         end
         y = y - h
@@ -808,7 +817,7 @@ initFrame:SetScript("OnEvent", function(self)
             { type="slider", label="Text Y", min=-40, max=40, step=1,
               get=function() return Cfg("enemyForcesTextOffsetY") or 0 end,
               set=function(v) Set("enemyForcesTextOffsetY", v); Refresh() end },
-        }, disabled = function() return Cfg("enabled") == false or Cfg("showEnemyBar") == false end, disabledTooltip = "Show Enemy Forces" })
+        }, disabled = function() return Cfg("enabled") == false or Cfg("showEnemyBar") == false end, disabledTooltip = ModuleOr("Show Enemy Forces") })
         end
         y = y - h
 
@@ -830,7 +839,7 @@ initFrame:SetScript("OnEvent", function(self)
               values=texValues, order=texOrder,
               get=function() return Cfg("enemyBarBgTexture") or "none" end,
               set=function(v) Set("enemyBarBgTexture", v); Refresh() end },
-        }, disabled = function() return Cfg("enabled") == false or Cfg("showEnemyBar") == false end, disabledTooltip = "Show Enemy Forces" })
+        }, disabled = function() return Cfg("enabled") == false or Cfg("showEnemyBar") == false end, disabledTooltip = ModuleOr("Show Enemy Forces") })
         y = y - h
 
         -- The pull bar's default color is the forces fill color (accent or custom).
@@ -909,7 +918,7 @@ initFrame:SetScript("OnEvent", function(self)
             { type="slider", label="Boss Y", min=-40, max=40, step=1,
               get=function() return Cfg("objectiveTextOffsetY") or 0 end,
               set=function(v) Set("objectiveTextOffsetY", v); Refresh() end },
-        }, disabled = function() return Cfg("enabled") == false or Cfg("showObjectives") == false end, disabledTooltip = "Show Boss Objectives" })
+        }, disabled = function() return Cfg("enabled") == false or Cfg("showObjectives") == false end, disabledTooltip = ModuleOr("Show Boss Objectives") })
         end
         y = y - h
 
@@ -952,7 +961,7 @@ initFrame:SetScript("OnEvent", function(self)
               disabledTooltip="This option requires a Split Compare mode",
               get=function() return Cfg("showFastestRunSplits") == true end,
               set=function(v) Set("showFastestRunSplits", v); Refresh() end },
-        }, disabled = function() return Cfg("enabled") == false or Cfg("showObjectives") == false end, disabledTooltip = "Show Boss Objectives" })
+        }, disabled = function() return Cfg("enabled") == false or Cfg("showObjectives") == false end, disabledTooltip = ModuleOr("Show Boss Objectives") })
         end
         y = y - h
 

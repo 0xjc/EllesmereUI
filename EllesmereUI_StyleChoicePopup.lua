@@ -149,17 +149,13 @@ loader:SetScript("OnEvent", function(self, event, addonName)
         -- Arm the conflict-check hold on the same conditions the login
         -- branch shows under (the first-install loader, earlier in the TOC,
         -- has already raised _firstInstallPending by now).
-        if not EllesmereUI.FOREVER_SV_BUG and EllesmereUIDB and EllesmereUIDB.styleChoicePending
+        if EllesmereUIDB and EllesmereUIDB.styleChoicePending
             and not EllesmereUI._firstInstallPending then
             EllesmereUI._styleChoicePending = true
         end
         return
     end
     self:UnregisterEvent("PLAYER_LOGIN")
-    -- TEMPORARY, WoW Forever only (EllesmereUI.FOREVER_SV_BUG): the style
-    -- choice needs a reload to apply, and a reload wipes settings on the beta
-    -- client, so the picker stays off there until Blizzard fixes it.
-    if EllesmereUI.FOREVER_SV_BUG then return end
     if not (EllesmereUIDB and EllesmereUIDB.styleChoicePending) then return end
     -- The picker itself is still due this session: it reloads, and its
     -- close path re-arms the stamp for the login after.

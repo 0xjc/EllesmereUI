@@ -254,6 +254,8 @@ local function CurrentSpecID()
 end
 
 local function SpecName(specID)
+    -- The by-id lookup is not registered on WoW Forever.
+    if not GetSpecializationInfoByID then return "Spec " .. tostring(specID) end
     local _, name, _, _, _, _, className = GetSpecializationInfoByID(specID)
     if name and className then
         -- Title-case is byte-based; only safe on ASCII class names. Localized

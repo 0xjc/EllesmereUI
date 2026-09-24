@@ -301,10 +301,9 @@ local BORROW_SPECS = {
 -- Resolve the player's CURRENT spec to a BM spec key. MUST match by spec ID,
 -- never name: GetSpecializationInfo() returns the stable non-localized ID first,
 -- the LOCALIZED name second, so name-matching silently kills every indicator
--- and the simple grid on non-English clients. nil = not tracked.
--- LEGACY/simple-grid resolver ONLY: the borrow hop below is load-bearing for the
--- simple grid, but the v2 indicator system must NEVER
--- route through it -- v2's active bucket resolves borrow-free via BM2_SpecKey /
+-- on non-English clients. nil = not tracked.
+-- Borrowing resolver (Ret/Prot -> Holy, Ele/Enh -> Resto): the v2 indicator
+-- system must NEVER route through it -- v2's active bucket resolves borrow-free via BM2_SpecKey /
 -- BM_SpecKeyForSpecID (maintainer ruling 2026-08-13: Ret/Prot/Ele/Enh edit and
 -- render the shared All Non Healers/Aug bucket, not the borrowed healer's).
 local function CurrentSpecKey()
@@ -2195,7 +2194,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                         -- seeds only the picked bucket).
                         if CountSpecIndicators(db, key) >= MAX_PER_SPEC then return end
                         if ns.BM2_CopyIndicator and ns.BM2_CopyIndicator(ind, key) then
-                            if db and db.profile then db.profile.bmIndicatorsEnabled = true end
                             RebuildLookup(db)
                             if ns.ReloadFrames then ns.ReloadFrames() end
                             EllesmereUI:RefreshPage(true)
@@ -2205,10 +2203,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
             end,
             onToggle = function()
                 ind.enabled = not ind.enabled
-                -- Interacting adopts the explicit indicators-enabled key, replacing the shim default derived from the old mode.
-                if db and db.profile then
-                    db.profile.bmIndicatorsEnabled = true
-                end
                 RebuildLookup(db)
                 if ns.ReloadFrames then ns.ReloadFrames() end
                 EllesmereUI:RefreshPage(true)
@@ -2600,7 +2594,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                         selectedIndicator = newInd
                     end
                     ns._bm2InhSel = nil
-                    if db and db.profile then db.profile.bmIndicatorsEnabled = true end
                     RebuildLookup(db)
                     if ns.ReloadFrames then ns.ReloadFrames() end
                     popup:Hide()

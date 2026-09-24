@@ -31,7 +31,18 @@ local issecretvalue = issecretvalue or function() return false end
 
 -- Shared primitives from the window engine (loads before this file).
 local WSkin = ns.WSkin
-local FFD, GetFFD = WSkin.FFD, WSkin.GetFFD
+-- Our per-frame state lives in our OWN weak table: the engine's uses the same
+-- generic keys (border, skinned, bg, x ...) for its own skins, so a shared
+-- table would let whichever skinner runs second silently no-op on a frame both
+-- touch. The engine's table is read for one key only: the Modern backdrop
+-- AdoptShell files there (modernBg).
+local FFD = setmetatable({}, { __mode = "k" })
+local function GetFFD(frame)
+    local d = FFD[frame]
+    if not d then d = {}; FFD[frame] = d end
+    return d
+end
+local EngineFFD = WSkin.FFD
 local Theme, ResolveTheme = WSkin.Theme, WSkin.ResolveTheme
 local SolidTex, FadeRegions = WSkin.SolidTex, WSkin.FadeRegions
 
@@ -74,8 +85,13 @@ local function Restrip()
                 if d.selWash then k[d.selWash] = true end
                 if d.leftWash then k[d.leftWash] = true end
                 if d.leftSep then k[d.leftSep] = true end
-                -- AdoptShell's Modern flat backdrop: the style's only background.
-                if d.modernBg then k[d.modernBg] = true end
+            end
+            -- AdoptShell's Modern flat backdrop (the style's only background)
+            -- lives in the ENGINE's table.
+            local ed = EngineFFD[frame]
+            if ed and ed.modernBg then
+                k = k or {}
+                k[ed.modernBg] = true
             end
             FadeRegions(frame, k)
         end
@@ -98,7 +114,8 @@ local function SkinAtlasPanel(frame)
     if d.topBar then keep[d.topBar] = true end
     if d.leftWash then keep[d.leftWash] = true end
     if d.leftSep then keep[d.leftSep] = true end
-    if d.modernBg then keep[d.modernBg] = true end
+    local ed = EngineFFD[frame]
+    if ed and ed.modernBg then keep[ed.modernBg] = true end
     FadeRegions(frame, keep)
     Register(frame, true)
     if not d.bg then
@@ -1584,22 +1601,12 @@ local function InstallPVEDockHooks()
     -- FindOutermostFrame is cheap now (named lookups, not a frame scan). Deferring a
     -- SetPoint-triggered re-dock to next frame (e.g. if Blizzard's layout system
     -- repositions CharacterFrame again after it's already rendering) is exactly what
-    -- shows one frame at the wrong position before snapping into place. Blizzard's OWN
-    -- UIParentPanelManager treats CharacterFrame and PVEFrame as part of the same
-    -- "managed panel" group, and repositions CharacterFrame itself (via its own
-    -- SetPoint calls) whenever PVEFrame opens -- the exact native behavior this whole
-    -- feature works around. Left alone, every one of those calls also re-triggers
-    -- Shifter's saved-position restore (if CharacterFrame has one) AND our own dock,
-    -- and each of THOSE writes reads to Blizzard's manager as "a managed panel moved,"
-    -- so it reasserts itself again -- three systems endlessly re-triggering each other.
-    -- Opting out permanently (rather than only while PVEFrame is open) closes this for
-    -- good: CharacterFrame's position is already fully covered by our own dock logic,
-    -- Shifter's saved/temp positions, and the native-default capture/restore below, so
-    -- there's no case left where Blizzard's automatic management is actually needed.
-    -- ignoreFramePositionManager is the sanctioned opt-out -- already used the same way
-    -- for the loot windows in EllesmereUIQoL_Shifter.lua.
-    _G.CharacterFrame.ignoreFramePositionManager = true
-
+    -- shows one frame at the wrong position before snapping into place. Blizzard's
+    -- panel manager treats CharacterFrame and PVEFrame as one managed group and
+    -- repositions CharacterFrame itself whenever PVEFrame opens; the SetPoint hook
+    -- below re-docks it, and the dock's own re-entry guard (plus Shifter's) keeps
+    -- that from looping. No field is written on CharacterFrame: the managed-frame
+    -- opt-out flag is read only by the HUD's managed frame system, never for panels.
     _G.CharacterFrame:HookScript("OnShow", DockCharacterFrame)
     hooksecurefunc(_G.CharacterFrame, "SetPoint", DockCharacterFrame)
 

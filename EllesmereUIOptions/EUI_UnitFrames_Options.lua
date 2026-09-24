@@ -191,6 +191,8 @@ function ns.UFOpt_PreviewPurgeGlow(bf, unitKey, s, w, h)
     if not on then
         if host then
             if host._euiGlowActive then Glows.StopGlow(host) end
+            if Glows.HideStealableBorder then Glows.HideStealableBorder(host) end
+            host._pgS = nil
             host:Hide()
         end
         return
@@ -204,6 +206,15 @@ function ns.UFOpt_PreviewPurgeGlow(bf, unitKey, s, w, h)
     host:Show()
     local c = s.buffPurgeGlowColor
     local cr, cg, cb = c and c.r, c and c.g, c and c.b
+    -- Blizzard Border: the static stealable art, as on the live frame.
+    if g == Glows.STEALABLE_BORDER then
+        if host._euiGlowActive then Glows.StopGlow(host) end
+        host:SetAlpha(1)
+        Glows.ShowStealableBorder(host, w, h, cr, cg, cb)
+        host._pgS = g
+        return
+    end
+    if Glows.HideStealableBorder then Glows.HideStealableBorder(host) end
     if (not host._euiGlowActive) or host._pgS ~= g or host._pgW ~= w or host._pgH ~= h
        or host._pgR ~= cr or host._pgG ~= cg or host._pgB ~= cb then
         Glows.StartEngineGlow(host, g, w, cr, cg, cb, nil, h)
@@ -11504,12 +11515,22 @@ initFrame:SetScript("OnEvent", function(self)
                             glowOrder[#glowOrder + 1] = i
                         end
                     end
+                    -- Blizzard's static stealable border art (outside the STYLES list).
+                    local BLIZZ = EllesmereUI.Glows and EllesmereUI.Glows.STEALABLE_BORDER
+                    if BLIZZ then
+                        glowValues[BLIZZ] = "Blizzard Border"
+                        glowOrder[#glowOrder + 1] = BLIZZ
+                    end
                     local function GlowOff()
                         local g = SDB().buffPurgeGlow
                         return not (type(g) == "number" and g > 0)
                     end
-                    local _, pgShow = EllesmereUI.BuildCogPopup({
+                    EllesmereUI.BuildInlineCog(rgn, {
                         title = "Purgeable Buffs",
+                        tip = "Glow the buffs you can purge or spellsteal",
+                        -- Greys out with the Buff Display (None = no buffs to glow).
+                        disabled = BuffDisabled,
+                        disabledTooltip = "Buffs",
                         rows = {
                             { type="dropdown", label="Glow Style", values=glowValues, order=glowOrder,
                               -- Full glow names ("Action Button Glow") need more than the 130px default.
@@ -11537,39 +11558,6 @@ initFrame:SetScript("OnEvent", function(self)
                               disabled=GlowOff, disabledTooltip="a Glow Style" },
                         },
                     })
-                    local cogBtn = CreateFrame("Button", nil, rgn)
-                    cogBtn:SetSize(26, 26)
-                    cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                    cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                    rgn._lastInline = cogBtn
-                    local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                    cogTex:SetAllPoints()
-                    cogTex:SetTexture(EllesmereUI.COGS_ICON)
-                    cogBtn:SetScript("OnEnter", function(self)
-                        self:SetAlpha(0.7)
-                        EllesmereUI.ShowWidgetTooltip(self, "Glow the buffs you can purge or spellsteal")
-                    end)
-                    cogBtn:SetScript("OnLeave", function(self)
-                        self:SetAlpha(0.4)
-                        EllesmereUI.HideWidgetTooltip()
-                    end)
-                    cogBtn:SetScript("OnClick", function(self) pgShow(self) end)
-                    -- Blocking overlay while Buff Display is None (inline disabled pattern).
-                    local block = CreateFrame("Frame", nil, cogBtn)
-                    block:SetAllPoints()
-                    block:SetFrameLevel(cogBtn:GetFrameLevel() + 10)
-                    block:EnableMouse(true)
-                    block:SetScript("OnEnter", function()
-                        EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("Buffs"))
-                    end)
-                    block:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-                    local function RefreshGlowCog()
-                        local off = BuffDisabled()
-                        cogBtn:SetAlpha(off and 0.15 or 0.4)
-                        block:SetShown(off)
-                    end
-                    RegisterWidgetRefresh(RefreshGlowCog)
-                    RefreshGlowCog()
                 end
             end
             -- Right slot (player frame): the Player Aura Bars debuff Filters model
@@ -14379,7 +14367,7 @@ initFrame:SetScript("OnEvent", function(self)
         return y, displayHeader, sizeRow, textHeader, textRow, enableRowFrame
     end
 
-        -- Inline "Portrait on Right" cog attached to a Show Portrait toggle
+    -- Inline "Portrait on Right" cog attached to a Show Portrait toggle
     -- region. Clicking the cog opens a popup with a toggle that swaps
     -- settings.portraitSide between "left" and "right" live; withArtStyle
     -- (Target of Target / Focus Target) adds the 2D / Class art choice.
@@ -15441,7 +15429,9 @@ initFrame:SetScript("OnEvent", function(self)
                 local leftRgn = bossAuraRow._leftRegion
                 EllesmereUI.BuildInlineCog(leftRgn, {
                     disabled = bossBuffSizeOff,
-                    disabledTooltip = function() return ns.GetBossSimpleBuffMode(db.profile.boss) ~= "none" and EllesmereUI.DisabledTooltip("Simple Buff Display", "disabled") or "Buffs Location" end,
+                    -- Both branches are whole sentences (raw), so translated clients wrap once.
+                    disabledTooltip = function() return ns.GetBossSimpleBuffMode(db.profile.boss) ~= "none" and EllesmereUI.DisabledTooltip("Simple Buff Display", "disabled") or EllesmereUI.DisabledTooltip("Buffs Location") end,
+                    rawTooltip = true,
                     title = "Buff Settings",
                     rows = {
                         { type="dropdown", label="Growth Direction", values=buffGrowthValues, order=buffGrowthOrder,
@@ -15462,7 +15452,8 @@ initFrame:SetScript("OnEvent", function(self)
                 local rightRgn = bossAuraRow._rightRegion
                 EllesmereUI.BuildInlineCog(rightRgn, {
                     disabled = bossDebuffSizeOff,
-                    disabledTooltip = function() return ns.GetBossSimpleDebuffMode(db.profile.boss) ~= "none" and EllesmereUI.DisabledTooltip("Simple Debuff Display", "disabled") or "Debuffs Location" end,
+                    disabledTooltip = function() return ns.GetBossSimpleDebuffMode(db.profile.boss) ~= "none" and EllesmereUI.DisabledTooltip("Simple Debuff Display", "disabled") or EllesmereUI.DisabledTooltip("Debuffs Location") end,
+                    rawTooltip = true,
                     title = "Debuff Settings",
                     rows = {
                         { type="dropdown", label="Growth Direction", values=buffGrowthValues, order=buffGrowthOrder,

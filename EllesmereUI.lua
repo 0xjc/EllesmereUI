@@ -491,8 +491,10 @@ function EllesmereUI.CreatePortalFlyout(opts)
                 else
                     btn.cooldown:Clear()
                 end
-            elseif aType == "item" and GetItemCooldown then
-                local ok, start, dur = pcall(GetItemCooldown, id)
+            -- The namespaced call (as IsHearthOnCD uses): the global only exists
+            -- behind Blizzard's deprecation fallbacks, and never on Forever.
+            elseif aType == "item" and C_Container and C_Container.GetItemCooldown then
+                local ok, start, dur = pcall(C_Container.GetItemCooldown, id)
                 if ok and start and dur and dur > 0 then
                     btn.cooldown:SetCooldown(start, dur)
                 else
@@ -6984,15 +6986,7 @@ function EllesmereUI:ShowConfirmPopup(opts)
         for k, v in pairs(opts) do o[k] = v end
         o.reload = nil
         local work = opts.onConfirm
-        if EllesmereUI.FOREVER_SV_BUG then
-            -- TEMPORARY, WoW Forever only: a reload wipes settings on the beta
-            -- client, so the popup says so and its reload button stays dark.
-            o.message = EllesmereUI.L(o.message or "A reload is required to apply this.") .. " "
-                .. EllesmereUI.L("Reloading on the WoW Forever beta resets your EllesmereUI settings until Blizzard fixes the client.")
-            o.confirmDisabled = true
-            o.onConfirm = nil
-            o.confirmMacro = nil
-        elseif not EllesmereUI.IS_FOREVER then
+        if not EllesmereUI.IS_FOREVER then
             if work then
                 o.onConfirm = function(...) work(...) ReloadUI() end
             else
@@ -7697,20 +7691,8 @@ local function CreateMainFrame()
         if _onHideCallbacks then
             for _, fn in ipairs(_onHideCallbacks) do fn() end
         end
-        -- Free cached pages for non-active tabs; keep the active one so reopening matches.
-        if _pageCache then
-            local activeKey = activeModule and activePage and (activeModule .. "::" .. activePage)
-            for key, entry in pairs(_pageCache) do
-                if key ~= activeKey then
-                    if entry.wrapper then
-                        entry.wrapper:Hide()
-                        entry.wrapper:SetParent(nil)
-                    end
-                    _pageCache[key] = nil
-                end
-            end
-        end
-        _activePageWrapper = nil
+        -- Built pages stay cached for the session: frames can never be freed, so
+        -- dropping them on close would only turn every revisit into a rebuild.
     end)
 
     -- Pixel-perfect scale: make 1 WoW unit = 1 screen pixel
@@ -8260,27 +8242,10 @@ local function CreateMainFrame()
 
         btn._folder = "_EUIProfiles"
         btn._loaded = true
-        -- TEMPORARY, WoW Forever only (EllesmereUI.FOREVER_SV_BUG): profiles
-        -- import, switch and reset through a reload, and nothing survives one
-        -- there, so the row renders disabled with a red tooltip saying why
-        -- (SelectModule refuses the page as well, whatever opens it).
-        if EllesmereUI.FOREVER_SV_BUG then
-            btn._standDown = EllesmereUI.COLOR_CODES.BAD .. EllesmereUI.L("Profiles are switched off on the WoW Forever beta until Blizzard's client saves settings again.") .. "|r"
-            btn._loaded = false
-            label:SetTextColor(NAV_DISABLED_TEXT.r, NAV_DISABLED_TEXT.g, NAV_DISABLED_TEXT.b, NAV_DISABLED_TEXT.a)
-            icon:SetDesaturated(true)
-            icon:SetAlpha(0.35)
-        end
 
         local hlTex = SolidTex(btn, "HIGHLIGHT", 1, 1, 1, 0)
         hlTex:SetAllPoints()
         btn:SetScript("OnEnter", function(self)
-            if self._standDown then
-                if EllesmereUI.ShowWidgetTooltip then
-                    EllesmereUI.ShowWidgetTooltip(self, self._standDown)
-                end
-                return
-            end
             if self._ovLocked then
                 if EllesmereUI.ShowWidgetTooltip then
                     EllesmereUI.ShowWidgetTooltip(self, "This module can't be overridden. Exit the override editing session to open it.")
@@ -8296,7 +8261,6 @@ local function CreateMainFrame()
         end)
         btn:SetScript("OnLeave", function(self)
             if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
-            if self._standDown then return end
             if self._ovLocked then return end
             hlTex:SetAlpha(0)
             self._hoverGlow:Hide()
@@ -8306,7 +8270,6 @@ local function CreateMainFrame()
             end
         end)
         btn:SetScript("OnClick", function(self)
-            if self._standDown then return end
             if self._ovLocked then return end
             if modules[self._folder] then
                 EllesmereUI:SelectModule(self._folder)
@@ -9799,20 +9762,6 @@ local function CreateMainFrame()
         RS_BRD_R, RS_BRD_G, RS_BRD_B, RS_BRD_A, RS_BRD_HR, RS_BRD_HG, RS_BRD_HB, RS_BRD_HA,
         "Reload UI", function() ReloadUI() end)
     footerFrame._reloadBtn = reloadBtn
-    -- TEMPORARY, WoW Forever only (EllesmereUI.FOREVER_SV_BUG): a reload wipes
-    -- settings on the beta client, so the button stays dark and inert there,
-    -- with a red tooltip saying why in place of the hover fade and the click.
-    if EllesmereUI.FOREVER_SV_BUG then
-        reloadBtn:SetAlpha(0.3)
-        local why = EllesmereUI.COLOR_CODES.BAD .. EllesmereUI.L("Reloading resets your settings on the WoW Forever beta until Blizzard fixes the client.") .. "|r"
-        reloadBtn:SetScript("OnEnter", function(self)
-            if EllesmereUI.ShowWidgetTooltip then EllesmereUI.ShowWidgetTooltip(self, why) end
-        end)
-        reloadBtn:SetScript("OnLeave", function()
-            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
-        end)
-        reloadBtn:SetScript("OnClick", nil)
-    end
 
     -- Per-module Reset visibility: modules with no onReset (Patch Notes, Profiles) hide
     -- Reset and slide Reload UI left into its slot. Called from SelectModule.
@@ -11299,9 +11248,6 @@ end
 
 function EllesmereUI:SelectModule(folderName)
     if not modules[folderName] then return end
-    -- TEMPORARY, WoW Forever only (EllesmereUI.FOREVER_SV_BUG): the Profiles
-    -- page stays closed however it is reached (sidebar, search, links).
-    if folderName == "_EUIProfiles" and EllesmereUI.FOREVER_SV_BUG then return end
     -- The panel is not always built when we get here: on the session's first
     -- open the first-open split (see _SplitFirstOpen) makes Show()/Toggle()
     -- return BEFORE CreateMainFrame, so a caller that opens the panel and
@@ -11637,9 +11583,6 @@ end
 -----------------------------------------------------------------------
 local _sidebarUnlockTip
 local function ShowSidebarUnlockTip()
-    -- TEMPORARY, WoW Forever only (EllesmereUI.FOREVER_SV_BUG): the seen stamp
-    -- cannot persist there, so the tip would greet every login.
-    if EllesmereUI.FOREVER_SV_BUG then return end
     if EllesmereUIDB and EllesmereUIDB.sidebarUnlockTipSeen then return end
     if _sidebarUnlockTip and _sidebarUnlockTip:IsShown() then return end
     local anchor = EllesmereUI._unlockSidebarBtn
@@ -11839,7 +11782,7 @@ end
 -------------------------------------------------------------------------------
 --  Slash commands
 -------------------------------------------------------------------------------
-EllesmereUI.VERSION = "9.2.6"
+EllesmereUI.VERSION = "9.2.7"
 
 -- Register this addon's version into a shared global table (taint-free at load time)
 if not _G._EUI_AddonVersions then _G._EUI_AddonVersions = {} end

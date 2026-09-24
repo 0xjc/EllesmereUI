@@ -2949,7 +2949,9 @@ end
 -- Keybind capture button: left-click arms, the next key (with its modifiers) is the
 -- chord, Escape cancels, right-click unbinds. set(chord) writes, set(nil) unbinds;
 -- the caller anchors it. opts: w, h, pp (default PanelPP), level, font, get, set,
--- tooltip, disabled + disabledTip, mouse (armed clicks bind mouse chords).
+-- tooltip, disabled + disabledTip (string, or fn returning one), mouse (armed clicks bind mouse chords),
+-- plainMouse (with mouse: an armed bare left/right click binds too, so unbind
+-- is a right-click from rest), canArm (returns false to refuse arming).
 -- Returns btn, refresh.
 function EllesmereUI.BuildKeybindButton(parent, opts)
     local btn = CreateFrame("Button", nil, parent)
@@ -2963,7 +2965,7 @@ function EllesmereUI.BuildKeybindButton(parent, opts)
     end
     local bg = SolidTex(btn, "BACKGROUND", DD_BG_R, DD_BG_G, DD_BG_B, DD_BG_A)
     bg:SetAllPoints()
-    btn._border = MakeBorder(btn, 1, 1, 1, DD_BRD_A, PP)
+    btn._border = MakeBorder(btn, 1, 1, 1, DD_BRD_A, pp)
     local lbl = MakeFont(btn, opts.font or 12, nil, 1, 1, 1)
     lbl:SetAlpha(DD_TXT_A)
     lbl:SetPoint("CENTER")
@@ -2973,6 +2975,11 @@ function EllesmereUI.BuildKeybindButton(parent, opts)
     local function Stop()
         listening = false
         btn:EnableKeyboard(false)
+        -- OnLeave keeps the hover look while armed; drop it once capture ends.
+        if not btn:IsMouseOver() then
+            bg:SetColorTexture(DD_BG_R, DD_BG_G, DD_BG_B, DD_BG_A)
+            btn._border:SetColor(1, 1, 1, DD_BRD_A)
+        end
     end
     local function FormatKey(key)
         if not key or key == "" then return EllesmereUI.L("Not Bound") end
@@ -2986,8 +2993,8 @@ function EllesmereUI.BuildKeybindButton(parent, opts)
     local function Refresh()
         if disabled then
             local off = disabled()
+            -- Mouse stays on so the disabled tooltip can show; OnClick refuses.
             btn:SetAlpha(off and 0.3 or 1)
-            btn:EnableMouse(not off)
             if parent._label then parent._label:SetAlpha(off and 0.3 or 1) end
             if off and listening then Stop() end
         end
@@ -3001,14 +3008,16 @@ function EllesmereUI.BuildKeybindButton(parent, opts)
 
     btn:SetScript("OnClick", function(self, button)
         if disabled and disabled() then return end
-        -- OnKeyDown never sees mouse buttons; plain left/right keep arm/unbind.
+        -- OnKeyDown never sees mouse buttons; plain left/right keep arm/unbind
+        -- unless plainMouse.
         if opts.mouse and listening and ((button ~= "LeftButton" and button ~= "RightButton")
-            or IsModifierKeyDown()) then
+            or IsModifierKeyDown() or opts.plainMouse) then
             Commit(CreateKeyChordStringUsingMetaKeyState(GetConvertedKeyOrButton(button)))
             return
         end
         if button == "RightButton" then Commit(nil); return end
         if button ~= "LeftButton" or listening then return end
+        if opts.canArm and not opts.canArm() then return end
         listening = true
         lbl:SetText(EllesmereUI.L("Press a key..."))
         self:EnableKeyboard(true)
@@ -3025,7 +3034,9 @@ function EllesmereUI.BuildKeybindButton(parent, opts)
     end)
     btn:SetScript("OnEnter", function(self)
         if disabled and disabled() then
-            ShowWidgetTooltip(self, DisabledTooltip(opts.disabledTip))
+            local tip = opts.disabledTip
+            if type(tip) == "function" then tip = tip() end
+            ShowWidgetTooltip(self, DisabledTooltip(tip))
             return
         end
         bg:SetColorTexture(DD_BG_R, DD_BG_G, DD_BG_B, DD_BG_HA)
@@ -3033,13 +3044,16 @@ function EllesmereUI.BuildKeybindButton(parent, opts)
         ShowWidgetTooltip(self, opts.tooltip or EllesmereUI.L("Left-click to set a keybind.\nRight-click to unbind."))
     end)
     btn:SetScript("OnLeave", function()
+        HideWidgetTooltip()
         if listening then return end
         bg:SetColorTexture(DD_BG_R, DD_BG_G, DD_BG_B, DD_BG_A)
         btn._border:SetColor(1, 1, 1, DD_BRD_A)
-        HideWidgetTooltip()
     end)
     btn:SetScript("OnHide", function()
         if listening then Stop(); Refresh() end
+        -- Hidden is never hovered: always come back in the resting look.
+        bg:SetColorTexture(DD_BG_R, DD_BG_G, DD_BG_B, DD_BG_A)
+        btn._border:SetColor(1, 1, 1, DD_BRD_A)
         HideWidgetTooltip()
     end)
 
@@ -5949,8 +5963,9 @@ end
 
 -- DismissPreviewHint: first preview click marks the hint dismissed and fades
 -- it out over 0.3s while the content header shrinks back to headerBaseH.
--- startY: fallback hint offset; animH: header shrink distance (default hintH).
-EllesmereUI.DismissPreviewHint = function(hint, headerBaseH, hintH, startY, animH)
+-- startY: fallback hint offset. The header shrinks by hintH, the height the
+-- hint added, so it lands exactly on headerBaseH.
+EllesmereUI.DismissPreviewHint = function(hint, headerBaseH, hintH, startY)
     if (EllesmereUIDB and EllesmereUIDB.previewHintDismissed) or not (hint and hint:IsShown()) then return end
     EllesmereUIDB = EllesmereUIDB or {}
     EllesmereUIDB.previewHintDismissed = true
@@ -5958,7 +5973,6 @@ EllesmereUI.DismissPreviewHint = function(hint, headerBaseH, hintH, startY, anim
     y0 = y0 or startY
     anchorTo = anchorTo or hint:GetParent()
     local startHeaderH = headerBaseH + hintH
-    animH = animH or hintH
     local steps = 0
     local ticker
     ticker = C_Timer.NewTicker(0.016, function()
@@ -5972,7 +5986,7 @@ EllesmereUI.DismissPreviewHint = function(hint, headerBaseH, hintH, startY, anim
         hint:SetAlpha(0.45 * (1 - progress))
         hint:ClearAllPoints()
         hint:SetPoint("BOTTOM", anchorTo, "BOTTOM", 0, y0 + progress * 12)
-        local hh = startHeaderH - animH * progress
+        local hh = startHeaderH - hintH * progress
         if hh > 0 then EllesmereUI:SetContentHeaderHeightSilent(hh) end
     end)
 end
@@ -7108,7 +7122,9 @@ end  -- end deferred init
 -- showAll and copyFrom are mutually exclusive header bands; with neither the list section shifts up and gains the height.
 local _trackedAurasDimmer
 function EllesmereUI.ShowTrackedAurasPopup(opts)
-    local PP = EllesmereUI.PP or EllesmereUI.PanelPP
+    -- The panel's pixel helper, like every popup scaled by GetPopupScale:
+    -- the real-UI-scale PP lands 1px borders on fractional pixels here.
+    local PP = EllesmereUI.PanelPP or EllesmereUI.PP
     local fontPath = opts.fontPath or EllesmereUI.EXPRESSWAY or "Fonts\\FRIZQT__.TTF"
     local ppScale = (EllesmereUI.GetPopupScale()) or 1
     local EG = EllesmereUI.ELLESMERE_GREEN

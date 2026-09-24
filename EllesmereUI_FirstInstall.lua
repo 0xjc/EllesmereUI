@@ -563,12 +563,6 @@ loader:SetScript("OnEvent", function(self, event, addonName)
             -- installer's import stamps first-install state, and a session
             -- with no registration brings the picker back).
             if EllesmereUI._externalInstaller then return end
-            -- TEMPORARY, WoW Forever only (EllesmereUI.FOREVER_SV_BUG): while
-            -- the beta client loses settings on reload, the picker's choices
-            -- would not survive its own forced reload, so it stays off. The
-            -- pending handshake stays armed on purpose: every reload-prompting
-            -- popup keeps quiet, since a reload would reset the user.
-            if EllesmereUI.FOREVER_SV_BUG then return end
             ShowFirstInstallPopup()
         end)
     end

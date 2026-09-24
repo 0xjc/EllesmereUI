@@ -1583,6 +1583,14 @@ local SIDEBAR_ICON_REFS = {
 local SIDEBAR_CHAIN_KEYS = {
     "showFriends", "showGuild", "showDurability", "showCopy", "showPortals", "showVoice", "showSettings",
 }
+-- No keystones on Forever, so no season portals (the Minimap button is never
+-- built there either): the M+ Portals icon leaves the chain, which also drops
+-- it from creation and from the options icon list. Every button reader guards.
+if EllesmereUI.IS_FOREVER then
+    for i = #SIDEBAR_CHAIN_KEYS, 1, -1 do
+        if SIDEBAR_CHAIN_KEYS[i] == "showPortals" then table.remove(SIDEBAR_CHAIN_KEYS, i) end
+    end
+end
 local SIDEBAR_FALLBACK_ORDER = {
     showFriends = -20, showGuild = -15, showDurability = -10,
     showCopy = 1, showPortals = 2, showVoice = 3, showSettings = 4,
@@ -2645,7 +2653,8 @@ function ECHAT.TogglePortalFlyout(anchorBtn)
     if InCombatLockdown() then return end
     if not _portalFlyout then
         _portalFlyout = EUI.CreatePortalFlyout({
-            name = "EUIChat", bg = { BG_R, BG_G, BG_B }, labelFont = GetFont(),
+            -- unitEvents: the cast events it watches only ever matter for the player.
+            name = "EUIChat", bg = { BG_R, BG_G, BG_B }, labelFont = GetFont(), unitEvents = true,
             labelFlags = (EUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG",
         })
     end

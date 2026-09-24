@@ -1882,7 +1882,7 @@ initFrame:SetScript("OnEvent", function(self)
                         if buffs[i].dispelGlow and buffs[i].dispelGlow.active then
                             ns.StopDispelGlow(buffs[i])
                         end
-                        ns.StartDispelGlow(buffs[i], buffSz, previewType)
+                        ns.StartDispelGlow(buffs[i], buffSz, previewType, buffH)
                     elseif buffs[i].dispelGlow and buffs[i].dispelGlow.active then
                         ns.StopDispelGlow(buffs[i])
                     end
@@ -2742,7 +2742,13 @@ initFrame:SetScript("OnEvent", function(self)
             EllesmereUI.BuildInlineCog(subtitleRow._leftRegion, {
                 chain = false,
                 disabled = subtitleGuildOff,
-                disabledTooltip = EllesmereUI.L("This option requires Subtitle Text to include the Guild Name"),
+                -- Same requirement as the Guild Text Color swatch beside it; the
+                -- guild sentence is already whole, so it goes raw.
+                disabledTooltip = function()
+                    if friendlyPlayersOff() then return "Show EUI Friendly Player Nameplates" end
+                    return EllesmereUI.L("This option requires Subtitle Text to include the Guild Name")
+                end,
+                rawTooltip = function() return not friendlyPlayersOff() end,
                 title = "Subtitle Text Settings",
                 rows = {
                     { type = "toggle", label = "Show <> Around Guild",
@@ -3442,6 +3448,12 @@ initFrame:SetScript("OnEvent", function(self)
                 dispelGlowStyleOrder[#dispelGlowStyleOrder + 1] = i
             end
         end
+        -- Blizzard's static stealable border art (outside the style list).
+        local DISPEL_BLIZZ = EllesmereUI.Glows and EllesmereUI.Glows.STEALABLE_BORDER
+        if DISPEL_BLIZZ then
+            dispelGlowStyleValues[DISPEL_BLIZZ] = "Blizzard Border"
+            dispelGlowStyleOrder[#dispelGlowStyleOrder + 1] = DISPEL_BLIZZ
+        end
 
         local dispelGlowDropdown = {
             type="dropdown", text="Dispel Glow Style",
@@ -3450,6 +3462,7 @@ initFrame:SetScript("OnEvent", function(self)
                 if dispelGlowOff() then return 0 end
                 local raw = ns.GetDispelGlowStyle and ns.GetDispelGlowStyle() or (DBVal("dispelGlowStyle") or 2)
                 if type(raw) ~= "number" then return 2 end
+                if raw == DISPEL_BLIZZ then return raw end
                 if raw < 1 or raw > #ns.PANDEMIC_GLOW_STYLES then return 2 end
                 return raw
             end,
@@ -8651,7 +8664,7 @@ initFrame:SetScript("OnEvent", function(self)
             if not m or not m.section or not m.target then return end
 
             -- Header grows by 29 but shrinks by 39 (kept as shipped).
-            EllesmereUI.DismissPreviewHint(_previewHintFS, _headerBaseH, 29, 17, 39)
+            EllesmereUI.DismissPreviewHint(_previewHintFS, _headerBaseH, 29, 17)
 
             local sf = EllesmereUI._scrollFrame
             if not sf then return end

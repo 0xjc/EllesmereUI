@@ -320,6 +320,26 @@ local function ApplyNPBuffExtra(button, d, style)
         -- Every buff in this row is dispellable (the group filter says so), so the glow
         -- rides the button's own visibility -- no readback of per-aura state.
         host:SetAlpha(1)
+        -- Blizzard Border: Blizzard's static stealable art instead of a glow,
+        -- tinted like the glow (nil = Blizzard's own look).
+        if style.purgeStyle == Glows.STEALABLE_BORDER then
+            local cr, cg, cb = style.purgeR, style.purgeG, style.purgeB
+            local w, h = style.width or 24, style.height
+            if host._npStyle ~= style.purgeStyle or host._npW ~= w or host._npH ~= h
+               or host._npR ~= cr or host._npG ~= cg or host._npB ~= cb then
+                if host._euiGlowActive then Glows.StopGlow(host) end
+                host:SetAlpha(1)
+                Glows.ShowStealableBorder(host, w, h, cr, cg, cb)
+                host._npBorder = true
+                host._npStyle, host._npW, host._npH = style.purgeStyle, w, h
+                host._npR, host._npG, host._npB = cr, cg, cb
+            end
+            return
+        end
+        if host._npBorder then
+            Glows.HideStealableBorder(host)
+            host._npBorder = nil
+        end
         -- C-side animations only: identical in and out of restricted content.
         -- StartEngineGlow renders Pixel as the genuine dash march and routes the other
         -- driver styles to their FlipBook equivalents. purgeStyle carries a
@@ -402,8 +422,14 @@ local function BuildNPStyle(kind, variant)
         local glow, dispelType = NPB.GroupGlow(variant == 2 and 2 or 1)
         style.purgeGlow = glow
         style.purgeStyle = (ns.GetDispelGlowStyle and ns.GetDispelGlowStyle()) or 2
-        if ns.GetDispelGlowColor then
-            style.purgeR, style.purgeG, style.purgeB = ns.GetDispelGlowColor(dispelType)
+        -- Blizzard Border keeps Blizzard's own art until a colour is picked.
+        local colorOf = ns.GetDispelGlowColor
+        if style.purgeStyle == (EllesmereUI.Glows and EllesmereUI.Glows.STEALABLE_BORDER)
+            and ns.GetDispelBorderColor then
+            colorOf = ns.GetDispelBorderColor
+        end
+        if colorOf then
+            style.purgeR, style.purgeG, style.purgeB = colorOf(dispelType)
         end
         style.applyExtra = ApplyNPBuffExtra
     end

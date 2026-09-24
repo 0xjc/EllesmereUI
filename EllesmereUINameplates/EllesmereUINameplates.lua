@@ -1410,6 +1410,16 @@ do
         if not c then return nil, nil, nil end
         return c.r, c.g, c.b
     end
+    -- Blizzard Border tint: the glow colour, except the untouched default gold
+    -- (the profile merge fills the key, so it is compared, not nil-tested)
+    -- keeps Blizzard's own stealable art. Per-type colours always tint.
+    ns.GetDispelBorderColor = function(dispelType)
+        local r, g, b = ns.GetDispelGlowColor(dispelType)
+        if dispelType and ns.GetDispelGlowUseTypeColor() then return r, g, b end
+        local d = defaults.dispelGlowColor
+        if r == nil or (d and r == d.r and g == d.g and b == d.b) then return nil, nil, nil end
+        return r, g, b
+    end
 end
 local function GetCastBarHeight()
     return (p and p.castBarHeight) or defaults.castBarHeight
@@ -2137,19 +2147,23 @@ local function StopDispelGlow(slot)
     if dg.animGroup then dg.animGroup:Stop() end
     if dg.flipTex then dg.flipTex:Hide() end
     -- One unified stop: pixel/ABG/autocast plus the ABG preview's engine
-    -- substitute (flipbook + halo) on the wrapper.
+    -- substitute (flipbook + halo) on the wrapper, and the Blizzard Border.
     _G_Glows.StopAllGlows(dg.wrapper)
+    if _G_Glows.HideStealableBorder then _G_Glows.HideStealableBorder(dg.wrapper) end
     dg.wrapper:Hide()
     dg.active = false
 end
 
 -- Preview only: the live nameplate glow runs through EllesmereUI.Glows on the
 -- engine buttons. dispelType is "magic" / "enrage" / nil.
-local function StartDispelGlow(slot, slotSize, dispelType)
+-- slotH: the icon height (cropped icons); the Blizzard Border fits it.
+local function StartDispelGlow(slot, slotSize, dispelType, slotH)
     local dg = slot.dispelGlow
     local styleIdx = ns.GetDispelGlowStyle()
     local styles = PANDEMIC_GLOW_STYLES
-    if styleIdx < 1 or styleIdx > #styles then styleIdx = 2 end
+    -- Blizzard Border sits outside the style list (the static stealable art).
+    local blizz = _G_Glows.STEALABLE_BORDER
+    if styleIdx ~= blizz and (styleIdx < 1 or styleIdx > #styles) then styleIdx = 2 end
     local entry = styles[styleIdx]
     local sz = slotSize or 26
 
@@ -2177,9 +2191,21 @@ local function StartDispelGlow(slot, slotSize, dispelType)
         StopDispelGlow(slot)
     end
 
-    local cr, cg, cb = ns.GetDispelGlowColor(dispelType)
+    local cr, cg, cb
+    if styleIdx == blizz then
+        cr, cg, cb = ns.GetDispelBorderColor(dispelType)
+    else
+        cr, cg, cb = ns.GetDispelGlowColor(dispelType)
+    end
 
-    if entry.procedural then
+    if styleIdx == blizz then
+        dg.flipTex:Hide()
+        dg.animGroup:Stop()
+        StopProceduralAnts(dg.wrapper)
+        StopButtonGlow(dg.wrapper)
+        StopAutoCastShine(dg.wrapper)
+        _G_Glows.ShowStealableBorder(dg.wrapper, sz, slotH or sz, cr, cg, cb)
+    elseif entry.procedural then
         dg.flipTex:Hide()
         dg.animGroup:Stop()
         StopButtonGlow(dg.wrapper)
@@ -6979,6 +7005,9 @@ function NameplateFrame:ClearUnit()
     self._castTex = nil
     self._castLockout = nil
     self._nameRaidMarkerShown = nil
+    -- A recycled frame's first health paint must not treat the new occupant as
+    -- the old target (the hash line reads this flag).
+    self._isTarget = nil
     self.cast:Hide()
     self.castShieldFrame:Hide()
     self.castShieldFrame:SetAlpha(1)
@@ -7079,7 +7108,7 @@ function NameplateFrame:UpdateHealthValues()
             -- restores. ClearHoverExtras restores hover size then re-runs
             -- ApplyTarget; the direct call covers its no-hover-fx early-out
             -- and re-evaluates target state for the new unit.
-            if ns.ClearHoverExtras then ns.ClearHoverExtras(self) end
+            ns.ClearHoverExtras(self)
             self:ApplyTarget()
         end
     end
@@ -7596,9 +7625,9 @@ function NameplateFrame:UpdateName()
             -- belongs to the old unit, drop it too.
             self._absorbHidden = nil
             -- Repaint target/hover styling for the new occupant so the old one's
-            -- paint cannot stick (#2117); mirrors the UpdateHealthValues swap.
+            -- paint cannot stick; mirrors the UpdateHealthValues swap.
             -- ApplyTarget re-owns the shared target-plate cache as a side effect.
-            if ns.ClearHoverExtras then ns.ClearHoverExtras(self) end
+            ns.ClearHoverExtras(self)
             self:ApplyTarget()
             self._maxHPValid = nil
             self._absMode = nil
@@ -7926,8 +7955,13 @@ end
 function NameplateFrame:ApplyTarget()
     if not self.unit then return end
     local isTarget = UnitIsUnit(self.unit, "target")
+    -- The hash line is painted by the health pass from this cached flag, so a
+    -- flip queues one coalesced repaint (only while the line is enabled).
+    if p and p.hashLineEnabled and (self._isTarget == true) ~= (isTarget == true) then
+        self:MarkHealthDirty()
+    end
     self._isTarget = isTarget  -- cached for hot-path hash line check
-    -- Cache ownership lives here so EVERY painter keeps it coherent (#2117):
+    -- Cache ownership lives here so EVERY painter keeps it coherent:
     -- SetUnit's deferred setup (pending-watcher promotion), the UpdateHealthValues
     -- token swap and PLAYER_TARGET_CHANGED all funnel through this method. Gaining
     -- target claims the slot; a recycled plate that lost target frees it, so a
@@ -9170,6 +9204,9 @@ CreateEnemyWatcher = function(unit)
         local plate = ns.plates[u]
         if plate then
             if ns._ClearMouseoverPlate then ns._ClearMouseoverPlate(plate) end
+            -- Same cached-ref release as NAME_PLATE_UNIT_REMOVED.
+            if ns._cachedTargetPlate == plate then ns._cachedTargetPlate = nil end
+            if ns._cachedFocusPlate  == plate then ns._cachedFocusPlate  = nil end
             plate:ClearUnit()
             frameCache:Release(plate)
             ns.plates[u] = nil
@@ -9283,10 +9320,13 @@ function ns._ClearMouseoverPlate(plate)
         ns._currentMouseoverPlate = nil
         if ns._mouseoverTicker then ns._mouseoverTicker:Cancel(); ns._mouseoverTicker = nil end
     end
-    -- Pooled frames recycle: drop the hover-extras flags without a restore
-    -- pass (the reuse path re-runs ApplyBorder/ApplyTarget anyway).
+    -- Pooled enemy frames recycle without re-running ApplyBorder, so a
+    -- hover-sized border is restored here before its flag is dropped.
+    if plate._hoverBorderSized then
+        plate._hoverBorderSized = nil
+        if plate.ApplyBorder then plate:ApplyBorder() end
+    end
     plate._hoverFxOn = nil
-    plate._hoverBorderSized = nil
 end
 
 function ns._UpdateMouseover()
