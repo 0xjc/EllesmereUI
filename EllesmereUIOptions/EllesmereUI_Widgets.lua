@@ -8899,6 +8899,9 @@ EllesmereUI.VIS_ROW_ITEMS = {
     { key = "vehicle", label = "In Vehicle", axis = "opt",
       show = "visOnlyVehicle", hide = "visHideVehicle",
       tooltip = "While seated in a vehicle." },
+    { key = "partyMode", label = "Party Mode", axis = "opt",
+      show = "visOnlyPartyMode", hide = "visHidePartyMode",
+      tooltip = "While Party Mode is active. Party Mode can start in combat (Bloodlust); secure elements such as action bars then keep their current visibility until combat ends." },
 }
 
 -------------------------------------------------------------------------------

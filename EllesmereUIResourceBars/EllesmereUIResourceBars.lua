@@ -11113,3 +11113,88 @@ SlashCmdList.ERB = function(msg)
     EllesmereUI:ShowModule("EllesmereUIResourceBars")
 end
 
+-------------------------------------------------------------------------------
+--  Party Mode: spinning resource and power bars (EllesmereUI.PartySpin_Create).
+--  Resource Bars: pips / runes orbit the class resource bar's centre.
+--  Power Bars: the health and primary power bars orbit the screen centre.
+-------------------------------------------------------------------------------
+-- Wrapped in a function: this main chunk sits at Lua 5.1's 200-local cap.
+;(function()
+-- Party Mode visibility axis: no game event; the core fires its own edge.
+if EllesmereUI.RegisterVisEdge then
+    EllesmereUI.RegisterVisEdge(function() UpdateVisibility() end)
+end
+if EllesmereUI.PartySpin_Create then
+    -- The backdrop, gap fills and ticks are drawn on the bar and cannot turn,
+    -- and empty pips are transparent, so while spinning those layers fade out
+    -- and each pip gets its own backing. Restore puts the saved alphas back.
+    local resGroups, resList = {}, {}
+    local savedA = {}          -- texture -> alpha before we faded it
+    local backings = {}        -- pip/rune -> our backing texture
+
+    local function Fade(tex)
+        if tex and savedA[tex] == nil then
+            savedA[tex] = tex:GetAlpha()
+            tex:SetAlpha(0)
+        elseif tex then
+            tex:SetAlpha(0)    -- re-assert: a rebuild may have reset it
+        end
+    end
+    local function Back(piece)
+        local t = backings[piece]
+        if not t then
+            t = piece:CreateTexture(nil, "BACKGROUND", nil, -8)
+            t:SetAllPoints(piece)
+            t:SetColorTexture(0, 0, 0, 0.5)
+            backings[piece] = t
+        end
+        t:Show()
+    end
+
+    EllesmereUI.PartySpinResource_Refresh = EllesmereUI.PartySpin_Create({
+        enabledKey = "partyModeSpinResource",
+        speedKey   = "partyModeSpinResourceSpeed",
+        collect = function()
+            wipe(resGroups); wipe(resList)
+            if secondaryFrame and not ns._erbArtOn then
+                for i = 1, #pips do
+                    local p = pips[i]
+                    if p and p:IsShown() then resList[#resList + 1] = p end
+                end
+                for i = 1, #runeFrames do
+                    local r = runeFrames[i]
+                    if r and r:IsShown() then resList[#resList + 1] = r end
+                end
+                resGroups[1] = { pivot = secondaryFrame, frames = resList }
+            end
+            return resGroups
+        end,
+        onClaim = function()
+            if not secondaryFrame or #resList == 0 then return end
+            Fade(secondaryFrame._barBg)
+            local gf = secondaryFrame._gapFills
+            if gf then for i = 1, #gf do Fade(gf[i]) end end
+            for i = 1, #secondaryPipTicks do Fade(secondaryPipTicks[i]) end
+            for i = 1, #resList do Back(resList[i]) end
+        end,
+        onRestore = function()
+            for tex, a in pairs(savedA) do tex:SetAlpha(a) end
+            wipe(savedA)
+            for _, t in pairs(backings) do t:Hide() end
+        end,
+    })
+
+    local powGroups, powList = {}, {}
+    EllesmereUI.PartySpinPower_Refresh = EllesmereUI.PartySpin_Create({
+        enabledKey = "partyModeSpinPower",
+        speedKey   = "partyModeSpinPowerSpeed",
+        collect = function()
+            wipe(powGroups); wipe(powList)
+            if healthBar then powList[#powList + 1] = healthBar end
+            if primaryBar then powList[#powList + 1] = primaryBar end
+            powGroups[1] = { pivot = UIParent, frames = powList }
+            return powGroups
+        end,
+    })
+end
+end)()

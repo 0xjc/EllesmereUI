@@ -297,11 +297,14 @@ function EllesmereUI_StartPartyMode()
     if EllesmereUIDB and (EllesmereUIDB.partyModeDimLights ~= false) then
         EllesmereUI_ApplyDimLights()
     end
+    -- Party Mode visibility lanes (Visibility > Party Mode) have no game event.
+    if EllesmereUI.FireVisEdge then EllesmereUI.FireVisEdge() end
 end
 
 function EllesmereUI_StopPartyMode()
     if container then container:Hide() end
     EllesmereUI_RestoreDimLights()
+    if EllesmereUI.FireVisEdge then EllesmereUI.FireVisEdge() end
 end
 
 -------------------------------------------------------------------------------
@@ -577,3 +580,201 @@ pmInit:SetScript("OnEvent", function(self, event, ...)
         EllesmereUI_RestoreDimLights()
     end
 end)
+
+-------------------------------------------------------------------------------
+--  Party Mode spin engine. EllesmereUI.PartySpin_Create(opts) -> refresh()
+--  opts: enabledKey / speedKey (EllesmereUIDB keys, speed deg/s, default 120),
+--  collect() -> { { pivot = frame, frames = {...} }, ... }, and optional
+--  onClaim() (idempotent, runs about once a second) and onRestore().
+--  A SetPoint post-hook marks a member dirty when its module re-anchors it.
+--  Pauses in combat and while Unlock Mode is open (members go home to drag).
+-------------------------------------------------------------------------------
+do
+local hooked = setmetatable({}, { __mode = "k" })
+local guardDepth = 0
+
+function EllesmereUI.PartySpin_Create(opts)
+    local driver, deferF
+    local angle, held, since = 0, false, 0
+    local members = {}     -- frame -> rec { pivot, points, dx, dy, dirty }
+    local order = {}       -- array of frames (stable iteration)
+
+    local function On()
+        local db = EllesmereUIDB
+        return db and db.partyMode and db[opts.enabledKey] and true or false
+    end
+    local function Speed()
+        local v = EllesmereUIDB and EllesmereUIDB[opts.speedKey]
+        if v == nil then v = 120 end
+        return v
+    end
+
+    local function Measure(f, rec)
+        -- Skip our own orbit point if the module anchored without clearing it.
+        rec.points = {}
+        for i = 1, f:GetNumPoints() do
+            local p = { f:GetPoint(i) }
+            if not (rec.ox and p[1] == "CENTER" and p[2] == UIParent
+                    and p[3] == "BOTTOMLEFT" and p[4] == rec.ox and p[5] == rec.oy) then
+                rec.points[#rec.points + 1] = p
+            end
+        end
+        -- A member sized by two or more anchors (SetAllPoints) loses its size
+        -- under a single orbit point, so its rest size is carried explicitly.
+        rec.multi = #rec.points > 1
+        rec.w, rec.h = f:GetWidth(), f:GetHeight()
+        local cx, cy = f:GetCenter()
+        local px, py = rec.pivot:GetCenter()
+        if not (cx and px) then rec.dx = nil; return end
+        local fs, ps = f:GetEffectiveScale(), rec.pivot:GetEffectiveScale()
+        rec.dx, rec.dy = cx * fs - px * ps, cy * fs - py * ps
+        rec.dirty = false
+    end
+
+    local function Restore(f, rec)
+        if not rec.points or #rec.points == 0 then return end
+        guardDepth = guardDepth + 1
+        f:ClearAllPoints()
+        for i = 1, #rec.points do
+            local p = rec.points[i]
+            f:SetPoint(p[1], p[2], p[3], p[4], p[5])
+        end
+        guardDepth = guardDepth - 1
+    end
+
+    local function RestoreAll()
+        for i = 1, #order do
+            local f = order[i]
+            Restore(f, members[f])
+        end
+        wipe(members); wipe(order)
+        if opts.onRestore then opts.onRestore() end
+    end
+
+    local function Claim()
+        local groups = opts.collect() or {}
+        local seen = {}
+        for g = 1, #groups do
+            local grp = groups[g]
+            local pivot, list = grp.pivot, grp.frames
+            if pivot and list then
+                for i = 1, #list do
+                    local f = list[i]
+                    if f and f.GetCenter and not seen[f] then
+                        seen[f] = true
+                        if not members[f] then
+                            local rec = { pivot = pivot }
+                            members[f] = rec
+                            order[#order + 1] = f
+                            if not hooked[f] then
+                                hooked[f] = true
+                                hooksecurefunc(f, "SetPoint", function(self)
+                                    if guardDepth > 0 then return end
+                                    local r = self._euiSpinRec
+                                    if r then r.dirty = true end
+                                end)
+                            end
+                            f._euiSpinRec = rec
+                            Measure(f, rec)
+                        end
+                    end
+                end
+            end
+        end
+        -- Members that left the collection (block removed, frame gone) go home.
+        for i = #order, 1, -1 do
+            local f = order[i]
+            if not seen[f] then
+                Restore(f, members[f])
+                f._euiSpinRec = nil
+                members[f] = nil
+                table.remove(order, i)
+            end
+        end
+        if opts.onClaim then opts.onClaim() end
+    end
+
+    local function Tick(c, s)
+        guardDepth = guardDepth + 1
+        for i = 1, #order do
+            local f = order[i]
+            local rec = members[f]
+            if rec.dirty or not rec.dx then
+                guardDepth = guardDepth - 1
+                Measure(f, rec)   -- module just re-anchored it: that IS rest
+                guardDepth = guardDepth + 1
+            end
+            local px, py = rec.pivot:GetCenter()
+            if rec.dx and px then
+                local ps, fs = rec.pivot:GetEffectiveScale(), f:GetEffectiveScale()
+                if fs and fs > 0 then
+                    local x = px * ps + rec.dx * c - rec.dy * s
+                    local y = py * ps + rec.dx * s + rec.dy * c
+                    rec.ox, rec.oy = x / fs, y / fs
+                    f:ClearAllPoints()
+                    f:SetPoint("CENTER", UIParent, "BOTTOMLEFT", rec.ox, rec.oy)
+                    if rec.multi then f:SetSize(rec.w, rec.h) end
+                end
+            end
+        end
+        guardDepth = guardDepth - 1
+    end
+
+    local refresh
+    refresh = function()
+        local on = On()
+        -- Same combat contract as the action bar spin: only the safe half
+        -- (Show/Hide of our own driver) runs in combat; the rest re-runs on
+        -- PLAYER_REGEN_ENABLED with the member table left intact.
+        if InCombatLockdown() then
+            if not deferF then
+                deferF = CreateFrame("Frame")
+                deferF:SetScript("OnEvent", function(self)
+                    self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+                    refresh()
+                end)
+            end
+            deferF:RegisterEvent("PLAYER_REGEN_ENABLED")
+            if not on then
+                if driver then driver:Hide() end
+                angle = 0
+            elseif driver then
+                driver:Show()
+            end
+            return
+        end
+        if not on then
+            if driver then driver:Hide() end
+            angle, held = 0, false
+            RestoreAll()
+            return
+        end
+        if not driver then
+            driver = CreateFrame("Frame")
+            driver:Hide()
+            driver:SetScript("OnUpdate", function(_, elapsed)
+                if not On() then refresh(); return end
+                if InCombatLockdown() then return end
+                if EllesmereUI._unlockActive then
+                    if not held then held = true; RestoreAll() end
+                    return
+                end
+                if held then held = false; Claim() end
+                -- Pick up late spawns / added blocks about once a second.
+                since = since + elapsed
+                if since > 1 then since = 0; Claim() end
+                angle = (angle + math.rad(Speed()) * elapsed) % (math.pi * 2)
+                if #order > 0 then Tick(math.cos(angle), math.sin(angle)) end
+            end)
+        end
+        Claim()
+        driver:Show()
+    end
+
+    -- Party Mode starts from the options page, a keybind, a random timer or
+    -- Bloodlust; its two public entry points catch all of them.
+    hooksecurefunc("EllesmereUI_StartPartyMode", function() refresh() end)
+    hooksecurefunc("EllesmereUI_StopPartyMode", function() refresh() end)
+    return refresh
+end
+end
