@@ -246,6 +246,41 @@ local function LinkFromText(text)
     return text:match("(|c%x+|Hitem:.-|h.-|h|r)") or text:match("(|Hitem:.-|h.-|h)")
 end
 
+-- Bonus roll loot is announced through CHAT_MSG_LOOT like the chest's, and only
+-- the sentence tells them apart. The client's own localized strings become the
+-- patterns, so this holds in every client language.
+local IsBonusRollLine
+do
+    local BONUS_KEYS = {
+        "LOOT_ITEM_BONUS_ROLL", "LOOT_ITEM_BONUS_ROLL_MULTIPLE",
+        "LOOT_ITEM_BONUS_ROLL_SELF", "LOOT_ITEM_BONUS_ROLL_SELF_MULTIPLE",
+    }
+    local patterns
+
+    local function ToPattern(fmt)
+        local p = fmt:gsub("%%%d?%$?s", "\1"):gsub("%%%d?%$?d", "\2")
+        p = p:gsub("[%^%$%(%)%.%[%]%*%+%-%?%%]", "%%%0")
+        return "^" .. p:gsub("\1", ".+"):gsub("\2", "%%d+")
+    end
+
+    function IsBonusRollLine(text)
+        if type(text) ~= "string" or IsSecret(text) then return false end
+        if not patterns then
+            patterns = {}
+            for _, key in ipairs(BONUS_KEYS) do
+                local fmt = _G[key]
+                if type(fmt) == "string" and fmt ~= "" then
+                    patterns[#patterns + 1] = ToPattern(fmt)
+                end
+            end
+        end
+        for i = 1, #patterns do
+            if text:find(patterns[i]) then return true end
+        end
+        return false
+    end
+end
+
 local function IDFromLink(link)
     if type(link) ~= "string" then return nil end
     return tonumber(link:match("|Hitem:(%d+)"))
@@ -534,7 +569,8 @@ end
 -- registered or dropped out of step. Loot has three sources, none complete:
 -- the rewards payload (our own item), ENCOUNTER_LOOT_RECEIVED (docs say args
 -- 5/6 are itemName/fileName; BossBannerToast binds playerName/className) and
--- CHAT_MSG_LOOT (looter GUID in arg 12).
+-- CHAT_MSG_LOOT (looter GUID in arg 12). Bonus roll loot is dropped: from the
+-- chat line for everyone, and from BONUS_ROLL_RESULT for our own roll.
 local function SyncEvents()
     if not frame then return end
     local on       = Enabled() == true
@@ -551,6 +587,7 @@ local function SyncEvents()
     SetEvent("CHALLENGE_MODE_COMPLETED_REWARDS", settling)
     SetEvent("ENCOUNTER_LOOT_RECEIVED", settling)
     SetEvent("CHAT_MSG_LOOT", settling)
+    SetEvent("BONUS_ROLL_RESULT", settling)
     SetEvent("LOOT_CLOSED", settling)
     SetEvent("PLAYER_ENTERING_WORLD", settling)
 end
@@ -828,6 +865,7 @@ local function FinishRun()
     local lr = {
         record = record, rst = roster, ord = rosterOrder,
         base = baseTotals, baseDur = baseDuration, based = hasBaseline,
+        bonus = {},
     }
     lastRun = lr
     PurgeOldSeasons()
@@ -880,6 +918,33 @@ local function ArmLootWait()
     -- Opens on the rewards payload or the loot window closing; if neither
     -- comes, leaving the instance opens it.
     lr.lootArmed = true
+end
+
+-- The item string alone: a chat link loses a |cn quality color in LinkFromText,
+-- so the same item arrives as different link strings. Bonus IDs are kept, so
+-- a chest drop and a bonus copy of the same item still differ.
+local function LinkKey(link)
+    return type(link) == "string" and link:match("|H(item:[^|]+)|h") or nil
+end
+
+-- Marks a link as bonus roll loot for the rest of the run and takes it back
+-- from whoever it was already recorded against, since ENCOUNTER_LOOT_RECEIVED
+-- may have delivered it before the chat line. True when a row changed.
+local function ForgetBonusLoot(lr, link)
+    local key = LinkKey(link)
+    if not key then return false end
+    lr.bonus[key] = true
+    local changed = false
+    for _, guid in ipairs(lr.ord) do
+        local rec = lr.rst[guid]
+        if rec and LinkKey(rec.lootLink) == key then
+            rec.lootLink = nil
+            -- The chest reward's ID stays when the bonus copy is the same item.
+            if not rec.lootChest and rec.lootID == IDFromLink(link) then rec.lootID = nil end
+            changed = true
+        end
+    end
+    return changed
 end
 
 --------------------------------------------------------------------------------
@@ -939,11 +1004,22 @@ local function OnEvent(_, event, ...)
     elseif event == "ENCOUNTER_LOOT_RECEIVED" then
         local lr = lastRun
         if lr then
-            local link, who = select(3, ...), select(5, ...)
-            if RecordLoot(lr.rst, lr.ord, nil, PlainString(who), PlainString(link)) then
+            local link, who = PlainString((select(3, ...))), select(5, ...)
+            if link and not lr.bonus[LinkKey(link)]
+                and RecordLoot(lr.rst, lr.ord, nil, PlainString(who), link) then
                 BuildMembers(lr.record, lr.rst, lr.ord)
                 if RefreshWindowIfOpen then RefreshWindowIfOpen() end
             end
+        end
+
+    elseif event == "BONUS_ROLL_RESULT" then
+        -- Our own roll only; nobody else's is reported this way.
+        local lr = lastRun
+        local rewardType, link = ...
+        link = PlainString(link)
+        if lr and link and PlainString(rewardType) == "item" and ForgetBonusLoot(lr, link) then
+            BuildMembers(lr.record, lr.rst, lr.ord)
+            if RefreshWindowIfOpen then RefreshWindowIfOpen() end
         end
 
     elseif event == "CHAT_MSG_LOOT" then
@@ -951,7 +1027,13 @@ local function OnEvent(_, event, ...)
         if lr then
             local text, who, guid = select(1, ...), select(2, ...), select(12, ...)
             local link = LinkFromText(text)
-            if link and RecordLoot(lr.rst, lr.ord, PlainString(guid), PlainString(who), link) then
+            if link and IsBonusRollLine(text) then
+                if ForgetBonusLoot(lr, link) then
+                    BuildMembers(lr.record, lr.rst, lr.ord)
+                    if RefreshWindowIfOpen then RefreshWindowIfOpen() end
+                end
+            elseif link and not lr.bonus[LinkKey(link)]
+                and RecordLoot(lr.rst, lr.ord, PlainString(guid), PlainString(who), link) then
                 BuildMembers(lr.record, lr.rst, lr.ord)
                 if RefreshWindowIfOpen then RefreshWindowIfOpen() end
             end
