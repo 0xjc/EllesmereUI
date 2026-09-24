@@ -871,7 +871,7 @@ for i = 1, 18 do
                 end
             elseif (e.crestCost or 0) > 0 then
                 lines[#lines + 1] = "~" .. e.crestCost .. "x  " .. EUI.L(td and td.crestName or "Crest")
-                lines[#lines + 1] = "|cff888888" .. EUI.L("Scan at Upgrader for exact costs") .. "|r"
+                lines[#lines + 1] = EllesmereUI.COLOR_CODES.DIM .. EUI.L("Scan at Upgrader for exact costs") .. "|r"
             end
         end
         if #lines > 0 then
@@ -1188,7 +1188,7 @@ for ri, trackName in ipairs(Data.trackOrder) do
         lbl:SetText("-")
         return lbl
     end
-    local hexColor = td and td.hexColor or "|cffffffff"
+    local hexColor = td and td.hexColor or EllesmereUI.COLOR_CODES.WHITE
     local nameLbl  = MFont(row, 11, nil, 0.85, 0.85, 0.85, 1)
     PP.Point(nameLbl, "TOPLEFT", row, "TOPLEFT", CC_NAME_X + 4, -3)
     PP.Width(nameLbl, CC_NAME_W - 8)
@@ -1418,7 +1418,7 @@ PopulateGear = function()
         if trackW <= 0 then trackW = 1 end
         tlFill:SetWidth(math.max(1, math.floor(capFrac * trackW)))
     end)
-    local acHex = string.format("|cff%02x%02x%02x", G.r * 255, G.g * 255, G.b * 255)
+    local acHex = EllesmereUI.HexColor(G.r, G.g, G.b)
     ilvlStatLbl:SetText(EUI.Lf(
         "Current iLvl: %s%.1f|r     Max Possible: %s%.1f|r",
         acHex, curAvg, acHex, maxAvg))
@@ -1433,7 +1433,7 @@ PopulateGear = function()
     if needsCount > 0 then
         sHdrNeeds:ClearAllPoints()
         PP.Point(sHdrNeeds, "TOPLEFT", cc, "TOPLEFT", 0, -10)
-        local acH = string.format("|cff%02x%02x%02x", G.r * 255, G.g * 255, G.b * 255)
+        local acH = EllesmereUI.HexColor(G.r, G.g, G.b)
         sHdrNeeds:SetText(EUI.Lf("Upgradable Items (%s%d|r)", acH, needsCount))
         sHdrNeeds:Show()
     else
@@ -1530,7 +1530,7 @@ PopulateGear = function()
     PP.Width(crestSection, TILE_ROW_W)
 
     -- Summary text: Total Missing Upgrades + Total Crests Needed
-    local acHex2 = string.format("|cff%02x%02x%02x", G.r * 255, G.g * 255, G.b * 255)
+    local acHex2 = EllesmereUI.HexColor(G.r, G.g, G.b)
     missingLbl:SetText(EUI.Lf("Total Missing Upgrades: %s%d|r", acHex2, totalMissing))
 
     local crestParts = {}
@@ -1541,7 +1541,7 @@ PopulateGear = function()
         local ckey = td and td.crestName or trackName
         local amt  = crestNeeds[ckey] or 0
         if amt > 0 then
-            local hexColor = (td and td.hexColor) or "|cffffffff"
+            local hexColor = (td and td.hexColor) or EllesmereUI.COLOR_CODES.WHITE
             local formattedPart = EUI.Lf("%d " .. trackName, amt)
             crestParts[#crestParts + 1] = hexColor .. formattedPart .. "|r"
         end

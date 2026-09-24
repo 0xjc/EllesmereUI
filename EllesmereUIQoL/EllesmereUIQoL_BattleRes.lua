@@ -292,14 +292,11 @@ end
 --  Alternative to the icon, toggled via displayMode; shares the same frame,
 --  position, visibility, and unlock element.
 -------------------------------------------------------------------------------
-local _cntPfx, _timPfx = "|cffffffff", "|cffffffff"
+local _cntPfx, _timPfx = EllesmereUI.COLOR_CODES.WHITE, EllesmereUI.COLOR_CODES.WHITE
 local _txtCount, _txtTime, _txtZero
 
 local function _colorPrefix(c)
-    local r = math.floor(((c and c.r) or 1) * 255 + 0.5)
-    local g = math.floor(((c and c.g) or 1) * 255 + 0.5)
-    local b = math.floor(((c and c.b) or 1) * 255 + 0.5)
-    return string.format("|cff%02x%02x%02x", r, g, b)
+    return EllesmereUI.HexColor((c and c.r) or 1, (c and c.g) or 1, (c and c.b) or 1)
 end
 
 -- Compose the line only when a part actually changed (once per second while

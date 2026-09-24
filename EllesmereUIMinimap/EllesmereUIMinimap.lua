@@ -2286,7 +2286,7 @@ function ShowFriendsTooltip(anchor)
 
             local zone = e.zone or ""
             if zone ~= "" then
-                row.zone:SetText("|cff888888" .. zone .. "|r")
+                row.zone:SetText(EllesmereUI.COLOR_CODES.DIM .. zone .. "|r")
             else
                 row.zone:SetText("")
             end

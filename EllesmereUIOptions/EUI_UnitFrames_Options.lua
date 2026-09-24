@@ -1414,7 +1414,7 @@ initFrame:SetScript("OnEvent", function(self)
                 local cc = ct and (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[ct]
                 local tgt = "Target"
                 if cc then
-                    tgt = string.format("|cff%02x%02x%02x%s|r", math.floor(cc.r * 255 + 0.5), math.floor(cc.g * 255 + 0.5), math.floor(cc.b * 255 + 0.5), tgt)
+                    tgt = string.format("%s%s|r", EllesmereUI.HexColor(cc.r, cc.g, cc.b), tgt)
                 end
                 -- Mirror the live [eui-tgtsep(...)] tag: per-slot space-padded
                 -- separator, class-colored (preview target = player's class) or
@@ -1424,13 +1424,13 @@ initFrame:SetScript("OnEvent", function(self)
                 sep = " " .. sep .. " "
                 if prefix and s[prefix .. "TargetSepClassColor"] then
                     if cc then
-                        sep = string.format("|cff%02x%02x%02x%s|r", math.floor(cc.r * 255 + 0.5), math.floor(cc.g * 255 + 0.5), math.floor(cc.b * 255 + 0.5), sep)
+                        sep = string.format("%s%s|r", EllesmereUI.HexColor(cc.r, cc.g, cc.b), sep)
                     end
                 else
                     local c = prefix and s[prefix .. "TargetSepColor"]
                     local r, g, b = 1, 1, 1
                     if type(c) == "table" then r, g, b = c.r or 1, c.g or 1, c.b or 1 end
-                    sep = string.format("|cff%02x%02x%02x%s|r", math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5), sep)
+                    sep = string.format("%s%s|r", EllesmereUI.HexColor(r, g, b), sep)
                 end
                 return sep .. tgt
             end
@@ -8596,10 +8596,7 @@ initFrame:SetScript("OnEvent", function(self)
         if selectedUnit == "player" then
             local ar, ag, ab = EllesmereUI.GetAccentColor()
             ar, ag, ab = ar or 12/255, ag or 210/255, ab or 157/255
-            local accentHex = string.format("|cff%02x%02x%02x",
-                math.floor(ar * 255 + 0.5),
-                math.floor(ag * 255 + 0.5),
-                math.floor(ab * 255 + 0.5))
+            local accentHex = EllesmereUI.HexColor(ar, ag, ab)
             local hintText = EllesmereUI.Lf("For player frame, this provides a simple, mini castbar below player frame. To edit the main player cast bar, %sclick here|r", accentHex)
             -- Full-width label (nil right slot expands the left region) renders text
             -- through the panel's own widget path; a transparent button over the row

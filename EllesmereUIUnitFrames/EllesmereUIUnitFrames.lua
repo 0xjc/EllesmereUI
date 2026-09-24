@@ -2781,10 +2781,9 @@ do
         local c = settings[prefix .. "TargetSepColor"]
         local esc
         if type(c) == "table" then
-            esc = sf("|cff%02x%02x%02x", math.floor((c.r or 1) * 255 + 0.5),
-                math.floor((c.g or 1) * 255 + 0.5), math.floor((c.b or 1) * 255 + 0.5))
+            esc = EllesmereUI.HexColor(c.r or 1, c.g or 1, c.b or 1)
         else
-            esc = "|cffffffff"
+            esc = EllesmereUI.COLOR_CODES.WHITE
         end
         local colored = esc .. sep .. "|r"
         return function(u)

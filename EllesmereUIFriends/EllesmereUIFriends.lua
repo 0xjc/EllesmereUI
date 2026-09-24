@@ -750,7 +750,7 @@ local function _getClassColorCode(classFile)
     if code then return code end
     local cc = RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
     if not cc then return nil end
-    code = format("|cff%02x%02x%02x", cc.r * 255, cc.g * 255, cc.b * 255)
+    code = EllesmereUI.HexColor(cc.r, cc.g, cc.b)
     _classColorCodes[classFile] = code
     return code
 end
@@ -955,7 +955,7 @@ local function PostUpdateFriendButton(button)
             if origInfo ~= "" then
                 infoText:SetText(origInfo .. "  |cff888888|  " .. userNote .. "|r")
             else
-                infoText:SetText("|cff888888" .. userNote .. "|r")
+                infoText:SetText(EllesmereUI.COLOR_CODES.DIM .. userNote .. "|r")
             end
         end
     end

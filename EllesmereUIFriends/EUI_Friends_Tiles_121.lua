@@ -406,7 +406,7 @@ local function BuildInfo(accountInfo)
         if text ~= "" then
             text = text .. "  |cff888888|  " .. note .. "|r"
         else
-            text = "|cff888888" .. note .. "|r"
+            text = EllesmereUI.COLOR_CODES.DIM .. note .. "|r"
         end
     end
     return text

@@ -829,9 +829,7 @@ function EllesmereUI._BuildLegendsPage(pageName, parent, yOffset)
     PP.Point(podiumLabel, "TOP", parent, "TOP", 0, y)
     local seasonText = season and ((L(season.name) .. " " .. (data.seasonYear or "")):gsub("%s+$", "")) or (data.seasonYear or "")
     if lead and seasonText ~= "" then
-        seasonText = string.format("|cff%02x%02x%02x%s|r",
-            math.floor(lead[1] * 255 + 0.5), math.floor(lead[2] * 255 + 0.5),
-            math.floor(lead[3] * 255 + 0.5), seasonText)
+        seasonText = string.format("%s%s|r", EllesmereUI.HexColor(lead[1], lead[2], lead[3]), seasonText)
     end
     podiumLabel:SetText(seasonText ~= "" and (L("Seasonal Top Donors") .. "  -  " .. seasonText) or L("Seasonal Top Donors"))
     y = y - 30

@@ -4259,7 +4259,7 @@ local function MakeProfessionBlock(blockCfg, slot, content, barCtx, secondary)
                 ns.Tip_AddLine(" ")
                 local function AddLine(p)
                     if not p or not p.name then return end
-                    ns.Tip_AddDouble(p.name, "|cffFFFFFF" .. p.rank .. "|r / " .. p.maxRank, 1, 1, 1, 1, 1, 1)
+                    ns.Tip_AddDouble(p.name, EllesmereUI.COLOR_CODES.WHITE .. p.rank .. "|r / " .. p.maxRank, 1, 1, 1, 1, 1, 1)
                 end
                 if prof1.idx then AddLine(prof1) end
                 if prof2.idx then AddLine(prof2) end
@@ -5981,8 +5981,7 @@ local function GVTokenColor(state)
 end
 
 local function GVColorize(text, r, g, b)
-    return format("|cff%02x%02x%02x%s|r",
-        floor(r * 255 + 0.5), floor(g * 255 + 0.5), floor(b * 255 + 0.5), text)
+    return format("%s%s|r", EllesmereUI.HexColor(r, g, b), text)
 end
 
 local function GVSortActivities(a, b)

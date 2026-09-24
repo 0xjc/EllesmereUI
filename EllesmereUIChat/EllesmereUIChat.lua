@@ -3679,7 +3679,7 @@ local _urlSubstitution
 local function _GetUrlSubstitution()
     if not _urlSubstitution then
         local eg = EUI.ELLESMERE_GREEN or { r = 0.05, g = 0.82, b = 0.61 }
-        local hex = string.format("|cff%02x%02x%02x", eg.r * 255, eg.g * 255, eg.b * 255)
+        local hex = EllesmereUI.HexColor(eg.r, eg.g, eg.b)
         _urlSubstitution = hex .. "|H" .. addonName .. "url:%1|h[%1]|h|r"
     end
     return _urlSubstitution

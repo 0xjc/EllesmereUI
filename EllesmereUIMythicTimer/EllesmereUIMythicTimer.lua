@@ -648,7 +648,7 @@ local function BuildSplitCompareText(referenceTime, currentTime, deltaOnly, fast
     local cR, cG, cB = GetColor(color, 0.4, 1, 0.4)
     local diffPrefix = diff < 0 and "-" or "+"
     local diffText = diff == 0 and "0:00" or FormatTime(abs(diff))
-    local colorHex = format("|cff%02x%02x%02x", floor(cR * 255), floor(cG * 255), floor(cB * 255))
+    local colorHex = EllesmereUI.HexColor(cR, cG, cB)
 
     if deltaOnly then
         return format("  %s(%s%s)|r", colorHex, diffPrefix, diffText)
@@ -1907,12 +1907,9 @@ local function RenderStandalone()
             local titleText
             if p.showDungeonName == false then
                 -- Show only the key level number, not the dungeon name.
-                titleText = format("|cff%02x%02x%02x+%d|r",
-                    floor(tR * 255), floor(tG * 255), floor(tB * 255), run.level)
+                titleText = format("%s+%d|r", EllesmereUI.HexColor(tR, tG, tB), run.level)
             else
-                titleText = format("|cff%02x%02x%02x+%d  %s|r",
-                    floor(tR * 255), floor(tG * 255), floor(tB * 255),
-                    run.level, run.mapName or "Mythic+")
+                titleText = format("%s+%d  %s|r", EllesmereUI.HexColor(tR, tG, tB), run.level, run.mapName or "Mythic+")
             end
             f._titleFS:SetJustifyH(titleAlign)
             f._titleFS:SetTextColor(1, 1, 1)
@@ -2100,8 +2097,7 @@ local function RenderStandalone()
                 local diff = threshTime - elapsed
                 if diff >= 0 then
                     local cR, cG, cB = GetColor(color, 0.3, 0.8, 1)
-                    return format("|cff%02x%02x%02x%s|r",
-                        floor(cR * 255), floor(cG * 255), floor(cB * 255), FormatTime(diff))
+                    return format("%s%s|r", EllesmereUI.HexColor(cR, cG, cB), FormatTime(diff))
                 end
                 return format("|cff999999%s|r", FormatTime(threshTime))
             end
@@ -2902,8 +2898,7 @@ local function RenderStandalone()
                 local timeStr = ""
                 if p.showObjectiveTimes ~= false and obj.completed and obj.elapsed and obj.elapsed > 0 then
                     local cR, cG, cB = GetColor(p.objectiveCompletedColor, 0.3, 0.8, 0.3)
-                    timeStr = format("|cff%02x%02x%02x%s|r",
-                        floor(cR * 255), floor(cG * 255), floor(cB * 255), FormatTime(obj.elapsed))
+                    timeStr = format("%s%s|r", EllesmereUI.HexColor(cR, cG, cB), FormatTime(obj.elapsed))
                 end
                 local compareMode = p.objectiveCompareMode or COMPARE_NONE
                 local compareSuffix = ""

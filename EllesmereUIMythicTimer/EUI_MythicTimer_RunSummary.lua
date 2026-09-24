@@ -1777,7 +1777,7 @@ function ns.RS_Show(index)
     if i < 1 then i = 1 end
     local rec = ns.RS_GetRuns()[i]
     if not rec then
-        EUI.Print("|cffff6060[EllesmereUI]|r " .. EllesmereUI.L("No runs recorded yet"))
+        EUI.PrintError(EllesmereUI.L("No runs recorded yet"))
         return
     end
     ShowWindow(rec)
@@ -1844,7 +1844,7 @@ SLASH_EUIMPLUS1 = "/ov"
 SLASH_EUIMPLUS2 = "/euimplus"
 SlashCmdList.EUIMPLUS = function(msg)
     if not Enabled() then
-        EUI.Print("|cffff6060[EllesmereUI]|r " .. EllesmereUI.L("Run Summary is disabled in Mythic+ Tools."))
+        EUI.PrintError(EllesmereUI.L("Run Summary is disabled in Mythic+ Tools."))
         return
     end
     local lower = msg and msg:lower() or ""
