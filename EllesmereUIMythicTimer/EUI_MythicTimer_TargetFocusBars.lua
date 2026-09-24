@@ -247,8 +247,7 @@ local function StyleBar(bar)
     bar.iconFrame:SetWidth(showIcon and h or 0.001)
     bar.iconFrame:SetShown(showIcon)
 
-    local texPath = EllesmereUI.ResolveTexturePath
-        and EllesmereUI.ResolveTexturePath(ns.barTextures, cfg.texture or "none", "Interface\\Buttons\\WHITE8x8")
+    local texPath = EllesmereUI.ResolveTexturePath(ns.barTextures, cfg.texture or "none", "Interface\\Buttons\\WHITE8x8")
         or "Interface\\Buttons\\WHITE8x8"
     bar.sb:SetStatusBarTexture(texPath)
     local pp = EllesmereUI.PP
@@ -775,7 +774,7 @@ local function ShowInterruptedFlash(bar, interrupterGUID)
     if not ((issecretvalue and issecretvalue(protected)) or not protected) then return end
     bar._interrupted = true
     bar.flash:Show()
-    bar.name:SetText(EllesmereUI.L and EllesmereUI.L("Interrupted") or "Interrupted")
+    bar.name:SetText(EllesmereUI.L("Interrupted") or "Interrupted")
     bar.target:SetText("")
     bar.target:Hide()
     bar.timer:SetText("")

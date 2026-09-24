@@ -1074,10 +1074,10 @@ end
 --------------------------------------------------------------------------------
 -- flags = nil follows the module's font setting; pass "" for an unbolded run.
 local function SetFS(fs, size, flags)
-    local path    = (EUI.GetFontPath and EUI.GetFontPath("mythicTimer")) or FONT_FALLBACK
+    local path    = (EUI.GetFontPath("mythicTimer")) or FONT_FALLBACK
     local outline = flags
     if outline == nil then
-        outline = (EUI.GetFontOutlineFlag and EUI.GetFontOutlineFlag("mythicTimer")) or ""
+        outline = (EUI.GetFontOutlineFlag("mythicTimer")) or ""
     end
     fs:SetFont(path, size or FONT_SZ, outline)
 end
@@ -1104,7 +1104,7 @@ end
 -- shape Damage Meters already uses on its own rows.
 local function ClassHex(class)
     if class and not IsSecret(class) and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class] then
-        local cc = EUI.GetClassColor and EUI.GetClassColor(class)
+        local cc = EUI.GetClassColor(class)
         if cc then return Hex(cc.r, cc.g, cc.b) end
     end
     return "ffffff"
@@ -1768,7 +1768,7 @@ ShowPicker = function(anchor)
         items[1] = { text = EllesmereUI.L("No runs recorded yet"), isDisabled = function() return true end }
     end
     -- Hung below the picker, at least its width: a dropdown, not a cursor menu.
-    if EUI.ShowContextMenu then EUI.ShowContextMenu(anchor, items, { below = true, minWidth = PICKER_W }) end
+    EUI.ShowContextMenu(anchor, items, { below = true, minWidth = PICKER_W })
 end
 
 -- Opens the n-th most recent run (1 = newest).

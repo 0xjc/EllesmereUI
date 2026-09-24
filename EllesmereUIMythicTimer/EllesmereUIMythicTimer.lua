@@ -30,16 +30,13 @@ ns.barTextureOrder = barTextureOrder
 ns.barTextureNames = barTextureNames
 
 local function AppendSharedMediaBarTextures()
-    if EllesmereUI and EllesmereUI.AppendSharedMediaTextures then
-        EllesmereUI.AppendSharedMediaTextures(barTextureNames, barTextureOrder, nil, barTextures)
-    end
+    EllesmereUI.AppendSharedMediaTextures(barTextureNames, barTextureOrder, nil, barTextures)
 end
 ns.AppendSharedMediaBarTextures = AppendSharedMediaBarTextures
 
 local function ApplyBarTexture(tex, texKey, r, g, b, a)
     if not tex then return end
-    local path = EllesmereUI and EllesmereUI.ResolveTexturePath
-        and EllesmereUI.ResolveTexturePath(barTextures, texKey or "none", nil)
+    local path = EllesmereUI.ResolveTexturePath(barTextures, texKey or "none", nil)
     if path then
         tex:SetTexture(path)
         tex:SetVertexColor(r, g, b, a)
@@ -1317,11 +1314,11 @@ local function SetTimerFS(fs, size, flags)
 end
 local function ApplyShadow(fs)
     if not fs then return end
-    local useShadow = EllesmereUI.GetFontUseShadow and EllesmereUI.GetFontUseShadow("mythicTimer")
+    local useShadow = EllesmereUI.GetFontUseShadow("mythicTimer")
     -- Font is set elsewhere (SetFS) and ApplyShadow runs after it, so capture
     -- and restore the current font around PrimeFontShadow's SetFontObject.
     local _pf, _ps, _pfl = fs:GetFont()
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, useShadow) end
+    EllesmereUI.PrimeFontShadow(fs, useShadow)
     if _pf then fs:SetFont(_pf, _ps, _pfl) end
 end
 
@@ -1503,8 +1500,7 @@ do
             r, g, b = GetColor(p.pullBarColor, 1, 0.55, 0.1)
         end
         local a = p.pullBarAlpha or 0.35
-        local texPath = EllesmereUI.ResolveTexturePath
-            and EllesmereUI.ResolveTexturePath(barTextures, p.enemyBarTexture or "none", nil)
+        local texPath = EllesmereUI.ResolveTexturePath(barTextures, p.enemyBarTexture or "none", nil)
             or "Interface\\Buttons\\WHITE8X8"
 
         if f._pullTex ~= texPath or f._pullR ~= r or f._pullG ~= g or f._pullB ~= b
