@@ -10922,28 +10922,13 @@ initFrame:SetScript("OnEvent", function(self)
                         }
 
                         -- Right-aligned colour swatch on a subnav item.
+                        -- Per-spell settings are outside Spec Overrides, so the swatch opts out of capture.
                         local function MakeColorSwatch(si, getR, getG, getB, onChanged)
-                            local sw = CreateFrame("Button", nil, si)
-                            sw:SetSize(14, 14)
+                            si._noCapture = true
+                            local sw = EllesmereUI.BuildColorSwatch(si, si:GetFrameLevel() + 3,
+                                function() return getR(), getG(), getB(), 1 end,
+                                function(r, g, b) onChanged(r, g, b) end, false, 14)
                             sw:SetPoint("RIGHT", si, "RIGHT", -8, 0)
-                            sw:SetFrameLevel(si:GetFrameLevel() + 3)
-                            local tex = sw:CreateTexture(nil, "ARTWORK")
-                            tex:SetAllPoints(); tex:SetColorTexture(getR(), getG(), getB(), 1)
-                            sw:SetScript("OnClick", function()
-                                local sr, sg, sb = getR(), getG(), getB()
-                                -- Keep the per-spell dropdown open (OnUpdate cpOpen guard).
-                                EllesmereUI:ShowColorPicker({
-                                    r = sr, g = sg, b = sb,
-                                    swatchFunc = function()
-                                        local pk = EllesmereUI._colorPickerPopup
-                                        if not pk then return end
-                                        local r, g, b = pk:GetColorRGB()
-                                        tex:SetColorTexture(r, g, b, 1)
-                                        onChanged(r, g, b)
-                                    end,
-                                    cancelFunc = function() onChanged(sr, sg, sb) end,
-                                }, sw)
-                            end)
                         end
 
                         -- Cooldown State Effect (always available for presets; driven by the live cooldown, independent of the active overlay).
