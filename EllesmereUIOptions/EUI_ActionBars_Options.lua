@@ -21,7 +21,6 @@ local TEXT_ANCHOR_DROPDOWN_ORDER = { "default" }
 for i, a in ipairs(EAB and EAB.TEXT_ANCHOR_ORDER or {}) do TEXT_ANCHOR_DROPDOWN_ORDER[i + 1] = a end
 
 local function GetEABOptOutline() return EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag() or "" end
-local function GetEABOptUseShadow() return EllesmereUI.GetFontUseShadow and EllesmereUI.GetFontUseShadow() or true end
 
 -- The registry offsets/shifts a border renders with when the user has set none
 -- (the Border Options cog's shown Shift defaults; the Width/Height Offset row
@@ -1769,10 +1768,6 @@ initFrame:SetScript("OnEvent", function(self)
         local function SVal(key, default)
             local v = SB()[key]
             return v ~= nil and v or default
-        end
-        -- Apply to single bar
-        local function SApplyAll(applyFn)
-            applyFn(SelectedKey())
         end
         local function SSetColor(key, r, g, b, a, applyFn)
             SB()[key] = { r=r, g=g, b=b, a=a }

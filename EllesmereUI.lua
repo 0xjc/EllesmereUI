@@ -694,20 +694,6 @@ do
         return {}
     end
 
-    -- Fully synced = EVERY profile is a group member. Never keyed off activeProfile
-    -- (resolves per character/spec) so the icon reads the same on every character.
-    function EllesmereUI.IsModuleFullySynced(folder)
-        if not EllesmereUIDB or not EllesmereUIDB.syncedModules or not EllesmereUIDB.profiles then return false end
-        local targets = EllesmereUIDB.syncedModules[folder]
-        if type(targets) ~= "table" then return false end
-        local total = 0
-        for name in pairs(EllesmereUIDB.profiles) do
-            total = total + 1
-            if not targets[name] then return false end
-        end
-        return total > 1
-    end
-
     -- Check if ANY profile is synced for a module (for icon state)
     function EllesmereUI.IsModuleSynced(folder)
         if not EllesmereUIDB or not EllesmereUIDB.syncedModules then return false end
@@ -756,14 +742,6 @@ do
                 end
             end
         end
-    end
-
-    -- Set the sync group for a module and execute an initial push
-    function EllesmereUI.SetModuleSyncTargets(folder, targetProfiles)
-        if not EllesmereUIDB then return end
-        if not EllesmereUIDB.syncedModules then EllesmereUIDB.syncedModules = {} end
-        EllesmereUIDB.syncedModules[folder] = targetProfiles
-        EllesmereUI.SyncModuleToProfiles(folder, targetProfiles)
     end
 
     -- Equalize a module across group members from an explicit source ("seed"). Non-active dests
@@ -4912,14 +4890,6 @@ function EllesmereUI.GetResourceColor(classToken)
     return EllesmereUI._colorCache.resource[classToken]
 end
 
--- Reset colors for a specific class (class color + resource color + power stays)
-function EllesmereUI.ResetClassColors(classToken)
-    local db = EllesmereUI.GetCustomColorsDB()
-    if db.class then db.class[classToken] = nil end
-    if db.resource then db.resource[classToken] = nil end
-    EllesmereUI.InvalidateColorCache()
-end
-
 -- Reset a specific power color
 function EllesmereUI.ResetPowerColor(powerKey)
     local db = EllesmereUI.GetCustomColorsDB()
@@ -8983,17 +8953,6 @@ local function CreateMainFrame()
         return (scrollFrame and tonumber(scrollFrame:GetVerticalScroll())) or 0
     end
 
-    -- Instant scroll (for drag, page switch, etc.) -- also cancels any active animation
-    local function InstantScrollTo(val)
-        isSmoothing = false
-        smoothFrame:Hide()
-        scrollTarget = val
-        local scale = scrollFrame:GetEffectiveScale()
-        val = math.floor(val * scale + 0.5) / scale
-        scrollFrame:SetVerticalScroll(val)
-        UpdateScrollThumb()
-    end
-
     scrollFrame:SetScript("OnMouseWheel", function(self, delta)
         local maxScroll = EllesmereUI.SafeScrollRange(self)
         if maxScroll <= 0 then return end
@@ -10453,25 +10412,6 @@ function EllesmereUI:RegisterModule(folderName, config)
     -- Don't auto-select here; RefreshSidebarStates handles default selection in roster order
 end
 
---- Reset every registered module's settings and the shared EllesmereUIDB.
---- Called by the "Reset ALL EUI Addon Settings" button in Global Settings.
-function EllesmereUI:ResetAllModules()
-    for _, config in pairs(modules) do
-        if config.onReset then
-            config.onReset()
-        end
-    end
-    -- Clear unlock mode anchor relationships
-    if EllesmereUIDB then
-        EllesmereUIDB.unlockAnchors = nil
-        -- Wipe profile system data so the user starts fresh
-        EllesmereUIDB.profiles = nil
-        EllesmereUIDB.profileOrder = nil
-        EllesmereUIDB.specProfiles = nil
-        EllesmereUIDB.activeProfile = nil
-    end
-end
-
 -------------------------------------------------------------------------------
 --  Page / Module Selection
 -------------------------------------------------------------------------------
@@ -11332,7 +11272,6 @@ function EllesmereUI:Toggle()
     end
 end
 function EllesmereUI:IsShown() return mainFrame and mainFrame:IsShown() end
-function EllesmereUI:GetScrollFrame() return scrollFrame end
 -- The main settings window frame. Used e.g. to scope popup click-catchers to the
 -- panel instead of UIParent, so an open popup doesn't block world mouse/mouselook.
 function EllesmereUI:GetMainFrame() return mainFrame end
@@ -11472,19 +11411,6 @@ EllesmereUI._RunConflictCheck = function()
         --   message = optional custom popup message override
         --   moduleCheck = optional function returning true if the specific sub-module is active
         --     (used for per-module conflicts: minimap, friends, chat, etc.)
-        -- Per-addon enable check: each EUI addon owns its own DB global; `key` is the profile
-        -- sub-table name used inside that DB. Minimap, Friends, and QuestTracker no longer have
-        -- a module-level enable toggle (loaded == enabled); their conflict entries rely on IsLoaded alone.
-        local function AddonEnabled(key)
-            local dbMap = {
-                cursor = _G._ECL_AceDB,
-            }
-            local db = dbMap[key]
-            if db and db.profile and db.profile[key] then
-                return db.profile[key].enabled ~= false
-            end
-            return true -- assume enabled if DB not yet available
-        end
         -- Blizzard UI Enhanced has sub-features stored as flags on EllesmereUIDB; conflicts against a specific sub-feature only fire when that feature is actually enabled.
         local function BlizzardSkinSubEnabled(key)
             if not EllesmereUIDB then return true end

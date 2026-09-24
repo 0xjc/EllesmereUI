@@ -1095,15 +1095,6 @@ end
 -------------------------------------------------------------------------------
 --  Public API: query width/height match state from any addon
 -------------------------------------------------------------------------------
--- Live frame size + effective scale for any unlock element by key. Used by the
--- spec-override size companions' match-residue test: frame reads only, must
--- never touch module config resolvers.
-function EllesmereUI._unlockFrameSize(key)
-    local f = GetBarFrame(key)
-    if not f then return nil end
-    return f:GetWidth(), f:GetHeight(), f:GetEffectiveScale()
-end
-
 function EllesmereUI.GetWidthMatchTarget(barKey)
     local db = MatchH.GetWidthMatchDB()
     return db and db[barKey] or nil
@@ -2482,12 +2473,6 @@ do
 
     function EllesmereUI.EligibleFallbackTarget(targetKey)
         return EligibleTarget(targetKey)
-    end
-
-    function EllesmereUI.HasAnchorFallback(childKey)
-        local db = GetAnchorDB()
-        local info = db and db[childKey]
-        return (info and info.fallback) ~= nil
     end
 
     -- Growth-fixed-edge pin for fallback placement: the flush side-snap centers
@@ -5619,13 +5604,6 @@ if EAB then
         end
     end
 
-    -- Called by EllesmereUIActionBars when Blizzard's Edit Mode saves or exits.
-    function EAB:OnEditModeLayoutReapply()
-        InstallAllAnchorGuards()
-        ApplySavedPositions()
-        C_Timer.After(0.3, function() self:ApplyAll() end)
-    end
-
     -- Install anchor guards as early as possible, right after the DB is initialized, so
     -- Blizzard's very first layout pass can't move bars we hold custom positions for.
     local _origOnInit = EAB.OnInitialize
@@ -5983,10 +5961,9 @@ local function CreateGrid(parent)
 end
 
 -------------------------------------------------------------------------------
---  Alignment guide lines + measurement labels (snap guides between bars)
+--  Alignment guide lines (snap guides between bars)
 -------------------------------------------------------------------------------
 local activeGuides = {}
-local measurePool = {}   -- pool of { frame, line, label } for distance markers
 
 local function GetGuide(idx)
     if guidePool[idx] then return guidePool[idx] end
@@ -5994,36 +5971,6 @@ local function GetGuide(idx)
     tex:SetColorTexture(1, 1, 1, 1)
     guidePool[idx] = tex
     return tex
-end
-
-local function GetMeasure(idx)
-    if measurePool[idx] then return measurePool[idx] end
-    -- Each measurement marker: a small frame with a line + label
-    local f = CreateFrame("Frame", nil, unlockFrame)
-    f:SetFrameStrata("FULLSCREEN_DIALOG")
-    f:SetFrameLevel(200)
-    -- Background pill for the label
-    local bg = f:CreateTexture(nil, "BACKGROUND")
-    bg:SetColorTexture(0.85, 0.15, 0.85, 0.85)
-    f._bg = bg
-    -- Distance text
-    local fs = f:CreateFontString(nil, "OVERLAY")
-    fs:SetFont(FONT_PATH, 9, "OUTLINE, SLUG")
-    fs:SetTextColor(1, 1, 1, 1)
-    f._label = fs
-    -- Connector line (magenta)
-    local line = f:CreateTexture(nil, "OVERLAY", nil, 5)
-    line:SetColorTexture(0.85, 0.15, 0.85, 0.7)
-    f._line = line
-    -- Arrow caps (small triangles simulated with tiny textures)
-    local arrowA = f:CreateTexture(nil, "OVERLAY", nil, 6)
-    arrowA:SetColorTexture(0.85, 0.15, 0.85, 0.85)
-    f._arrowA = arrowA
-    local arrowB = f:CreateTexture(nil, "OVERLAY", nil, 6)
-    arrowB:SetColorTexture(0.85, 0.15, 0.85, 0.85)
-    f._arrowB = arrowB
-    measurePool[idx] = f
-    return f
 end
 
 -- Snap highlight: a pulsing white border layered ON TOP of the green one. Each
@@ -6097,7 +6044,6 @@ end
 
 local function HideAllGuides()
     for _, tex in ipairs(guidePool) do tex:Hide() end
-    for _, m in ipairs(measurePool) do m:Hide() end
     wipe(activeGuides)
 end
 
@@ -6107,83 +6053,9 @@ local function HideAllGuidesAndHighlight()
     ClearSnapHighlight()
 end
 
--- Show a vertical measurement marker between two Y positions at a given X
--- yTop > yBot in screen coords (bottom-left origin)
-local function ShowVerticalMeasure(idx, xPos, yBot, yTop, dist)
-    local f = GetMeasure(idx)
-    local gap = yTop - yBot
-    if gap < 2 then f:Hide(); return idx end
-    f:SetSize(1, 1)
-    f:ClearAllPoints()
-    f:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 0, 0)
-    f:SetAllPoints(UIParent)
-    f._line:ClearAllPoints()
-    f._line:SetSize(1, gap)
-    f._line:SetPoint("BOTTOM", UIParent, "BOTTOMLEFT", xPos, yBot)
-    f._line:Show()
-    f._arrowA:ClearAllPoints()
-    f._arrowA:SetSize(5, 1)
-    f._arrowA:SetPoint("BOTTOM", UIParent, "BOTTOMLEFT", xPos, yBot)
-    f._arrowA:Show()
-    f._arrowB:ClearAllPoints()
-    f._arrowB:SetSize(5, 1)
-    f._arrowB:SetPoint("BOTTOM", UIParent, "BOTTOMLEFT", xPos, yTop)
-    f._arrowB:Show()
-    local text = floor(dist + 0.5) .. " px"
-    f._label:SetText(EllesmereUI.L(text))
-    local tw = f._label:GetStringWidth() + 8
-    local th = f._label:GetStringHeight() + 4
-    f._bg:ClearAllPoints()
-    f._bg:SetSize(tw, th)
-    local midY = (yBot + yTop) / 2
-    f._bg:SetPoint("LEFT", UIParent, "BOTTOMLEFT", xPos + 4, midY)
-    f._label:ClearAllPoints()
-    f._label:SetPoint("CENTER", f._bg, "CENTER", 0, 0)
-    f._bg:Show()
-    f._label:Show()
-    f:Show()
-    return idx
-end
-
--- Show a horizontal measurement marker between two X positions at a given Y
-local function ShowHorizontalMeasure(idx, yPos, xLeft, xRight, dist)
-    local f = GetMeasure(idx)
-    local gap = xRight - xLeft
-    if gap < 2 then f:Hide(); return idx end
-    f:SetSize(1, 1)
-    f:ClearAllPoints()
-    f:SetAllPoints(UIParent)
-    f._line:ClearAllPoints()
-    f._line:SetSize(gap, 1)
-    f._line:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", xLeft, yPos)
-    f._line:Show()
-    f._arrowA:ClearAllPoints()
-    f._arrowA:SetSize(1, 5)
-    f._arrowA:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", xLeft, yPos - 2)
-    f._arrowA:Show()
-    f._arrowB:ClearAllPoints()
-    f._arrowB:SetSize(1, 5)
-    f._arrowB:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", xRight, yPos - 2)
-    f._arrowB:Show()
-    local text = floor(dist + 0.5) .. " px"
-    f._label:SetText(EllesmereUI.L(text))
-    local tw = f._label:GetStringWidth() + 8
-    local th = f._label:GetStringHeight() + 4
-    f._bg:ClearAllPoints()
-    f._bg:SetSize(tw, th)
-    local midX = (xLeft + xRight) / 2
-    f._bg:SetPoint("BOTTOM", UIParent, "BOTTOMLEFT", midX, yPos + 4)
-    f._label:ClearAllPoints()
-    f._label:SetPoint("CENTER", f._bg, "CENTER", 0, 0)
-    f._bg:Show()
-    f._label:Show()
-    f:Show()
-    return idx
-end
-
 -------------------------------------------------------------------------------
---  ShowAlignmentGuides: draws full-screen guide lines at snap positions and
---  measurement markers for equal-spacing snaps. Called from the drag OnUpdate; snapInfo is populated by SnapPosition.
+--  ShowAlignmentGuides: draws full-screen guide lines at snap positions.
+--  Called from the drag OnUpdate; snapInfo is populated by SnapPosition.
 -------------------------------------------------------------------------------
 local lastSnapInfo = {}  -- written by SnapPosition, read by ShowAlignmentGuides
 -- Expose whether each axis has an active edge snap so OnUpdate can skip
@@ -11514,11 +11386,6 @@ local BANNER_PX_W = 1144
 local BANNER_PX_H = 120
 
 local hudFrame
-
--- Stable visible-height anchor for other addons that stack controls below the banner.
-function EllesmereUI:GetUnlockModeTopBarAnchor()
-    return hudFrame and hudFrame._hoverZone
-end
 
 local function CreateHUD(parent)
     if hudFrame then return hudFrame end

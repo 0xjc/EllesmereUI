@@ -3670,7 +3670,6 @@ end
     -- Anchored to the border TEXTURES when they exist, so it tracks whatever
     -- atlas size the style uses instead of guessing. Anchoring OUR texture to
     -- THEIRS is still a write on ours only -- the widget tree is untouched.
-    local COVER_PAD_X = 9   -- fallback horizontal reach: template border offset + 1px
     -- Ceiling on the vertical overhang the cover will absorb. Blizzard's border
     -- run is a couple of px taller than the bar; a decorative END CAP atlas can
     -- be far taller, and following that is what made the bar giant.
@@ -3741,47 +3740,6 @@ end
         if pad < 0 then pad = 0 end
         if pad > MAX_VPAD then pad = MAX_VPAD end
         return pad
-    end
-
-    -- EVERY point comes from the BAR. Nothing is anchored to Blizzard's border
-    -- textures any more.
-    --
-    -- Anchoring to them was an attempt to track arbitrary atlas sizes, and it
-    -- kept producing garbage. On the PlayerChoice style BorderLeft/BorderRight
-    -- EXIST but are EMPTY -- no atlas, degenerate rect -- so they are neither
-    -- nil (which would take the fallback) nor meaningful. Anchoring LEFT/RIGHT
-    -- to them stretched one cover across the entire screen. They are also
-    -- invisible to /framestack, which only lists hit-testable regions, so they
-    -- read as "absent" while still being present.
-    --
-    -- A fixed pad is deterministic and cannot blow up: the template offsets the
-    -- border art 8px past each end of the bar, so 9 covers it with a pixel to
-    -- spare regardless of what the atlas does.
-    -- The occluder reaches the FULL measured overhang -- uncapped by MAX_VPAD,
-    -- which governs the VISIBLE bar's height only. Sanity-limited so a
-    -- decorative end-cap atlas cannot spread a huge dark rectangle.
-    local MAX_OCCLUDE = 14
-    local function AnchorOccluder(c, bar)
-        local occ = c.euiOcc
-        if not occ then return end
-        local okB, barH = pcall(bar.GetHeight, bar)
-        local grow = 0
-        if okB and type(barH) == "number" and barH > 0 then
-            local tallest = barH
-            for _, k in ipairs({ "BorderCenter", "BGCenter", "BorderLeft", "BorderRight" }) do
-                local okT, t = pcall(HUDGet, bar, k)
-                if okT and t then
-                    local okH, h = pcall(t.GetHeight, t)
-                    if okH and type(h) == "number" and h > tallest then tallest = h end
-                end
-            end
-            grow = (tallest - barH) / 2
-            if grow < 0 then grow = 0 end
-            if grow > MAX_OCCLUDE then grow = MAX_OCCLUDE end
-        end
-        occ:ClearAllPoints()
-        occ:SetPoint("TOPLEFT", bar, "TOPLEFT", -COVER_PAD_X, grow)
-        occ:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", COVER_PAD_X, -grow)
     end
 
     -- Minimum on-screen cover HEIGHT (real pixels) for PLATE-HOSTED bars, the cog

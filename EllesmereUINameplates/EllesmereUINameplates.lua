@@ -1328,9 +1328,6 @@ local function GetDebuffTextColor()
     return c.r, c.g, c.b, 1
 end
 ns.GetDebuffTextColor = GetDebuffTextColor
-local function GetPandemicGlow()
-    return (p and p.pandemicGlow) or defaults.pandemicGlow
-end
 
 -- Pandemic glow style definitions.
 -- 1 = Pixel Glow (procedural ants), 2 = Action Button Glow (animated ants texture),
@@ -1364,10 +1361,6 @@ local function GetPandemicGlowStyle()
     return 1
 end
 ns.GetPandemicGlowStyle = GetPandemicGlowStyle
-local function GetPandemicGlowColor()
-    local c = (p and p.pandemicGlowColor) or defaults.pandemicGlowColor
-    return c.r, c.g, c.b
-end
 local function GetPandemicGlowLines()
     return (p and p.pandemicGlowLines) or defaults.pandemicGlowLines
 end
@@ -1380,14 +1373,6 @@ local function GetPandemicGlowSpeed()
     return (p and p.pandemicGlowSpeed) or defaults.pandemicGlowSpeed
 end
 ns.GetPandemicGlowSpeed = GetPandemicGlowSpeed
--- On ns, not file-scope locals (Lua 5.1 200-local cap); both still close over the p/defaults upvalues.
-function ns.GetPandemicGlowBackground()
-    return p and p.pandemicGlowBackground == true
-end
-function ns.GetPandemicGlowBackgroundColor()
-    local c = (p and p.pandemicGlowBackgroundColor) or defaults.pandemicGlowBackgroundColor
-    return c.r or 0, c.g or 0, c.b or 0
-end
 
 -- Offensive dispel capability. This asks what the PLAYER knows, never what an
 -- aura is, so it keeps working in restricted content, where a tainted addon's
@@ -3947,9 +3932,6 @@ do
     end)
 end
 
-local function InitDB()
-    -- No-op stub (NewDB + DeepMergeDefaults handles defaults); kept so stray call sites don't error.
-end
 function ns.GetActiveKickSpell()
     return EllesmereUI and EllesmereUI.GetActiveKickSpell and EllesmereUI.GetActiveKickSpell()
 end
@@ -4018,13 +4000,6 @@ function ns.RefreshCastBorderColor()
         if plate.ApplyCastBorderColor then plate:ApplyCastBorderColor() end
     end
     if ns.GetWrapBorderCastbar() then ns.ApplyBorderWrapToAll() end
-end
-function ns.RefreshNameplateYOffset()
-    local yOff = GetNameplateYOffset()
-    for _, plate in pairs(ns.plates) do
-        plate.health:ClearAllPoints()
-        plate.health:SetPoint("CENTER", plate, "CENTER", 0, yOff)
-    end
 end
 
 function ns.RefreshStackingBounds()
@@ -6091,13 +6066,6 @@ local hookedSoftTargetIcons = {}
 local npOffscreenParent = CreateFrame("Frame")
 npOffscreenParent:Hide()
 local storedParents = {}
-local function HideBlizzardElement(element)
-    if element then
-        element:SetAlpha(0)
-        element:Hide()
-        if element.SetScale then element:SetScale(0.001) end
-    end
-end
 local function MoveToOffscreen(element, unit)
     if not element then return end
     -- PERF: skip SetParent if already offscreen (saves ~14 calls per plate respawn)

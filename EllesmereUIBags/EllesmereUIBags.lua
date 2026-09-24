@@ -296,11 +296,6 @@ local FOOTER_H            = 28
 local selectedCategoryIndex = 0  -- 0 = All Items, -1 = OneBag, -2 = MultiBag, >0 = category index
 local selectedGroupName = nil    -- set when a group header is clicked (overrides selectedCategoryIndex)
 
-function EUI_Bags:SetSelectedView(idx)
-    selectedCategoryIndex = idx
-    selectedGroupName = nil
-end
-
 -- Invalidate categories after the equipment-set list changes (event or the
 -- split-mode toggle). Re-resolves the selection by stable key: the rebuild
 -- shifts indices, and "EquipSet:"..setID survives renames; a vanished
@@ -947,25 +942,6 @@ end
 local _slotCategories = {}     -- bag*1000+slot -> categoryIndex from last full refresh
 local _lastCatCounts = {}      -- category counts from last full refresh
 local _lastTotalCount = 0      -- total item count from last full refresh
-
--------------------------------------------------------------------------------
---  HSV helper (upgrade indicator)
--------------------------------------------------------------------------------
-local function HSVToRGB(h, s, v)
-    local i = math.floor(h * 6)
-    local f = h * 6 - i
-    local p = v * (1 - s)
-    local q = v * (1 - f * s)
-    local t = v * (1 - (1 - f) * s)
-    i = i % 6
-    if     i == 0 then return v, t, p
-    elseif i == 1 then return q, v, p
-    elseif i == 2 then return p, v, t
-    elseif i == 3 then return p, q, v
-    elseif i == 4 then return t, p, v
-    else                return v, p, q
-    end
-end
 
 -------------------------------------------------------------------------------
 --  UI Components -- Header
@@ -1662,19 +1638,6 @@ local function FormatNumberWithCommas(num)
     return result
 end
 
-local function FormatGoldWithPadding(gold)
-    local goldAmount = math.floor(gold / 10000)
-    local silverAmount = math.floor((gold % 10000) / 100)
-    local copperAmount = gold % 100
-    local result = ""
-    if goldAmount > 0 then
-        result = FormatNumberWithCommas(goldAmount) .. "|TInterface\\MoneyFrame\\UI-GoldIcon:17|t "
-    end
-    result = result .. string.format("%02d", silverAmount) .. "|TInterface\\MoneyFrame\\UI-SilverIcon:17|t "
-    result = result .. string.format("%02d", copperAmount) .. "|TInterface\\MoneyFrame\\UI-CopperIcon:17|t"
-    return result
-end
-
 local function FormatGoldOnly(gold)
     local goldAmount = math.floor(gold / 10000)
     return FormatNumberWithCommas(goldAmount) .. "|TInterface\\MoneyFrame\\UI-GoldIcon:14|t"
@@ -1701,12 +1664,6 @@ end
 local function InitializeCharacterGold()
     if not EllesmereUIDB then EllesmereUIDB = {} end
     if not EllesmereUIDB.characterGold then EllesmereUIDB.characterGold = {} end
-end
-
-local function ResetCurrentCharacterGold()
-    if not EllesmereUIDB or not EllesmereUIDB.characterGold then return end
-    local charID = GetCharacterIdentifier()
-    EllesmereUIDB.characterGold[charID] = nil
 end
 
 local function CaptureCurrentCharacterGold()

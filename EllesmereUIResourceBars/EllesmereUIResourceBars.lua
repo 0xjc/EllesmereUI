@@ -104,9 +104,6 @@ end
 local function GetRBOutline()
     return (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("resourceBars")) or ""
 end
-local function GetRBUseShadow()
-    return not EllesmereUI or not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow("resourceBars")
-end
 local function SetRBFont(fs, font, size)
     if not (fs and fs.SetFont) then return end
     local f = GetRBOutline()

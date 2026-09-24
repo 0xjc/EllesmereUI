@@ -1925,30 +1925,6 @@ function ns.CC_RemoveGlobalBinding(index)
     ns.CC_ApplyBindings()
 end
 
-function ns.CC_SetGlobalBindingKey(bindingType, newKey)
-    local cc = GetClickCastDB()
-    if not cc then return end
-    for _, b in ipairs(cc.globals) do
-        if b.type == bindingType then
-            b.key = newKey
-            break
-        end
-    end
-    ns.CC_ApplyBindings()
-end
-
-function ns.CC_ToggleBinding(binding)
-    binding.enabled = not binding.enabled
-    ns.CC_ApplyBindings()
-end
-
-function ns.CC_FindBinding(keyStr)
-    for _, b in ipairs(GetActiveBindings()) do
-        if b.key == keyStr then return b end
-    end
-    return nil
-end
-
 -- Expose getters
 ns.CC_GetActiveBindings  = GetActiveBindings
 ns.CC_GetSpecBindings    = GetSpecBindings

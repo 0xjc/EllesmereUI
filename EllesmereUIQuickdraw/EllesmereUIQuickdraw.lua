@@ -638,14 +638,6 @@ local APPEARANCE_KEYS = {
 }
 ns.APPEARANCE_KEYS = APPEARANCE_KEYS
 
--- The overrides table for a palette, created on demand. Only the options page
--- writes here; everything else reads through the view below.
-function ns.PaletteAppearance(palette, create)
-    if not palette then return nil end
-    if not palette.appearance and create then palette.appearance = {} end
-    return palette.appearance
-end
-
 -- One READ-ONLY view per palette, with that palette's overrides in front of
 -- the profile. Handing this back as `p` is what let the whole renderer stay
 -- written as `p.layout`: the fallback lives in one metatable instead of at
@@ -3606,16 +3598,10 @@ end
 -- entry drawn farthest from the centre is half the palette out and not the
 -- whole of it. Measured over the whole count the strip was fitted to about
 -- twice its own drawn length -- the preview shrank its icons to half what the
--- panel had room for. The hover reach next door counts the same way.
+-- panel had room for.
 function ns.FanReach(count, iconSize, gap, decay)
     return FanOffset(count * 0.5, iconSize, gap, decay, FAN_EDIT_MIN_SCALE)
            + iconSize + iconSize * (SelectedZoom() - 1) * 0.5
-end
-
--- The same measurement for a hover fan, which is evenly spaced at full pitch
--- because its zoomed entry is drawn at 1.0 and must not overlap its neighbours.
-function ns.FanHoverReach(count, iconSize, gap)
-    return count * 0.5 * (iconSize + gap) + iconSize * 0.5 * SelectedZoom()
 end
 
 -- Position every widget from self.fanVisual, the CONTINUOUS centre. Called

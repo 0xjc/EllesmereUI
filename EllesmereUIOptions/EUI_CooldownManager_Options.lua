@@ -97,45 +97,6 @@ initFrame:SetScript("OnEvent", function(self)
         if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, GetCDMOptUseShadow()) end
         fs:SetFont(font, size, GetCDMOptOutline())
     end
-    local function MakeTextInput(parent, label, yOffset, getValue, setValue)
-        local ROW_H = 50
-        local frame = CreateFrame("Frame", nil, parent)
-        frame:SetSize(parent:GetWidth(), ROW_H)
-        frame:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, yOffset)
-
-        local lbl = frame:CreateFontString(nil, "OVERLAY")
-        lbl:SetFont(FONT_PATH, 12, GetCDMOptOutline())
-        lbl:SetTextColor(0.7, 0.7, 0.7, 1)
-        lbl:SetPoint("TOPLEFT", 20, -6)
-        lbl:SetText(label)
-
-        local box = CreateFrame("EditBox", nil, frame)
-        box:SetSize(parent:GetWidth() - 44, 22)
-        box:SetPoint("TOPLEFT", 22, -22)
-        box:SetFont(FONT_PATH, 12, GetCDMOptOutline())
-        box:SetTextColor(1, 1, 1, 1)
-        box:SetAutoFocus(false)
-        box:SetMaxLetters(200)
-
-        local bg = box:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints()
-        bg:SetColorTexture(0.12, 0.12, 0.12, 0.8)
-
-        box:SetText(getValue() or "")
-        box:SetScript("OnEnterPressed", function(self)
-            setValue(self:GetText())
-            self:ClearFocus()
-        end)
-        box:SetScript("OnEscapePressed", function(self)
-            self:SetText(getValue() or "")
-            self:ClearFocus()
-        end)
-        box:SetScript("OnEditFocusLost", function(self)
-            setValue(self:GetText())
-        end)
-
-        return frame, ROW_H
-    end
 
     ---------------------------------------------------------------------------
     --  Buff spell list from viewer pool (Bar Glows page glow assignments)
@@ -596,17 +557,6 @@ initFrame:SetScript("OnEvent", function(self)
         EllesmereUI.RegisterWidgetRefresh(function()
             if _sharedPgPopupOwner ~= btn then btn:SetAlpha(isAntsOffFn() and 0.15 or 0.4) end
         end)
-    end
-
-    -- Get the icon texture from a real Blizzard action button
-    local function GetActionButtonIcon(barIdx, slot)
-        local prefix = BAR_BUTTON_PREFIXES[barIdx]
-        if not prefix then return nil end
-        local btn = _G[prefix .. slot]
-        if not btn then return nil end
-        local icon = btn.icon or btn.Icon
-        if icon and icon.GetTexture then return icon:GetTexture() end
-        return nil
     end
 
     -- Check if a specific bar target uses a custom shape (not "none"/"cropped").
@@ -16669,26 +16619,12 @@ initFrame:SetScript("OnEvent", function(self)
         -------------------------------------------------------------------
         --  BAR LAYOUT
         -------------------------------------------------------------------
-        -- Sync helpers, three exclusion levels. FocusKick is excluded from every sync iterator
-        -- (nameplate-anchored identity, never receives global syncs). General: all bars except ghost/focuskick
+        -- Sync helper: all bars except ghost/focuskick. FocusKick is a nameplate-anchored
+        -- identity and never receives global syncs.
         local function ForEachSyncBar(fn)
             local pp = DB(); if not pp or not pp.cdmBars then return end
             for _, b in ipairs(pp.cdmBars.bars) do
                 if not b.isGhostBar and b.key ~= "focuskick" then fn(b) end
-            end
-        end
-        -- Pandemic: exclude ghost + custom_buff + focuskick
-        local function ForEachPandemicSyncBar(fn)
-            local pp = DB(); if not pp or not pp.cdmBars then return end
-            for _, b in ipairs(pp.cdmBars.bars) do
-                if not b.isGhostBar and b.barType ~= "custom_buff" and b.key ~= "focuskick" then fn(b) end
-            end
-        end
-        -- Extras: exclude ghost + buffs + custom_buff + focuskick
-        local function ForEachExtrasSyncBar(fn)
-            local pp = DB(); if not pp or not pp.cdmBars then return end
-            for _, b in ipairs(pp.cdmBars.bars) do
-                if not b.isGhostBar and b.barType ~= "buffs" and b.key ~= "buffs" and b.barType ~= "custom_buff" and b.key ~= "focuskick" then fn(b) end
             end
         end
 

@@ -1267,12 +1267,6 @@ function ECHAT.EngineBackfillLine(cf, text, r, g, b, id)
     return true
 end
 
-function ECHAT.EngineNumMessages(cf)
-    local win = WINS[cf]
-    if not win then return 0 end
-    return win.smf:GetNumMessages()
-end
-
 -- Full-hide passthrough support: our display simply hides (a hidden frame
 -- cannot receive input and its line pool arms nothing); the scrollbar track
 -- hides with it and recomputes on reveal.

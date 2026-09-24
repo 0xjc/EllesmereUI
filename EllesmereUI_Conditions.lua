@@ -155,11 +155,6 @@ function EllesmereUI.Conditions_ActiveGroup()
     return nil
 end
 
-function EllesmereUI.Conditions_ActiveGid()
-    local g = EllesmereUI.Conditions_ActiveGroup()
-    return g and g.id or nil
-end
-
 -------------------------------------------------------------------------------
 --  Flip machinery: flag-and-recompute, never replay. The override system's
 --  transition handler (SpecOverrides_CondTransition) owns the actual

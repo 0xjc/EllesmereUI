@@ -27,13 +27,6 @@ local function IsSecret(value)
     return issecretvalue and issecretvalue(value) or false
 end
 
--- Secret values throw on any comparison (==, <, ...) once execution is
--- tainted, so route a payload field through this before comparing it.
-local function PlainValue(value)
-    if IsSecret(value) then return nil end
-    return value
-end
-
 local inCombat = false
 local playerClassToken = select(2, UnitClass("player")) -- class never changes: resolved once
 

@@ -588,8 +588,6 @@ function ns.CreateFramePool(frameType, parent, template)
         end
     end
 
-    function pool:GetActive() return self._active end
-
     return pool
 end
 
@@ -1841,16 +1839,6 @@ local function MakeBarCtx(id)
         local c = ctx.cfg
         if c and c.thickness then return c.thickness end
         return 30
-    end
-    function ctx.GetLengthPx()
-        local rec = live[id]
-        if rec and rec.bar then
-            if ctx.IsVertical() then return rec.bar:GetHeight() end
-            return rec.bar:GetWidth()
-        end
-        local c = ctx.cfg
-        if c and c.length then return c.length end
-        return 400
     end
     function ctx.RequestLayout()
         ns.RequestLayout(id)

@@ -298,11 +298,8 @@ local function ShowFirstInstallPopup()
     uncheckAllBtn:SetScript("OnEnter", function() uncheckAllLbl:SetTextColor(1, 1, 1, 0.80) end)
     uncheckAllBtn:SetScript("OnLeave", function() uncheckAllLbl:SetTextColor(1, 1, 1, 0.45) end)
 
-    -- Track all checkbox rows for check-all / uncheck-all + change detection
+    -- Track all checkbox rows for check-all / uncheck-all
     local allRows = {}
-
-    -- Track initial states so we can tell if user changed anything
-    local initialState = {}
 
     -- Build the three columns
     for colIdx, group in ipairs(GROUPS) do
@@ -363,7 +360,6 @@ local function ShowFirstInstallPopup()
             else
                 checked = false
             end
-            initialState[entry.label] = checked
 
             row._entry = entry
             row._checked = checked
@@ -437,15 +433,6 @@ local function ShowFirstInstallPopup()
         doneLbl:SetTextColor(EG.r, EG.g, EG.b, 0.9)
         doneBrd:SetColor(EG.r, EG.g, EG.b, 0.9)
     end)
-
-    local function HasChanges()
-        for _, row in ipairs(allRows) do
-            if not row._informational and row._checked ~= initialState[row._entry.label] then
-                return true
-            end
-        end
-        return false
-    end
 
     local function RefreshButtonLabel()
         -- Picking addons always ends in a reload so the enable/disable choices

@@ -1084,10 +1084,6 @@ function ns.TBBSetBarGroup(cfg, gid)
     cfg.grouped = (gid ~= 0)
 end
 
-function ns.TBBBarGrouped(cfg)
-    return ns.TBBBarGroupID(cfg) ~= 0
-end
-
 -- Sorted list of group ids currently used by at least one bar.
 function ns.TBBGroupIDsInUse()
     local t = ns.GetTrackedBuffBars()
@@ -2088,12 +2084,6 @@ function ns.PropagateTBBGroupSize(srcIdx, dim, value)
         end
     end
     _tbbGroupSizing = false
-end
-
-function ns.HasBuffBars()
-    if not ECME or not ECME.db then return false end
-    local tbb = ns.GetTrackedBuffBars()
-    return tbb and tbb.bars and #tbb.bars > 0
 end
 
 function ns.IsTBBRebuildPending() return _tbbRebuildPending end
@@ -3930,29 +3920,6 @@ function ns.QueueTBBAutoAdd()
     end)
 end
 
---- Frame-based check: is a spellID present in Essential or Utility viewers? Same pattern as IsSpellInBuffBarViewer but for CD/Utility bars.
-function ns.IsSpellInCDUtilViewer(spellID)
-    if not spellID or spellID <= 0 then return false end
-    local gci = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo
-    if not gci then return false end
-    local viewers = { "EssentialCooldownViewer", "UtilityCooldownViewer" }
-    for _, vName in ipairs(viewers) do
-        local viewer = _G[vName]
-        if viewer and viewer.itemFramePool then
-            for frame in viewer.itemFramePool:EnumerateActive() do
-                local cdID = frame.cooldownID
-                if cdID then
-                    local info = gci(cdID)
-                    if info and MatchesSID(info, spellID) then
-                        return true
-                    end
-                end
-            end
-        end
-    end
-    return false
-end
-
 -------------------------------------------------------------------------------
 --  Stacks Helper (reads Blizzard child Applications frame)
 -------------------------------------------------------------------------------
@@ -4187,12 +4154,6 @@ local function MirrorEngineTimer(bar, cfg)
         bar._tbbAlphaGated = nil
     end
     return wrote
-end
-
---- Does a TBB config have a matching frame in BuffBarCooldownViewer? Uses FindChild
---- (frame-based MatchFrameToConfig) rather than spell-ID cache lookups, so it is robust against ID mismatches.
-local function IsTrackedInCDM(cfg)
-    return FindChild(cfg) ~= nil
 end
 
 -------------------------------------------------------------------------------

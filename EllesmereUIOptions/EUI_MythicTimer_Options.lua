@@ -256,23 +256,6 @@ initFrame:SetScript("OnEvent", function(self)
             }
         end
 
-        local function _MakeColorSwatch(colorKey, defR, defG, defB, afterSet)
-            return {
-                { tooltip = "Color",
-                  hasAlpha = false,
-                  getValue = function()
-                      local c = Cfg(colorKey)
-                      if c then return c.r or defR, c.g or defG, c.b or defB end
-                      return defR, defG, defB
-                  end,
-                  setValue = function(r, g, b)
-                      Set(colorKey, { r = r, g = g, b = b })
-                      if afterSet then afterSet(r, g, b) end
-                      Refresh()
-                  end },
-            }
-        end
-
         local function _AttachPopupButton(rgn, icon, popupTitle, rows, isDisabled)
             local PP = EllesmereUI.PP
             local _, popupShow = EllesmereUI.BuildCogPopup({ title = popupTitle, rows = rows })

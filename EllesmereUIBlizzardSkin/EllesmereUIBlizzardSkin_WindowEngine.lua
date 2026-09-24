@@ -384,20 +384,6 @@ function WSkin.AtlasBorder(frame)
     tex:SetAllPoints(ov)
 end
 
--- Content shade: the 25% black wash the reskins lay behind their content areas
--- so text zones read darker than the shell art.
-function WSkin.ContentShade(frame, p1, x1, y1, p2, x2, y2, alpha)
-    if not frame or frame:IsForbidden() then return end
-    local d = GetFFD(frame)
-    if d.rightShade then return d.rightShade end
-    local shade = frame:CreateTexture(nil, "BACKGROUND", nil, -6)
-    shade:SetColorTexture(0, 0, 0, alpha or 0.25)
-    shade:SetPoint(p1 or "TOPLEFT", frame, p1 or "TOPLEFT", x1 or 0, y1 or 0)
-    shade:SetPoint(p2 or "BOTTOMRIGHT", frame, p2 or "BOTTOMRIGHT", x2 or 0, y2 or 0)
-    d.rightShade = shade
-    return shade
-end
-
 -------------------------------------------------------------------------------
 --  Primitive skinners. All idempotent (guarded via FFD), all visual-only.
 -------------------------------------------------------------------------------

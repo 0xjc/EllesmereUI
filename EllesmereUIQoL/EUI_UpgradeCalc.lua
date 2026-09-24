@@ -341,16 +341,6 @@ function Calc:IsVoidforged(link)
     return r and r.isVoidforged or false
 end
 
--- Returns the ilvl gain from the next upgrade step, or nil if already at max.
--- (Reserved for future use; not currently called by PopulateGear.)
-function Calc:GetNextUpgradeGain(item)
-    local track, rank, maxRank = self:GetItemTrackAndRank(item.link)
-    if not track or not rank then return nil end
-    local td = Data.tracks[track]
-    if not td or rank >= TrackMaxRank(td, maxRank) then return nil end
-    return (td.ranks[rank + 1] or 0) - (td.ranks[rank] or 0)
-end
-
 -- Returns a table mapping crestName -> { quantity, cap, earned } for each track.
 function Calc:GetPlayerCrests()
     local owned = {}
@@ -586,7 +576,7 @@ local function MFont(p, s, _, r, g, b, a)
 end
 
 local G    = EUI.ELLESMERE_GREEN
-local ROW_H, HDR_H, FRAME_W, FRAME_H = 20, 20, 860, 730
+local ROW_H, FRAME_W, FRAME_H = 20, 860, 730
 
 -- Tile layout constants
 local TILE_W    = 183
@@ -734,20 +724,6 @@ local tabY = -36
 -- Top divider removed for cleaner look
 
 -- Row helpers
-local function MakeTableHeader(parent, cols, yOffset)
-    local hdrBg = SolidTex(parent, "BACKGROUND", 0, 0, 0, 0.35)
-    PP.Point(hdrBg, "TOPLEFT",  parent, "TOPLEFT",  0, yOffset)
-    PP.Point(hdrBg, "TOPRIGHT", parent, "TOPRIGHT", 0, yOffset)
-    PP.Height(hdrBg, HDR_H)
-    for _, col in ipairs(cols) do
-        local lbl = MFont(parent, 11, "OUTLINE", G.r, G.g, G.b, 1)
-        PP.Point(lbl, "TOPLEFT", parent, "TOPLEFT", col.x + 4, yOffset - 2)
-        PP.Width(lbl, col.w)
-        lbl:SetJustifyH(col.align)
-        lbl:SetText(EUI.L(col.label))
-    end
-end
-
 local function MakeRow(parent, cols, yOffset, isAlt)
     local row = {}
     if isAlt then

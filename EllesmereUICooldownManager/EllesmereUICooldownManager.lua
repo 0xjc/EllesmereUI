@@ -914,18 +914,6 @@ function ns.GetBarSpellData(barKey)
     return bs
 end
 
--- Variant that accepts an explicit specKey (for validation, migration, etc.)
-function ns.GetBarSpellDataForSpec(barKey, specKey)
-    if not specKey or specKey == "0" then return nil end
-    local sp = SpellStore.GetSpecProfiles()
-    local prof = sp[specKey]
-    if not prof then return nil end
-    if not prof.barSpells then return nil end
-    local bs = prof.barSpells[barKey]
-    if not bs then return nil end
-    return bs
-end
-
 -------------------------------------------------------------------------------
 --  Tiered per-spell settings stores
 --
@@ -2064,85 +2052,8 @@ ns.CDM_BAR_ROOTS = {
 }
 
 -------------------------------------------------------------------------------
---  Action Button Lookup (supports Blizzard and popular bar addons)
--------------------------------------------------------------------------------
-local blizzBarNames = {
-    [1] = "ActionButton",
-    [2] = "MultiBarBottomLeftButton",
-    [3] = "MultiBarBottomRightButton",
-    [4] = "MultiBarRightButton",
-    [5] = "MultiBarLeftButton",
-    [6] = "MultiBar5Button",
-    [7] = "MultiBar6Button",
-    [8] = "MultiBar7Button",
-}
-
--- EAB slot offsets match BAR_SLOT_OFFSETS in EllesmereUIActionBars.lua
-local eabSlotOffsets = { 0, 60, 48, 24, 36, 144, 156, 168 }
-
-local actionButtonCache = {}
-
-local function GetActionButton(bar, i)
-    bar = bar or 1
-    local cacheKey = bar * 100 + i
-    if actionButtonCache[cacheKey] then return actionButtonCache[cacheKey] end
-    -- EABButton first (EllesmereUIActionBars creates these when Blizzard buttons are unavailable, e.g. another addon hid ActionButton1-12), then Blizzard.
-    local eabSlot = (eabSlotOffsets[bar] or 0) + i
-    local btn = _G["EABButton" .. eabSlot]
-    if not btn then
-        local prefix = blizzBarNames[bar]
-        btn = prefix and _G[prefix .. i]
-    end
-    if btn then actionButtonCache[cacheKey] = btn end
-    return btn
-end
-
--------------------------------------------------------------------------------
 --  CDM Slot Helpers
 -------------------------------------------------------------------------------
-local function FindCooldown(frame)
-    if not frame then return end
-    local cd = frame.cooldown or frame.Cooldown
-    if cd then return cd end
-    for i = 1, frame:GetNumChildren() do
-        local child = select(i, frame:GetChildren())
-        if child and child.GetObjectType and child:GetObjectType() == "Cooldown" then
-            return child
-        end
-    end
-end
-
-local function SlotSortComparator(a, b)
-    local ax, ay = a:GetCenter()
-    local bx, by = b:GetCenter()
-    ax, ay, bx, by = ax or 0, ay or 0, bx or 0, by or 0
-    if math.abs(ay - by) > 2 then return ay > by end
-    return ax < bx
-end
-
-local cachedSlots, cacheTime = nil, 0
-
-local function GetSortedSlots(forceRefresh)
-    local now = GetTime()
-    if not forceRefresh and cachedSlots and (now - cacheTime) < 0.5 then
-        return cachedSlots
-    end
-    local root = _G.BuffIconCooldownViewer
-    if not root or not root.GetChildren then cachedSlots = nil; return nil end
-    local slots = {}
-    for i = 1, root:GetNumChildren() do
-        local c = select(i, root:GetChildren())
-        if c and c.GetCenter and FindCooldown(c) then
-            slots[#slots + 1] = c
-        end
-    end
-    if #slots == 0 then cachedSlots = nil; return nil end
-    table.sort(slots, SlotSortComparator)
-    cachedSlots = slots
-    cacheTime = now
-    return slots
-end
-
 local function GetAllCDMSlots(root)
     if not root or not root.GetChildren then return {} end
     local slots = {}
@@ -2153,30 +2064,6 @@ local function GetAllCDMSlots(root)
         end
     end
     return slots
-end
-
-local function GetCDMBarButton(barKey, slotIndex)
-    local rootName = ns.CDM_BAR_ROOTS[barKey]
-    if not rootName then return nil end
-    local root = _G[rootName]
-    if not root or not root.GetChildren then return nil end
-    local slots = {}
-    for i = 1, root:GetNumChildren() do
-        local c = select(i, root:GetChildren())
-        if c and c.GetWidth and c:GetWidth() > 5 then
-            slots[#slots + 1] = c
-        end
-    end
-    if #slots == 0 then return nil end
-    table.sort(slots, SlotSortComparator)
-    return slots[slotIndex]
-end
-
-local function GetTargetButton(actionBar, actionButtonIndex)
-    if type(actionBar) == "string" and ns.CDM_BAR_ROOTS[actionBar] then
-        return GetCDMBarButton(actionBar, actionButtonIndex)
-    end
-    return GetActionButton(tonumber(actionBar) or 1, actionButtonIndex)
 end
 
 -------------------------------------------------------------------------------
@@ -3078,11 +2965,6 @@ local function GetCDMFont()
         return EllesmereUI.GetFontPath("cdm")
     end
     return CDM_FONT_FALLBACK
-end
-local function GetCDMOutline()
-    -- Forced crisp outline; global "Never Show Slug" toggle drops the slug.
-    if EllesmereUI and EllesmereUI.SlugFlag then return EllesmereUI.SlugFlag("OUTLINE, SLUG") end
-    return "OUTLINE, SLUG"
 end
 local function SetBlizzCDMFont(fs, font, size, r, g, b)
     if not (fs and fs.SetFont) then return end
@@ -8229,7 +8111,6 @@ ns.HideBlizzardCDM = HideBlizzardCDM
 --  For cosmetic-only changes (icon size, fonts, glows) call
 --  BuildAllCDMBars() directly.
 -------------------------------------------------------------------------------
-local _rebuildGen = 0
 
 -- Rewrite stored racial spell IDs on CD/utility bars to this character's active racial: a shared
 -- profile keeps whichever race's racial each character added, so collapse them to a single
@@ -8317,7 +8198,6 @@ function ns.NormalizeRacialAssignments()
 end
 
 function ns.FullCDMRebuild(reason)
-    _rebuildGen = _rebuildGen + 1
     ns._spellOrderDirty = true  -- force spell order cache rebuild
     -- Full-wipe reasons: clear per-frame caches and run a direct reanchor.
     -- Used for talent change and any path where spell IDs behind
@@ -8432,10 +8312,6 @@ function ns.FullCDMRebuild(reason)
     -- window (login/reload); this queued pass corrects them once the API is
     -- trustworthy again. No-ops instantly when no icon uses a ready-glow effect.
     if ns.QueueCDGlowResourceCheck then ns.QueueCDGlowResourceCheck() end
-end
-
-function ns.GetRebuildGen()
-    return _rebuildGen
 end
 
 -- Interactive Preview Helpers loaded from EllesmereUICdmSpellPicker.lua

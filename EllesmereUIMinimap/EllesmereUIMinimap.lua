@@ -1243,14 +1243,6 @@ local function HideMinimapChild(btn)
     end
 end
 
-local function ShowMinimapChild(btn)
-    _suppressVisTrack = true
-    btn:SetAlpha(1)
-    btn:EnableMouse(true)
-    btn:Show()
-    _suppressVisTrack = false
-end
-
 -- Pin/POI frame patterns to exclude from the flyout (HandyNotes, TomTom, etc.)
 local flyoutPinPatterns = {
     "^HandyNotes",
@@ -1368,13 +1360,6 @@ local function HideAllMinimapButtons()
     end
 end
 
-local function ShowAllMinimapButtons()
-    for _, btn in ipairs(cachedAddonButtons) do
-        ShowMinimapChild(btn)
-    end
-    wipe(cachedAddonButtons)
-end
-
 -------------------------------------------------------------------------------
 --  Minimap Indicator Buttons (custom replacements for Blizzard's reparented frames)
 --  Our own Button with black bg, icon and click handler: no Blizzard frame
@@ -1483,13 +1468,6 @@ end
 local _greatVaultBtn = nil
 local GREAT_VAULT_WHOLE_ATLAS = "greatVault-whole-normal"
 
-local function ColorizeVaultText(text, r, g, b)
-    r = math.floor(math.max(0, math.min(1, r or 1)) * 255 + 0.5)
-    g = math.floor(math.max(0, math.min(1, g or 1)) * 255 + 0.5)
-    b = math.floor(math.max(0, math.min(1, b or 1)) * 255 + 0.5)
-    return ("|cff%02x%02x%02x%s|r"):format(r, g, b, tostring(text or ""))
-end
-
 local function GetOrderedWeeklyActivities(activityType)
     if not C_WeeklyRewards or not C_WeeklyRewards.GetActivities then return nil end
 
@@ -1523,11 +1501,6 @@ local function GetVaultTokenColor(state)
     end
 
     return 0.58, 0.58, 0.58
-end
-
-local function FormatVaultToken(text, state)
-    local r, g, b = GetVaultTokenColor(state)
-    return ColorizeVaultText(text, r, g, b)
 end
 
 -- Build vault row data: { label, isRaid, tokens = { {text, state}, ... } }
@@ -3867,26 +3840,6 @@ local function LayoutIndicatorFrames(minimap, p, circleMode)
 
     -- After layout so the managed-button list and alpha reflect the shown state.
     MO_Refresh(p)
-end
-
-local function RestoreIndicatorFrames()
-    for _, btn in pairs(_customIndicators) do
-        if btn and btn.Hide then btn:Hide() end
-    end
-    -- Restore Blizzard originals
-    local tracking = MinimapCluster and MinimapCluster.Tracking
-    if tracking then
-        tracking:SetAlpha(1); tracking:EnableMouse(true)
-        if tracking.Button then tracking.Button:EnableMouse(true) end
-    end
-    local gameTime = _G.GameTimeFrame
-    if gameTime then gameTime:SetAlpha(1); gameTime:EnableMouse(true) end
-    local indicator = MinimapCluster and MinimapCluster.IndicatorFrame
-    if indicator then
-        if indicator.MailFrame then indicator.MailFrame:SetAlpha(1); indicator.MailFrame:EnableMouse(true) end
-        if indicator.CraftingOrderFrame then indicator.CraftingOrderFrame:SetAlpha(1); indicator.CraftingOrderFrame:EnableMouse(true) end
-    end
-    if indicatorBg then indicatorBg:Hide() end
 end
 
 -------------------------------------------------------------------------------

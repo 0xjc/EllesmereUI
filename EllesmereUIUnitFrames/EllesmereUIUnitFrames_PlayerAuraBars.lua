@@ -6208,11 +6208,6 @@ function ns.PAB_SetEnabled(v)
     RegisterPABCustomUnlock()
 end
 
-function ns.PAB_UseBlizzard()
-    local s = PAB()
-    return (s and s.useBlizzardBuffs == true) or false
-end
-
 -- Stock styles (Global Settings > Style) for the aura bars: "eui",
 -- "blizzard" or "classic", read from the profile once (first call with a
 -- profile present) and latched for the session like the other module
@@ -6231,7 +6226,6 @@ function ns.PAB_Style()
     return v
 end
 function ns.PAB_Blizz() return ns.PAB_Style() ~= "eui" end
-function ns.PAB_Classic() return ns.PAB_Style() == "classic" end
 
 -- Profile-grade resync, called from the _EUF_ReloadFrames tail (profile
 -- switches, imports, spec-override swaps all land there): re-asserts the

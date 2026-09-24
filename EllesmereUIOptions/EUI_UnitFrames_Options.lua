@@ -261,9 +261,6 @@ initFrame:SetScript("OnEvent", function(self)
         -- Already slug-gated at the source (GetFontOutlineFlag).
         return (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag()) or ""
     end
-    local function GetUFOptUseShadow()
-        return not EllesmereUI or not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow()
-    end
     local function SetPVFont(fs, font, size)
         if not (fs and fs.SetFont) then return end
         local f = GetUFOptOutline()
@@ -4626,72 +4623,6 @@ initFrame:SetScript("OnEvent", function(self)
         end
         allPreviews[unitKey] = pf
         return pf
-    end
-
-    ---------------------------------------------------------------------------
-    --  Shared border options builder (used by all per-unit pages)
-    ---------------------------------------------------------------------------
-    local function BuildBorderOptions(W, parent, y, settingsTable)
-        local _, h
-
-        local borderRow
-        borderRow, h = W:DualRow(parent, y,
-            { type = "slider", text = "Border Size",
-              min = 0, max = 4, step = 1, trackWidth = 120,
-              getValue = function() return settingsTable.borderSize or 1 end,
-              setValue = function(v)
-                  settingsTable.borderSize = v; ReloadAndUpdate()
-              end },
-            nil);  y = y - h
-
-        -- Double inline swatches on Border slider: left = Highlight, right = Border
-        do
-            local leftRgn = borderRow._leftRegion
-            local ctrl = leftRgn._control
-            local PP = EllesmereUI.PP
-
-            -- Right swatch: Border color (with alpha)
-            local borderSwatch, updateBorderSwatch = EllesmereUI.BuildColorSwatch(
-                leftRgn, borderRow:GetFrameLevel() + 3,
-                function()
-                    local c = settingsTable.borderColor or { r = 0, g = 0, b = 0 }
-                    return c.r, c.g, c.b, settingsTable.borderAlpha or 1
-                end,
-                function(r, g, b, a)
-                    settingsTable.borderColor = { r = r, g = g, b = b }
-                    settingsTable.borderAlpha = a
-                    ReloadAndUpdate()
-                end,
-                true, 20)
-            PP.Point(borderSwatch, "RIGHT", ctrl, "LEFT", -8, 0)
-            borderSwatch:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(borderSwatch, "Border")
-            end)
-            borderSwatch:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-
-            -- Left swatch: Highlight color (with alpha)
-            local hlSwatch, updateHlSwatch = EllesmereUI.BuildColorSwatch(
-                leftRgn, borderRow:GetFrameLevel() + 3,
-                function()
-                    local c = settingsTable.highlightColor or { r = 1, g = 1, b = 1 }
-                    return c.r, c.g, c.b, settingsTable.highlightAlpha or 1
-                end,
-                function(r, g, b, a)
-                    settingsTable.highlightColor = { r = r, g = g, b = b }
-                    settingsTable.highlightAlpha = a
-                    ReloadAndUpdate()
-                end,
-                true, 20)
-            PP.Point(hlSwatch, "RIGHT", borderSwatch, "LEFT", -8, 0)
-            hlSwatch:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(hlSwatch, "Highlight")
-            end)
-            hlSwatch:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-
-            EllesmereUI.RegisterWidgetRefresh(function() updateBorderSwatch(); updateHlSwatch() end)
-        end
-
-        return y
     end
 
     ---------------------------------------------------------------------------

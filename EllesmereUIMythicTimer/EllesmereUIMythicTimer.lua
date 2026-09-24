@@ -1096,11 +1096,6 @@ local function ResetRun()
     NotifyRefresh()
 end
 
-local function CheckForActiveRun()
-    local mapID = C_ChallengeMode.GetActiveChallengeMapID()
-    if mapID then StartRun() end
-end
-
 -- Preview data
 local PREVIEW_RUN = {
     active        = true,

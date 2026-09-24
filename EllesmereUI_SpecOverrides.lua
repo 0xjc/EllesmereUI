@@ -1400,10 +1400,6 @@ function EllesmereUI.SpecOverrides_IsCaptured(folder, ...)
     return false
 end
 
-function EllesmereUI.SpecOverrides_CurrentSpec()
-    return CurrentSpecID()
-end
-
 function EllesmereUI.SpecOverrides_GroupById(gid)
     return GroupById(gid)
 end
@@ -2467,12 +2463,6 @@ end
 
 -- ---- layer management ---------------------------------------------------------
 
---- True when the group has a custom unlock layout.
-function EllesmereUI.SpecOverrides_UnlockHasLayout(groupId)
-    local s = GetUnlockStore()
-    return (s and s.layouts[groupId] ~= nil) and true or false
-end
-
 --- Deletes a group's custom unlock layout. When it is the ACTIVE layer, the
 --- baseline layout is applied back to live.
 function EllesmereUI.SpecOverrides_RemoveUnlockLayout(groupId)
@@ -2816,12 +2806,6 @@ function EllesmereUI.SpecOverrides_BmPageLocked()
     return EllesmereUI.SpecOverrides_BmPageLockInfo() ~= nil
 end
 
---- True when the group has a custom Buff Manager.
-function EllesmereUI.SpecOverrides_BmHasLayout(groupId)
-    local s = GetBmStore()
-    return (s and s.layouts[groupId] ~= nil) and true or false
-end
-
 --- Deletes a group's custom Buff Manager; when it is the ACTIVE layer the
 --- baseline is applied back to live.
 function EllesmereUI.SpecOverrides_RemoveBmLayout(groupId)
@@ -3108,12 +3092,6 @@ end
 --- True while the Debuff Manager page is bound to a live fork (any kind).
 function EllesmereUI.SpecOverrides_DmPageLocked()
     return EllesmereUI.SpecOverrides_DmPageLockInfo() ~= nil
-end
-
---- True when the group has a custom Debuff Manager.
-function EllesmereUI.SpecOverrides_DmHasLayout(groupId)
-    local s = GetDmStore()
-    return (s and s.layouts[groupId] ~= nil) and true or false
 end
 
 --- Deletes a group's custom Debuff Manager; when it is the ACTIVE layer the
@@ -4514,7 +4492,6 @@ function EllesmereUI.SpecOverrides_CondTransition(oldGid, newGid, establish)
         Cond._resolveOverride = nil
     end
     if touched then RunRefreshers(touched) end
-    if Cond.UpdateButton then Cond.UpdateButton() end
     -- Condition applied/removed with the panel open: the labeled "Override
     -- Active" slot overlays must follow immediately.
     RequestGoldWalk()
@@ -5174,18 +5151,6 @@ local function SampleAttribution()
     elseif not inPanel then
         _lastRegion = nil   -- interacting with the world / other UI
     end
-end
-
-local function EntryForSlot(module, element, page, section, slotLabel)
-    for _, entry in ipairs(GetStore() or {}) do
-        if entry.slotLabel == slotLabel and entry.module == module
-           and (entry.element or "") == (element or "")
-           and (entry.page or "") == (page or "")
-           and (entry.section or "") == (section or "") then
-            return entry
-        end
-    end
-    return nil
 end
 
 local function AutoCapture(changes)
@@ -5881,13 +5846,6 @@ local EDIT_GLOW_TEXTURE = "Interface\\AddOns\\EllesmereUI\\media\\backgrounds\\e
 local editOverlay
 local editOverlayTexture = EDIT_GLOW_TEXTURE
 
-function EllesmereUI.SpecOverrides_SetEditBackground(texturePath)
-    editOverlayTexture = texturePath or EDIT_GLOW_TEXTURE
-    if editOverlay and editOverlay._tex then
-        editOverlay._tex:SetTexture(editOverlayTexture)
-    end
-end
-
 -- The glow suppresses itself on excluded contexts (chrome pages + Global
 -- Settings General) and returns on normal module pages.
 local _overlayWanted = false
@@ -6274,7 +6232,6 @@ Cond.ExitEdit = function(noRestore, noRecheck)
         end
     end
     -- noRestore: store writes only -- the transition applies + refreshes.
-    if Cond.UpdateButton then Cond.UpdateButton() end
     if Cond.RefreshCards then Cond.RefreshCards() end
 end
 
@@ -6342,7 +6299,6 @@ Cond.EnterEdit = function(g)
     UpdateEditLocks()
     RequestGoldWalk()
     EnsurePanelHideHook()
-    if Cond.UpdateButton then Cond.UpdateButton() end
 end
 
 -------------------------------------------------------------------------------
@@ -7392,7 +7348,6 @@ function EllesmereUI.SpecOverrides_ToggleCardsPopup(anchorBtn)
             if assignDim and assignDim:IsShown() then return end
             if p:IsShown() and not p:IsMouseOver()
                and not (specBtn and specBtn:IsMouseOver())
-               and not (Cond._btn and Cond._btn:IsMouseOver())
                and not (indicatorBtn and indicatorBtn:IsShown() and indicatorBtn:IsMouseOver()) then
                 p:Hide()
             end
@@ -7431,13 +7386,6 @@ end
 --  (with keybind capture), name/icon popup. Mirrors the spec-overrides UI
 --  one-for-one; the group icon picker reuses the class/role set.
 -------------------------------------------------------------------------------
-
-function Cond.CondLabel(id)
-    for _, def in ipairs(EllesmereUI.CONDITIONS or {}) do
-        if def.id == id then return L(def.label) end
-    end
-    return id
-end
 
 function Cond.GroupTooltip(g)
     local parts = {}
@@ -7584,7 +7532,6 @@ function Cond.ShowNameIconPopup(conds, keyStr, existing)
             -- session (matches the spec-group create flow). Cond.EnterEdit
             -- self-guards the BM page lock and any active session.
             if newGroup then Cond.EnterEdit(newGroup) end
-            Cond.UpdateButton()
             Cond.RefreshCards()
             if EllesmereUI.GetActivePage and EllesmereUI:GetActivePage() == LIST_PAGE then
                 EllesmereUI:RefreshPage(true)
@@ -7870,46 +7817,9 @@ end
 
 -- ---- cards popup: UNIFIED with the spec overrides popup ----------------------
 -- Conditional cards render as a second section inside RefreshCardsPopup; this alias
--- points every cond-side refresh at the one popup, and both toolbar buttons open it.
+-- points every cond-side refresh at the one popup.
 Cond.RefreshCards = function()
     if RefreshCardsPopup then RefreshCardsPopup() end
-end
-
-function EllesmereUI.Conditions_ToggleCardsPopup(anchorBtn)
-    EllesmereUI.SpecOverrides_ToggleCardsPopup(anchorBtn)
-end
--- ---- toolbar button ---------------------------------------------------------
--- One identity, always: no icon or tooltip morphing.
-Cond.UpdateButton = function()
-    local btn = Cond._btn
-    if not btn or not btn._tex then return end
-    btn._tex:SetTexCoord(0, 1, 0, 1)
-    btn._tex:SetTexture(Cond.ICON_DIR .. Cond.ICONS.dungeon)
-    btn._tex:SetDesaturated(false)
-    btn._tex:SetVertexColor(1, 1, 1, 0.9)
-end
-EllesmereUI.Conditions_UpdateButton = Cond.UpdateButton
-
-function EllesmereUI.Conditions_SetupButton(btn)
-    Cond._btn = btn
-    local tex = btn:CreateTexture(nil, "OVERLAY")
-    tex:SetAllPoints()
-    btn._tex = tex
-    btn:SetAlpha(0.9)
-    btn:SetScript("OnEnter", function(self)
-        self:SetAlpha(1)
-        if EllesmereUI.ShowWidgetTooltip then
-            EllesmereUI.ShowWidgetTooltip(self, L("Conditional Overrides: override settings by condition (dungeon, raid, keybind...)"))
-        end
-    end)
-    btn:SetScript("OnLeave", function(self)
-        self:SetAlpha(0.9)
-        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
-    end)
-    btn:SetScript("OnClick", function(self)
-        EllesmereUI.Conditions_ToggleCardsPopup(self)
-    end)
-    Cond.UpdateButton()
 end
 
 -------------------------------------------------------------------------------

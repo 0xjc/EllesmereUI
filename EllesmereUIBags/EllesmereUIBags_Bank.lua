@@ -1281,36 +1281,6 @@ local function NotifyBankTypeForTSM()
     end
 end
 
---- Find the first empty slot in a specific bank bag and deposit the cursor
---- item into it. If no empty slot, try stacking with an existing partial stack.
---- Returns true if placement was attempted, false if no space found.
-function EUI_Bank:DepositCursorItemIntoTab(bagID)
-    if not bagID then return false end
-    local numSlots = C_Container.GetContainerNumSlots(bagID)
-    if numSlots == 0 then return false end
-    -- Try stacking first (same itemID, not full stack)
-    local cursorType, cursorItemID = GetCursorInfo()
-    if cursorType ~= "item" or not cursorItemID then return false end
-    local maxStack = C_Item.GetItemMaxStackSizeByID(cursorItemID) or 1
-    if maxStack > 1 then
-        for slot = 1, numSlots do
-            local info = C_Container.GetContainerItemInfo(bagID, slot)
-            if info and info.itemID == cursorItemID and info.stackCount < maxStack then
-                C_Container.PickupContainerItem(bagID, slot)
-                return true
-            end
-        end
-    end
-    -- Then try first empty slot
-    for slot = 1, numSlots do
-        if not C_Container.GetContainerItemInfo(bagID, slot) then
-            C_Container.PickupContainerItem(bagID, slot)
-            return true
-        end
-    end
-    return false
-end
-
 -------------------------------------------------------------------------------
 --  Transfer Queue: queues rapid right-click deposits so they don't collide
 --

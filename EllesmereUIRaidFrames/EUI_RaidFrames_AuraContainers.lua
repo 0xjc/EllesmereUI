@@ -25,22 +25,6 @@ ns.RFC_OwnsDefensives = true
 ns.RFC_OwnsDispel = true
 ns.RFC_OwnsBM = true -- both BM display modes (custom slots/chains + simple grid group)
 
--- Legacy aura paths (defensives, dispel border, BuffManager) hard-error while auras
--- are secret and would abort shared handler chains, breaking migrated displays too --
--- so they skip silently under restriction. Cache is asymmetric (AK.AurasRestricted):
--- only the RESTRICTED answer caches per-frame; a stale "unrestricted" reruns into hard
--- errors, a stale "restricted" only skips one frame.
-local restrictedStamp = -1
-function ns.RFC_LegacyAuraGuard()
-    local now = GetTime()
-    if now == restrictedStamp then return true end
-    if pcall(C_UnitAuras.GetAuraDataByIndex, "player", 1, "HELPFUL") then
-        return false
-    end
-    restrictedStamp = now
-    return true
-end
-
 local SATED_DEBUFFS = {
     [57723] = true, [57724] = true, [80354] = true, [95809] = true,
     [160455] = true, [264689] = true, [390435] = true,

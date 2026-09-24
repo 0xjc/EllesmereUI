@@ -1525,14 +1525,6 @@ function ns.RefreshSpellHistoryProfile()
     ns.ApplySpellHistory()
 end
 
-function ns.ClearSpellHistory()
-    wipe(_history)
-    wipe(_pendingCasts)
-    wipe(_pendingTargets)
-    _activeChannelSpell = nil
-    ns.ApplySpellHistory()
-end
-
 -------------------------------------------------------------------------------
 --  Init (deferred to PLAYER_LOGIN so DM DB is ready)
 -------------------------------------------------------------------------------

@@ -1195,10 +1195,6 @@ local function GetSelectedFont(unitKey)
     return cachedFontPath
 end
 
-local function GetUFUseShadow()
-    return not EllesmereUI or not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow("unitFrames")
-end
-
 local function SetFSFont(fs, size, flags)
   if not (fs and fs.SetFont) then return end
   -- Outline flag is already slug-gated at the source (GetFontOutlineFlag).
@@ -3267,40 +3263,6 @@ end
 function ns.GetBossDebuffSpacing(s, simpleOn)
     if simpleOn then return (s and s.simpleDebuffSpacing) or 1 end
     return (s and s.debuffSpacing) or 1
-end
-
-local function GetPlayerTargetHealthTag(unit)
-    local tbl = (unit == "target") and db.profile.target or db.profile.player
-    local display = tbl.healthDisplay or "both"
-    if display == "curhpshort" then
-        return "[curhpshort]"
-    elseif display == "perhp" then
-        return "[eui-perhp]%"
-    else
-        return "[curhpshort] | [eui-perhp]%"
-    end
-end
-
-local function GetFocusHealthTag()
-    local display = db.profile.focus.healthDisplay or "perhp"
-    if display == "curhpshort" then
-        return "[curhpshort]"
-    elseif display == "both" then
-        return "[curhpshort] | [eui-perhp]%"
-    else
-        return "[eui-perhp]%"
-    end
-end
-
-local function GetBossHealthTag()
-    local display = db.profile.boss.healthDisplay or "perhp"
-    if display == "curhpshort" then
-        return "[curhpshort]"
-    elseif display == "both" then
-        return "[curhpshort] | [eui-perhp]%"
-    else
-        return "[eui-perhp]%"
-    end
 end
 
 -- Per-slot Width % of the slot's computed clamp width (100 = normal truncation,
@@ -9629,7 +9591,6 @@ function ns.UF_Style()
 end
 -- Stock-art mode: a kit dictates the geometry (true for both stock styles).
 function ns.UF_Blizz() return ns.UF_Style() ~= "eui" end
-function ns.UF_Classic() return ns.UF_Style() == "classic" end
 -- Blizzard Style's coloured type strip over the target-family name ("Blizz
 -- Colored Target Header", on unless the unit's settings turn it off, which
 -- leaves the header uncoloured like the player frame's). Classic keeps its

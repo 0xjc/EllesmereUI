@@ -3435,41 +3435,6 @@ local function CreateDMWindow(winIdx)
     -- Snap helpers (X-axis alignment + width matching against other DM windows)
     local SNAP_THRESH = 6
 
-    local function SnapDragPosition()
-        local myLeft = frame:GetLeft()
-        local myRight = frame:GetRight()
-        if not myLeft or not myRight then return end
-        local snappedX = myLeft
-        local bestDist = SNAP_THRESH + 1
-        for _, otherW in ipairs(_windows) do
-            if otherW ~= W and otherW.frame and otherW.frame:IsShown() then
-                local oLeft = otherW.frame:GetLeft()
-                local oRight = otherW.frame:GetRight()
-                if oLeft then
-                    -- Snap my left to their left
-                    local d = math.abs(myLeft - oLeft)
-                    if d < bestDist then bestDist = d; snappedX = oLeft end
-                    -- Snap my right to their right
-                    if oRight then
-                        local d2 = math.abs(myRight - oRight)
-                        if d2 < bestDist then bestDist = d2; snappedX = oRight - (myRight - myLeft) end
-                    end
-                    -- Snap my left to their right
-                    local d3 = math.abs(myLeft - oRight)
-                    if d3 < bestDist then bestDist = d3; snappedX = oRight end
-                    -- Snap my right to their left
-                    local d4 = math.abs(myRight - oLeft)
-                    if d4 < bestDist then bestDist = d4; snappedX = oLeft - (myRight - myLeft) end
-                end
-            end
-        end
-        if bestDist <= SNAP_THRESH then
-            local top = frame:GetTop()
-            frame:ClearAllPoints()
-            frame:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", snappedX, top)
-        end
-    end
-
     -- Find the closest other DM window by 2D edge-to-edge distance; optional left/top overrides let drag pass an unsnapped target position
     local function FindClosestWindow(overrideL, overrideT)
         local myL = overrideL or frame:GetLeft() or 0

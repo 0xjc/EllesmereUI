@@ -344,14 +344,6 @@ local function GetTabHeight()
     return cfg.tabHeight or TAB_STRIP_H
 end
 
-local function GetTabFont()
-    local cfg = ECHAT.DB()
-    local fontKey = cfg.tabFont or "__global"
-    if fontKey == "__global" then
-        return (EUI.GetFontPath and EUI.GetFontPath("chat")) or STANDARD_TEXT_FONT
-    end
-    return (EUI.ResolveFontName and EUI.ResolveFontName(fontKey)) or STANDARD_TEXT_FONT
-end
 local function GetTabPadding()
     local cfg = ECHAT.DB()
     if ECHAT.ExtendBgBehindTabs(cfg) then return 0 end
@@ -359,22 +351,6 @@ local function GetTabPadding()
 end
 local function GetTabAreaHeight()
     return GetTabHeight() + GetTabPadding()
-end
-
--- Batch cursor check: read cursor position once per frame, test against the
--- cached raw coords instead of calling GetCursorPosition repeatedly.
-local _rawCX, _rawCY = 0, 0
-local function RefreshCursorPos()
-    _rawCX, _rawCY = GetCursorPosition()
-end
-local function IsCursorOverCached(frame)
-    if not frame or not frame:IsVisible() then return false end
-    local ok, left, bottom, width, height = pcall(frame.GetRect, frame)
-    if not ok or not left then return false end
-    if issecretvalue and issecretvalue(left) then return false end
-    local scale = frame:GetEffectiveScale()
-    local cx, cy = _rawCX / scale, _rawCY / scale
-    return cx >= left and cx <= left + width and cy >= bottom and cy <= bottom + height
 end
 
 local BG_R, BG_G, BG_B, BG_A = 0.03, 0.045, 0.05, 0.70
@@ -1498,42 +1474,6 @@ do
     function ECHAT.FollowArmUnlock(on)
         unlockHold = on and true or false
         if unlockHold then follower:Show() end
-    end
-end
-
--- Visibility ONLY: the SetShown half of ApplySidebarIcons, without its
--- ClearAllPoints/SetPoint chain. Re-anchoring here is taint-risky (also skipped at init
--- and in _ECHAT_RefreshAll): tab passes fire right after a whisper opens a temp window,
--- and re-anchoring then would land while Blizzard's dock pass is still resolving -- the
--- collision that poisons ChatFrame.isLocked. Fade only needs shown/hidden; re-anchoring
--- stays on paths that actually change the chain (icon order, spacing, free-move).
-function ECHAT.ApplySidebarIconVisibility()
-    local cfg = ECHAT.DB()
-    local cf1 = _G.ChatFrame1
-    local sbd = cf1 and CFD(cf1)
-    if not (cfg and sbd and sbd.sidebar) then return end
-    local sbMode = cfg.sidebarVisibility or "always"
-    local sbHidden = sbMode == "never"
-        or (sbMode == "mouseover" and _sidebarFadeTarget == 0 and _sidebarFadeAlpha == 0)
-        or ns._chatPassthrough == true
-    local PAIRS = {
-        { "showFriends", "friendsBtn", "friendsCount" },
-        { "showGuild", "guildBtn", "guildCount" },
-        { "showDurability", "durabilityBtn", "durabilityPct" },
-        { "showCopy", "copyBtn" },
-        { "showPortals", "portalBtn" },
-        { "showVoice", "voiceBtn" },
-        { "showSettings", "settingsBtn" },
-    }
-    for i = 1, #PAIRS do
-        local key, btnKey, tailKey = PAIRS[i][1], PAIRS[i][2], PAIRS[i][3]
-        local btn = sbd[btnKey]
-        if btn then
-            local shown = cfg[key] ~= false and not sbHidden
-            if btn:IsShown() ~= shown then btn:SetShown(shown) end
-            local tail = tailKey and sbd[tailKey]
-            if tail and tail:IsShown() ~= shown then tail:SetShown(shown) end
-        end
     end
 end
 

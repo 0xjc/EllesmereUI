@@ -4815,65 +4815,6 @@ local function SkinCharacterSheet()
     ApplyTabVisibility(isCharTab)
 end
 
-local function GetRarityColorFromLink(itemLink)
-    if not itemLink then
-        return 0.9, 0.9, 0.9, 1  -- Default gray
-    end
-
-    local itemRarity = select(3, GetItemInfo(itemLink))
-    if not itemRarity then
-        return 0.9, 0.9, 0.9, 1
-    end
-
-    -- WoW standard rarity colors
-    local rarityColors = {
-        [0] = { 0.62, 0.62, 0.62 },  -- Poor
-        [1] = { 1, 1, 1 },            -- Common
-        [2] = { 0.12, 1, 0 },         -- Uncommon
-        [3] = { 0, 0.44, 0.87 },      -- Rare
-        [4] = { 0.64, 0.21, 0.93 },   -- Epic
-        [5] = { 1, 0.5, 0 },          -- Legendary
-        [6] = { 0.9, 0.8, 0.5 },      -- Artifact
-        [7] = { 0.9, 0.8, 0.5 },      -- Heirloom
-    }
-
-    local color = rarityColors[itemRarity] or rarityColors[1]
-    return color[1], color[2], color[3], 1
-end
-
-local function SkinCharacterSlot(slotName, slotID)
-    local slot = _G[slotName]
-    if not slot or GetFFD(slot).skinned then return end
-    GetFFD(slot).skinned = true
-
-    if slot.IconBorder then
-        slot.IconBorder:Hide()
-    end
-
-    local iconTexture = _G[slotName .. "IconTexture"]
-    if iconTexture then
-        iconTexture:SetTexCoord(0.07, 0.07, 0.07, 0.93, 0.93, 0.07, 0.93, 0.93)
-    end
-
-    if slotName == "CharacterHandsSlot" then
-        slot:Hide()
-    end
-
-    local normalTexture = _G[slotName .. "NormalTexture"]
-    if normalTexture then
-        normalTexture:Hide()
-    end
-
-    local slotBg = slot:CreateTexture(nil, "BACKGROUND", nil, -5)
-    slotBg:SetAllPoints(slot)
-    slotBg:SetColorTexture(0.5, 0.5, 0.5, 0.7)
-    GetFFD(slot).slotBg = slotBg
-
-    if EllesmereUI and EllesmereUI.PanelPP then
-        EllesmereUI.PanelPP.CreateBorder(slot, 1, 1, 1, 0.4, 2, "OVERLAY", 7)
-    end
-end
-
 -- Fake bottom tab on the character sheet, visually identical to the Blizzard
 -- Character/Rep/Currency tabs. Built on first enable only (zero cost while off).
 local function EnsureCalcTab(frame)
@@ -5242,31 +5183,6 @@ function EllesmereUI._applyCharSheetTextSizes()
     end
 end
 
-function EllesmereUI._applyCharSheetItemColors()
-    if not CharacterFrame then return end
-
-    local itemSlots = EUI_GEAR_SLOTS
-
-    for _, slotName in ipairs(itemSlots) do
-        local slot = _G[slotName]
-        if slot and GetFFD(slot).itemLevelLabel then
-            local itemLink = GetInventoryItemLink("player", slot:GetID())
-            if itemLink then
-                local _, _, quality = GetItemInfo(itemLink)
-                -- Use rarity color by default, unless explicitly disabled
-                if (not EllesmereUIDB or EllesmereUIDB.charSheetColorItemLevel ~= false) and quality then
-                    local r, g, b = GetItemQualityColor(quality)
-                    GetFFD(slot).itemLevelLabel:SetTextColor(r, g, b, 0.9)
-                else
-                    GetFFD(slot).itemLevelLabel:SetTextColor(1, 1, 1, 0.9)
-                end
-            else
-                GetFFD(slot).itemLevelLabel:SetTextColor(1, 1, 1, 0.9)
-            end
-        end
-    end
-end
-
 function EllesmereUI._refreshCharacterSheetColors()
     local charFrame = CharacterFrame
     if not charFrame or not GetFFD(charFrame).statsSections then return end
@@ -5390,24 +5306,6 @@ function EllesmereUI._refreshEnchantsVisibility()
     end
 end
 
-function EllesmereUI._refreshEnchantsColors()
-    local itemSlots = EUI_GEAR_SLOTS
-
-    for _, slotName in ipairs(itemSlots) do
-        local slot = _G[slotName]
-        if slot and GetFFD(slot).enchantLabel then
-            local displayColor
-            if EllesmereUIDB and EllesmereUIDB.charSheetEnchantUseColor and EllesmereUIDB.charSheetEnchantColor then
-                displayColor = EllesmereUIDB.charSheetEnchantColor
-            else
-                displayColor = { r = 1, g = 1, b = 1 }
-            end
-
-            GetFFD(slot).enchantLabel:SetTextColor(displayColor.r, displayColor.g, displayColor.b, 1)
-        end
-    end
-end
-
 function EllesmereUI._refreshItemLevelVisibility()
     local itemSlots = EUI_GEAR_SLOTS
 
@@ -5420,60 +5318,6 @@ function EllesmereUI._refreshItemLevelVisibility()
                 GetFFD(slot).itemLevelLabel:Show()
             else
                 GetFFD(slot).itemLevelLabel:Hide()
-            end
-        end
-    end
-end
-
-function EllesmereUI._refreshItemLevelColors()
-    local itemSlots = EUI_GEAR_SLOTS
-
-    for _, slotName in ipairs(itemSlots) do
-        local slot = _G[slotName]
-        if slot and GetFFD(slot).itemLevelLabel then
-            local displayColor
-            if EllesmereUIDB and EllesmereUIDB.charSheetItemLevelUseColor and EllesmereUIDB.charSheetItemLevelColor then
-                displayColor = EllesmereUIDB.charSheetItemLevelColor
-            else
-                -- Rarity color by default, unless explicitly disabled.
-                local itemLink = GetInventoryItemLink("player", slot:GetID())
-                if itemLink and (not EllesmereUIDB or EllesmereUIDB.charSheetColorItemLevel ~= false) then
-                    local _, _, quality = GetItemInfo(itemLink)
-                    if quality then
-                        local r, g, b = GetItemQualityColor(quality)
-                        displayColor = { r = r, g = g, b = b }
-                    else
-                        displayColor = { r = 1, g = 1, b = 1 }
-                    end
-                else
-                    displayColor = { r = 1, g = 1, b = 1 }
-                end
-            end
-
-            GetFFD(slot).itemLevelLabel:SetTextColor(displayColor.r, displayColor.g, displayColor.b, 0.9)
-        end
-    end
-end
-
-function EllesmereUI._refreshUpgradeTrackColors()
-    local itemSlots = EUI_GEAR_SLOTS
-
-    for _, slotName in ipairs(itemSlots) do
-        local slot = _G[slotName]
-        if slot and GetFFD(slot).upgradeTrackLabel then
-            local itemLink = GetInventoryItemLink("player", slot:GetID())
-            if itemLink then
-                -- Upgrade track color via C_Item.GetItemUpgradeInfo (no tooltip).
-                local _, upgradeTrackColor = EUI_GetUpgradeTrack(itemLink)
-
-                local displayColor
-                if EllesmereUIDB and EllesmereUIDB.charSheetUpgradeTrackUseColor and EllesmereUIDB.charSheetUpgradeTrackColor then
-                    displayColor = EllesmereUIDB.charSheetUpgradeTrackColor
-                else
-                    displayColor = upgradeTrackColor
-                end
-
-                GetFFD(slot).upgradeTrackLabel:SetTextColor(displayColor.r, displayColor.g, displayColor.b, 0.8)
             end
         end
     end

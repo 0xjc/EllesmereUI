@@ -13,7 +13,6 @@ local PP         = EllesmereUI.PanelPP
 local SolidTex   = EllesmereUI.SolidTex
 local MakeFont   = EllesmereUI.MakeFont
 local MakeBorder = EllesmereUI.MakeBorder
-local lerp       = EllesmereUI.lerp
 local ELLESMERE_GREEN = EllesmereUI.ELLESMERE_GREEN
 
 -- Button visual constants
@@ -340,73 +339,8 @@ local function UpdateAccentElements(r, g, b)
     end
 end
 
---- Accent color transition state
-local ACCENT_FADE_DURATION, ACCENT_REFRESH_INTERVAL = 0.5, 0.067  -- ~15fps for widget refreshes
-local accentFadeFrom = { r = 0, g = 0, b = 0 }
-local accentFadeTo   = { r = 0, g = 0, b = 0 }
-local accentFadeProgress = 1  -- 1 = done
-local accentRefreshAccum = 0
-local accentGCFrame, accentGCDelay  -- reused for deferred GC after fade
-local accentFadeTicker = CreateFrame("Frame")
-accentFadeTicker:Hide()
-accentFadeTicker:SetScript("OnUpdate", function(self, elapsed)
-    accentFadeProgress = accentFadeProgress + elapsed / ACCENT_FADE_DURATION
-    if accentFadeProgress >= 1 then
-        accentFadeProgress = 1
-        self:Hide()
-        ELLESMERE_GREEN.r, ELLESMERE_GREEN.g, ELLESMERE_GREEN.b = accentFadeTo.r, accentFadeTo.g, accentFadeTo.b
-        UpdateAccentElements(accentFadeTo.r, accentFadeTo.g, accentFadeTo.b)
-        -- Fast-path refresh only: widget callbacks re-read the accent. NEVER force-rebuild (RefreshPage(true)) here -- a full teardown+rebuild in one frame hitches the renderer into a visible blink, and UpdateAccentElements already snapped every one-time element.
-        for i = 1, #EllesmereUI._widgetRefreshList do EllesmereUI._widgetRefreshList[i]() end
-        -- Deferred full GC, 2 frames out: collecting in the same frame as the transition completion hitches the renderer into a visible blink; by frame +2 the GC is the only work in the tick.
-        if not accentGCFrame then
-            accentGCFrame = CreateFrame("Frame")
-        end
-        accentGCDelay = 2
-        accentGCFrame:SetScript("OnUpdate", function(gcSelf)
-            accentGCDelay = accentGCDelay - 1
-            if accentGCDelay <= 0 then
-                gcSelf:SetScript("OnUpdate", nil)
-                collectgarbage("collect")
-            end
-        end)
-        return
-    end
-    local t = accentFadeProgress  -- smooth ease-in-out
-    t = t < 0.5 and (2 * t * t) or (1 - (-2 * t + 2) * (-2 * t + 2) / 2)
-    local r = lerp(accentFadeFrom.r, accentFadeTo.r, t)
-    local g = lerp(accentFadeFrom.g, accentFadeTo.g, t)
-    local b = lerp(accentFadeFrom.b, accentFadeTo.b, t)
-    ELLESMERE_GREEN.r, ELLESMERE_GREEN.g, ELLESMERE_GREEN.b = r, g, b
-    -- RegAccent elements (sidebar, tabs, footer) are cheap: every frame.
-    UpdateAccentElements(r, g, b)
-    -- Widget refreshes (toggles, sliders, checkboxes) are heavier: throttled.
-    accentRefreshAccum = accentRefreshAccum + elapsed
-    if accentRefreshAccum >= ACCENT_REFRESH_INTERVAL then
-        accentRefreshAccum = 0
-        for i = 1, #EllesmereUI._widgetRefreshList do EllesmereUI._widgetRefreshList[i]() end
-    end
-end)
-
---- Internal: apply accent with animated transition (for theme switches)
-local function ApplyAccentAnimated(r, g, b)
-    accentFadeFrom.r, accentFadeFrom.g, accentFadeFrom.b = ELLESMERE_GREEN.r, ELLESMERE_GREEN.g, ELLESMERE_GREEN.b
-    accentFadeTo.r, accentFadeTo.g, accentFadeTo.b = r, g, b
-    accentFadeProgress = 0
-    accentRefreshAccum = 0
-
-    -- Invalidate cached popups so they rebuild with the new accent
-    EllesmereUI._InvalidateConfirmPopup()
-
-    -- OnUpdate lerps ELLESMERE_GREEN and refreshes widgets each tick
-    accentFadeTicker:Show()
-end
-
 --- Internal: apply accent instantly (for color picker dragging, resets, etc.)
 local function ApplyAccentLive(r, g, b)
-    accentFadeTicker:Hide()  -- stop any running transition
-    accentFadeProgress = 1
-
     -- Canonical colour table updated in place, then registered one-time elements
     ELLESMERE_GREEN.r, ELLESMERE_GREEN.g, ELLESMERE_GREEN.b = r, g, b
     UpdateAccentElements(r, g, b)

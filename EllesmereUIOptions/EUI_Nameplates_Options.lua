@@ -127,37 +127,6 @@ initFrame:SetScript("OnEvent", function(self)
         if ns.NPC_ReloadAll then ns.NPC_ReloadAll() end
     end
 
-    local function RefreshAllFonts()
-        for _, plate in pairs(plates) do
-            plate:RefreshNamePosition()
-            plate:UpdateHealthValues()
-            local cns = ns.defaults.castNameSize
-            local cts = ns.defaults.castTargetSize
-            local _db = DB()
-            if _db then
-                cns = _db.castNameSize or cns
-                cts = _db.castTargetSize or cts
-            end
-            local ctmSz = ns.defaults.castTimerSize
-            local ctmC = ns.defaults.castTimerColor
-            if _db then
-                ctmSz = _db.castTimerSize or ctmSz
-                ctmC = _db.castTimerColor or ctmC
-            end
-            if plate.castName then SetFSFont(plate.castName, cns, GetNPOutline()) end
-            if plate.castTarget then SetFSFont(plate.castTarget, cts, GetNPOutline()) end
-            if plate.castTimer then
-                SetFSFont(plate.castTimer, ctmSz, GetNPOutline())
-                plate.castTimer:SetTextColor(ctmC.r, ctmC.g, ctmC.b, 1)
-            end
-            local auraStackSz = (_db and _db.auraStackTextSize) or ns.defaults.auraStackTextSize
-            for i = 1, 4 do
-                if plate.debuffs[i] and plate.debuffs[i].count then SetFSFont(plate.debuffs[i].count, auraStackSz, "OUTLINE, SLUG") end
-                if plate.buffs[i] and plate.buffs[i].count then SetFSFont(plate.buffs[i].count, auraStackSz, "OUTLINE, SLUG") end
-            end
-        end
-    end
-
     ---------------------------------------------------------------------------
     --  Health bar texture dropdown values (built from ns tables)
     ---------------------------------------------------------------------------
@@ -4414,12 +4383,6 @@ initFrame:SetScript("OnEvent", function(self)
         local W = EllesmereUI.Widgets
         local y = yOffset
         local _, h
-
-        local function isBorderNone()
-            local v = DBVal("showBorder")
-            if v == nil then return not defaults.showBorder end
-            return not v
-        end
 
         -- Set content header with preview centered above nameplate preview
         _displayHeaderBuilder = function(headerParent, headerW)
@@ -9594,15 +9557,6 @@ initFrame:SetScript("OnEvent", function(self)
             return { section = coreHeader, target = info.row, slotSide = (info.side == "_leftRegion") and "left" or "right" }
         end
 
-        -- Resolve a dynamic click mapping for text elements Core Text Positions row
-        local function ResolveTextMapping(element)
-            local slotKey = FindTextSlotForElement(element)
-            if not slotKey then return { section = coreTextHeader, target = textRow1 } end
-            local info = textSlotToRow[slotKey]
-            if not info then return { section = coreTextHeader, target = textRow1 } end
-            return { section = coreTextHeader, target = info.row, slotSide = (info.side == "_leftRegion") and "left" or "right" }
-        end
-
         local clickMappings = {
             debuffDuration = { section = generalTextHeader, target = auraDurPosRow,      slotSide = "left" },
             buffDuration = { section = generalTextHeader,   target = auraDurPosRow,      slotSide = "right" },
@@ -10015,16 +9969,9 @@ initFrame:SetScript("OnEvent", function(self)
     --  Colors page
     ---------------------------------------------------------------------------
 
-    -- Shuffled spell icon pool for cast bar previews (reset each time Colors tab opens)
+    -- Spell icon pool for cast bar previews, cycled in order
     local castIconPool = { 136197, 236802, 135808, 136116, 135735, 136048, 135812, 136075 }
     local castIconIdx = 0
-    local function ShuffleCastIcons()
-        castIconIdx = 0
-        for i = #castIconPool, 2, -1 do
-            local j = math.random(i)
-            castIconPool[i], castIconPool[j] = castIconPool[j], castIconPool[i]
-        end
-    end
     local function NextCastIcon()
         castIconIdx = castIconIdx + 1
         if castIconIdx > #castIconPool then castIconIdx = 1 end
@@ -10033,9 +9980,6 @@ initFrame:SetScript("OnEvent", function(self)
 
     -- Cast fill values: each at least 5% apart, range 40 90%
     local castFillUsed = {}
-    local function ResetCastFills()
-        for i = #castFillUsed, 1, -1 do castFillUsed[i] = nil end
-    end
     local function NextCastFill()
         for _ = 1, 50 do
             local v = 0.40 + math.random() * 0.20
@@ -10550,10 +10494,6 @@ initFrame:SetScript("OnEvent", function(self)
 
         -- Track all mini previews for border style refresh
         _G._EUI_ColorPreviews = {}
-        local function TrackPreview(prev)
-            if prev then _G._EUI_ColorPreviews[#_G._EUI_ColorPreviews + 1] = prev end
-            return prev
-        end
 
         -- LazyColorPreviewBar and _colorPagePreviews live at init scope (shared between Display and Colors pages).
 

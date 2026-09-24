@@ -192,9 +192,6 @@ initFrame:SetScript("OnEvent", function(self)
     local function GetRBOptOutline()
         return (EllesmereUI and EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag()) or ""
     end
-    local function GetRBOptUseShadow()
-        return not EllesmereUI or not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow()
-    end
     local function SetPVFont(fs, font, size)
         if not (fs and fs.SetFont) then return end
         local f = GetRBOptOutline()
@@ -3084,15 +3081,6 @@ initFrame:SetScript("OnEvent", function(self)
         return Update
     end
 
-    local VALID_ANCHOR_TARGETS = EllesmereUI.RESOURCE_BAR_ANCHOR_KEYS or {}
-
-    local function GetAnchorDropdownValue(value)
-        if VALID_ANCHOR_TARGETS[value] then
-            return value
-        end
-        return "none"
-    end
-
     -- Shared, context-aware HEALTH section builder; both Simple and the Advanced
     -- per-spec page render through this. ctx.cfg() -> health config table (DB().health
     -- on Simple, the per-spec copy-on-unsync override on Advanced). ctx.advanced hides
@@ -5845,23 +5833,6 @@ initFrame:SetScript("OnEvent", function(self)
             end
 
             local RefreshSpecEntries  -- forward decl
-
-            local function MakeCheckbox(parentF, size)
-                local cb = CreateFrame("Button", nil, parentF)
-                cb:SetSize(size, size)
-                local cbBg = cb:CreateTexture(nil, "BACKGROUND")
-                cbBg:SetAllPoints()
-                cbBg:SetColorTexture(0.12, 0.12, 0.14, 1)
-                local cbCheck = cb:CreateTexture(nil, "OVERLAY")
-                cbCheck:SetSize(size - 4, size - 4)
-                cbCheck:SetPoint("CENTER")
-                cbCheck:SetColorTexture(EG.r, EG.g, EG.b, 1)
-                cbCheck:Hide()
-                cb._check = cbCheck
-                cb.SetChecked = function(self, val) if val then cbCheck:Show() else cbCheck:Hide() end end
-                cb.GetChecked = function(self) return cbCheck:IsShown() end
-                return cb
-            end
 
             local function BuildFrame(args)
 				local hdrH     = 40

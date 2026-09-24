@@ -248,13 +248,6 @@ local function InPreKeyDungeon()
     return _cachedIType == "party" and _cachedDiffID == 8
 end
 
--- Mythic 0 dungeon or Mythic raid (fixed or flex)
-local function InMythicZeroDungeonOrMythicRaid()
-    if EABR.InMythicZeroDungeon() then return true end
-    if IsInRaid() and IsMythicRaidDiff(_cachedDiffID) then return true end
-    return false
-end
-
 local function InPvPInstance()
     return _cachedIType == "pvp" or _cachedIType == "arena"
 end

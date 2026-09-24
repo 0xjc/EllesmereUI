@@ -65,11 +65,6 @@ local function FP(...)
     return table.concat(FP_JOIN, "|")
 end
 
-local function Prof()
-    local p = ns.NP_GetProfile and ns.NP_GetProfile()
-    return p or (ns.NP_GetDefaults and ns.NP_GetDefaults()) or {}
-end
-
 local function PVal(key)
     local p = ns.NP_GetProfile and ns.NP_GetProfile()
     if p and p[key] ~= nil then return p[key] end

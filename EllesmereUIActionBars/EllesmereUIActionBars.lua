@@ -10846,15 +10846,6 @@ end
 
 local _procState = { hooked = false, active = {} }
 
-local function GetFlipBookAnim(animGroup)
-    if not animGroup then return nil end
-    if animGroup.FlipAnim then return animGroup.FlipAnim end
-    for _, anim in pairs({animGroup:GetAnimations()}) do
-        if anim.SetFlipBookRows then return anim end
-    end
-    return nil
-end
-
 local function UpdateFlipbook(btn)
     local region = btn.SpellActivationAlert
     local fd = EFD(btn)
@@ -16581,85 +16572,6 @@ AttachExtraBarHoverHooks = function(info)
         end
     end
     HookChildren(hoverRoot)
-end
-
-function EAB_VTABLE.ExtraBars.AttachFrameToHolder(barKey, blizzFrame, holder, opts)
-    opts = opts or {}
-
-    local recentering = false
-
-    local function SyncHolderSize()
-        local fw, fh = blizzFrame:GetWidth(), blizzFrame:GetHeight()
-        if fw and fw > 1 and fh and fh > 1 then
-            holder:SetSize(fw, fh)
-        end
-    end
-
-    local function ReparentIntoHolder()
-        if InCombatLockdown() then
-            _blizzMovablePendingOOC[barKey] = true
-            return
-        end
-
-        recentering = true
-        blizzFrame:SetParent(holder)
-        blizzFrame:ClearAllPoints()
-        blizzFrame:SetPoint("CENTER", holder, "CENTER", 0, 0)
-        recentering = false
-        SyncHolderSize()
-    end
-
-    blizzFrame:HookScript("OnSizeChanged", SyncHolderSize)
-
-    if opts.disableLayoutFrame then
-        blizzFrame.ignoreInLayout = true
-        if blizzFrame.SetIsLayoutFrame then
-            blizzFrame:SetIsLayoutFrame(false)
-        end
-        blizzFrame.IsLayoutFrame = nil
-    end
-
-    ReparentIntoHolder()
-
-    hooksecurefunc(blizzFrame, "SetParent", function(self, newParent)
-        if newParent ~= holder then
-            C_Timer_After(0, function()
-                if self:GetParent() ~= holder then
-                    ReparentIntoHolder()
-                end
-            end)
-        end
-    end)
-
-    if opts.repairOnShow then
-        blizzFrame:HookScript("OnShow", function()
-            C_Timer_After(0, function()
-                if recentering or InCombatLockdown() then return end
-                ReparentIntoHolder()
-            end)
-        end)
-    end
-
-    hooksecurefunc(blizzFrame, "SetPoint", function(self)
-        if recentering or self:GetParent() ~= holder then return end
-        C_Timer_After(0, function()
-            if recentering or self:GetParent() ~= holder or InCombatLockdown() then return end
-            if opts.recenterOnlyWhenMoved and self:GetPoint(1) == "CENTER" then return end
-            ReparentIntoHolder()
-        end)
-    end)
-
-    if opts.hookUpdatePosition and type(blizzFrame.UpdatePosition) == "function" then
-        hooksecurefunc(blizzFrame, "UpdatePosition", function()
-            if recentering or blizzFrame:GetParent() ~= holder then return end
-            C_Timer_After(0, function()
-                if recentering or blizzFrame:GetParent() ~= holder or InCombatLockdown() then return end
-                ReparentIntoHolder()
-            end)
-        end)
-    end
-
-    return SyncHolderSize, ReparentIntoHolder
 end
 
 local function SetupExtraBarHolder(barKey, frameName, barInfo)

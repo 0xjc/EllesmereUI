@@ -1281,13 +1281,6 @@ function ns.RF_HealthPowerInset(s, powerH)
     return powerH
 end
 
--- Live-render convenience: resolves the button's settings source (party/extra
--- proxies) before delegating to ns.RF_AnchorHost.
-function ns.RF_AnchorHostFor(d)
-    local s = d._isParty and ns._scaledPartyProxy or (d._isExtra and ns._scaledExtraProxy) or ns._scaledProfile
-    return ns.RF_AnchorHost(d.health, s)
-end
-
 -- Role for POWER-BAR gating. Effective role (EllesmereUI.UnitEffectiveRole):
 -- the player's spec wins over the assigned role, which covers both the solo
 -- "NONE" case (a solo healer's mana bar must not fall through to the DPS

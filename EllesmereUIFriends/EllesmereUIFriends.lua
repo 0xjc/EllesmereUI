@@ -130,19 +130,6 @@ local function SkinRaidRoleIcon(icon)
     -- No-op: CreateTexture on protected parent taints
 end
 
-local function SkinRaidRoleCount(frame)
-    if not frame or GetFFD(frame).skinned then return end
-    GetFFD(frame).skinned = true
-    local fontPath = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("friends") or STANDARD_TEXT_FONT
-    for i = 1, select("#", frame:GetRegions()) do
-        local region = select(i, frame:GetRegions())
-        if region:IsObjectType("FontString") then
-            region:SetFont(fontPath, 10, "")
-            region:SetTextColor(1, 1, 1, 0.8)
-        end
-    end
-end
-
 local function SkinRaidTabButton(btn)
     if not btn or GetFFD(btn).btnSkinned then return end
     GetFFD(btn).btnSkinned = true
@@ -2232,89 +2219,6 @@ local function SkinFriendsFrame()
         ddBg:SetAllPoints()
         ddBg:SetColorTexture(0.04, 0.05, 0.06, 0.97)
         PP.CreateBorder(dropdown, 1, 1, 1, 0.15, 1, "OVERLAY", 7)
-
-        -- Accent border flash highlight (matches EUI options panel search flash)
-        local _searchHL
-        local function GetSearchHL()
-            if _searchHL then return _searchHL end
-            local hl = CreateFrame("Frame", nil, UIParent)
-            hl:SetFrameStrata("HIGH")
-            hl:Hide()
-            local c = EG
-            local function MkEdge()
-                local t = hl:CreateTexture(nil, "OVERLAY", nil, 7)
-                t:SetColorTexture(c.r, c.g, c.b, 1)
-                return t
-            end
-            hl._top = MkEdge()
-            hl._bot = MkEdge()
-            hl._lft = MkEdge()
-            hl._rgt = MkEdge()
-            local ppM = PP.mult or 1
-            PP.DisablePixelSnap(hl._top)
-            PP.DisablePixelSnap(hl._bot)
-            PP.DisablePixelSnap(hl._lft)
-            PP.DisablePixelSnap(hl._rgt)
-            hl._top:SetHeight(ppM)
-            hl._top:SetPoint("TOPLEFT"); hl._top:SetPoint("TOPRIGHT")
-            hl._bot:SetHeight(ppM)
-            hl._bot:SetPoint("BOTTOMLEFT"); hl._bot:SetPoint("BOTTOMRIGHT")
-            hl._lft:SetWidth(ppM)
-            hl._lft:SetPoint("TOPLEFT", hl._top, "BOTTOMLEFT")
-            hl._lft:SetPoint("BOTTOMLEFT", hl._bot, "TOPLEFT")
-            hl._rgt:SetWidth(ppM)
-            hl._rgt:SetPoint("TOPRIGHT", hl._top, "BOTTOMRIGHT")
-            hl._rgt:SetPoint("BOTTOMRIGHT", hl._bot, "TOPRIGHT")
-            _searchHL = hl
-            return hl
-        end
-
-        local function FlashHighlightOnButton(targetBtn)
-            local hl = GetSearchHL()
-            -- Position using absolute coords (don't anchor to Blizzard button)
-            local left = targetBtn:GetLeft()
-            local top = targetBtn:GetTop()
-            local right = targetBtn:GetRight()
-            local bottom = targetBtn:GetBottom()
-            if not left or not top then return end
-            local scale = targetBtn:GetEffectiveScale()
-            local ovScale = hl:GetEffectiveScale()
-            local ratio = scale / ovScale
-            hl:ClearAllPoints()
-            hl:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left * ratio, top * ratio)
-            hl:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMLEFT", right * ratio, bottom * ratio)
-            hl:SetFrameLevel(20)
-            hl:SetAlpha(0)
-            hl:Show()
-            -- Fade in 0.15s, hold 0.6s, fade out 0.3s
-            local elapsed = 0
-            local phase = "in"
-            hl:SetScript("OnUpdate", function(self, dt)
-                elapsed = elapsed + dt
-                if phase == "in" then
-                    if elapsed >= 0.15 then
-                        self:SetAlpha(0.8)
-                        phase = "hold"
-                        elapsed = 0
-                    else
-                        self:SetAlpha(0.8 * (elapsed / 0.15))
-                    end
-                elseif phase == "hold" then
-                    if elapsed >= 0.6 then
-                        phase = "out"
-                        elapsed = 0
-                    end
-                elseif phase == "out" then
-                    if elapsed >= 0.3 then
-                        self:SetAlpha(0)
-                        self:Hide()
-                        self:SetScript("OnUpdate", nil)
-                    else
-                        self:SetAlpha(0.8 * (1 - elapsed / 0.3))
-                    end
-                end
-            end)
-        end
 
         local ROW_H = 24
         local MAX_RESULTS = 8

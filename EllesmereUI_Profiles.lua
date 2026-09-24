@@ -2192,17 +2192,6 @@ function EllesmereUI.ExportProfile(profileName, includedFolders, includeLayout, 
     return EXPORT_PREFIX .. encoded
 end
 
--- Re-encode a decoded payload back to an import string.
--- Used by the import page to strip unchecked addons before calling ImportProfile.
-function EllesmereUI.EncodePayload(payload)
-    if not payload then return nil end
-    local serialized = Serializer.Serialize(payload)
-    if not LibDeflate then return nil end
-    local compressed = LibDeflate:CompressDeflate(serialized)
-    local encoded = LibDeflate:EncodeForPrint(compressed)
-    return EXPORT_PREFIX .. encoded
-end
-
 -------------------------------------------------------------------------------
 --  FULL ACCOUNT EXPORT  (separate format, purely additive)
 --
@@ -2400,73 +2389,6 @@ function EllesmereUI.GetCDMSpecInfo()
             }
         end
     end
-    return result
-end
-
---- Filter specProfiles in an export snapshot to only include selected specs.
---- Reads from snapshot.spellAssignments (the dedicated store copy on the payload).
---- Modifies the snapshot in-place. selectedSpecs = { ["250"] = true, ... }
-function EllesmereUI.FilterExportSpecProfiles(snapshot, selectedSpecs)
-    if not snapshot or not snapshot.spellAssignments then return end
-    local sp = snapshot.spellAssignments.specProfiles
-    if not sp then return end
-    for key in pairs(sp) do
-        if not selectedSpecs[key] then
-            sp[key] = nil
-        end
-    end
-end
-
---- After a profile import, apply only selected specs' specProfiles from the
---- imported data into the dedicated spell assignment store.
---- importedSpellAssignments = the spellAssignments object from the import payload.
---- selectedSpecs = { ["250"] = true, ... }
-function EllesmereUI.ApplyImportedSpecProfiles(importedSpellAssignments, selectedSpecs)
-    if not importedSpellAssignments or not importedSpellAssignments.specProfiles then return end
-    if not EllesmereUIDB.spellAssignments then
-        EllesmereUIDB.spellAssignments = { specProfiles = {} }
-    end
-    local sa = EllesmereUIDB.spellAssignments
-    if not sa.specProfiles then sa.specProfiles = {} end
-    for key, data in pairs(importedSpellAssignments.specProfiles) do
-        if selectedSpecs[key] then
-            sa.specProfiles[key] = DeepCopy(data)
-        end
-    end
-    -- If the current spec was imported, reload it live
-    if _G._ECME_GetCurrentSpecKey and _G._ECME_LoadSpecProfile then
-        local currentKey = _G._ECME_GetCurrentSpecKey()
-        if currentKey and selectedSpecs[currentKey] then
-            _G._ECME_LoadSpecProfile(currentKey)
-        end
-    end
-end
-
---- Get the list of spec keys that have data in imported spell assignments.
---- Returns same format as GetCDMSpecInfo but based on imported data.
---- Accepts either the new spellAssignments format or legacy CDM snapshot.
-function EllesmereUI.GetImportedCDMSpecInfo(importedSpellAssignments)
-    if not importedSpellAssignments then return {} end
-    -- Support both new format (spellAssignments.specProfiles) and legacy (cdmSnap.specProfiles)
-    local specProfiles = importedSpellAssignments.specProfiles
-    if not specProfiles then return {} end
-    local result = {}
-    for specKey in pairs(specProfiles) do
-        local specID = tonumber(specKey)
-        local name, icon
-        if specID and specID > 0 and GetSpecializationInfoByID then
-            local _, sName, _, sIcon = GetSpecializationInfoByID(specID)
-            name = sName
-            icon = sIcon
-        end
-        result[#result + 1] = {
-            key     = specKey,
-            name    = name or ("Spec " .. specKey),
-            icon    = icon,
-            hasData = true,
-        }
-    end
-    table.sort(result, function(a, b) return a.key < b.key end)
     return result
 end
 
@@ -2798,41 +2720,6 @@ do
 end
 
 -------------------------------------------------------------------------------
---  Spell Layout string codec (CDM spell layouts -- SEPARATE from profiles)
---
---  Reuses the same serializer + deflate pipeline as profile export, but with a
---  distinct prefix ("!EUISL_") so the two string kinds can never be confused,
---  and with NO profile version gate -- spell layouts carry their own schema
---  version inside the payload (payload.version). Kept here so the Serializer /
---  LibDeflate locals stay in one place. The CDM layout system
---  (EllesmereUICdmLayouts.lua) calls these; they never touch any profile data.
--------------------------------------------------------------------------------
-function EllesmereUI.EncodeLayoutString(payload)
-    if type(payload) ~= "table" then return nil, "Invalid payload" end
-    if not LibDeflate then return nil, "LibDeflate not available" end
-    local serialized = Serializer.Serialize(payload)
-    local compressed = LibDeflate:CompressDeflate(serialized)
-    local encoded = LibDeflate:EncodeForPrint(compressed)
-    return "!EUISL_" .. encoded
-end
-
-function EllesmereUI.DecodeLayoutString(str)
-    if type(str) ~= "string" or #str < 7 then return nil, "Invalid string" end
-    if str:sub(1, 7) ~= "!EUISL_" then
-        return nil, "Not a valid EllesmereUI Spell Layout string. Make sure you copied the entire string."
-    end
-    if not LibDeflate then return nil, "LibDeflate not available" end
-    local encoded = str:sub(8)
-    local decoded = LibDeflate:DecodeForPrint(encoded)
-    if not decoded then return nil, "Failed to decode string" end
-    local decompressed = LibDeflate:DecompressDeflate(decoded)
-    if not decompressed then return nil, "Failed to decompress data" end
-    local payload = Serializer.Deserialize(decompressed)
-    if type(payload) ~= "table" then return nil, "Failed to deserialize data" end
-    return payload, nil
-end
-
--------------------------------------------------------------------------------
 --  Imported media reconciliation
 --
 --  A profile string can reference SharedMedia statusbar textures that are
@@ -2937,23 +2824,6 @@ local function FixupImportedClassColors()
             profile.health.fillB = cc.b
         end
     end
-end
-
--- Per-profile CDM spell store helpers. The CDM spell/bar-content store lives at
--- EllesmereUIDB.spellAssignments.profiles[name].specProfiles -- a top-level table
--- OUTSIDE the profile blob, so it never travels with profile export or module sync
--- (both operate on the profile's addons blob). These helpers fork/move/drop a profile's
--- CDM bucket in lockstep with the profile itself. Defined above ImportProfile so all
--- profile-lifecycle functions can use it.
-local function GetSpellStoreProfiles()
-    if not EllesmereUIDB then return nil end
-    local sa = EllesmereUIDB.spellAssignments
-    if not sa then
-        sa = { profiles = {} }
-        EllesmereUIDB.spellAssignments = sa
-    end
-    if not sa.profiles then sa.profiles = {} end
-    return sa.profiles
 end
 
 -- Build an imported profile's per-profile CDM spell bucket on the same
@@ -3777,16 +3647,6 @@ end
 function EllesmereUI.GetProfileList()
     local db = GetProfilesDB()
     return db.profileOrder, db.profiles
-end
-
-function EllesmereUI.AssignProfileToSpec(profileName, specID)
-    local db = GetProfilesDB()
-    db.specProfiles[specID] = profileName
-end
-
-function EllesmereUI.UnassignSpec(specID)
-    local db = GetProfilesDB()
-    db.specProfiles[specID] = nil
 end
 
 function EllesmereUI.GetSpecProfile(specID)

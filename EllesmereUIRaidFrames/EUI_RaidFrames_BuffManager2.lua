@@ -678,17 +678,6 @@ function ns.BM2_AddIndicator(indType, key)
     return ind
 end
 
-function ns.BM2_DeleteIndicator(id)
-    local b = Store()
-    if not b then return end
-    local spec = b.specs[ns.BM2_SpecKey()]
-    if not spec then return end
-    for i = #spec.inds, 1, -1 do
-        if spec.inds[i].id == id then table.remove(spec.inds, i) end
-    end
-    ns.BM2_Invalidate()
-end
-
 -------------------------------------------------------------------------------
 -- Resolution: indicator -> effective spell array
 -------------------------------------------------------------------------------
