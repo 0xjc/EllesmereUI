@@ -5198,18 +5198,13 @@ local function SkinChatFrame(cf)
         btnFrame:SetAlpha(0)
         btnFrame:EnableMouse(false)
         -- Empty the border/background textures so btnFrame's own hover/undock
-        -- alpha fades (0.2-1, never fully off) have nothing left to draw.
+        -- alpha fades (0.2-1, never fully off) have nothing left to draw. The
+        -- minimize button is left alone: a separate child object, Blizzard
+        -- fades it in with btnFrame's alpha on hover the same as any other
+        -- chat window, and its own alpha/mouse state were never touched here.
         for i = 1, select("#", btnFrame:GetRegions()) do
             local region = select(i, btnFrame:GetRegions())
             if region:IsObjectType("Texture") then region:SetTexture("") end
-        end
-        -- The minimize button is a separate object with its own alpha, which
-        -- Blizzard never writes directly (only Show/Hide on dock/undock): zero
-        -- it once. Alpha does not stop a click reaching it, so EnableMouse too.
-        local minBtn = btnFrame.minimizeButton
-        if minBtn then
-            minBtn:SetAlpha(0)
-            minBtn:EnableMouse(false)
         end
     end
 
