@@ -3429,6 +3429,25 @@ local function ApplyClassIconTexture(tex, classToken, style)
     return true
 end
 
+-- Class art for a player unit. A readable token paints the pack's sprite cell.
+-- A secret one (identity-restricted players, e.g. enemies in instanced PvP)
+-- cannot key the sprite table, so the stock class atlas carries it: a secret
+-- string concatenates to a secret string and SetAtlas takes secrets from addon
+-- code, so the class is never read in Lua. SetAtlas keeps the texture's
+-- coords (a sprite cell or the question-mark crop from an earlier paint) and
+-- applies them inside the atlas, so they reset first; the next readable paint
+-- re-asserts file and coords. Returns false when there is no class to paint.
+function ns.UF_PaintClassIcon(tex, unit, style)
+    local _, ct = UnitClass(unit)
+    if issecretvalue(ct) then
+        tex:SetTexCoord(0, 1, 0, 1)
+        tex:SetAtlas("classicon-" .. ct)
+        return true
+    end
+    if not ct then return false end
+    return ApplyClassIconTexture(tex, ct, style)
+end
+
 
 -- Shared portrait element Override (2D texture and 3D model objects; class texture
 -- keeps its own). The vendored oUF Update only guid-gates the eventless OnUpdate poll,
@@ -3524,16 +3543,26 @@ function PortraitOverride(self, event, evtUnit)
             -- re-reading the style here lets art-style changes ride any
             -- repaint. Unit swaps (target changes) land through the same
             -- guid gate as every other portrait mode.
-            if isAvailable then
-                local _, ct = UnitClass(u)
-                if issecretvalue(ct) then ct = nil end
+            -- Only players take class art (UnitClass reports most NPCs as
+            -- warriors); anyone else shows its 2D portrait on the backdrop's
+            -- 2D texture, as Blizzard's own class portraits do. UnitIsPlayer
+            -- is never secret.
+            local npcTex = element.backdrop and element.backdrop._2d
+            if isAvailable and npcTex and not UnitIsPlayer(u) then
+                element:Hide()
+                SetPortraitTexture(npcTex, u, npcTex._blizzNoMask)
+                if npcTex.PostUpdate then npcTex:PostUpdate(u) end
+                npcTex:Show()
+            else
+                if npcTex then npcTex:Hide() end
+                element:Show()
                 local uKeyC = UnitToSettingsKey(u)
                 local uSC = uKeyC and db.profile[uKeyC]
-                ApplyClassIconTexture(element, ct or "WARRIOR",
-                    (uSC and uSC.classThemeStyle) or "modern")
-            else
-                element:SetTexCoord(0.15, 0.85, 0.15, 0.85)
-                element:SetTexture([[Interface\Icons\INV_Misc_QuestionMark]])
+                if not (isAvailable and ns.UF_PaintClassIcon(element, u,
+                        (uSC and uSC.classThemeStyle) or "modern")) then
+                    element:SetTexCoord(0.15, 0.85, 0.15, 0.85)
+                    element:SetTexture([[Interface\Icons\INV_Misc_QuestionMark]])
+                end
             end
         else
             if isAvailable then
@@ -5994,10 +6023,9 @@ local function CreatePortrait(frame, side, frameHeight, unit)
     PP.Point(texClass, "TOPLEFT", backdrop, "TOPLEFT", classInset, -classInset)
     PP.Point(texClass, "BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", -classInset, classInset)
     texClass:SetAlpha(0.8)
-    local _, classToken = UnitClass(unit)
-    if issecretvalue(classToken) then classToken = nil end
-    local classStyle = (uSettings and uSettings.classThemeStyle) or "modern"
-    ApplyClassIconTexture(texClass, classToken or "WARRIOR", classStyle)
+    if unit and UnitIsPlayer(unit) then
+        ns.UF_PaintClassIcon(texClass, unit, (uSettings and uSettings.classThemeStyle) or "modern")
+    end
     texClass:Hide()
 
     backdrop._3d = model3D
@@ -8711,13 +8739,8 @@ local function SwapPortraitMode(frame)
     if bd._class then bd._class:Hide() end
 
     if wantMode == "class" and bd._class then
-        -- Re-apply class art style texture (may have changed since creation)
-        local uKey2 = UnitToSettingsKey(unit)
-        local s2 = uKey2 and db.profile[uKey2]
-        local classStyle = (s2 and s2.classThemeStyle) or "modern"
-        local _, ct = UnitClass(unit)
-        if issecretvalue(ct) then ct = nil end
-        ApplyClassIconTexture(bd._class, ct or "WARRIOR", classStyle)
+        -- The art comes from the engine painter's class lane on the
+        -- repaint below (players: class art, anyone else: 2D portrait).
         bd._class:Show()
         bd._2d:Hide()
         bd._class.backdrop = bd
@@ -11208,19 +11231,6 @@ ReloadFramesBody = function()
                 -- Always ForceUpdate so zoom/camDistanceScale applies even without mode change
                 if frame:IsElementEnabled("Portrait") and frame.Portrait.ForceUpdate then
                     frame.Portrait:ForceUpdate()
-                end
-            end
-
-            -- Refresh class art style texture (may have changed without mode change)
-            if frame.Portrait and frame.Portrait.backdrop and frame.Portrait.backdrop._class then
-                local uKey = UnitToSettingsKey(unit) or unit
-                local uSettings = uKey and db.profile[uKey]
-                local isClassMode = ((uSettings and uSettings.portraitMode) or "2d") == "class"
-                if isClassMode then
-                    local classStyle = (uSettings and uSettings.classThemeStyle) or "modern"
-                    local _, ct = UnitClass(unit)
-                    if issecretvalue(ct) then ct = nil end
-                    ApplyClassIconTexture(frame.Portrait.backdrop._class, ct or "WARRIOR", classStyle)
                 end
             end
 
@@ -14771,15 +14781,6 @@ function InitializeFrames()
         if uSettings and uSettings.detachedPortraitClassColor then
             ApplyDetachedPortraitShape(backdrop, uSettings, unitKey)
         end
-        -- Refresh class icon texture so it shows the actual unit class (not WARRIOR fallback)
-        if backdrop._class and uSettings and (uSettings.portraitMode or "2d") == "class" then
-            local _, ct = UnitClass(unitKey)
-            if issecretvalue(ct) then ct = nil end
-            if ct then
-                local classStyle = (uSettings and uSettings.classThemeStyle) or "modern"
-                ApplyClassIconTexture(backdrop._class, ct, classStyle)
-            end
-        end
     end)
 
     ---------------------------------------------------------------------------
@@ -14890,30 +14891,6 @@ function InitializeFrames()
     end
     frames._bossTargetBorderUpdater:SetScript("OnEvent", ns.UpdateBossTargetBorders)
     ns.UpdateBossTargetBorders()
-
-    -- Deferred class portrait fix: at frame creation time UnitClass() may return nil
-    -- for dynamic units (target, focus) since no unit is selected yet on login/reload,
-    -- causing the WARRIOR fallback. Re-apply the correct class icon once the client
-    -- has finished loading and unit data is available.
-    C_Timer.After(0, function()
-        for _, unitKey in ipairs({"player", "target", "focus"}) do
-            local frame = frames[unitKey]
-            if frame and frame.Portrait then
-                local backdrop = frame.Portrait.backdrop
-                if backdrop and backdrop._class then
-                    local uSettings = db.profile[unitKey]
-                    if uSettings and (uSettings.portraitMode or "2d") == "class" then
-                        local _, ct = UnitClass(unitKey)
-                        if issecretvalue(ct) then ct = nil end
-                        if ct then
-                            local classStyle = (uSettings and uSettings.classThemeStyle) or "modern"
-                            ApplyClassIconTexture(backdrop._class, ct, classStyle)
-                        end
-                    end
-                end
-            end
-        end
-    end)
 
     -- Deferred normalization: some late-login updates can re-anchor power bars
     -- after frame construction. Re-apply two-point attached anchors once more.

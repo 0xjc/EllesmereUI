@@ -4196,8 +4196,11 @@ local function BuildCogPopup(opts)
         -- Measure slider labels to find maxLblW
         local tmpFS = UIParent:CreateFontString(nil, "OVERLAY")
         tmpFS:SetFont(EXPRESSWAY or "Fonts\\FRIZQT__.TTF", 11, "")
+        local COG_DD_W = 130
         local maxLblW = 0
-        local maxDDLblW = 0
+        -- Widest label + dropdown pair (a dropdown row may ask for a wider
+        -- control with row.ddWidth; every other row uses COG_DD_W).
+        local maxDDNeed = COG_DD_W
         for _, row in ipairs(opts.rows) do
             if row.type == "slider" or row.type == "input" then
                 tmpFS:SetText(EllesmereUI.L(row.label))
@@ -4205,20 +4208,19 @@ local function BuildCogPopup(opts)
                 if w > maxLblW then maxLblW = w end
             elseif row.type == "dropdown" or row.type == "segmented" or row.type == "reordercheck" then
                 tmpFS:SetText(EllesmereUI.L(row.label))
-                local w = tmpFS:GetStringWidth()
-                if w > maxDDLblW then maxDDLblW = w end
+                local w = tmpFS:GetStringWidth() + ((row.type == "dropdown" and row.ddWidth) or COG_DD_W)
+                if w > maxDDNeed then maxDDNeed = w end
             end
         end
         tmpFS:Hide()
         if maxLblW < 10 then maxLblW = 60 end
 
-        local COG_DD_W = 130
         local SLIDER_LEFT = SIDE_PAD + maxLblW + LABEL_SLIDER_GAP
         local TARGET_W = opts.minWidth or 260
         local SLIDER_W = math.max(80, TARGET_W - SLIDER_LEFT - SLIDER_INPUT_GAP - INPUT_W - SIDE_PAD)
         local POPUP_W = math.max(opts.minWidth or MIN_POPUP_W, SLIDER_LEFT + SLIDER_W + SLIDER_INPUT_GAP + INPUT_W + SIDE_PAD)
         -- Widen for dropdown rows (label + gap + dropdown + padding)
-        local ddNeeded = SIDE_PAD + maxDDLblW + LABEL_SLIDER_GAP + COG_DD_W + SIDE_PAD
+        local ddNeeded = SIDE_PAD + maxDDNeed + LABEL_SLIDER_GAP + SIDE_PAD
         if ddNeeded > POPUP_W then POPUP_W = ddNeeded end
         if opts.minWidth and opts.minWidth > POPUP_W then POPUP_W = opts.minWidth end
         -- Stretch the track to fill a widened popup so no gap opens between the slider and its value box. Gated on minWidth so un-widened cog popups keep their original slider width.
@@ -4386,7 +4388,7 @@ local function BuildCogPopup(opts)
 
                 -- Cog-popup dropdowns render 10% smaller than the panel dropdowns.
                 local DD_SCALE = 0.9
-                local ddBtn, ddLbl = BuildDropdownControl(pf, COG_DD_W, pf:GetFrameLevel() + 2, row.values, row.order, row.get, function(v)
+                local ddBtn, ddLbl = BuildDropdownControl(pf, row.ddWidth or COG_DD_W, pf:GetFrameLevel() + 2, row.values, row.order, row.get, function(v)
                     row.set(v)
                     if pf._refresh then pf._refresh() end
                 end, row.itemDisabled)
