@@ -246,6 +246,41 @@ local function LinkFromText(text)
     return text:match("(|c%x+|Hitem:.-|h.-|h|r)") or text:match("(|Hitem:.-|h.-|h)")
 end
 
+-- Bonus roll loot is announced through CHAT_MSG_LOOT like the chest's, and only
+-- the sentence tells them apart. The client's own localized strings become the
+-- patterns, so this holds in every client language.
+local IsBonusRollLine
+do
+    local BONUS_KEYS = {
+        "LOOT_ITEM_BONUS_ROLL", "LOOT_ITEM_BONUS_ROLL_MULTIPLE",
+        "LOOT_ITEM_BONUS_ROLL_SELF", "LOOT_ITEM_BONUS_ROLL_SELF_MULTIPLE",
+    }
+    local patterns
+
+    local function ToPattern(fmt)
+        local p = fmt:gsub("%%%d?%$?s", "\1"):gsub("%%%d?%$?d", "\2")
+        p = p:gsub("[%^%$%(%)%.%[%]%*%+%-%?%%]", "%%%0")
+        return "^" .. p:gsub("\1", ".+"):gsub("\2", "%%d+")
+    end
+
+    function IsBonusRollLine(text)
+        if type(text) ~= "string" or IsSecret(text) then return false end
+        if not patterns then
+            patterns = {}
+            for _, key in ipairs(BONUS_KEYS) do
+                local fmt = _G[key]
+                if type(fmt) == "string" and fmt ~= "" then
+                    patterns[#patterns + 1] = ToPattern(fmt)
+                end
+            end
+        end
+        for i = 1, #patterns do
+            if text:find(patterns[i]) then return true end
+        end
+        return false
+    end
+end
+
 local function IDFromLink(link)
     if type(link) ~= "string" then return nil end
     return tonumber(link:match("|Hitem:(%d+)"))
@@ -256,6 +291,28 @@ end
 local ITEM_CLASS   = Enum and Enum.ItemClass
 local ITEM_QUALITY = Enum and Enum.ItemQuality
 local GetInstant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+
+local ITEM_BIND   = Enum and Enum.ItemBind
+local GetFullInfo = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+
+-- A Warbound until Equipped item reports bindType OnEquip, so the predicate
+-- has to run first: the bind type alone only catches the fully bound ones.
+local function IsWarboundLoot(info)
+    if not info then return false end
+    if C_Item and C_Item.IsItemBindToAccountUntilEquip
+        and C_Item.IsItemBindToAccountUntilEquip(info) == true then
+        return true
+    end
+    if ITEM_BIND and GetFullInfo then
+        local bind = PlainNumber(select(14, GetFullInfo(info)))
+        if bind and (bind == ITEM_BIND.ToWoWAccount
+            or bind == ITEM_BIND.ToBnetAccount
+            or bind == ITEM_BIND.ToBnetAccountUntilEquipped) then
+            return true
+        end
+    end
+    return false
+end
 
 -- The column is for the chest's gear. Keystones, quest items, housing decor,
 -- reagents and anything below epic arrive through the same loot channels and
@@ -268,6 +325,7 @@ local function IsExcludedLootID(id, link)
     if C_Item and C_Item.IsItemKeystoneByID and C_Item.IsItemKeystoneByID(id) == true then
         return true
     end
+    if IsWarboundLoot(link or id) then return true end
     if GetInstant then
         local _, _, _, equipLoc, _, classID = GetInstant(id)
         classID = PlainNumber(classID)
@@ -303,7 +361,15 @@ local function RecordLoot(rst, ord, guid, name, link)
             end
         end
     end
-    if not rec or rec.lootLink then return false end
+    if not rec then return false end
+    -- The chest reward is the item the column is for: a link gets in only when
+    -- it is that same item, carrying the level and bonuses the ID has not got.
+    if rec.lootChest then
+        if rec.lootLink or IDFromLink(link) ~= rec.lootID then return false end
+        rec.lootLink = link
+        return true
+    end
+    if rec.lootLink then return false end
     rec.lootLink = link
     rec.lootID   = IDFromLink(link) or rec.lootID
     return true
@@ -503,7 +569,8 @@ end
 -- registered or dropped out of step. Loot has three sources, none complete:
 -- the rewards payload (our own item), ENCOUNTER_LOOT_RECEIVED (docs say args
 -- 5/6 are itemName/fileName; BossBannerToast binds playerName/className) and
--- CHAT_MSG_LOOT (looter GUID in arg 12).
+-- CHAT_MSG_LOOT (looter GUID in arg 12). Bonus roll loot is dropped: from the
+-- chat line for everyone, and from BONUS_ROLL_RESULT for our own roll.
 local function SyncEvents()
     if not frame then return end
     local on       = Enabled() == true
@@ -520,6 +587,7 @@ local function SyncEvents()
     SetEvent("CHALLENGE_MODE_COMPLETED_REWARDS", settling)
     SetEvent("ENCOUNTER_LOOT_RECEIVED", settling)
     SetEvent("CHAT_MSG_LOOT", settling)
+    SetEvent("BONUS_ROLL_RESULT", settling)
     SetEvent("LOOT_CLOSED", settling)
     SetEvent("PLAYER_ENTERING_WORLD", settling)
 end
@@ -797,6 +865,7 @@ local function FinishRun()
     local lr = {
         record = record, rst = roster, ord = rosterOrder,
         base = baseTotals, baseDur = baseDuration, based = hasBaseline,
+        bonus = {},
     }
     lastRun = lr
     PurgeOldSeasons()
@@ -851,6 +920,33 @@ local function ArmLootWait()
     lr.lootArmed = true
 end
 
+-- The item string alone: a chat link loses a |cn quality color in LinkFromText,
+-- so the same item arrives as different link strings. Bonus IDs are kept, so
+-- a chest drop and a bonus copy of the same item still differ.
+local function LinkKey(link)
+    return type(link) == "string" and link:match("|H(item:[^|]+)|h") or nil
+end
+
+-- Marks a link as bonus roll loot for the rest of the run and takes it back
+-- from whoever it was already recorded against, since ENCOUNTER_LOOT_RECEIVED
+-- may have delivered it before the chat line. True when a row changed.
+local function ForgetBonusLoot(lr, link)
+    local key = LinkKey(link)
+    if not key then return false end
+    lr.bonus[key] = true
+    local changed = false
+    for _, guid in ipairs(lr.ord) do
+        local rec = lr.rst[guid]
+        if rec and LinkKey(rec.lootLink) == key then
+            rec.lootLink = nil
+            -- The chest reward's ID stays when the bonus copy is the same item.
+            if not rec.lootChest and rec.lootID == IDFromLink(link) then rec.lootID = nil end
+            changed = true
+        end
+    end
+    return changed
+end
+
 --------------------------------------------------------------------------------
 --  Events
 --------------------------------------------------------------------------------
@@ -891,7 +987,11 @@ local function OnEvent(_, event, ...)
                         -- cache yet here, so icon and tooltip resolve from the
                         -- ID at render time. A link from one of the two loot
                         -- events below is preferred when it arrives.
-                        own.lootID = own.lootID or id
+                        if (own.lootID or IDFromLink(own.lootLink)) ~= id then
+                            own.lootLink = nil
+                        end
+                        own.lootID    = id
+                        own.lootChest = true
                         break
                     end
                 end
@@ -904,11 +1004,22 @@ local function OnEvent(_, event, ...)
     elseif event == "ENCOUNTER_LOOT_RECEIVED" then
         local lr = lastRun
         if lr then
-            local link, who = select(3, ...), select(5, ...)
-            if RecordLoot(lr.rst, lr.ord, nil, PlainString(who), PlainString(link)) then
+            local link, who = PlainString((select(3, ...))), select(5, ...)
+            if link and not lr.bonus[LinkKey(link)]
+                and RecordLoot(lr.rst, lr.ord, nil, PlainString(who), link) then
                 BuildMembers(lr.record, lr.rst, lr.ord)
                 if RefreshWindowIfOpen then RefreshWindowIfOpen() end
             end
+        end
+
+    elseif event == "BONUS_ROLL_RESULT" then
+        -- Our own roll only; nobody else's is reported this way.
+        local lr = lastRun
+        local rewardType, link = ...
+        link = PlainString(link)
+        if lr and link and PlainString(rewardType) == "item" and ForgetBonusLoot(lr, link) then
+            BuildMembers(lr.record, lr.rst, lr.ord)
+            if RefreshWindowIfOpen then RefreshWindowIfOpen() end
         end
 
     elseif event == "CHAT_MSG_LOOT" then
@@ -916,7 +1027,13 @@ local function OnEvent(_, event, ...)
         if lr then
             local text, who, guid = select(1, ...), select(2, ...), select(12, ...)
             local link = LinkFromText(text)
-            if link and RecordLoot(lr.rst, lr.ord, PlainString(guid), PlainString(who), link) then
+            if link and IsBonusRollLine(text) then
+                if ForgetBonusLoot(lr, link) then
+                    BuildMembers(lr.record, lr.rst, lr.ord)
+                    if RefreshWindowIfOpen then RefreshWindowIfOpen() end
+                end
+            elseif link and not lr.bonus[LinkKey(link)]
+                and RecordLoot(lr.rst, lr.ord, PlainString(guid), PlainString(who), link) then
                 BuildMembers(lr.record, lr.rst, lr.ord)
                 if RefreshWindowIfOpen then RefreshWindowIfOpen() end
             end
