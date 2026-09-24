@@ -7595,6 +7595,11 @@ function NameplateFrame:UpdateName()
             -- paint takes the full absorb path for the new unit; the cached max
             -- belongs to the old unit, drop it too.
             self._absorbHidden = nil
+            -- Repaint target/hover styling for the new occupant so the old one's
+            -- paint cannot stick (#2117); mirrors the UpdateHealthValues swap.
+            -- ApplyTarget re-owns the shared target-plate cache as a side effect.
+            if ns.ClearHoverExtras then ns.ClearHoverExtras(self) end
+            self:ApplyTarget()
             self._maxHPValid = nil
             self._absMode = nil
         end
@@ -7922,6 +7927,16 @@ function NameplateFrame:ApplyTarget()
     if not self.unit then return end
     local isTarget = UnitIsUnit(self.unit, "target")
     self._isTarget = isTarget  -- cached for hot-path hash line check
+    -- Cache ownership lives here so EVERY painter keeps it coherent (#2117):
+    -- SetUnit's deferred setup (pending-watcher promotion), the UpdateHealthValues
+    -- token swap and PLAYER_TARGET_CHANGED all funnel through this method. Gaining
+    -- target claims the slot; a recycled plate that lost target frees it, so a
+    -- stale entry can never skip the un-paint on the next target change.
+    if isTarget then
+        ns._cachedTargetPlate = self
+    elseif ns._cachedTargetPlate == self then
+        ns._cachedTargetPlate = nil
+    end
     -- EllesmereUI: background glow around the plate, tinted + faded with the
     -- target Glow Color/Opacity (re-applied on show so live edits update).
     if isTarget and ns.GetTargetGlowEllesmereUI() then
