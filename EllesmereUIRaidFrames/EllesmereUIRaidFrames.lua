@@ -31,6 +31,22 @@ ns.EllesmereUI = EllesmereUI
 -- "EllesmereUI" literal is only reached in the suite. On ns (200-local cap).
 ns.NICK_ADDON = ADDON_NAME:find("Standalone") and ADDON_NAME or "EllesmereUI"
 
+-- Keep subgroup identity separate from its visual slot. Invalid imported
+-- orders fall back to the original layout without touching SavedVariables.
+function ns._RFValidatedGroupOrder(order)
+    if type(order) ~= "table" or #order ~= 8 then return nil end
+    for i = 1, 8 do
+        local group = order[i]
+        if type(group) ~= "number" or group < 1 or group > 8 or group % 1 ~= 0 then
+            return nil
+        end
+        for previous = 1, i - 1 do
+            if order[previous] == group then return nil end
+        end
+    end
+    return order
+end
+
 -------------------------------------------------------------------------------
 --  Frame-level layout (offsets above the button / preview-frame level).
 --  All aura VISUALS (debuffs, defensives/externals, private auras, dispel-type
@@ -314,6 +330,7 @@ local defaults = {
         showSelfFirst    = true,
         showSelfLast     = false,
         mergeGroups      = false,
+        customGroupOrder = false,
         visibleGroups    = { true, true, true, true, true, true, false, false },
         hideEmptyGroups  = true,     -- collapse subgroups with no members (raid only, real frames)
         excludeHiddenGroupsFromSize = true, -- hidden Show Groups don't count toward the raid-size breakpoint
@@ -6231,14 +6248,17 @@ FB.Anchor = function(owner)
                 if sub then occupied[sub] = true end
             end
             local first, last
-            for gi = 1, 8 do
+            local groupOrder = s.customGroupOrder and ns._RFValidatedGroupOrder(s.groupOrder)
+            for slot = 1, 8 do
+                local gi = groupOrder and groupOrder[slot] or slot
                 if vg[gi] ~= false and separatedHdrs[gi] and occupied[gi] then
                     if not first then first = separatedHdrs[gi] end
                     last = separatedHdrs[gi]
                 end
             end
             if not first then
-                for gi = 1, 8 do
+                for slot = 1, 8 do
+                    local gi = groupOrder and groupOrder[slot] or slot
                     if vg[gi] ~= false and separatedHdrs[gi] then
                         if not first then first = separatedHdrs[gi] end
                         last = separatedHdrs[gi]
@@ -8198,7 +8218,9 @@ ns._LayoutGroupsImpl = function()
         end
 
         local visSlot = 0  -- running counter for visible groups (collapses gaps)
-        for group = 1, 8 do
+        local groupOrder = s.customGroupOrder and ns._RFValidatedGroupOrder(s.groupOrder)
+        for slot = 1, 8 do
+            local group = groupOrder and groupOrder[slot] or slot
             local hdr = separatedHdrs[group]
             if hdr then
                 if vg[group] == false or (occupied and not occupied[group]) then
@@ -15215,11 +15237,28 @@ local function RefreshPreview()
     -- Hide all preview frames first
     for _, f in ipairs(previewFrames) do f:Hide() end
 
+    -- The 20-player preview keeps subgroup identities while moving each
+    -- group's five frames to its visual slot.
+    local groupOrder = s.customGroupOrder and not s.mergeGroups
+        and ns._RFValidatedGroupOrder(s.groupOrder)
+    local previewSlotByGroup
+    if groupOrder then
+        previewSlotByGroup = {}
+        local previewSlot = 0
+        for _, group in ipairs(groupOrder) do
+            if group <= 4 then
+                previewSlotByGroup[group] = previewSlot
+                previewSlot = previewSlot + 1
+            end
+        end
+    end
+
     -- Place 20 preview frames: 4 groups x 5 units
     local frameIdx = 0
     for g = 0, 3 do
-        local gx = rawGX[g] - minGX
-        local gy = rawGY[g] - maxGY
+        local displaySlot = previewSlotByGroup and previewSlotByGroup[g + 1] or g
+        local gx = rawGX[displaySlot] - minGX
+        local gy = rawGY[displaySlot] - maxGY
         local firstFrame
         for u = 0, 4 do
             frameIdx = frameIdx + 1
@@ -15724,6 +15763,20 @@ ns._ShowSizePreview = function(tier)
         if gy > maxY then maxY = gy end
     end
 
+    local groupOrder = s.customGroupOrder and not s.mergeGroups
+        and ns._RFValidatedGroupOrder(s.groupOrder)
+    local sizePreviewSlotByGroup
+    if groupOrder then
+        sizePreviewSlotByGroup = {}
+        local sizePreviewSlot = 0
+        for _, group in ipairs(groupOrder) do
+            if group <= numGroups then
+                sizePreviewSlotByGroup[group] = sizePreviewSlot
+                sizePreviewSlot = sizePreviewSlot + 1
+            end
+        end
+    end
+
     for i = 1, frameCount do
         local f = ns._sizePreviewFrames[i]
         if not f then
@@ -15834,8 +15887,9 @@ ns._ShowSizePreview = function(tier)
         local unitIdx  = (i - 1) % perGroup
 
         -- Group origin (TOPLEFT-relative, adjusted for growth direction)
-        local gx = groupIdx * stepX - minX
-        local gy = groupIdx * stepY - maxY
+        local displaySlot = sizePreviewSlotByGroup and sizePreviewSlotByGroup[groupIdx + 1] or groupIdx
+        local gx = displaySlot * stepX - minX
+        local gy = displaySlot * stepY - maxY
 
         -- Unit offset within group (TOPLEFT-normalized, matching RefreshPreview)
         local ux = unitIdx * uStepX - minUX

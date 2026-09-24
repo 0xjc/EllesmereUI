@@ -9454,6 +9454,8 @@ end
 --      onClose  = function(orderChanged),        -- fired once per menu close
 --      hint     = "Drag to Reorder",             -- text above the rows
 --      hint2    = "...",                         -- optional second hint line
+--      canReorder = function() -> boolean,       -- optional drag guard
+--      summaryLabel = function(movable, fixed, getFn) -> string,
 --  }
 --  Returns ddBtn, RefreshAll (same contract as BuildVisOptsCBDropdown).
 -------------------------------------------------------------------------------
@@ -9489,6 +9491,7 @@ function EllesmereUI.BuildReorderCBDropdown(parentFrame, ddW, fLevel, items, get
     ddLbl:SetPoint("RIGHT", arrow, "LEFT", -5, 0)
 
     local function SummaryLabel()
+        if opts.summaryLabel then return opts.summaryLabel(movable, fixedItems, getFn) end
         local names = {}
         local total = 0
         local function collect(list)
@@ -9611,6 +9614,7 @@ function EllesmereUI.BuildReorderCBDropdown(parentFrame, ddW, fLevel, items, get
                 hl:SetColorTexture(1, 1, 1, 0)
             end)
             row:SetScript("OnClick", function()
+                if row._suppressClick then row._suppressClick = nil; return end
                 if isDragging then return end
                 setFn(row._item.key, not getFn(row._item.key))
                 UpdateLabel()
@@ -9652,15 +9656,21 @@ function EllesmereUI.BuildReorderCBDropdown(parentFrame, ddW, fLevel, items, get
             movableRows[i] = row
 
             local dsY, dgO, dgFrom
-            row:SetScript("OnMouseDown", function(_, b)
+            local DragUpdate
+            row:SetScript("OnMouseDown", function(self, b)
                 if b ~= "LeftButton" then return end
+                row._suppressClick = nil
+                if opts.canReorder and not opts.canReorder() then return end
                 local _, cy = GetCursorPosition()
                 dsY = cy
+                self:SetScript("OnUpdate", DragUpdate)
             end)
             row:SetScript("OnMouseUp", function(self, b)
                 if b ~= "LeftButton" then return end
                 dsY = nil
+                self:SetScript("OnUpdate", nil)
                 if not isDragging then return end
+                self._suppressClick = true
                 isDragging = false
                 insLine:Hide()
                 self:SetFrameLevel(menu:GetFrameLevel() + 2)
@@ -9669,6 +9679,10 @@ function EllesmereUI.BuildReorderCBDropdown(parentFrame, ddW, fLevel, items, get
                 self:ClearAllPoints()
                 self:SetPoint("TOPLEFT", menu, "TOPLEFT", 1, self._slotY)
                 self:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -1, self._slotY)
+                if opts.canReorder and not opts.canReorder() then
+                    RefreshMovableRows()
+                    return
+                end
                 local _, cy = GetCursorPosition()
                 cy = cy / menu:GetEffectiveScale()
                 local from
@@ -9692,7 +9706,7 @@ function EllesmereUI.BuildReorderCBDropdown(parentFrame, ddW, fLevel, items, get
                 end
                 RefreshMovableRows()
             end)
-            row:SetScript("OnUpdate", function(self)
+            DragUpdate = function(self)
                 if not dsY then return end
                 local _, cy = GetCursorPosition()
                 if not isDragging then
@@ -9723,7 +9737,17 @@ function EllesmereUI.BuildReorderCBDropdown(parentFrame, ddW, fLevel, items, get
                 insLine:SetPoint("TOPLEFT", menu, "TOPLEFT", 8, lnY)
                 insLine:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -8, lnY)
                 insLine:Show()
-            end)
+            end
+            row._cancelDrag = function(self)
+                if not dsY then return end
+                dsY = nil
+                self:SetScript("OnUpdate", nil)
+                self:SetFrameLevel(menu:GetFrameLevel() + 2)
+                self:SetAlpha(1)
+                self:ClearAllPoints()
+                self:SetPoint("TOPLEFT", menu, "TOPLEFT", 1, self._slotY)
+                self:SetPoint("TOPRIGHT", menu, "TOPRIGHT", -1, self._slotY)
+            end
         end
 
         -- Divider + fixed (non-draggable) rows below the movable group
@@ -9748,6 +9772,7 @@ function EllesmereUI.BuildReorderCBDropdown(parentFrame, ddW, fLevel, items, get
 
         -- One close notification per open/close cycle (reload prompts hook this)
         menu:HookScript("OnHide", function()
+            for _, row in ipairs(movableRows) do row:_cancelDrag() end
             isDragging = false
             insLine:Hide()
             local changed = orderChanged
