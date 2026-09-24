@@ -3034,6 +3034,23 @@ function ns.GetUnitFrameSource(unit)
     return "eui"
 end
 
+--- True when this profile has Unit Frames re-host Blizzard's class resource frame
+--- (the "Blizzard" class resource style on the EllesmereUI player frame). Resource
+--- Bars' Blizzard Class Resource Art reads it through the module registry and never
+--- claims that frame while it holds: one owner, and Unit Frames wins a tie from an
+--- import or spec override. Config plus the runtime mirror (ns._ufBlizzCPHeld), so
+--- it answers before InitializeFrames and while a change waits to apply.
+--- On ns for the 200-locals cap.
+function ns.UF_OwnsBlizzClassPower()
+    if EllesmereUI.IS_FOREVER == true then return false end
+    -- Held right now (runtime), even while the config says otherwise: a style or
+    -- source change not applied yet (combat, a pending reload) keeps it ours.
+    if ns._ufBlizzCPHeld then return true end
+    local p = db and db.profile
+    if not (p and p.player and p.player.classPowerStyle == "blizzard") then return false end
+    return ns.GetUnitFrameSource("player") == "eui"
+end
+
 -- Write a unit's frame source, keeping the legacy enabledFrames flag in sync so
 -- existing readers stay correct (and so the cog is the way back for a frame an old
 -- profile left disabled). Only takes full effect after a UI reload -- the spawn
@@ -3412,6 +3429,25 @@ local function ApplyClassIconTexture(tex, classToken, style)
     return true
 end
 
+-- Class art for a player unit. A readable token paints the pack's sprite cell.
+-- A secret one (identity-restricted players, e.g. enemies in instanced PvP)
+-- cannot key the sprite table, so the stock class atlas carries it: a secret
+-- string concatenates to a secret string and SetAtlas takes secrets from addon
+-- code, so the class is never read in Lua. SetAtlas keeps the texture's
+-- coords (a sprite cell or the question-mark crop from an earlier paint) and
+-- applies them inside the atlas, so they reset first; the next readable paint
+-- re-asserts file and coords. Returns false when there is no class to paint.
+function ns.UF_PaintClassIcon(tex, unit, style)
+    local _, ct = UnitClass(unit)
+    if issecretvalue(ct) then
+        tex:SetTexCoord(0, 1, 0, 1)
+        tex:SetAtlas("classicon-" .. ct)
+        return true
+    end
+    if not ct then return false end
+    return ApplyClassIconTexture(tex, ct, style)
+end
+
 
 -- Shared portrait element Override (2D texture and 3D model objects; class texture
 -- keeps its own). The vendored oUF Update only guid-gates the eventless OnUpdate poll,
@@ -3507,16 +3543,26 @@ function PortraitOverride(self, event, evtUnit)
             -- re-reading the style here lets art-style changes ride any
             -- repaint. Unit swaps (target changes) land through the same
             -- guid gate as every other portrait mode.
-            if isAvailable then
-                local _, ct = UnitClass(u)
-                if issecretvalue(ct) then ct = nil end
+            -- Only players take class art (UnitClass reports most NPCs as
+            -- warriors); anyone else shows its 2D portrait on the backdrop's
+            -- 2D texture, as Blizzard's own class portraits do. UnitIsPlayer
+            -- is never secret.
+            local npcTex = element.backdrop and element.backdrop._2d
+            if isAvailable and npcTex and not UnitIsPlayer(u) then
+                element:Hide()
+                SetPortraitTexture(npcTex, u, npcTex._blizzNoMask)
+                if npcTex.PostUpdate then npcTex:PostUpdate(u) end
+                npcTex:Show()
+            else
+                if npcTex then npcTex:Hide() end
+                element:Show()
                 local uKeyC = UnitToSettingsKey(u)
                 local uSC = uKeyC and db.profile[uKeyC]
-                ApplyClassIconTexture(element, ct or "WARRIOR",
-                    (uSC and uSC.classThemeStyle) or "modern")
-            else
-                element:SetTexCoord(0.15, 0.85, 0.15, 0.85)
-                element:SetTexture([[Interface\Icons\INV_Misc_QuestionMark]])
+                if not (isAvailable and ns.UF_PaintClassIcon(element, u,
+                        (uSC and uSC.classThemeStyle) or "modern")) then
+                    element:SetTexCoord(0.15, 0.85, 0.15, 0.85)
+                    element:SetTexture([[Interface\Icons\INV_Misc_QuestionMark]])
+                end
             end
         else
             if isAvailable then
@@ -5977,10 +6023,9 @@ local function CreatePortrait(frame, side, frameHeight, unit)
     PP.Point(texClass, "TOPLEFT", backdrop, "TOPLEFT", classInset, -classInset)
     PP.Point(texClass, "BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", -classInset, classInset)
     texClass:SetAlpha(0.8)
-    local _, classToken = UnitClass(unit)
-    if issecretvalue(classToken) then classToken = nil end
-    local classStyle = (uSettings and uSettings.classThemeStyle) or "modern"
-    ApplyClassIconTexture(texClass, classToken or "WARRIOR", classStyle)
+    if unit and UnitIsPlayer(unit) then
+        ns.UF_PaintClassIcon(texClass, unit, (uSettings and uSettings.classThemeStyle) or "modern")
+    end
     texClass:Hide()
 
     backdrop._3d = model3D
@@ -8694,13 +8739,8 @@ local function SwapPortraitMode(frame)
     if bd._class then bd._class:Hide() end
 
     if wantMode == "class" and bd._class then
-        -- Re-apply class art style texture (may have changed since creation)
-        local uKey2 = UnitToSettingsKey(unit)
-        local s2 = uKey2 and db.profile[uKey2]
-        local classStyle = (s2 and s2.classThemeStyle) or "modern"
-        local _, ct = UnitClass(unit)
-        if issecretvalue(ct) then ct = nil end
-        ApplyClassIconTexture(bd._class, ct or "WARRIOR", classStyle)
+        -- The art comes from the engine painter's class lane on the
+        -- repaint below (players: class art, anyone else: 2D portrait).
         bd._class:Show()
         bd._2d:Hide()
         bd._class.backdrop = bd
@@ -11194,19 +11234,6 @@ ReloadFramesBody = function()
                 end
             end
 
-            -- Refresh class art style texture (may have changed without mode change)
-            if frame.Portrait and frame.Portrait.backdrop and frame.Portrait.backdrop._class then
-                local uKey = UnitToSettingsKey(unit) or unit
-                local uSettings = uKey and db.profile[uKey]
-                local isClassMode = ((uSettings and uSettings.portraitMode) or "2d") == "class"
-                if isClassMode then
-                    local classStyle = (uSettings and uSettings.classThemeStyle) or "modern"
-                    local _, ct = UnitClass(unit)
-                    if issecretvalue(ct) then ct = nil end
-                    ApplyClassIconTexture(frame.Portrait.backdrop._class, ct or "WARRIOR", classStyle)
-                end
-            end
-
             -- Show/hide portrait live (no reload needed)
             if frame.Portrait and frame.Portrait.backdrop then
                 local uKey = UnitToSettingsKey(unit) or unit
@@ -12847,8 +12874,9 @@ function ns.VisMouseoverWired(s)
     return (EllesmereUI.VisOverrideValue and EllesmereUI.VisOverrideValue(s)) == "mouseover"
 end
 
--- Health visibility is a display-only reveal. The curve result may be secret:
--- hand it directly to alpha setters, never use it as a Lua condition.
+-- Health visibility is a display-only reveal. The curve result is always secret
+-- (UnitHealthPercent returns secrets): hand it directly to alpha setters, never
+-- use it as a Lua condition. Those frames' GetAlpha then reads secret too.
 function ns.HealthVisibilityEnabled(s, frame)
     if not s or not s.showWhenHealthMissing or not frame then return false end
     local unit = frame._euiUnit
@@ -12858,8 +12886,15 @@ function ns.HealthVisibilityEnabled(s, frame)
     return (override or s.barVisibility or "always") ~= "never"
 end
 
+-- Every writer of the reveal (the visibility pass, both hover handlers) goes
+-- through here, so the curve always maps full health to the base alpha last
+-- painted, and _healthVisLive says whether the reveal currently applies.
 function ns.HealthVisibilityAlpha(s, frame, baseAlpha, hoverGated, inCombat)
-    if not ns.HealthVisibilityEnabled(s, frame) then return baseAlpha end
+    if not ns.HealthVisibilityEnabled(s, frame) then
+        if frame then frame._healthVisLive = nil end
+        return baseAlpha
+    end
+    frame._healthVisLive = true
     -- A visibility refresh must preserve an active mouseover reveal. Keep
     -- this decision on clean UI state, before evaluating the health curve.
     if hoverGated and frame._healthVisHovered then
@@ -12878,13 +12913,14 @@ function ns.HealthVisibilityAlpha(s, frame, baseAlpha, hoverGated, inCombat)
     return UnitHealthPercent(frame._euiUnit, false, frame._healthVisCurve)
 end
 
+-- A health event moves only the curve's input: the base alpha and whether the
+-- reveal applies change on visibility events and hover, which repaint through
+-- HealthVisibilityAlpha above. So a health tick re-evaluates the stamped curve
+-- and re-derives nothing (this runs on every UNIT_HEALTH in combat).
 function ns.UpdateHealthVisibilityUnit(unit)
     local frame = frames[unit]
-    local s = db.profile[unit]
-    if not ns.HealthVisibilityEnabled(s, frame) then return end
-    local baseAlpha, hoverGated, hiddenByOpts = ns.ResolveVisRestingLive(s, frame)
-    if hiddenByOpts then return end
-    local alpha = ns.HealthVisibilityAlpha(s, frame, baseAlpha, hoverGated, InCombatLockdown())
+    if not (frame and frame._healthVisLive and frame._healthVisCurve) then return end
+    local alpha = UnitHealthPercent(unit, false, frame._healthVisCurve)
     ;(frame._visWrap or frame):SetAlpha(alpha)
     local model = frame.Portrait and frame.Portrait.backdrop and frame.Portrait.backdrop._3d
     if model then model:SetAlpha(alpha) end
@@ -12986,7 +13022,11 @@ local function UnitFrame_OnLeave(self)
         -- 0: under Any a passing disjunct keeps the frame visible with no hover involved,
         -- and hiding it here would leave it wrong until the next visibility event fires.
         local leaveAlpha, _, hiddenByOpts = ns.ResolveVisRestingLive(s, self)
-        if s.showWhenHealthMissing and not hiddenByOpts then leaveAlpha = ns.HealthVisibilityAlpha(s, self, leaveAlpha) end
+        if s.showWhenHealthMissing and not hiddenByOpts then
+            leaveAlpha = ns.HealthVisibilityAlpha(s, self, leaveAlpha)
+        else
+            self._healthVisLive = nil
+        end
         ;(self._visWrap or self):SetAlpha(leaveAlpha)
         -- 3D models don't inherit parent alpha: hide/dim the portrait too
         local bd3d = self.Portrait and self.Portrait.backdrop and self.Portrait.backdrop._3d
@@ -13051,7 +13091,11 @@ function InitializeFrames()
         local cpFrame = frameName and _G[frameName]
         if cpFrame then
             savedClassPowerBar = cpFrame
-            _blizzCPState.origParent = cpFrame:GetParent()
+            -- A Blizzard parent only: another owner's frame (Resource Bars' Blizzard
+            -- Class Resource Art host) must never become the hand-back target.
+            local cur = cpFrame:GetParent()
+            _blizzCPState.origParent = (cur == cpFrame.layoutParent or cur == PlayerFrame) and cur
+                or (cpFrame.layoutParent or PlayerFrame)
             cpFrame:SetParent(UIParent)
         end
     end
@@ -13532,6 +13576,8 @@ function InitializeFrames()
         if classPowerStyle == "blizzard" then
             if savedClassPowerBar then
                 _blizzCPActive = true
+                -- Runtime ownership mirrored on ns for Resource Bars (ns.UF_OwnsBlizzClassPower).
+                ns._ufBlizzCPHeld = true
                 savedClassPowerBar.ignoreFramePositionManager = true
                 HookBlizzardClassPower(savedClassPowerBar)
                 PositionClassPowerBar(savedClassPowerBar)
@@ -13563,6 +13609,10 @@ function InitializeFrames()
         -- What is actually BUILT right now. Read by the reload pass below to
         -- notice a style that changed through a path which never calls this
         -- function (see the reload hook).
+        -- Resource Bars' Blizzard Class Resource Art defers to this style for
+        -- Blizzard's class resource frame; it re-judges when the built style
+        -- crosses "blizzard" (below) instead of waiting for its next rebuild.
+        local wasBlizz = frames._classPowerBuiltStyle == "blizzard"
         frames._classPowerBuiltStyle = style
         -- Keep showClassPowerBar in sync with style
         db.profile.player.showClassPowerBar = (style ~= "none")
@@ -13570,16 +13620,27 @@ function InitializeFrames()
 
         -- Clean up existing
         _blizzCPActive = false
+        ns._ufBlizzCPHeld = false
         if frames._customClassPower then
             DestroyCustomClassPower()
             frames._classPowerBar = nil
         elseif frames._classPowerBar then
-            frames._classPowerBar:Hide()
+            -- Handed on to Resource Bars' Blizzard Class Resource Art: left shown, so
+            -- it appears there at once (Blizzard only re-shows it from its own Setup).
+            if not (style ~= "blizzard" and _G._ERB_BlizzArtWanted and _G._ERB_BlizzArtWanted()) then
+                frames._classPowerBar:Hide()
+            end
             frames._classPowerBar:ClearAllPoints()
             frames._classPowerBar.ignoreFramePositionManager = nil
             local origParent = _blizzCPState.origParent or PlayerFrame or UIParent
             frames._classPowerBar:SetParent(origParent)
             frames._classPowerBar = nil
+        end
+        -- Handed Blizzard's class resource frame back: Resource Bars' Blizzard
+        -- Class Resource Art (if on) claims it now rather than at its next rebuild.
+        if wasBlizz and style ~= "blizzard" and _G._ERB_BlizzArtWanted and _G._ERB_BlizzArtWanted()
+           and _G._ERB_Apply then
+            _G._ERB_Apply()
         end
 
         if style == "none" then
@@ -13603,8 +13664,12 @@ function InitializeFrames()
             local frameName = BLIZZARD_CP_FRAMES[classFile]
             local cpFrame = frameName and _G[frameName]
             if cpFrame then
-                _blizzCPState.origParent = cpFrame:GetParent()
+                -- A Blizzard parent only (see the login takeover above).
+                local cur = cpFrame:GetParent()
+                _blizzCPState.origParent = (cur == cpFrame.layoutParent or cur == PlayerFrame) and cur
+                    or (cpFrame.layoutParent or PlayerFrame)
                 _blizzCPActive = true
+                ns._ufBlizzCPHeld = true
                 cpFrame.ignoreFramePositionManager = true
                 HookBlizzardClassPower(cpFrame)
                 cpFrame:SetParent(UIParent)
@@ -13612,6 +13677,11 @@ function InitializeFrames()
             end
             if frames._classPowerBar and frames.player then
                 PositionClassPowerBar(frames._classPowerBar)
+            end
+            -- Took Blizzard's class resource frame: Resource Bars' Blizzard Class
+            -- Resource Art stands down now rather than at its next rebuild.
+            if not wasBlizz and _G._ERB_BlizzArtHeld and _G._ERB_BlizzArtHeld() and _G._ERB_Apply then
+                _G._ERB_Apply()
             end
         else
             -- Modern
@@ -14447,6 +14517,9 @@ function InitializeFrames()
                 local bodyAlpha, hoverGated = ns.ResolveVisResting(s, frame, ext, hiddenByOpts, _ufInCombat)
                 if s.showWhenHealthMissing and not hiddenByOpts then
                     bodyAlpha = ns.HealthVisibilityAlpha(s, frame, bodyAlpha, hoverGated, _ufInCombat)
+                else
+                    -- Off, or a Visibility Option hides it: health ticks must not reveal.
+                    frame._healthVisLive = nil
                 end
                 alphaTarget:SetAlpha(bodyAlpha)
 
@@ -14708,15 +14781,6 @@ function InitializeFrames()
         if uSettings and uSettings.detachedPortraitClassColor then
             ApplyDetachedPortraitShape(backdrop, uSettings, unitKey)
         end
-        -- Refresh class icon texture so it shows the actual unit class (not WARRIOR fallback)
-        if backdrop._class and uSettings and (uSettings.portraitMode or "2d") == "class" then
-            local _, ct = UnitClass(unitKey)
-            if issecretvalue(ct) then ct = nil end
-            if ct then
-                local classStyle = (uSettings and uSettings.classThemeStyle) or "modern"
-                ApplyClassIconTexture(backdrop._class, ct, classStyle)
-            end
-        end
     end)
 
     ---------------------------------------------------------------------------
@@ -14827,30 +14891,6 @@ function InitializeFrames()
     end
     frames._bossTargetBorderUpdater:SetScript("OnEvent", ns.UpdateBossTargetBorders)
     ns.UpdateBossTargetBorders()
-
-    -- Deferred class portrait fix: at frame creation time UnitClass() may return nil
-    -- for dynamic units (target, focus) since no unit is selected yet on login/reload,
-    -- causing the WARRIOR fallback. Re-apply the correct class icon once the client
-    -- has finished loading and unit data is available.
-    C_Timer.After(0, function()
-        for _, unitKey in ipairs({"player", "target", "focus"}) do
-            local frame = frames[unitKey]
-            if frame and frame.Portrait then
-                local backdrop = frame.Portrait.backdrop
-                if backdrop and backdrop._class then
-                    local uSettings = db.profile[unitKey]
-                    if uSettings and (uSettings.portraitMode or "2d") == "class" then
-                        local _, ct = UnitClass(unitKey)
-                        if issecretvalue(ct) then ct = nil end
-                        if ct then
-                            local classStyle = (uSettings and uSettings.classThemeStyle) or "modern"
-                            ApplyClassIconTexture(backdrop._class, ct, classStyle)
-                        end
-                    end
-                end
-            end
-        end
-    end)
 
     -- Deferred normalization: some late-login updates can re-anchor power bars
     -- after frame construction. Re-apply two-point attached anchors once more.
