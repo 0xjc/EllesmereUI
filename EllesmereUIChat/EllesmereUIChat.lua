@@ -35,20 +35,18 @@ local ECHAT = ns.ECHAT
 -- Chat uses the same tuned Blizzard-border offsets as other rectangular EUI
 -- panels. Without this registration the shared engine's lookup resolves to
 -- zero, clipping the border texture into the panel.
-if EUI.RegisterBorderDefaults then
-    EUI.RegisterBorderDefaults("chat", {
-        ["blizz"] = {
-            defaultSize = "heavy",
-            sizes = {
-                none   = { offsetX=0, offsetY=0, shiftX=0, shiftY=0 },
-                thin   = { offsetX=2, offsetY=1, shiftX=0, shiftY=0 },
-                normal = { offsetX=3, offsetY=2, shiftX=0, shiftY=0 },
-                heavy  = { offsetX=4, offsetY=2, shiftX=1, shiftY=0 },
-                strong = { offsetX=4, offsetY=2, shiftX=2, shiftY=0 },
-            },
+EUI.RegisterBorderDefaults("chat", {
+    ["blizz"] = {
+        defaultSize = "heavy",
+        sizes = {
+            none   = { offsetX=0, offsetY=0, shiftX=0, shiftY=0 },
+            thin   = { offsetX=2, offsetY=1, shiftX=0, shiftY=0 },
+            normal = { offsetX=3, offsetY=2, shiftX=0, shiftY=0 },
+            heavy  = { offsetX=4, offsetY=2, shiftX=1, shiftY=0 },
+            strong = { offsetX=4, offsetY=2, shiftX=2, shiftY=0 },
         },
-    })
-end
+    },
+})
 
 local min, max, floor, ceil, abs = min, max, floor, ceil, math.abs
 
@@ -286,20 +284,20 @@ local function GetFont()
     local cfg = ECHAT.DB()
     local fontKey = cfg.font or "__global"
     if fontKey == "__global" then
-        return (EUI.GetFontPath and EUI.GetFontPath("chat")) or STANDARD_TEXT_FONT
+        return (EUI.GetFontPath("chat")) or STANDARD_TEXT_FONT
     end
-    return (EUI.ResolveFontName and EUI.ResolveFontName(fontKey)) or STANDARD_TEXT_FONT
+    return (EUI.ResolveFontName(fontKey)) or STANDARD_TEXT_FONT
 end
 
 local function GetOutlineFlag()
     local cfg = ECHAT.DB()
     local mode = cfg.outlineMode or "__global"
     if mode == "__global" then
-        return (EUI.GetFontOutlineFlag and EUI.GetFontOutlineFlag("chat")) or ""
+        return (EUI.GetFontOutlineFlag("chat")) or ""
     end
     -- Chat-specific outline override; still slug-gated by "Never Show Slug".
-    if mode == "outline" then return (EUI.SlugFlag and EUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG" end
-    if mode == "thick" then return (EUI.SlugFlag and EUI.SlugFlag("THICKOUTLINE, SLUG")) or "THICKOUTLINE, SLUG" end
+    if mode == "outline" then return (EUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG" end
+    if mode == "thick" then return (EUI.SlugFlag("THICKOUTLINE, SLUG")) or "THICKOUTLINE, SLUG" end
     return ""
 end
 
@@ -384,9 +382,9 @@ local function GetEditBoxFont()
     local key = ECHAT.DB().editBoxFont
     if not key or key == "__chat" then return GetFont() end
     if key == "__global" then
-        return (EUI.GetFontPath and EUI.GetFontPath("chat")) or STANDARD_TEXT_FONT
+        return (EUI.GetFontPath("chat")) or STANDARD_TEXT_FONT
     end
-    return (EUI.ResolveFontName and EUI.ResolveFontName(key)) or GetFont()
+    return (EUI.ResolveFontName(key)) or GetFont()
 end
 local function GetEditBoxFontSize(id)
     return ECHAT.DB().editBoxFontSize or GetFrameFontSize(id)
@@ -402,10 +400,8 @@ ns.chatBgTextures, ns.chatBgTextureNames, ns.chatBgTextureOrder =
 -- Refresh from SharedMedia (idempotent; registers the late-registration
 -- callback on first call, same as the other modules).
 function ECHAT.RefreshBgTextureCatalogue()
-    if EllesmereUI.AppendSharedMediaTextures then
-        EllesmereUI.AppendSharedMediaTextures(
-            ns.chatBgTextureNames, ns.chatBgTextureOrder, nil, ns.chatBgTextures)
-    end
+    EllesmereUI.AppendSharedMediaTextures(
+        ns.chatBgTextureNames, ns.chatBgTextureOrder, nil, ns.chatBgTextures)
 end
 
 -- Apply background settings from DB to all skinned chat frames
@@ -667,9 +663,7 @@ function ECHAT.ApplyExtendedBackground()
                 end
             end
         else
-            if EllesmereUI.ApplyBorderStyle then
-                EllesmereUI.ApplyBorderStyle(border, 0, 1, 1, 1, 0, cfg.panelBorderTexture or "solid")
-            end
+            EllesmereUI.ApplyBorderStyle(border, 0, 1, 1, 1, 0, cfg.panelBorderTexture or "solid")
             border:Hide()
         end
     end
@@ -2651,7 +2645,7 @@ function ECHAT.TogglePortalFlyout(anchorBtn)
     if not _portalFlyout then
         _portalFlyout = EUI.CreatePortalFlyout({
             name = "EUIChat", bg = { BG_R, BG_G, BG_B }, labelFont = GetFont(),
-            labelFlags = (EUI.SlugFlag and EUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG",
+            labelFlags = (EUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG",
         })
     end
     local flyout = _portalFlyout
@@ -3520,7 +3514,7 @@ local function ShowCopyPopup(text)
         textBox:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -20, 60)
 
         local editBox = textBox:GetEditBox()
-        editBox:SetFont(GetFont(), 12, EUI.GetFontOutlineFlag and EUI.GetFontOutlineFlag("chat") or "")
+        editBox:SetFont(GetFont(), 12, EUI.GetFontOutlineFlag("chat") or "")
         editBox:SetTextColor(1, 1, 1, 0.75)
         editBox:SetScript("OnEscapePressed", function(self)
             self:ClearFocus()
@@ -4996,9 +4990,7 @@ local function SkinChatFrame(cf)
                 end
             end
             UpdateCLFilterColors()
-            if EUI.RegAccent then
-                EUI.RegAccent({ type = "callback", fn = UpdateCLFilterColors })
-            end
+            EUI.RegAccent({ type = "callback", fn = UpdateCLFilterColors })
 
             -- One-time alpha set. NEVER hooksecurefunc SetAlpha here -- that
             -- taints execution during whisper/tab processing.
@@ -5488,13 +5480,11 @@ initFrame:SetScript("OnEvent", function(self)
             ECHAT.WHISPER_SOUND_ORDER = WHISPER_SOUND_ORDER
 
             -- Append SharedMedia sounds
-            if EllesmereUI.AppendSharedMediaSounds then
-                EllesmereUI.AppendSharedMediaSounds(
-                    WHISPER_SOUND_PATHS,
-                    WHISPER_SOUND_NAMES,
-                    WHISPER_SOUND_ORDER
-                )
-            end
+            EllesmereUI.AppendSharedMediaSounds(
+                WHISPER_SOUND_PATHS,
+                WHISPER_SOUND_NAMES,
+                WHISPER_SOUND_ORDER
+            )
 
             local _whisperThrottle = 0
             local whisperFrame = CreateFrame("Frame")
@@ -5637,9 +5627,7 @@ initFrame:SetScript("OnEvent", function(self)
     ---------------------------------------------------------------------------
     --  7. Accent color + timestamps
     ---------------------------------------------------------------------------
-    if EUI.RegAccent then
-        EUI.RegAccent({ type = "callback", fn = UpdateTabColors })
-    end
+    EUI.RegAccent({ type = "callback", fn = UpdateTabColors })
 
     -- Enable scroll-to-scroll chat (Blizzard disables by default)
     if SetCVar then SetCVar("chatMouseScroll", 1) end
@@ -5963,20 +5951,16 @@ initFrame:SetScript("OnEvent", function(self)
     -- the committed or reverted position lands composed in the same
     -- execution (the drift heal is suspended for the session and would
     -- otherwise be the first thing to notice, one tick later).
-    if EUI.RegisterUnlockModeListener then
-        EUI:RegisterUnlockModeListener("EllesmereUIChat", function(active)
-            if ECHAT.FollowArmUnlock then ECHAT.FollowArmUnlock(active) end
-            if ECHAT.ApplyChatPosition then ECHAT.ApplyChatPosition() end
-        end)
-    end
+    EUI:RegisterUnlockModeListener("EllesmereUIChat", function(active)
+        if ECHAT.FollowArmUnlock then ECHAT.FollowArmUnlock(active) end
+        if ECHAT.ApplyChatPosition then ECHAT.ApplyChatPosition() end
+    end)
 
     ---------------------------------------------------------------------------
     --  13. Visibility system registration
     ---------------------------------------------------------------------------
     ECHAT.RefreshVisibility()
-    if EUI.RegisterVisibilityUpdater then
-        EUI.RegisterVisibilityUpdater(ECHAT.RefreshVisibility)
-    end
+    EUI.RegisterVisibilityUpdater(ECHAT.RefreshVisibility)
 
     ---------------------------------------------------------------------------
     --  13b. Edit Mode chat-size migration: one-shot after login. On-delta

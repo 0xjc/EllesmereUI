@@ -1154,7 +1154,7 @@ ECHAT.EngineQueueRebuildAll = QueueRebuildAll
 -- lines received while dormant. No-op while the state is unchanged, so the
 -- PEW edge and the per-message probe cost one comparison.
 EngineUpdateProtectedState = function()
-    local prot = (EUI.InProtectedInstance and EUI.InProtectedInstance()) and true or false
+    local prot = (EUI.InProtectedInstance()) and true or false
     if prot == _protActive then return end
     _protActive = prot
     QueueRebuildAll()
