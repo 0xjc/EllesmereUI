@@ -73,25 +73,7 @@ EllesmereUI._setPABSelection = function(kind, id, bucket)
     end
 end
 
--- Editing-spec group buckets (labels/icons mirror the RaidFrames roster in
--- EUI_RaidFrames_BuffManager.lua -- different addon namespace, keep the two
--- lists in sync).
-local SPEC_GROUP_BUCKETS = {
-    { key = "allspecs",  name = "All Specs",
-        icon = "Interface\\Icons\\Achievement_GuildPerk_EverybodysFriend" },
-    { key = "nonhealer", name = "All Non Healers/Aug",
-        icon = "Interface\\Icons\\Achievement_GuildPerk_EverybodysFriend" },
-    { key = "tanks",     name = "All Tanks",
-        icon = "Interface\\Icons\\Ability_Warrior_DefensiveStance" },
-    { key = "dps",       name = "All DPS (Non-Aug)",
-        icon = "Interface\\Icons\\Ability_DualWield" },
-    { key = "healers",   name = "All Healers/Aug",
-        icon = "Interface\\Icons\\Spell_Holy_Renew" },
-}
-local SPEC_GROUP_INFO = {}
-for i = 1, #SPEC_GROUP_BUCKETS do
-    SPEC_GROUP_INFO[SPEC_GROUP_BUCKETS[i].key] = SPEC_GROUP_BUCKETS[i]
-end
+local SPEC_GROUP_INFO = EllesmereUI.SPEC_GROUP_BUCKET_INFO
 -- Filter Editor's own selected-filter state (independent of pabSel, since
 -- the editor is a modal that can be opened from any buff-side detail pane).
 local pabFilterSel
@@ -2047,196 +2029,12 @@ local function BuildDefaultBarDetail(frame, fontPath, isBuff)
     end
     FinalizeCompensatedBody(body, sy)
 end
--------------------------------------------------------------------------------
---  Shared tile widget (verbatim pattern from EUI_RaidFrames_ManagerPages.lua
---  BuildTile, trimmed to the fields this page actually uses)
--------------------------------------------------------------------------------
-
--- opts.inheritedTooltip marks the INHERITED variant (a group bucket's bar
--- shown on a concrete spec view): blue identity tint on title/subtitle, an
--- always-on blue edge strip, hover tooltip. Callers pass no onDelete/
--- onRename and wire onToggle to the per-spec disable.
-local INH_R, INH_G, INH_B = 0.55, 0.72, 1
+-- Sidebar tile: the shared manager tile at this page's 58px height, with a
+-- 14px pencil and a narrower text inset when there is no pill.
 local function BuildTile(parentFrame, y, opts)
-    local fontPath = opts.fontPath
-    local tile = CreateFrame("Button", nil, parentFrame)
-    tile:SetSize(opts.width, TILE_H)
-    tile:SetPoint("TOPLEFT", parentFrame, "TOPLEFT", 0, y)
-    tile:SetFrameLevel(parentFrame:GetFrameLevel() + 1)
-
-    local bg = tile:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(1, 1, 1, opts.selected and 0.06 or 0)
-
-    if opts.selected then
-        local accent = tile:CreateTexture(nil, "ARTWORK", nil, 2)
-        accent:SetSize(2, TILE_H)
-        accent:SetPoint("TOPLEFT", tile, "TOPLEFT", 0, 0)
-        if opts.inheritedTooltip then
-            accent:SetColorTexture(INH_R, INH_G, INH_B, 1)
-        else
-            local ac = EllesmereUI.ELLESMERE_GREEN
-            if ac then accent:SetColorTexture(ac.r, ac.g, ac.b, 1)
-            else accent:SetColorTexture(0.05, 0.82, 0.62, 1) end
-        end
-    elseif opts.inheritedTooltip then
-        local edge = tile:CreateTexture(nil, "ARTWORK", nil, 2)
-        edge:SetSize(2, TILE_H)
-        edge:SetPoint("TOPLEFT", tile, "TOPLEFT", 0, 0)
-        edge:SetColorTexture(INH_R, INH_G, INH_B, 0.45)
-    end
-
-    local textRight = opts.showToggle and -52 or -16
-
-    local titleFS = tile:CreateFontString(nil, "OVERLAY")
-    titleFS:SetFont(fontPath, 13, "")
-    titleFS:SetPoint("TOPLEFT", tile, "TOPLEFT", 12, -10)
-    titleFS:SetPoint("RIGHT", tile, "RIGHT", textRight, 0)
-    titleFS:SetJustifyH("LEFT")
-    titleFS:SetWordWrap(false)
-    titleFS:SetText(opts.title or "")
-    if opts.inheritedTooltip then
-        titleFS:SetTextColor(INH_R, INH_G, INH_B)
-    else
-        titleFS:SetTextColor(1, 1, 1)
-    end
-
-    if opts.subtitle or opts.subtitleFn then
-        local sub = tile:CreateFontString(nil, "OVERLAY")
-        sub:SetFont(fontPath, 11, "")
-        sub:SetPoint("TOPLEFT", titleFS, "BOTTOMLEFT", 0, -4)
-        sub:SetPoint("RIGHT", tile, "RIGHT", textRight, 0)
-        sub:SetJustifyH("LEFT")
-        sub:SetWordWrap(false)
-        sub:SetText(opts.subtitleFn and opts.subtitleFn() or opts.subtitle)
-        if opts.inheritedTooltip then
-            sub:SetTextColor(INH_R, INH_G, INH_B, 0.55)
-        else
-            sub:SetTextColor(0.4, 0.4, 0.4)
-        end
-        -- subtitleFn (vs. a static subtitle string): re-read on every lightweight
-        -- RefreshPage() pass, e.g. after a Filters/Extra Spells checkbox toggle in
-        -- the detail pane -- those call apply() + RefreshPage() (non-force) rather
-        -- than a full page rebuild, since a full rebuild would close the open
-        -- checkbox dropdown mid multi-select. Without this, the sidebar tile's
-        -- subtitle would only update on the next full page rebuild (bar select,
-        -- add, delete, ...), not live.
-        if opts.subtitleFn then
-            EllesmereUI.RegisterWidgetRefresh(function() sub:SetText(opts.subtitleFn()) end)
-        end
-    end
-
-    tile:SetScript("OnEnter", function()
-        if not opts.selected then bg:SetColorTexture(1, 1, 1, 0.04) end
-        if opts.inheritedTooltip then
-            EllesmereUI.ShowWidgetTooltip(tile, opts.inheritedTooltip)
-        end
-    end)
-    tile:SetScript("OnLeave", function()
-        bg:SetColorTexture(1, 1, 1, opts.selected and 0.06 or 0)
-        if opts.inheritedTooltip then
-            EllesmereUI.HideWidgetTooltip()
-        end
-    end)
-    -- Right-click routes to opts.onContext (the "Add To" menu) when the
-    -- caller provides it; tiles without it ignore right-clicks.
-    tile:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    tile:SetScript("OnClick", function(self, btn)
-        if btn == "RightButton" then
-            if opts.onContext then opts.onContext(tile) end
-            return
-        end
-        if opts.onSelect then opts.onSelect() end
-    end)
-
-    if opts.showToggle then
-        local toggleH = 16
-        local toggleBtn = CreateFrame("Button", nil, tile)
-        toggleBtn:SetSize(32, toggleH)
-        toggleBtn:SetPoint("TOPRIGHT", tile, "TOPRIGHT", -8, -8)
-        toggleBtn:SetFrameLevel(tile:GetFrameLevel() + 2)
-        -- Inherited rows: the pill is the per-spec CONTROL and stays
-        -- full-brightness even when the row dims (opts.dimmed) or wears the
-        -- inherited tint -- SetAlpha on the tile inherits to children.
-        if opts.inheritedTooltip and toggleBtn.SetIgnoreParentAlpha then
-            toggleBtn:SetIgnoreParentAlpha(true)
-        end
-        local toggleBg = toggleBtn:CreateTexture(nil, "BACKGROUND")
-        toggleBg:SetAllPoints()
-        local toggleKnob = toggleBtn:CreateTexture(nil, "ARTWORK")
-        toggleKnob:SetSize(toggleH - 4, toggleH - 4)
-        local function UpdateToggleVisual()
-            toggleKnob:ClearAllPoints()
-            if opts.enabled then
-                local acr, acg, acb = 0.05, 0.82, 0.62
-                if EllesmereUI.ResolveActiveAccent then
-                    acr, acg, acb = EllesmereUI.ResolveActiveAccent()
-                end
-                toggleBg:SetColorTexture(acr, acg, acb, 1)
-                toggleKnob:SetPoint("RIGHT", toggleBtn, "RIGHT", -2, 0)
-                toggleKnob:SetColorTexture(1, 1, 1, 1)
-            else
-                toggleBg:SetColorTexture(0.25, 0.25, 0.25, 1)
-                toggleKnob:SetPoint("LEFT", toggleBtn, "LEFT", 2, 0)
-                toggleKnob:SetColorTexture(0.5, 0.5, 0.5, 1)
-            end
-        end
-        UpdateToggleVisual()
-        toggleBtn:SetScript("OnClick", function()
-            if opts.onToggle then opts.onToggle(not opts.enabled) end
-        end)
-    end
-
-    local delBtn
-    if opts.onDelete then
-        delBtn = CreateFrame("Button", nil, tile)
-        delBtn:SetSize(16, 16)
-        delBtn:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", -8, 6)
-        delBtn:SetFrameLevel(tile:GetFrameLevel() + 2)
-        local delTex = delBtn:CreateTexture(nil, "OVERLAY")
-        delTex:SetAllPoints()
-        delTex:SetAtlas("common-icon-delete")
-        delTex:SetDesaturated(true)
-        delTex:SetVertexColor(0.75, 0.75, 0.75)
-        delBtn:SetAlpha(0.5)
-        delBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.9) end)
-        delBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.5) end)
-        delBtn:SetScript("OnClick", function() opts.onDelete() end)
-    end
-
-    -- Rename icon, left of the delete icon -- same eui-edit.png pencil the
-    -- Filter Editor sidebar uses for its own rename affordance
-    -- (PABMP_ShowFilterEditor), so renaming reads consistently across the
-    -- whole page instead of only being reachable from the Name field.
-    if opts.onRename then
-        local editBtn = CreateFrame("Button", nil, tile)
-        editBtn:SetSize(14, 14)
-        if delBtn then
-            editBtn:SetPoint("RIGHT", delBtn, "LEFT", -4, 0)
-        else
-            editBtn:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", -8, 6)
-        end
-        editBtn:SetFrameLevel(tile:GetFrameLevel() + 2)
-        local editTex = editBtn:CreateTexture(nil, "OVERLAY")
-        editTex:SetAllPoints()
-        editTex:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-edit.png")
-        editBtn:SetAlpha(0.5)
-        editBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.9) end)
-        editBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.5) end)
-        editBtn:SetScript("OnClick", function() opts.onRename() end)
-    end
-
-    local sep = tile:CreateTexture(nil, "ARTWORK")
-    sep:SetHeight(1)
-    sep:SetPoint("BOTTOMLEFT", tile, "BOTTOMLEFT", 0, 0)
-    sep:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", 0, 0)
-    sep:SetColorTexture(1, 1, 1, 0.04)
-
-    -- Dimmed rows (inherited tiles whose GROUP disabled the entry): the
-    -- whole tile fades; the pill stays the per-spec layer's own state.
-    if opts.dimmed then tile:SetAlpha(0.55) end
-
-    return TILE_H
+    opts.height, opts.textRight = TILE_H, opts.showToggle and -52 or -16
+    opts.editSize, opts.editSnap = 14, true
+    return EllesmereUI.BuildManagerTile(parentFrame, y, opts)
 end
 
 -- Sidebar "Add New" button (Raid Frames Buff Manager parity: solid green
@@ -2367,30 +2165,6 @@ end
 local CLASS_ORDER = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST",
     "DEATHKNIGHT", "SHAMAN", "MAGE", "WARLOCK", "MONK", "DRUID",
     "DEMONHUNTER", "EVOKER" }
-
-local function PopupButton(parent, w, h, label, onClick)
-    local btn = CreateFrame("Button", nil, parent)
-    btn:SetSize(w, h)
-    btn:SetFrameLevel(parent:GetFrameLevel() + 2)
-    local bg = EllesmereUI.SolidTex(btn, "BACKGROUND", 0, 0, 0, 0.5); bg:SetAllPoints()
-    local brd = EllesmereUI.MakeBorder(btn, 1, 1, 1, 0.25)
-    local lbl = EllesmereUI.MakeFont(btn, 12, nil, 1, 1, 1)
-    lbl:SetAlpha(0.6)
-    lbl:SetPoint("CENTER")
-    lbl:SetText(L(label))
-    local ar, ag, ab = 1, 0.82, 0.30
-    if EllesmereUI.GetAccentColor then ar, ag, ab = EllesmereUI.GetAccentColor() end
-    btn:SetScript("OnEnter", function()
-        lbl:SetAlpha(0.9)
-        if brd and brd.SetColor then brd:SetColor(ar, ag, ab, 0.6) end
-    end)
-    btn:SetScript("OnLeave", function()
-        lbl:SetAlpha(0.6)
-        if brd and brd.SetColor then brd:SetColor(1, 1, 1, 0.25) end
-    end)
-    btn:SetScript("OnClick", onClick)
-    return btn
-end
 
 -- Editor scroll (manager-page style bar). Returns UpdateThumb and SetScrollTo(v).
 -- rightInset (default 2): only WrapCompensatedBody passes more, since its scroll
@@ -2573,7 +2347,7 @@ function ns.PABMP_ShowFilterEditor()
         end
         fy = fy - 27
     end
-    local addFilterBtn = PopupButton(sideChild, SIDE_W - 16, 26, "Add Filter", function()
+    local addFilterBtn = EllesmereUI.BuildPopupButton(sideChild, SIDE_W - 16, 26, "Add Filter", function()
         EditorInput({
             title = L("Add Filter"), message = L("Name the new filter."),
             confirmText = L("Add"), cancelText = L("Cancel"),
@@ -2590,7 +2364,7 @@ function ns.PABMP_ShowFilterEditor()
     -- registry (same-named filters replaced, missing ones created; see
     -- PAB_CopyBM2FiltersIn). Hidden while that module is disabled.
     if EllesmereUI._BM2FilterBridge then
-        local copyBtn = PopupButton(sideChild, SIDE_W - 16, 26, L("Copy Raid Frames Filters"), function()
+        local copyBtn = EllesmereUI.BuildPopupButton(sideChild, SIDE_W - 16, 26, L("Copy Raid Frames Filters"), function()
             EllesmereUI:ShowConfirmPopup({
                 title = L("Copy Raid Frames Filters"),
                 message = L("One-time copy of the Raid Frames Buff Manager filters into these filters. Same-named filters are OVERWRITTEN; the two lists stay separate afterwards."),
@@ -2684,7 +2458,7 @@ function ns.PABMP_ShowFilterEditor()
         end
     end
 
-    local addSpellBtn = PopupButton(left, 110, 24, "Add Spell ID", function()
+    local addSpellBtn = EllesmereUI.BuildPopupButton(left, 110, 24, "Add Spell ID", function()
         EditorInput({
             title = L("Add Spell ID"), message = L("Enter the spell ID to add to this filter."),
             confirmText = L("Add"), cancelText = L("Cancel"),
@@ -3095,52 +2869,6 @@ function ns.PABMP_BuildPage(pageName, parent, yOffset)
         pabSel = { kind = "buff", id = "default" }
     end
 
-    -- Editing-spec roster, shared by the Editing Spec dropdown and the
-    -- right-click "Add To" menu: group buckets, then every spec in the game
-    -- as its own "spec<ID>" bucket.
-    local function BuildPabSpecRoster()
-        local values, order, icons = {}, {}, {}
-        for i = 1, #SPEC_GROUP_BUCKETS do
-            local g = SPEC_GROUP_BUCKETS[i]
-            values[g.key] = L(g.name)
-            order[#order + 1] = g.key
-            icons[g.key] = g.icon
-        end
-        order[#order + 1] = "---a"
-        for classID = 1, (GetNumClasses and GetNumClasses() or 0) do
-            local className = GetClassInfo(classID)
-            local numSpecs = GetNumSpecializationsForClassID
-                and GetNumSpecializationsForClassID(classID) or 0
-            for si = 1, numSpecs do
-                local specID, specName, _, sIcon = GetSpecializationInfoForClassID(classID, si)
-                if specID then
-                    local key = "spec" .. specID
-                    values[key] = (specName or "") .. " " .. (className or "")
-                    order[#order + 1] = key
-                    icons[key] = sIcon
-                end
-            end
-        end
-        return values, order, icons
-    end
-
-    -- Right-click "Add To" items: the roster minus dividers, the edited
-    -- bucket (= the source) disabled.
-    local function PabBucketMenuItems()
-        local values, order, icons = BuildPabSpecRoster()
-        local items = {}
-        for i = 1, #order do
-            local key = order[i]
-            if not key:match("^%-%-%-") then
-                items[#items + 1] = {
-                    key = key, label = values[key], icon = icons[key],
-                    disabled = key == pabSpecSel,
-                }
-            end
-        end
-        return items
-    end
-
     -- Page-level "Player Aura Bars" header card removed (by request:
     -- it competed visually with the new per-bar preview box now sitting at the top of
     -- each detail pane). HEADER_H kept at 0 rather than removed outright so `root`'s
@@ -3274,7 +3002,7 @@ function ns.PABMP_BuildPage(pageName, parent, yOffset)
 
         -- Roster shared with the right-click "Add To" menu (the menu
         -- rebuilds it lazily per open).
-        local specDDValues, specDDOrder, specDDIcons = BuildPabSpecRoster()
+        local specDDValues, specDDOrder, specDDIcons = EllesmereUI.BuildSpecBucketRoster()
         specDDValues._menuOpts = {
             maxHeight = 300,
             icon = function(key) return specDDIcons[key] end,
@@ -3467,7 +3195,7 @@ function ns.PABMP_BuildPage(pageName, parent, yOffset)
                     EllesmereUI.ShowPickMenu(tileFrame, {
                         title = L("Add To"),
                         fontPath = fontPath,
-                        items = PabBucketMenuItems(),
+                        items = EllesmereUI.SpecBucketMenuItems(pabSpecSel),
                         onPick = function(key)
                             local nb = ns.PAB_CopyCustomBar
                                 and ns.PAB_CopyCustomBar(true, bar, key)
@@ -3483,7 +3211,7 @@ function ns.PABMP_BuildPage(pageName, parent, yOffset)
                     Apply(true, bar.id)
                     EllesmereUI:RefreshPage(true)
                 end,
-                onRename = function()
+                onEdit = function()
                     EllesmereUI:ShowInputPopup({
                         title = L("Rename Bar"), placeholder = L(bar.name or "Buff Bar"),
                         confirmText = L("Rename"), cancelText = L("Cancel"),
@@ -3572,7 +3300,7 @@ function ns.PABMP_BuildPage(pageName, parent, yOffset)
                     EllesmereUI.ShowPickMenu(tileFrame, {
                         title = L("Add To"),
                         fontPath = fontPath,
-                        items = PabBucketMenuItems(),
+                        items = EllesmereUI.SpecBucketMenuItems(pabSpecSel),
                         onPick = function(key)
                             local nb = ns.PAB_CopyCustomBar
                                 and ns.PAB_CopyCustomBar(false, bar, key)
@@ -3588,7 +3316,7 @@ function ns.PABMP_BuildPage(pageName, parent, yOffset)
                     Apply(false, bar.id)
                     EllesmereUI:RefreshPage(true)
                 end,
-                onRename = function()
+                onEdit = function()
                     EllesmereUI:ShowInputPopup({
                         title = L("Rename Bar"), placeholder = L(bar.name or "Debuff Bar"),
                         confirmText = L("Rename"), cancelText = L("Cancel"),
@@ -3695,41 +3423,11 @@ function ns.PABMP_BuildPage(pageName, parent, yOffset)
     -- single enable action until the user opts in. Built LAST so it covers sidebar +
     -- detail; child of outerRoot so every teardown path destroys it.
     if not (ns.PAB_Enabled and ns.PAB_Enabled()) then
-        local ov = CreateFrame("Frame", nil, outerRoot)
-        ov:SetAllPoints(outerRoot)
-        ov:SetFrameLevel(outerRoot:GetFrameLevel() + 60)
-        ov:EnableMouse(true)
-        ov._searchIgnore = true
-        local bg = ov:CreateTexture(nil, "OVERLAY")
-        bg:SetAllPoints()
-        bg:SetColorTexture(13/255, 17/255, 25/255, 0.98)
-        local title = ov:CreateFontString(nil, "OVERLAY")
-        title:SetFont(fontPath, 15, "")
-        title:SetPoint("CENTER", ov, "CENTER", 0, 60)
-        title:SetTextColor(1, 1, 1, 0.9)
-        title:SetText(L("Player Aura Bars"))
-        local body = ov:CreateFontString(nil, "OVERLAY")
-        body:SetFont(fontPath, 13, "")
-        body:SetPoint("TOP", title, "BOTTOM", 0, -14)
-        body:SetWidth(floor(parentW * 0.7))
-        body:SetJustifyH("CENTER")
-        body:SetTextColor(1, 1, 1, 0.56)
-        body:SetText(L("Replaces Blizzard's default buff and debuff display with fully customizable bars."))
-        local btn = CreateFrame("Button", nil, ov)
-        btn:SetSize(240, 28)
-        btn:SetPoint("TOP", body, "BOTTOM", 0, -22)
-        EllesmereUI.SolidTex(btn, "BACKGROUND", 0.10, 0.10, 0.11, 0.9):SetAllPoints(btn)
-        local brd = EllesmereUI.MakeBorder(btn, 1, 1, 1, 0.22)
-        local lbl = EllesmereUI.MakeFont(btn, 12, nil, 1, 1, 1, 0.85)
-        lbl:SetPoint("CENTER")
-        lbl:SetText(L("Enable Player Aura Bars"))
-        local eg = EllesmereUI.ELLESMERE_GREEN or { r = 0.05, g = 0.83, b = 0.62 }
-        btn:SetScript("OnEnter", function()
-            if brd and brd.SetColor then brd:SetColor(eg.r, eg.g, eg.b, 0.9) end
-        end)
-        btn:SetScript("OnLeave", function()
-            if brd and brd.SetColor then brd:SetColor(1, 1, 1, 0.22) end
-        end)
+        local _, btn = EllesmereUI.BuildActivationOverlay(outerRoot, {
+            fontPath = fontPath, width = parentW, title = L("Player Aura Bars"),
+            text = L("Replaces Blizzard's default buff and debuff display with fully customizable bars."),
+            buttonLabel = L("Enable Player Aura Bars"),
+        })
         btn:SetScript("OnClick", function()
             if ns.PAB_SetEnabled then ns.PAB_SetEnabled(true) end
             EllesmereUI:RefreshPage(true)

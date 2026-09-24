@@ -10181,3 +10181,304 @@ function EllesmereUI.BuildModuleCard(parent, y, W, tile, opts)
 
     return y - MC_CARD_GAP
 end
+
+-------------------------------------------------------------------------------
+--  Manager-page parts (Buff Manager, Debuff Manager, Player Aura Bars)
+-------------------------------------------------------------------------------
+-- Sidebar tile. opts: width, fontPath, title, subtitle | subtitleFn, icon,
+-- posText, selected, enabled, showToggle, dimmed, inheritedTooltip,
+-- onSelect(), onToggle(newState), onDelete(), onEdit(), onContext(tile),
+-- height (66), textRight (-52), titleUnclamped, editSize (16), editTooltip,
+-- editSnap (keep pixel snapping on the pencil). Returns height, tile.
+function EllesmereUI.BuildManagerTile(parentFrame, y, opts)
+    local fontPath = opts.fontPath
+    local PP = EllesmereUI.PanelPP or EllesmereUI.PP
+    local TILE_H = opts.height or 66
+    local IR, IG, IB = 0.55, 0.72, 1
+    local tile = CreateFrame("Button", nil, parentFrame)
+    tile:SetSize(opts.width, TILE_H)
+    tile:SetPoint("TOPLEFT", parentFrame, "TOPLEFT", 0, y)
+    tile:SetFrameLevel(parentFrame:GetFrameLevel() + 1)
+
+    local bg = tile:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(1, 1, 1, opts.selected and 0.06 or 0)
+
+    if opts.selected then
+        local accent = tile:CreateTexture(nil, "ARTWORK", nil, 2)
+        accent:SetSize(2, TILE_H)
+        accent:SetPoint("TOPLEFT", tile, "TOPLEFT", 0, 0)
+        if opts.inheritedTooltip then
+            accent:SetColorTexture(IR, IG, IB, 1)
+        else
+            local ac = EllesmereUI.ELLESMERE_GREEN
+            if ac then accent:SetColorTexture(ac.r, ac.g, ac.b, 1)
+            else accent:SetColorTexture(0.05, 0.82, 0.62, 1) end
+        end
+    elseif opts.inheritedTooltip then
+        local edge = tile:CreateTexture(nil, "ARTWORK", nil, 2)
+        edge:SetSize(2, TILE_H)
+        edge:SetPoint("TOPLEFT", tile, "TOPLEFT", 0, 0)
+        edge:SetColorTexture(IR, IG, IB, 0.45)
+    end
+
+    local textX = 12
+    local titleY = -10
+    local textRight = opts.textRight or -52
+
+    if opts.icon then
+        local ICON_SZ = 36
+        local iconFrame = CreateFrame("Frame", nil, tile)
+        iconFrame:SetSize(ICON_SZ, ICON_SZ)
+        iconFrame:SetPoint("TOPLEFT", tile, "TOPLEFT", 8, -8)
+        iconFrame:SetFrameLevel(tile:GetFrameLevel() + 1)
+        local iconTex = iconFrame:CreateTexture(nil, "ARTWORK")
+        iconTex:SetAllPoints()
+        iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        iconTex:SetTexture(opts.icon)
+        if PP then
+            local iconBdr = CreateFrame("Frame", nil, iconFrame)
+            iconBdr:SetAllPoints()
+            iconBdr:SetFrameLevel(iconFrame:GetFrameLevel() + 1)
+            PP.CreateBorder(iconBdr, 0, 0, 0, 0.6, 1)
+        end
+        textX = 8 + ICON_SZ + 8
+        titleY = -8
+    end
+
+    local title = tile:CreateFontString(nil, "OVERLAY")
+    title:SetFont(fontPath, 13, "")
+    title:SetPoint("TOPLEFT", tile, "TOPLEFT", textX, titleY)
+    if not opts.posText and not opts.titleUnclamped then
+        title:SetPoint("RIGHT", tile, "RIGHT", textRight, 0)
+    end
+    title:SetJustifyH("LEFT")
+    title:SetWordWrap(false)
+    title:SetText(opts.title or "")
+    if opts.inheritedTooltip then
+        title:SetTextColor(IR, IG, IB)
+    else
+        title:SetTextColor(1, 1, 1)
+    end
+
+    if opts.posText then
+        local posFS = tile:CreateFontString(nil, "OVERLAY")
+        posFS:SetPoint("LEFT", title, "RIGHT", 4, 0)
+        posFS:SetPoint("RIGHT", tile, "RIGHT", textRight, 0)
+        posFS:SetFont(fontPath, 11, "")
+        posFS:SetJustifyH("LEFT")
+        posFS:SetWordWrap(false)
+        posFS:SetText(opts.posText)
+        posFS:SetTextColor(0.75, 0.75, 0.75, 0.65)
+    end
+
+    if opts.subtitle or opts.subtitleFn then
+        local sub = tile:CreateFontString(nil, "OVERLAY")
+        sub:SetFont(fontPath, 11, "")
+        sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
+        sub:SetPoint("RIGHT", tile, "RIGHT", textRight, 0)
+        sub:SetJustifyH("LEFT")
+        sub:SetWordWrap(false)
+        sub:SetText(opts.subtitleFn and opts.subtitleFn() or opts.subtitle)
+        if opts.inheritedTooltip then
+            sub:SetTextColor(IR, IG, IB, 0.55)
+        else
+            sub:SetTextColor(0.4, 0.4, 0.4)
+        end
+        -- Re-read on every non-force RefreshPage (a full rebuild would close
+        -- an open checkbox dropdown in the detail pane).
+        if opts.subtitleFn then
+            EllesmereUI.RegisterWidgetRefresh(function() sub:SetText(opts.subtitleFn()) end)
+        end
+    end
+
+    tile:SetScript("OnEnter", function()
+        if not opts.selected then bg:SetColorTexture(1, 1, 1, 0.04) end
+        if opts.inheritedTooltip then
+            EllesmereUI.ShowWidgetTooltip(tile, opts.inheritedTooltip)
+        end
+    end)
+    tile:SetScript("OnLeave", function()
+        bg:SetColorTexture(1, 1, 1, opts.selected and 0.06 or 0)
+        if opts.inheritedTooltip then
+            EllesmereUI.HideWidgetTooltip()
+        end
+    end)
+    tile:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    tile:SetScript("OnClick", function(self, btn)
+        if btn == "RightButton" then
+            if opts.onContext then opts.onContext(tile) end
+            return
+        end
+        if opts.onSelect then opts.onSelect() end
+    end)
+
+    if opts.showToggle then
+        local toggleH = 16
+        local toggleBtn = CreateFrame("Button", nil, tile)
+        toggleBtn:SetSize(32, toggleH)
+        toggleBtn:SetPoint("TOPRIGHT", tile, "TOPRIGHT", -8, -8)
+        toggleBtn:SetFrameLevel(tile:GetFrameLevel() + 2)
+        -- Inherited rows: the pill is the per-spec control and stays
+        -- full-brightness when the row dims.
+        if opts.inheritedTooltip and toggleBtn.SetIgnoreParentAlpha then
+            toggleBtn:SetIgnoreParentAlpha(true)
+        end
+        local toggleBg = toggleBtn:CreateTexture(nil, "BACKGROUND")
+        toggleBg:SetAllPoints()
+        local toggleKnob = toggleBtn:CreateTexture(nil, "ARTWORK")
+        toggleKnob:SetSize(toggleH - 4, toggleH - 4)
+        if opts.enabled then
+            local acr, acg, acb = 0.05, 0.82, 0.62
+            if EllesmereUI.ResolveActiveAccent then
+                acr, acg, acb = EllesmereUI.ResolveActiveAccent()
+            end
+            toggleBg:SetColorTexture(acr, acg, acb, 1)
+            toggleKnob:SetPoint("RIGHT", toggleBtn, "RIGHT", -2, 0)
+            toggleKnob:SetColorTexture(1, 1, 1, 1)
+        else
+            toggleBg:SetColorTexture(0.25, 0.25, 0.25, 1)
+            toggleKnob:SetPoint("LEFT", toggleBtn, "LEFT", 2, 0)
+            toggleKnob:SetColorTexture(0.5, 0.5, 0.5, 1)
+        end
+        toggleBtn:SetScript("OnClick", function()
+            if opts.onToggle then opts.onToggle(not opts.enabled) end
+        end)
+    end
+
+    local delBtn
+    if opts.onDelete then
+        delBtn = CreateFrame("Button", nil, tile)
+        delBtn:SetSize(16, 16)
+        delBtn:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", -8, 6)
+        delBtn:SetFrameLevel(tile:GetFrameLevel() + 2)
+        local delTex = delBtn:CreateTexture(nil, "OVERLAY")
+        delTex:SetAllPoints()
+        delTex:SetAtlas("common-icon-delete")
+        delTex:SetDesaturated(true)
+        delTex:SetVertexColor(0.75, 0.75, 0.75)
+        delBtn:SetAlpha(0.5)
+        delBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.9) end)
+        delBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.5) end)
+        delBtn:SetScript("OnClick", function() opts.onDelete() end)
+    end
+
+    -- Rename pencil beside the trash.
+    if opts.onEdit then
+        local editSize = opts.editSize or 16
+        local editBtn = CreateFrame("Button", nil, tile)
+        editBtn:SetSize(editSize, editSize)
+        if delBtn then
+            editBtn:SetPoint("RIGHT", delBtn, "LEFT", -4, 0)
+        else
+            editBtn:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", -8, 6)
+        end
+        editBtn:SetFrameLevel(tile:GetFrameLevel() + 2)
+        local editTex = editBtn:CreateTexture(nil, "OVERLAY")
+        editTex:SetAllPoints()
+        if not opts.editSnap and editTex.SetSnapToPixelGrid then
+            editTex:SetSnapToPixelGrid(false); editTex:SetTexelSnappingBias(0)
+        end
+        editTex:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-edit.png")
+        editBtn:SetAlpha(0.5)
+        local tip = opts.editTooltip
+        editBtn:SetScript("OnEnter", function(self)
+            self:SetAlpha(0.9)
+            if tip then EllesmereUI.ShowWidgetTooltip(self, tip) end
+        end)
+        editBtn:SetScript("OnLeave", function(self)
+            self:SetAlpha(0.5)
+            if tip then EllesmereUI.HideWidgetTooltip() end
+        end)
+        editBtn:SetScript("OnClick", function() opts.onEdit() end)
+    end
+
+    local sep = tile:CreateTexture(nil, "ARTWORK")
+    sep:SetHeight(1)
+    sep:SetPoint("BOTTOMLEFT", tile, "BOTTOMLEFT", 0, 0)
+    sep:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", 0, 0)
+    sep:SetColorTexture(1, 1, 1, 0.04)
+
+    if opts.dimmed then tile:SetAlpha(0.55) end
+
+    return TILE_H, tile
+end
+
+-- Full-page cover over a manager page (override-session notice or the PAB
+-- enable prompt). opts: fontPath, width, title, text, sub, buttonLabel.
+-- Returns ov, btn (btn only with buttonLabel; the caller sets its OnClick).
+function EllesmereUI.BuildActivationOverlay(outerRoot, opts)
+    local fontPath = opts.fontPath
+    local ov = CreateFrame("Frame", nil, outerRoot)
+    ov:SetAllPoints(outerRoot)
+    ov:SetFrameLevel(outerRoot:GetFrameLevel() + 60)
+    ov:EnableMouse(true)
+    ov._searchIgnore = true
+    local bg = ov:CreateTexture(nil, "OVERLAY")
+    bg:SetAllPoints()
+    bg:SetColorTexture(13/255, 17/255, 25/255, 0.98)
+    local title = ov:CreateFontString(nil, "OVERLAY")
+    title:SetFont(fontPath, 15, "")
+    title:SetPoint("CENTER", ov, "CENTER", 0, 60)
+    title:SetTextColor(1, 1, 1, 0.9)
+    title:SetText(opts.title)
+    local body = ov:CreateFontString(nil, "OVERLAY")
+    body:SetFont(fontPath, 13, "")
+    body:SetPoint("TOP", title, "BOTTOM", 0, -14)
+    body:SetWidth(math.floor(opts.width * 0.7))
+    body:SetJustifyH("CENTER")
+    body:SetTextColor(1, 1, 1, 0.56)
+    body:SetText(opts.text or "")
+    local sub
+    if opts.sub then
+        sub = ov:CreateFontString(nil, "OVERLAY")
+        sub:SetFont(fontPath, 12, "")
+        sub:SetPoint("TOP", body, "BOTTOM", 0, -8)
+        sub:SetWidth(math.floor(opts.width * 0.7))
+        sub:SetJustifyH("CENTER")
+        sub:SetTextColor(1, 1, 1, 0.45)
+        sub:SetText(opts.sub)
+    end
+    if not opts.buttonLabel then return ov end
+    local btn = CreateFrame("Button", nil, ov)
+    btn:SetSize(240, 28)
+    btn:SetPoint("TOP", sub or body, "BOTTOM", 0, -22)
+    EllesmereUI.SolidTex(btn, "BACKGROUND", 0.10, 0.10, 0.11, 0.9):SetAllPoints(btn)
+    local brd = EllesmereUI.MakeBorder(btn, 1, 1, 1, 0.22)
+    local lbl = EllesmereUI.MakeFont(btn, 12, nil, 1, 1, 1, 0.85)
+    lbl:SetPoint("CENTER")
+    lbl:SetText(opts.buttonLabel)
+    local eg = EllesmereUI.ELLESMERE_GREEN or { r = 0.05, g = 0.83, b = 0.62 }
+    btn:SetScript("OnEnter", function()
+        if brd and brd.SetColor then brd:SetColor(eg.r, eg.g, eg.b, 0.9) end
+    end)
+    btn:SetScript("OnLeave", function()
+        if brd and brd.SetColor then brd:SetColor(1, 1, 1, 0.22) end
+    end)
+    return ov, btn
+end
+
+-- Filter-editor popup button (dark bg, 1px border, accent border on hover).
+function EllesmereUI.BuildPopupButton(parent, w, h, label, onClick)
+    local btn = CreateFrame("Button", nil, parent)
+    btn:SetSize(w, h)
+    btn:SetFrameLevel(parent:GetFrameLevel() + 2)
+    local bg = EllesmereUI.SolidTex(btn, "BACKGROUND", 0, 0, 0, 0.5); bg:SetAllPoints()
+    local brd = EllesmereUI.MakeBorder(btn, 1, 1, 1, 0.25)
+    local lbl = EllesmereUI.MakeFont(btn, 12, nil, 1, 1, 1)
+    lbl:SetAlpha(0.6)
+    lbl:SetPoint("CENTER")
+    lbl:SetText(EllesmereUI.L(label))
+    local ar, ag, ab = 1, 0.82, 0.30
+    if EllesmereUI.GetAccentColor then ar, ag, ab = EllesmereUI.GetAccentColor() end
+    btn:SetScript("OnEnter", function()
+        lbl:SetAlpha(0.9)
+        if brd and brd.SetColor then brd:SetColor(ar, ag, ab, 0.6) end
+    end)
+    btn:SetScript("OnLeave", function()
+        lbl:SetAlpha(0.6)
+        if brd and brd.SetColor then brd:SetColor(1, 1, 1, 0.25) end
+    end)
+    btn:SetScript("OnClick", onClick)
+    return btn
+end

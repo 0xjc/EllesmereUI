@@ -40,6 +40,73 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --  present" (a setter that removes its key at the default value).
 -------------------------------------------------------------------------------
 
+-- Editing-spec GROUP buckets of the Buff Manager, Debuff Manager and Player
+-- Aura Bars pages, in menu order. Names run through L() at build time.
+EllesmereUI.SPEC_GROUP_BUCKETS = {
+    { key = "allspecs",  name = "All Specs",
+        icon = "Interface\\Icons\\Achievement_GuildPerk_EverybodysFriend" },
+    { key = "nonhealer", name = "All Non Healers/Aug",
+        icon = "Interface\\Icons\\Achievement_GuildPerk_EverybodysFriend" },
+    { key = "tanks",     name = "All Tanks",
+        icon = "Interface\\Icons\\Ability_Warrior_DefensiveStance" },
+    { key = "dps",       name = "All DPS (Non-Aug)",
+        icon = "Interface\\Icons\\Ability_DualWield" },
+    { key = "healers",   name = "All Healers/Aug",
+        icon = "Interface\\Icons\\Spell_Holy_Renew" },
+}
+EllesmereUI.SPEC_GROUP_BUCKET_INFO = {}
+for _, g in ipairs(EllesmereUI.SPEC_GROUP_BUCKETS) do
+    EllesmereUI.SPEC_GROUP_BUCKET_INFO[g.key] = g
+end
+
+-- Editing-spec roster: the group buckets, "---a", then every spec in the
+-- game as "spec<ID>". lead(values, order, icons) may add entries after the
+-- divider and returns a set of specIDs to leave out. Returns fresh tables:
+-- values, order, icons, classes (class file per "spec<ID>" key).
+function EllesmereUI.BuildSpecBucketRoster(lead)
+    local values, order, icons, classes = {}, {}, {}, {}
+    for _, g in ipairs(EllesmereUI.SPEC_GROUP_BUCKETS) do
+        values[g.key] = EllesmereUI.L(g.name)
+        order[#order + 1] = g.key
+        icons[g.key] = g.icon
+    end
+    order[#order + 1] = "---a"
+    local skip = lead and lead(values, order, icons) or {}
+    for classID = 1, (GetNumClasses and GetNumClasses() or 0) do
+        local className, classFile = GetClassInfo(classID)
+        local numSpecs = GetNumSpecializationsForClassID
+            and GetNumSpecializationsForClassID(classID) or 0
+        for si = 1, numSpecs do
+            local specID, specName, _, sIcon = GetSpecializationInfoForClassID(classID, si)
+            if specID and not skip[specID] then
+                local key = "spec" .. specID
+                values[key] = (specName or "") .. " " .. (className or "")
+                order[#order + 1] = key
+                icons[key] = sIcon
+                classes[key] = classFile
+            end
+        end
+    end
+    return values, order, icons, classes
+end
+
+-- Right-click "Add To" items: the roster minus dividers, the edited bucket
+-- (selKey, the source) disabled.
+function EllesmereUI.SpecBucketMenuItems(selKey, lead)
+    local values, order, icons = EllesmereUI.BuildSpecBucketRoster(lead)
+    local items = {}
+    for i = 1, #order do
+        local key = order[i]
+        if not key:match("^%-%-%-") then
+            items[#items + 1] = {
+                key = key, label = values[key], icon = icons[key],
+                disabled = key == selKey,
+            }
+        end
+    end
+    return items
+end
+
 local PS  = "\30"   -- path segment separator
 local FS  = "\31"   -- folder/path separator inside an fkey
 local NIL_SENT = "__SPECOV_NIL__"

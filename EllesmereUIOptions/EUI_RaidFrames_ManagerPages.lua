@@ -17,7 +17,6 @@ local EllesmereUI = _G.EllesmereUI
 local floor = math.floor
 local max = math.max
 
-local TILE_H = 66 -- Buff Manager sidebar tile height (visual parity)
 
 local POS_VALUES = { topleft = "Top Left", top = "Top", topright = "Top Right", left = "Left",
     center = "Center", right = "Right", bottomleft = "Bottom Left", bottom = "Bottom", bottomright = "Bottom Right" }
@@ -94,237 +93,6 @@ local function DmTable()
     local dm = p.dmDebuff
     if not dm then dm = {}; p.dmDebuff = dm end
     return dm
-end
-
--------------------------------------------------------------------------------
--- Shared tile widget (used by the DM sidebar)
--------------------------------------------------------------------------------
--- opts: { width, fontPath, title, subtitle, selected, enabled,
---         showToggle, onSelect(), onToggle(newState), onDelete(),
---         icon (texture), posText ("(Top Left)" gray inline suffix),
---         inheritedTooltip (string; marks the INHERITED variant: blue
---         identity tint on title/subtitle, always-on blue edge strip, hover
---         tooltip -- callers pass no onDelete/onEdit and wire onToggle to
---         the per-spec disable) }
--- Mirrors the Buff Manager sidebar tile exactly (66px rows, 36px icon face, 13px title
--- + gray position suffix, 11px gray subtitle, pill toggle with the active accent, atlas
--- delete icon, accent selected bar, hairline separator) so both manager pages stay
--- visually and structurally identical.
-local INH_R, INH_G, INH_B = 0.55, 0.72, 1
-local function BuildTile(parentFrame, y, opts)
-    local fontPath = opts.fontPath
-    local PP = EllesmereUI.PanelPP or EllesmereUI.PP
-    local tile = CreateFrame("Button", nil, parentFrame)
-    tile:SetSize(opts.width, TILE_H)
-    tile:SetPoint("TOPLEFT", parentFrame, "TOPLEFT", 0, y)
-    tile:SetFrameLevel(parentFrame:GetFrameLevel() + 1)
-
-    local bg = tile:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(1, 1, 1, opts.selected and 0.06 or 0)
-
-    if opts.selected then
-        local accent = tile:CreateTexture(nil, "ARTWORK", nil, 2)
-        accent:SetSize(2, TILE_H)
-        accent:SetPoint("TOPLEFT", tile, "TOPLEFT", 0, 0)
-        if opts.inheritedTooltip then
-            accent:SetColorTexture(INH_R, INH_G, INH_B, 1)
-        else
-            local ac = EllesmereUI.ELLESMERE_GREEN
-            if ac then accent:SetColorTexture(ac.r, ac.g, ac.b, 1)
-            else accent:SetColorTexture(0.05, 0.82, 0.62, 1) end
-        end
-    elseif opts.inheritedTooltip then
-        local edge = tile:CreateTexture(nil, "ARTWORK", nil, 2)
-        edge:SetSize(2, TILE_H)
-        edge:SetPoint("TOPLEFT", tile, "TOPLEFT", 0, 0)
-        edge:SetColorTexture(INH_R, INH_G, INH_B, 0.45)
-    end
-
-    local textX = 12
-    local titleY = -10
-    local textRight = -52 -- room for toggle + delete (BM parity)
-
-    -- Icon face (BM tile parity: 36px, zoom crop, black border)
-    if opts.icon then
-        local ICON_SZ = 36
-        local iconFrame = CreateFrame("Frame", nil, tile)
-        iconFrame:SetSize(ICON_SZ, ICON_SZ)
-        iconFrame:SetPoint("TOPLEFT", tile, "TOPLEFT", 8, -8)
-        iconFrame:SetFrameLevel(tile:GetFrameLevel() + 1)
-        local iconTex = iconFrame:CreateTexture(nil, "ARTWORK")
-        iconTex:SetAllPoints()
-        iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-        iconTex:SetTexture(opts.icon)
-        if PP then
-            local iconBdr = CreateFrame("Frame", nil, iconFrame)
-            iconBdr:SetAllPoints()
-            iconBdr:SetFrameLevel(iconFrame:GetFrameLevel() + 1)
-            PP.CreateBorder(iconBdr, 0, 0, 0, 0.6, 1)
-        end
-        textX = 8 + ICON_SZ + 8
-        titleY = -8
-    end
-
-    local title = tile:CreateFontString(nil, "OVERLAY")
-    title:SetFont(fontPath, 13, "")
-    title:SetPoint("TOPLEFT", tile, "TOPLEFT", textX, titleY)
-    if not opts.posText then
-        title:SetPoint("RIGHT", tile, "RIGHT", textRight, 0)
-    end
-    title:SetJustifyH("LEFT")
-    title:SetWordWrap(false)
-    title:SetText(opts.title or "")
-    if opts.inheritedTooltip then
-        title:SetTextColor(INH_R, INH_G, INH_B)
-    else
-        title:SetTextColor(1, 1, 1)
-    end
-
-    -- Position suffix (smaller, grayer, inline after the title -- BM parity)
-    if opts.posText then
-        local posFS = tile:CreateFontString(nil, "OVERLAY")
-        posFS:SetPoint("LEFT", title, "RIGHT", 4, 0)
-        posFS:SetPoint("RIGHT", tile, "RIGHT", textRight, 0)
-        posFS:SetFont(fontPath, 11, "")
-        posFS:SetJustifyH("LEFT")
-        posFS:SetWordWrap(false)
-        posFS:SetText(opts.posText)
-        posFS:SetTextColor(0.75, 0.75, 0.75, 0.65)
-    end
-
-    if opts.subtitle then
-        local sub = tile:CreateFontString(nil, "OVERLAY")
-        sub:SetFont(fontPath, 11, "")
-        sub:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
-        sub:SetPoint("RIGHT", tile, "RIGHT", textRight, 0)
-        sub:SetJustifyH("LEFT")
-        sub:SetWordWrap(false)
-        sub:SetText(opts.subtitle)
-        if opts.inheritedTooltip then
-            sub:SetTextColor(INH_R, INH_G, INH_B, 0.55)
-        else
-            sub:SetTextColor(0.4, 0.4, 0.4)
-        end
-    end
-
-    tile:SetScript("OnEnter", function()
-        if not opts.selected then bg:SetColorTexture(1, 1, 1, 0.04) end
-        if opts.inheritedTooltip then
-            EllesmereUI.ShowWidgetTooltip(tile, opts.inheritedTooltip)
-        end
-    end)
-    tile:SetScript("OnLeave", function()
-        bg:SetColorTexture(1, 1, 1, opts.selected and 0.06 or 0)
-        if opts.inheritedTooltip then
-            EllesmereUI.HideWidgetTooltip()
-        end
-    end)
-    -- Right-click routes to opts.onContext (the "Add To" menu) when the
-    -- caller provides it; tiles without it ignore right-clicks.
-    tile:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-    tile:SetScript("OnClick", function(self, btn)
-        if btn == "RightButton" then
-            if opts.onContext then opts.onContext(tile) end
-            return
-        end
-        if opts.onSelect then opts.onSelect() end
-    end)
-
-    if opts.showToggle then
-        local toggleW, toggleH = 32, 16
-        local toggleBtn = CreateFrame("Button", nil, tile)
-        toggleBtn:SetSize(toggleW, toggleH)
-        toggleBtn:SetPoint("TOPRIGHT", tile, "TOPRIGHT", -8, -8)
-        toggleBtn:SetFrameLevel(tile:GetFrameLevel() + 2)
-        -- Inherited rows: the pill is the per-spec CONTROL and stays
-        -- full-brightness even when the row dims (opts.dimmed) or wears the
-        -- inherited tint -- SetAlpha on the tile inherits to children.
-        if opts.inheritedTooltip and toggleBtn.SetIgnoreParentAlpha then
-            toggleBtn:SetIgnoreParentAlpha(true)
-        end
-        local toggleBg = toggleBtn:CreateTexture(nil, "BACKGROUND")
-        toggleBg:SetAllPoints()
-        local toggleKnob = toggleBtn:CreateTexture(nil, "ARTWORK")
-        toggleKnob:SetSize(toggleH - 4, toggleH - 4)
-        local function UpdateToggleVisual()
-            toggleKnob:ClearAllPoints()
-            if opts.enabled then
-                local acr, acg, acb = 0.05, 0.82, 0.62
-                if EllesmereUI.ResolveActiveAccent then
-                    acr, acg, acb = EllesmereUI.ResolveActiveAccent()
-                end
-                toggleBg:SetColorTexture(acr, acg, acb, 1)
-                toggleKnob:SetPoint("RIGHT", toggleBtn, "RIGHT", -2, 0)
-                toggleKnob:SetColorTexture(1, 1, 1, 1)
-            else
-                toggleBg:SetColorTexture(0.25, 0.25, 0.25, 1)
-                toggleKnob:SetPoint("LEFT", toggleBtn, "LEFT", 2, 0)
-                toggleKnob:SetColorTexture(0.5, 0.5, 0.5, 1)
-            end
-        end
-        UpdateToggleVisual()
-        toggleBtn:SetScript("OnClick", function()
-            if opts.onToggle then opts.onToggle(not opts.enabled) end
-        end)
-    end
-
-    local delBtn
-    if opts.onDelete then
-        delBtn = CreateFrame("Button", nil, tile)
-        delBtn:SetSize(16, 16)
-        delBtn:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", -8, 6)
-        delBtn:SetFrameLevel(tile:GetFrameLevel() + 2)
-        local delTex = delBtn:CreateTexture(nil, "OVERLAY")
-        delTex:SetAllPoints()
-        delTex:SetAtlas("common-icon-delete")
-        delTex:SetDesaturated(true)
-        delTex:SetVertexColor(0.75, 0.75, 0.75)
-        delBtn:SetAlpha(0.5)
-        delBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.9) end)
-        delBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.5) end)
-        delBtn:SetScript("OnClick", function() opts.onDelete() end)
-    end
-
-    -- Rename pencil beside the trash (the suite's standard eui-edit inline
-    -- button, delete-icon size).
-    if opts.onEdit then
-        local editBtn = CreateFrame("Button", nil, tile)
-        editBtn:SetSize(16, 16)
-        if delBtn then
-            editBtn:SetPoint("RIGHT", delBtn, "LEFT", -4, 0)
-        else
-            editBtn:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", -8, 6)
-        end
-        editBtn:SetFrameLevel(tile:GetFrameLevel() + 2)
-        local editTex = editBtn:CreateTexture(nil, "OVERLAY")
-        editTex:SetAllPoints()
-        if editTex.SetSnapToPixelGrid then editTex:SetSnapToPixelGrid(false); editTex:SetTexelSnappingBias(0) end
-        editTex:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-edit.png")
-        editBtn:SetAlpha(0.5)
-        editBtn:SetScript("OnEnter", function(self)
-            self:SetAlpha(0.9)
-            EllesmereUI.ShowWidgetTooltip(self, L("Rename Indicator"))
-        end)
-        editBtn:SetScript("OnLeave", function(self)
-            self:SetAlpha(0.5)
-            EllesmereUI.HideWidgetTooltip()
-        end)
-        editBtn:SetScript("OnClick", function() opts.onEdit() end)
-    end
-
-    -- Thin separator line at bottom of tile (BM parity)
-    local sep = tile:CreateTexture(nil, "ARTWORK")
-    sep:SetHeight(1)
-    sep:SetPoint("BOTTOMLEFT", tile, "BOTTOMLEFT", 0, 0)
-    sep:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", 0, 0)
-    sep:SetColorTexture(1, 1, 1, 0.04)
-
-    -- Dimmed rows (inherited tiles whose GROUP disabled the entry): the
-    -- whole tile fades; the pill stays the per-spec layer's own state.
-    if opts.dimmed then tile:SetAlpha(0.55) end
-
-    return TILE_H
 end
 
 -------------------------------------------------------------------------------
@@ -452,21 +220,35 @@ local TILE_LANE_ITEMS = {
     { key = "canapply", label = "Can Apply Aura", dual = true,
       tooltip = "Debuffs your own class is able to apply." },
 }
+-- Two-lane filter write (base grid and tiles): the show lane lives in
+-- `show`, the hide lane in `owner.neg`, and the dispel / nonplayer flavors
+-- are global (dm). Checking one lane clears the other.
+local function DmSetLane(show, owner, dm, k, v, neg)
+    local cat, modeKey, mode = k, nil, nil
+    if k == "dispel_you" or k == "dispel_typed" then
+        cat, modeKey, mode = "dispel", "dispelMode", (k == "dispel_typed") and "typed" or "you"
+    elseif k == "nonplayer" or k == "anyplayer" then
+        cat, modeKey, mode = "nonplayer", "nonplayerMode", (k == "anyplayer") and "any" or nil
+    end
+    if neg and v then
+        owner.neg = owner.neg or {}
+        owner.neg[cat] = true
+        show[cat] = nil
+    else
+        if not neg then show[cat] = v and true or nil end
+        if (neg or v) and owner.neg then
+            owner.neg[cat] = nil
+            if not next(owner.neg) then owner.neg = nil end
+        end
+    end
+    if v and modeKey then dm[modeKey] = mode end
+end
 local function BuildTileFiltersDD(rgn, t, dm)
     local PP = EllesmereUI.PP or EllesmereUI.PanelPP
     if rgn._control then rgn._control:Hide() end
     if not t.claim then t.claim = {} end
     local claim = t.claim
     local function NegHas(cat) return t.neg ~= nil and t.neg[cat] == true end
-    local function SetNeg(cat, v)
-        if v then
-            t.neg = t.neg or {}
-            t.neg[cat] = true
-        elseif t.neg then
-            t.neg[cat] = nil
-            if not next(t.neg) then t.neg = nil end
-        end
-    end
     local cbDD = EllesmereUI.BuildVisOptsCBDropdown(
         rgn, 190, rgn:GetFrameLevel() + 2,
         TILE_LANE_ITEMS,
@@ -502,57 +284,8 @@ local function BuildTileFiltersDD(rgn, t, dm)
                 EllesmereUI:RefreshPage()
                 return
             end
-            if k == "dispel_you" or k == "dispel_typed" then
-                -- ONE dispel category, one global flavor (shared with the base
-                -- grid): any checked lane owns both the lane and dm.dispelMode;
-                -- checking one lane/flavor clears the other.
-                if neg then
-                    SetNeg("dispel", v and true or false)
-                    if v then
-                        claim.dispel = nil
-                        dm.dispelMode = (k == "dispel_typed") and "typed" or "you"
-                    end
-                else
-                    claim.dispel = v and true or nil
-                    if v then
-                        SetNeg("dispel", false)
-                        dm.dispelMode = (k == "dispel_typed") and "typed" or "you"
-                    end
-                end
-                DmApply()
-                EllesmereUI:RefreshPage()
-                return
-            end
-            if k == "nonplayer" or k == "anyplayer" then
-                -- ONE nonplayer category, one global flavor (shared with the base
-                -- grid): any checked lane owns both the lane and dm.nonplayerMode;
-                -- checking one lane/flavor clears the other.
-                local mode = (k == "anyplayer") and "any" or nil
-                if neg then
-                    SetNeg("nonplayer", v and true or false)
-                    if v then
-                        claim.nonplayer = nil
-                        dm.nonplayerMode = mode
-                    end
-                else
-                    claim.nonplayer = v and true or nil
-                    if v then
-                        SetNeg("nonplayer", false)
-                        dm.nonplayerMode = mode
-                    end
-                end
-                DmApply()
-                EllesmereUI:RefreshPage()
-                return
-            end
-            -- Two-lane category write: checking one lane clears the other.
-            if neg then
-                SetNeg(k, v and true or false)
-                if v then claim[k] = nil end
-            else
-                claim[k] = v and true or nil
-                if v then SetNeg(k, false) end
-            end
+            -- The dispel and nonplayer flavors are shared with the base grid.
+            DmSetLane(claim, t, dm, k, v, neg)
             DmApply()
             -- Non-force: re-evaluates the base dropdown's empty-selection
             -- warning (tile claims count as grid content) without closing
@@ -891,15 +624,6 @@ local function BuildBaseDetailDM(frame, fontPath)
         local function NegHas(cat)
             return dm.neg ~= nil and dm.neg[cat] == true
         end
-        local function SetNeg(cat, v)
-            if v then
-                dm.neg = dm.neg or {}
-                dm.neg[cat] = true
-            elseif dm.neg then
-                dm.neg[cat] = nil
-                if not next(dm.neg) then dm.neg = nil end
-            end
-        end
         -- One of the grid's content sources (with All Debuffs and enabled
         -- claiming tiles -- see DmHasContent).
         local function AnyShowCat()
@@ -994,59 +718,7 @@ local function BuildBaseDetailDM(frame, fontPath)
                     EllesmereUI:RefreshPage()
                     return
                 end
-                if k == "dispel_you" or k == "dispel_typed" then
-                    -- ONE dispel category, one global flavor: any checked lane owns
-                    -- both the lane and dm.dispelMode; checking one lane/flavor
-                    -- clears the other lane.
-                    if neg then
-                        SetNeg("dispel", v and true or false)
-                        if v then
-                            dm.dispel = nil
-                            dm.dispelMode = (k == "dispel_typed") and "typed" or "you"
-                        end
-                    else
-                        dm.dispel = v and true or nil
-                        if v then
-                            SetNeg("dispel", false)
-                            dm.dispelMode = (k == "dispel_typed") and "typed" or "you"
-                        end
-                    end
-                    DmApply()
-                    -- Non-force: re-evaluates the empty-selection warning (and
-                    -- any other widget refreshers) without closing the menu.
-                    EllesmereUI:RefreshPage()
-                    return
-                end
-                if k == "nonplayer" or k == "anyplayer" then
-                    -- ONE nonplayer category, one flavor (shared with tiles): any
-                    -- checked lane owns both the lane and dm.nonplayerMode;
-                    -- checking one lane/flavor clears the other.
-                    local mode = (k == "anyplayer") and "any" or nil
-                    if neg then
-                        SetNeg("nonplayer", v and true or false)
-                        if v then
-                            dm.nonplayer = nil
-                            dm.nonplayerMode = mode
-                        end
-                    else
-                        dm.nonplayer = v and true or nil
-                        if v then
-                            SetNeg("nonplayer", false)
-                            dm.nonplayerMode = mode
-                        end
-                    end
-                    DmApply()
-                    EllesmereUI:RefreshPage()
-                    return
-                end
-                -- Two-lane category write: checking one lane clears the other.
-                if neg then
-                    SetNeg(k, v and true or false)
-                    if v then dm[k] = nil end
-                else
-                    dm[k] = v and true or nil
-                    if v then SetNeg(k, false) end
-                end
+                DmSetLane(dm, dm, dm, k, v, neg)
                 DmApply()
                 -- Non-force: re-evaluates the empty-selection warning (and
                 -- any other widget refreshers) without closing the menu.
@@ -2358,53 +2030,6 @@ function ns.DMP_BuildPage(pageName, parent, yOffset)
         inhSelBase = true
     end
 
-    -- Editing-spec roster, shared by the Editing Spec dropdown and the
-    -- right-click "Add To" menu: the group buckets lead, then every spec in
-    -- the game as its own "spec<ID>" bucket (healer specs included -- the DM
-    -- has no healer-key legacy).
-    local function BuildDmSpecRoster()
-        local values, order, icons = {}, {}, {}
-        local groups = ns.BM_GROUP_BUCKETS or {}
-        for i = 1, #groups do
-            values[groups[i].key] = L(groups[i].name)
-            order[#order + 1] = groups[i].key
-            icons[groups[i].key] = groups[i].icon
-        end
-        order[#order + 1] = "---a"
-        for classID = 1, (GetNumClasses and GetNumClasses() or 0) do
-            local className = GetClassInfo(classID)
-            local numSpecs = GetNumSpecializationsForClassID
-                and GetNumSpecializationsForClassID(classID) or 0
-            for si = 1, numSpecs do
-                local specID, specName, _, sIcon = GetSpecializationInfoForClassID(classID, si)
-                if specID then
-                    local key = "spec" .. specID
-                    values[key] = (specName or "") .. " " .. (className or "")
-                    order[#order + 1] = key
-                    icons[key] = sIcon
-                end
-            end
-        end
-        return values, order, icons
-    end
-
-    -- Right-click "Add To" items: the roster minus dividers, the edited
-    -- bucket (= the source) disabled.
-    local function DmBucketMenuItems()
-        local values, order, icons = BuildDmSpecRoster()
-        local items = {}
-        for i = 1, #order do
-            local key = order[i]
-            if not key:match("^%-%-%-") then
-                items[#items + 1] = {
-                    key = key, label = values[key], icon = icons[key],
-                    disabled = key == dmSpecSel,
-                }
-            end
-        end
-        return items
-    end
-
     local p = DmProfile()
     if not p then return 0 end
 
@@ -2445,7 +2070,7 @@ function ns.DMP_BuildPage(pageName, parent, yOffset)
     -- Pinned Base Icons tile (All Specs view): undeletable, no toggle (an
     -- empty grid is expressed through the filters).
     if baseOwn then
-        tileY = tileY - BuildTile(sidebarChild, tileY, {
+        tileY = tileY - EllesmereUI.BuildManagerTile(sidebarChild, tileY, {
             width = sidebarW, fontPath = fontPath,
             icon = SampleDebuffTexture(1),
             title = L("Base Icons"),
@@ -2463,7 +2088,7 @@ function ns.DMP_BuildPage(pageName, parent, yOffset)
         -- Concrete spec view: the All Specs base grid as an INHERITED row
         -- (read-only here; the pill is this spec's own on/off).
         local disHere = ns.DM_BaseDisabled and ns.DM_BaseDisabled(dmSpecSel)
-        tileY = tileY - BuildTile(sidebarChild, tileY, {
+        tileY = tileY - EllesmereUI.BuildManagerTile(sidebarChild, tileY, {
             width = sidebarW, fontPath = fontPath,
             icon = SampleDebuffTexture(1),
             title = L("Base Icons"),
@@ -2500,7 +2125,7 @@ function ns.DMP_BuildPage(pageName, parent, yOffset)
                     posText = "(" .. L(POS_VALUES[t.position or "top"] or "") .. ")"
                 end
                 local disHere = ns.DM_InhDisabled and ns.DM_InhDisabled(dmSpecSel, t.id)
-                tileY = tileY - BuildTile(sidebarChild, tileY, {
+                tileY = tileY - EllesmereUI.BuildManagerTile(sidebarChild, tileY, {
                     width = sidebarW, fontPath = fontPath,
                     icon = TileFaceTexture(t),
                     title = t.name or L(TYPE_NAMES[t.type] or t.type),
@@ -2537,7 +2162,7 @@ function ns.DMP_BuildPage(pageName, parent, yOffset)
         if t.type == "icons" or t.type == "square" or t.type == "bar" then
             posText = "(" .. L(POS_VALUES[t.position or "top"] or "") .. ")"
         end
-        tileY = tileY - BuildTile(sidebarChild, tileY, {
+        tileY = tileY - EllesmereUI.BuildManagerTile(sidebarChild, tileY, {
             width = sidebarW, fontPath = fontPath,
             icon = TileFaceTexture(t),
             -- User-typed name over the type-name default. Display-only
@@ -2561,7 +2186,7 @@ function ns.DMP_BuildPage(pageName, parent, yOffset)
                 EllesmereUI.ShowPickMenu(tileFrame, {
                     title = L("Add To"),
                     fontPath = fontPath,
-                    items = DmBucketMenuItems(),
+                    items = EllesmereUI.SpecBucketMenuItems(dmSpecSel),
                     onPick = function(key)
                         if ns.DM_CopyTile and ns.DM_CopyTile(t, key) then
                             DmApply()
@@ -2575,6 +2200,7 @@ function ns.DMP_BuildPage(pageName, parent, yOffset)
                 DmApply()
                 EllesmereUI:RefreshPage(true)
             end,
+            editTooltip = L("Rename Indicator"),
             onEdit = function()
                 local cur = t.name or L(TYPE_NAMES[t.type] or t.type)
                 EllesmereUI:ShowInputPopup({
@@ -2914,7 +2540,7 @@ function ns.DMP_BuildPage(pageName, parent, yOffset)
         local specCenterX = pvSplitW + specSplitW / 2
         -- Roster shared with the right-click "Add To" menu (the menu
         -- rebuilds it lazily per open).
-        local specDDValues, specDDOrder, specDDIcons = BuildDmSpecRoster()
+        local specDDValues, specDDOrder, specDDIcons = EllesmereUI.BuildSpecBucketRoster()
         specDDValues._menuOpts = {
             maxHeight = 300,
             icon = function(key) return specDDIcons[key] end,
@@ -3110,52 +2736,12 @@ function ns.DMP_BuildPage(pageName, parent, yOffset)
     -- child of outerRoot so every teardown path destroys it.
     if dmOverlayState then
         local st = dmOverlayState
-        local ov = CreateFrame("Frame", nil, outerRoot)
-        ov:SetAllPoints(outerRoot)
-        ov:SetFrameLevel(outerRoot:GetFrameLevel() + 60)
-        ov:EnableMouse(true)
-        ov._searchIgnore = true
-        local bg = ov:CreateTexture(nil, "OVERLAY")
-        bg:SetAllPoints()
-        bg:SetColorTexture(13/255, 17/255, 25/255, 0.98)
-        local title = ov:CreateFontString(nil, "OVERLAY")
-        title:SetFont(fontPath, 15, "")
-        title:SetPoint("CENTER", ov, "CENTER", 0, 60)
-        title:SetTextColor(1, 1, 1, 0.9)
-        title:SetText(EllesmereUI.L("Custom Debuff Manager"))
-        local body = ov:CreateFontString(nil, "OVERLAY")
-        body:SetFont(fontPath, 13, "")
-        body:SetPoint("TOP", title, "BOTTOM", 0, -14)
-        body:SetWidth(floor(parentW * 0.7))
-        body:SetJustifyH("CENTER")
-        body:SetTextColor(1, 1, 1, 0.56)
-        body:SetText(st.text or "")
-        local sub
-        if st.sub then
-            sub = ov:CreateFontString(nil, "OVERLAY")
-            sub:SetFont(fontPath, 12, "")
-            sub:SetPoint("TOP", body, "BOTTOM", 0, -8)
-            sub:SetWidth(floor(parentW * 0.7))
-            sub:SetJustifyH("CENTER")
-            sub:SetTextColor(1, 1, 1, 0.45)
-            sub:SetText(st.sub)
-        end
-        if st.mode == "activate" then
-            local btn = CreateFrame("Button", nil, ov)
-            btn:SetSize(240, 28)
-            btn:SetPoint("TOP", sub or body, "BOTTOM", 0, -22)
-            EllesmereUI.SolidTex(btn, "BACKGROUND", 0.10, 0.10, 0.11, 0.9):SetAllPoints(btn)
-            local brd = EllesmereUI.MakeBorder(btn, 1, 1, 1, 0.22)
-            local lbl = EllesmereUI.MakeFont(btn, 12, nil, 1, 1, 1, 0.85)
-            lbl:SetPoint("CENTER")
-            lbl:SetText(EllesmereUI.L("Activate Custom Debuff Manager"))
-            local eg = EllesmereUI.ELLESMERE_GREEN or { r = 0.05, g = 0.83, b = 0.62 }
-            btn:SetScript("OnEnter", function()
-                if brd and brd.SetColor then brd:SetColor(eg.r, eg.g, eg.b, 0.9) end
-            end)
-            btn:SetScript("OnLeave", function()
-                if brd and brd.SetColor then brd:SetColor(1, 1, 1, 0.22) end
-            end)
+        local _, btn = EllesmereUI.BuildActivationOverlay(outerRoot, {
+            fontPath = fontPath, width = parentW,
+            title = EllesmereUI.L("Custom Debuff Manager"), text = st.text, sub = st.sub,
+            buttonLabel = st.mode == "activate" and EllesmereUI.L("Activate Custom Debuff Manager") or nil,
+        })
+        if btn then
             btn:SetScript("OnClick", function()
                 if EllesmereUI.SpecOverrides_ActivateDm then
                     EllesmereUI.SpecOverrides_ActivateDm(st.kind, st.gid)
@@ -3235,30 +2821,6 @@ function ns.BMP_ShowFilterEditor()
     local title = EllesmereUI.MakeFont(popup, 16, "", 1, 1, 1)
     title:SetPoint("TOP", popup, "TOP", 0, -18)
     title:SetText(EllesmereUI.L("Edit Filters"))
-
-    -- Standard popup-style button (SolidTex bg + border + hover fade-lite).
-    local function PopupButton(parent, w, h, label, onClick)
-        local btn = CreateFrame("Button", nil, parent)
-        btn:SetSize(w, h)
-        btn:SetFrameLevel(parent:GetFrameLevel() + 2)
-        local bg = EllesmereUI.SolidTex(btn, "BACKGROUND", 0, 0, 0, 0.5)
-        bg:SetAllPoints()
-        local brd = EllesmereUI.MakeBorder(btn, 1, 1, 1, 0.25)
-        local lbl = EllesmereUI.MakeFont(btn, 12, nil, 1, 1, 1)
-        lbl:SetAlpha(0.6)
-        lbl:SetPoint("CENTER")
-        lbl:SetText(EllesmereUI.L(label))
-        btn:SetScript("OnEnter", function()
-            lbl:SetAlpha(0.9)
-            if brd and brd.SetColor then brd:SetColor(ar, ag, ab, 0.6) end
-        end)
-        btn:SetScript("OnLeave", function()
-            lbl:SetAlpha(0.6)
-            if brd and brd.SetColor then brd:SetColor(1, 1, 1, 0.25) end
-        end)
-        btn:SetScript("OnClick", onClick)
-        return btn
-    end
 
     -- Close button (top-right): the borderless X (the boxed close-popup
     -- variant reads as a framed button here).
@@ -3444,7 +3006,7 @@ function ns.BMP_ShowFilterEditor()
         end
         fy = fy - 27
     end
-    local addFilterBtn = PopupButton(sideChild, SIDE_W - 16, 26, "Add Filter", function()
+    local addFilterBtn = EllesmereUI.BuildPopupButton(sideChild, SIDE_W - 16, 26, "Add Filter", function()
         EditorInput({
             title = EllesmereUI.L("Add Filter"),
             message = EllesmereUI.L("Name the new filter."),
@@ -3464,7 +3026,7 @@ function ns.BMP_ShowFilterEditor()
     -- never change, so indicator assignments and banked spec-override forks
     -- stay valid. Hidden while that module is disabled.
     if EllesmereUI._PABFilterBridge then
-        local copyBtn = PopupButton(sideChild, SIDE_W - 16, 26, EllesmereUI.L("Copy Player Auras Filters"), function()
+        local copyBtn = EllesmereUI.BuildPopupButton(sideChild, SIDE_W - 16, 26, EllesmereUI.L("Copy Player Auras Filters"), function()
             EllesmereUI:ShowConfirmPopup({
                 title = EllesmereUI.L("Copy Player Auras Filters"),
                 message = EllesmereUI.L("One-time copy of your Player Aura Bars filter setups into these filters. Same-named filters are OVERWRITTEN; the two lists stay separate afterwards."),
@@ -3575,7 +3137,7 @@ function ns.BMP_ShowFilterEditor()
         end
     end
 
-    local addSpellBtn = PopupButton(left, 110, 24, "Add Spell ID", function()
+    local addSpellBtn = EllesmereUI.BuildPopupButton(left, 110, 24, "Add Spell ID", function()
         EditorInput({
             title = EllesmereUI.L("Add Spell ID"),
             message = EllesmereUI.L("Enter the spell ID to add to this filter."),

@@ -6125,6 +6125,37 @@ initFrame:SetScript("OnEvent", function(self)
         "click", "cast", "binding", "keybind", "spell", "macro", "mouseover",
     }
 
+    -- Drops the BM / DM / CC roots (built on the shared scroll frame, not a
+    -- page wrapper) except keepPage's. popups: true = also hide the Add New,
+    -- DM add and BM2 editor/menu popups; "dm" = those DM/BM2 popups only when
+    -- the DM root drops. stripAlways: clear the CC spell strip (parented to
+    -- the panel, not the CC root) even with no CC root.
+    local function DropManagerRoots(keepPage, popups, stripAlways)
+        if popups == true and ns._addNewPopup then ns._addNewPopup:Hide() end
+        if keepPage ~= PAGE_BUFFS and ns._bmRoot then
+            ns._bmRoot:Hide(); ns._bmRoot:SetParent(nil); ns._bmRoot = nil
+        end
+        local dropDm = keepPage ~= PAGE_DM and ns._dmRoot
+        if popups == true or (popups == "dm" and dropDm) then
+            if ns._dmAddPopup then ns._dmAddPopup:Hide() end
+            if ns._bm2FilterEditor then ns._bm2FilterEditor:Hide(); ns._bm2FilterEditor = nil end
+            if ns._bm2Menu then ns._bm2Menu:Hide(); ns._bm2Menu = nil end
+        end
+        if dropDm then
+            ns._dmRoot:Hide(); ns._dmRoot:SetParent(nil); ns._dmRoot = nil
+        end
+        local dropCc = keepPage ~= PAGE_CLICKCAST and ns._ccRoot
+        if dropCc then
+            if ns._ccGridPopup then ns._ccGridPopup:Hide(); ns._ccGridPopup = nil end
+            if ns._ccSpecPopup then ns._ccSpecPopup:Hide(); ns._ccSpecPopup = nil end
+            if ns._ccQBPopup then ns._ccQBPopup:Hide(); ns._ccQBPopup = nil end
+            ns._ccRoot:Hide(); ns._ccRoot:SetParent(nil); ns._ccRoot = nil
+        end
+        if (dropCc or stripAlways) and ns._ccSpellStrip then
+            ns._ccSpellStrip:Hide(); ns._ccSpellStrip:SetParent(nil); ns._ccSpellStrip = nil
+        end
+    end
+
     EllesmereUI:RegisterModule("EllesmereUIRaidFrames", {
         title       = "Raid Frames",
         description = "Configure raid frame appearance and behavior.",
@@ -6147,25 +6178,7 @@ initFrame:SetScript("OnEvent", function(self)
                 return
             end
             -- Drop the BM / DM / CC roots when switching away.
-            if pageName ~= PAGE_BUFFS and ns._bmRoot then
-                ns._bmRoot:Hide()
-                ns._bmRoot:SetParent(nil)
-                ns._bmRoot = nil
-            end
-            if pageName ~= PAGE_DM and ns._dmRoot then
-                ns._dmRoot:Hide()
-                ns._dmRoot:SetParent(nil)
-                ns._dmRoot = nil
-            end
-            if pageName ~= PAGE_CLICKCAST and ns._ccRoot then
-                if ns._ccGridPopup then ns._ccGridPopup:Hide(); ns._ccGridPopup = nil end
-                if ns._ccSpecPopup then ns._ccSpecPopup:Hide(); ns._ccSpecPopup = nil end
-                if ns._ccQBPopup then ns._ccQBPopup:Hide(); ns._ccQBPopup = nil end
-                if ns._ccSpellStrip then ns._ccSpellStrip:Hide(); ns._ccSpellStrip:SetParent(nil); ns._ccSpellStrip = nil end
-                ns._ccRoot:Hide()
-                ns._ccRoot:SetParent(nil)
-                ns._ccRoot = nil
-            end
+            DropManagerRoots(pageName)
             if pageName == PAGE_MAIN then
                 local mode = db.profile.previewMode or "overlay"
                 -- Skip-restore keeps real party frames hidden under the preview so they don't flash on return to the party tab; restore only for "none", where real frames are meant to be visible.
@@ -6213,25 +6226,7 @@ initFrame:SetScript("OnEvent", function(self)
         onPageCacheRestore = function(pageName)
             -- Mirrors buildPage's root cleanup: fires INSTEAD of buildPage when the target page is already cached.
             -- Without it, switching from Buffs/HoverCast to a cached page never hides ns._bmRoot/ns._ccRoot, which are built onto the shared live scroll frame (not a per-page wrapper) and would stay stuck over the restored page.
-            if pageName ~= PAGE_BUFFS and ns._bmRoot then
-                ns._bmRoot:Hide()
-                ns._bmRoot:SetParent(nil)
-                ns._bmRoot = nil
-            end
-            if pageName ~= PAGE_DM and ns._dmRoot then
-                ns._dmRoot:Hide()
-                ns._dmRoot:SetParent(nil)
-                ns._dmRoot = nil
-            end
-            if pageName ~= PAGE_CLICKCAST and ns._ccRoot then
-                if ns._ccGridPopup then ns._ccGridPopup:Hide(); ns._ccGridPopup = nil end
-                if ns._ccSpecPopup then ns._ccSpecPopup:Hide(); ns._ccSpecPopup = nil end
-                if ns._ccQBPopup then ns._ccQBPopup:Hide(); ns._ccQBPopup = nil end
-                if ns._ccSpellStrip then ns._ccSpellStrip:Hide(); ns._ccSpellStrip:SetParent(nil); ns._ccSpellStrip = nil end
-                ns._ccRoot:Hide()
-                ns._ccRoot:SetParent(nil)
-                ns._ccRoot = nil
-            end
+            DropManagerRoots(pageName)
             if pageName == PAGE_MAIN then
                 local mode = db.profile.previewMode or "overlay"
                 -- Skip-restore; see buildPage.
@@ -6351,41 +6346,13 @@ initFrame:SetScript("OnEvent", function(self)
                 if ns._HideSizePreview then ns._HideSizePreview() end
             end
             -- BM root + Add New popup: the popup is DIALOG strata and otherwise persists after close.
-            if ns._addNewPopup then ns._addNewPopup:Hide() end
-            if ns._bmRoot then
-                ns._bmRoot:Hide(); ns._bmRoot:SetParent(nil); ns._bmRoot = nil
-            end
-            if ns._dmAddPopup then ns._dmAddPopup:Hide() end
-            if ns._bm2FilterEditor then ns._bm2FilterEditor:Hide(); ns._bm2FilterEditor = nil end
-            if ns._bm2Menu then ns._bm2Menu:Hide(); ns._bm2Menu = nil end
-            if ns._dmRoot then
-                ns._dmRoot:Hide(); ns._dmRoot:SetParent(nil); ns._dmRoot = nil
-            end
-            if ns._ccRoot then
-                if ns._ccGridPopup then ns._ccGridPopup:Hide(); ns._ccGridPopup = nil end
-                if ns._ccSpecPopup then ns._ccSpecPopup:Hide(); ns._ccSpecPopup = nil end
-                if ns._ccQBPopup then ns._ccQBPopup:Hide(); ns._ccQBPopup = nil end
-                ns._ccRoot:Hide(); ns._ccRoot:SetParent(nil); ns._ccRoot = nil
-            end
-            if ns._ccSpellStrip then ns._ccSpellStrip:Hide(); ns._ccSpellStrip:SetParent(nil); ns._ccSpellStrip = nil end
+            DropManagerRoots(nil, true, true)
         end)
     end
 
     -- HideAllChildren callback: BM/CC intentionally bypass the scroll child, so their scrollFrame-parented roots need explicit cleanup.
     EllesmereUI._hideScrollFrameRoots = function()
-        if ns._addNewPopup then ns._addNewPopup:Hide() end
-        if ns._bmRoot then ns._bmRoot:Hide(); ns._bmRoot:SetParent(nil); ns._bmRoot = nil end
-        if ns._dmAddPopup then ns._dmAddPopup:Hide() end
-            if ns._bm2FilterEditor then ns._bm2FilterEditor:Hide(); ns._bm2FilterEditor = nil end
-            if ns._bm2Menu then ns._bm2Menu:Hide(); ns._bm2Menu = nil end
-        if ns._dmRoot then ns._dmRoot:Hide(); ns._dmRoot:SetParent(nil); ns._dmRoot = nil end
-        if ns._ccRoot then
-            if ns._ccGridPopup then ns._ccGridPopup:Hide(); ns._ccGridPopup = nil end
-            if ns._ccSpecPopup then ns._ccSpecPopup:Hide(); ns._ccSpecPopup = nil end
-            if ns._ccQBPopup then ns._ccQBPopup:Hide(); ns._ccQBPopup = nil end
-            ns._ccRoot:Hide(); ns._ccRoot:SetParent(nil); ns._ccRoot = nil
-        end
-        if ns._ccSpellStrip then ns._ccSpellStrip:Hide(); ns._ccSpellStrip:SetParent(nil); ns._ccSpellStrip = nil end
+        DropManagerRoots(nil, true, true)
     end
 
     -- Module switch: drop the BM/CC roots and hide the preview.
@@ -6395,23 +6362,7 @@ initFrame:SetScript("OnEvent", function(self)
                 if ns._rfEyeHintTip then ns._rfEyeHintTip:Hide() end
                 -- Tear down previews and guarantee the real containers return to UIParent, including the orphaned-flag-false cases.
                 if ns.EnsureRealFramesRestored then ns.EnsureRealFramesRestored() end
-                if ns._addNewPopup then ns._addNewPopup:Hide() end
-                if ns._bmRoot then
-                    ns._bmRoot:Hide(); ns._bmRoot:SetParent(nil); ns._bmRoot = nil
-                end
-                if ns._dmAddPopup then ns._dmAddPopup:Hide() end
-            if ns._bm2FilterEditor then ns._bm2FilterEditor:Hide(); ns._bm2FilterEditor = nil end
-            if ns._bm2Menu then ns._bm2Menu:Hide(); ns._bm2Menu = nil end
-                if ns._dmRoot then
-                    ns._dmRoot:Hide(); ns._dmRoot:SetParent(nil); ns._dmRoot = nil
-                end
-                if ns._ccRoot then
-                    if ns._ccGridPopup then ns._ccGridPopup:Hide(); ns._ccGridPopup = nil end
-                    if ns._ccSpecPopup then ns._ccSpecPopup:Hide(); ns._ccSpecPopup = nil end
-                    if ns._ccQBPopup then ns._ccQBPopup:Hide(); ns._ccQBPopup = nil end
-                    ns._ccRoot:Hide(); ns._ccRoot:SetParent(nil); ns._ccRoot = nil
-                    if ns._ccSpellStrip then ns._ccSpellStrip:Hide(); ns._ccSpellStrip:SetParent(nil); ns._ccSpellStrip = nil end
-                end
+                DropManagerRoots(nil, true)
             end
         end)
     end
@@ -6495,22 +6446,7 @@ initFrame:SetScript("OnEvent", function(self)
                 end
             end
             -- Drop the BM / DM / CC roots when switching away.
-            if pageName ~= PAGE_BUFFS and ns._bmRoot then
-                ns._bmRoot:Hide(); ns._bmRoot:SetParent(nil); ns._bmRoot = nil
-            end
-            if pageName ~= PAGE_DM and ns._dmRoot then
-                if ns._dmAddPopup then ns._dmAddPopup:Hide() end
-            if ns._bm2FilterEditor then ns._bm2FilterEditor:Hide(); ns._bm2FilterEditor = nil end
-            if ns._bm2Menu then ns._bm2Menu:Hide(); ns._bm2Menu = nil end
-                ns._dmRoot:Hide(); ns._dmRoot:SetParent(nil); ns._dmRoot = nil
-            end
-            if pageName ~= PAGE_CLICKCAST and ns._ccRoot then
-                if ns._ccGridPopup then ns._ccGridPopup:Hide(); ns._ccGridPopup = nil end
-                if ns._ccSpecPopup then ns._ccSpecPopup:Hide(); ns._ccSpecPopup = nil end
-                if ns._ccQBPopup then ns._ccQBPopup:Hide(); ns._ccQBPopup = nil end
-                ns._ccRoot:Hide(); ns._ccRoot:SetParent(nil); ns._ccRoot = nil
-                if ns._ccSpellStrip then ns._ccSpellStrip:Hide(); ns._ccSpellStrip:SetParent(nil); ns._ccSpellStrip = nil end
-            end
+            DropManagerRoots(pageName, "dm")
             return result
         end
     end

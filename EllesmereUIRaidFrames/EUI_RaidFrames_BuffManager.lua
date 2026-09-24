@@ -378,28 +378,11 @@ for _, spec in ipairs(HEALER_SPECS) do
     SPEC_DD_ORDER[#SPEC_DD_ORDER + 1] = spec.key
 end
 
--- GROUP buckets of the editing-spec dropdown, in menu order: shared unions
--- whose indicators render across every matching spec (concrete specs show
--- them as inherited tiles with a per-spec enable). Shared with the Debuff
--- Manager page's roster via ns. Names run through L() at build time.
-do
-    local list = {
-        { key = "allspecs",  name = "All Specs",
-            icon = "Interface\\Icons\\Achievement_GuildPerk_EverybodysFriend" },
-        { key = "nonhealer", name = "All Non Healers/Aug",
-            icon = "Interface\\Icons\\Achievement_GuildPerk_EverybodysFriend" },
-        { key = "tanks",     name = "All Tanks",
-            icon = "Interface\\Icons\\Ability_Warrior_DefensiveStance" },
-        { key = "dps",       name = "All DPS (Non-Aug)",
-            icon = "Interface\\Icons\\Ability_DualWield" },
-        { key = "healers",   name = "All Healers/Aug",
-            icon = "Interface\\Icons\\Spell_Holy_Renew" },
-    }
-    local info = {}
-    for i = 1, #list do info[list[i].key] = list[i] end
-    ns.BM_GROUP_BUCKETS = list
-    ns.BM_GROUP_BUCKET_INFO = info
-end
+-- GROUP buckets of the editing-spec dropdown (core list, shared with the
+-- Debuff Manager and Player Aura Bars rosters): shared unions whose
+-- indicators render across every matching spec (concrete specs show them as
+-- inherited tiles with a per-spec enable).
+ns.BM_GROUP_BUCKET_INFO = EllesmereUI.SPEC_GROUP_BUCKET_INFO
 
 -- Group buckets a CONCRETE bucket (healer spec key or "spec<ID>") inherits
 -- from, in display order: All Specs always, All Non Healers/Aug for
@@ -1536,18 +1519,20 @@ local function AutoDetectSpec()
 end
 
 -------------------------------------------------------------------------------
---  Health-bar replica preview (Debuff Manager draws its own content on it).
---  Mirrors the custom preview's health bar 1:1 but has NO spec picker/
---  indicator pools. Returns pvFrame, sectionH.
-function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY)
+--  Health-bar replica preview, shared by the Debuff Manager (draws its own
+--  content on it) and the Buff Manager page. opts: previewClass (default:
+--  the active spec's class), minH (150), noUniformRef. Returns pvFrame,
+--  sectionH, scale.
+function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
+    opts = opts or {}
     local PV_SCALE = 1.5
     local rawW = s.frameWidth or 72
     local rawH = s.frameHeight or 46
     local previewPad = 20
-    -- Cap on-screen height at 100px via uniform downscale (keeps rawW:rawH aspect). Simple + custom share this value -- adjust both together.
+    -- Cap on-screen height at 100px via uniform downscale (keeps rawW:rawH aspect).
     if rawH * PV_SCALE > 100 then PV_SCALE = 100 / rawH end
     local pvH = floor(rawH * PV_SCALE + 0.5)
-    local sectionH = max(pvH + previewPad * 2, 150)
+    local sectionH = max(pvH + previewPad * 2, opts.minH or 150)
 
     local pvFrame = CreateFrame("Frame", nil, parent)
     pvFrame:SetSize(rawW, rawH)
@@ -1578,16 +1563,18 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY)
     health:SetValue(85)
 
     -- Full-height anchor reference (mirrors the live buttons' d.uniformRef so Uniform Icon Anchoring previews identically; see ns.RF_AnchorHost).
-    local pvUniformRef = CreateFrame("Frame", nil, pvFrame)
-    pvUniformRef:SetFrameLevel(health:GetFrameLevel())
-    pvUniformRef:SetPoint("TOPLEFT", health, "TOPLEFT", 0, 0)
-    pvUniformRef:SetPoint("BOTTOMRIGHT", pvFrame, "BOTTOMRIGHT", 0, 0)
-    health._euiUniformRef = pvUniformRef
-    pvUniformRef._euiHealth = health
+    if not opts.noUniformRef then
+        local pvUniformRef = CreateFrame("Frame", nil, pvFrame)
+        pvUniformRef:SetFrameLevel(health:GetFrameLevel())
+        pvUniformRef:SetPoint("TOPLEFT", health, "TOPLEFT", 0, 0)
+        pvUniformRef:SetPoint("BOTTOMRIGHT", pvFrame, "BOTTOMRIGHT", 0, 0)
+        health._euiUniformRef = pvUniformRef
+        pvUniformRef._euiHealth = health
+    end
 
     -- Preview class color from the player's active spec (falls back to class)
-    local previewClass
-    if activeSpecKey_BM and SPEC_BY_KEY[activeSpecKey_BM] then
+    local previewClass = opts.previewClass
+    if not previewClass and activeSpecKey_BM and SPEC_BY_KEY[activeSpecKey_BM] then
         previewClass = SPEC_BY_KEY[activeSpecKey_BM].classToken
     end
     if not previewClass then
@@ -1798,7 +1785,7 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY)
 
     pvFrame._health = health
 
-    return pvFrame, sectionH
+    return pvFrame, sectionH, PV_SCALE
 end
 
 function ns.BM_BuildPage(pageName, parent, yOffset)
@@ -1905,29 +1892,14 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
         ns._bmSelectedIndId = selectedIndicator and selectedIndicator.id or nil
     end
 
-    -- Editing-spec roster, shared by the Editing Spec dropdown and the
-    -- right-click "Add To" menu: group buckets lead, then a divider, the
-    -- healer/Aug specs, a divider, then EVERY other spec in the game (own
-    -- additive "spec<ID>" buckets), enumerated live so new specs appear on
-    -- their own. Standard spec icons throughout. Returns local copies -- the
-    -- shared order table must never accumulate inserts.
-    local function BuildSpecRoster()
-        local values = {}
-        for k, v in pairs(SPEC_DD_VALUES) do values[k] = EllesmereUI.L(v) end
-        local order = SPEC_DD_ORDER
-        local icons, classes
-        icons, classes = {}, {}
-        order = {}
-        for i = 1, #ns.BM_GROUP_BUCKETS do
-            local g = ns.BM_GROUP_BUCKETS[i]
-            values[g.key] = EllesmereUI.L(g.name)
-            order[#order + 1] = g.key
-            icons[g.key] = g.icon
-        end
-        order[#order + 1] = "---a"
+    -- Editing-spec roster lead (EllesmereUI.BuildSpecBucketRoster): the
+    -- healer/Aug specs and a divider between the group buckets and every
+    -- other spec in the game. Standard spec icons throughout.
+    local function HealerRosterLead(values, order, icons)
         local inHealerList = {}
         for i = 1, #SPEC_DD_ORDER do
             local key = SPEC_DD_ORDER[i]
+            values[key] = EllesmereUI.L(SPEC_DD_VALUES[key])
             order[#order + 1] = key
             local hs = SPEC_BY_KEY[key]
             if hs and hs.specID then
@@ -1939,39 +1911,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
             end
         end
         order[#order + 1] = "---b"
-        for classID = 1, (GetNumClasses and GetNumClasses() or 0) do
-            local className, classFile = GetClassInfo(classID)
-            local numSpecs = GetNumSpecializationsForClassID and GetNumSpecializationsForClassID(classID) or 0
-            for si = 1, numSpecs do
-                local specID, specName, _, sIcon = GetSpecializationInfoForClassID(classID, si)
-                if specID and not inHealerList[specID] then
-                    local key = "spec" .. specID
-                    values[key] = (specName or "") .. " " .. (className or "")
-                    order[#order + 1] = key
-                    icons[key] = sIcon
-                    classes[key] = classFile
-                end
-            end
-        end
-        return values, order, icons, classes
-    end
-
-    -- Right-click "Add To" items: the roster minus dividers, the edited
-    -- bucket (= the source) disabled.
-    local function BucketMenuItems()
-        local values, order, icons = BuildSpecRoster()
-        local items = {}
-        for i = 1, #order do
-            local key = order[i]
-            if not key:match("^%-%-%-") then
-                items[#items + 1] = {
-                    key = key, label = values[key],
-                    icon = icons and icons[key],
-                    disabled = key == selectedSpecKey,
-                }
-            end
-        end
-        return items
+        return inHealerList
     end
 
     -------------------------------------------------------------------
@@ -2007,52 +1947,12 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
     -- early and must still be covered; high frame level, child of outerRoot so every teardown path destroys it.
     if bmOverlayState then
         local st = bmOverlayState
-        local ov = CreateFrame("Frame", nil, outerRoot)
-        ov:SetAllPoints(outerRoot)
-        ov:SetFrameLevel(outerRoot:GetFrameLevel() + 60)
-        ov:EnableMouse(true)
-        ov._searchIgnore = true
-        local bg = ov:CreateTexture(nil, "OVERLAY")
-        bg:SetAllPoints()
-        bg:SetColorTexture(13/255, 17/255, 25/255, 0.98)
-        local title = ov:CreateFontString(nil, "OVERLAY")
-        title:SetFont(fontPath, 15, "")
-        title:SetPoint("CENTER", ov, "CENTER", 0, 60)
-        title:SetTextColor(1, 1, 1, 0.9)
-        title:SetText(EllesmereUI.L("Custom Buff Manager"))
-        local body = ov:CreateFontString(nil, "OVERLAY")
-        body:SetFont(fontPath, 13, "")
-        body:SetPoint("TOP", title, "BOTTOM", 0, -14)
-        body:SetWidth(floor(parentW * 0.7))
-        body:SetJustifyH("CENTER")
-        body:SetTextColor(1, 1, 1, 0.56)
-        body:SetText(st.text or "")
-        local sub
-        if st.sub then
-            sub = ov:CreateFontString(nil, "OVERLAY")
-            sub:SetFont(fontPath, 12, "")
-            sub:SetPoint("TOP", body, "BOTTOM", 0, -8)
-            sub:SetWidth(floor(parentW * 0.7))
-            sub:SetJustifyH("CENTER")
-            sub:SetTextColor(1, 1, 1, 0.45)
-            sub:SetText(st.sub)
-        end
-        if st.mode == "activate" then
-            local btn = CreateFrame("Button", nil, ov)
-            btn:SetSize(240, 28)
-            btn:SetPoint("TOP", sub or body, "BOTTOM", 0, -22)
-            EllesmereUI.SolidTex(btn, "BACKGROUND", 0.10, 0.10, 0.11, 0.9):SetAllPoints(btn)
-            local brd = EllesmereUI.MakeBorder(btn, 1, 1, 1, 0.22)
-            local lbl = EllesmereUI.MakeFont(btn, 12, nil, 1, 1, 1, 0.85)
-            lbl:SetPoint("CENTER")
-            lbl:SetText(EllesmereUI.L("Activate Custom Buff Manager"))
-            local eg = EllesmereUI.ELLESMERE_GREEN or { r = 0.05, g = 0.83, b = 0.62 }
-            btn:SetScript("OnEnter", function()
-                if brd and brd.SetColor then brd:SetColor(eg.r, eg.g, eg.b, 0.9) end
-            end)
-            btn:SetScript("OnLeave", function()
-                if brd and brd.SetColor then brd:SetColor(1, 1, 1, 0.22) end
-            end)
+        local ov, btn = EllesmereUI.BuildActivationOverlay(outerRoot, {
+            fontPath = fontPath, width = parentW,
+            title = EllesmereUI.L("Custom Buff Manager"), text = st.text, sub = st.sub,
+            buttonLabel = st.mode == "activate" and EllesmereUI.L("Activate Custom Buff Manager") or nil,
+        })
+        if btn then
             -- Create popup: pick what the new Buff Manager starts from (main
             -- copy, another override's copy, or a preset), then Create. Child of
             -- the overlay so every page teardown destroys it with the overlay.
@@ -2190,8 +2090,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
 
     local sidebarFrame = sidebarChild  -- alias for tile building code below
 
-    local TILE_H = 66
-    local ICON_SZ = 36
     local tileY = 0
 
     -------------------------------------------------------------------
@@ -2201,388 +2099,100 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
     --  disable (BM2_SetInhDisabled) -- other specs are never affected.
     -------------------------------------------------------------------
     if inheritedGroups then
-        local IR, IG, IB = 0.55, 0.72, 1  -- inherited accent (soft blue)
         for gi = 1, #inheritedGroups do
             local gkey = inheritedGroups[gi]
             local ginfo = ns.BM_GROUP_BUCKET_INFO[gkey]
             local gname = ginfo and EllesmereUI.L(ginfo.name) or gkey
             for _, gind in ipairs(GetSpecIndicators(db, gkey) or {}) do
-                local tile = CreateFrame("Button", nil, sidebarFrame)
-                tile:SetSize(sidebarW, TILE_H)
-                tile:SetPoint("TOPLEFT", sidebarFrame, "TOPLEFT", 0, tileY)
-                tile:SetFrameLevel(sidebarFrame:GetFrameLevel() + 1)
-
-                local tileBg = tile:CreateTexture(nil, "BACKGROUND")
-                tileBg:SetAllPoints()
-                local isSelected = ns._bm2InhSel and ns._bm2InhSel.group == gkey
-                    and ns._bm2InhSel.id == gind.id
-                tileBg:SetColorTexture(1, 1, 1, isSelected and 0.06 or 0)
-
-                -- Blue edge strip: always visible (the inherited marker),
-                -- brighter while selected.
-                local edge = tile:CreateTexture(nil, "ARTWORK", nil, 2)
-                edge:SetSize(2, TILE_H)
-                edge:SetPoint("TOPLEFT", tile, "TOPLEFT", 0, 0)
-                edge:SetColorTexture(IR, IG, IB, isSelected and 1 or 0.45)
-
-                local iconFrame = CreateFrame("Frame", nil, tile)
-                iconFrame:SetSize(ICON_SZ, ICON_SZ)
-                iconFrame:SetPoint("TOPLEFT", tile, "TOPLEFT", 8, -8)
-                iconFrame:SetFrameLevel(tile:GetFrameLevel() + 1)
-
                 local gSpells = ns.BM2_ResolveSpells and ns.BM2_ResolveSpells(gind) or gind.spells
-                local iconTex = iconFrame:CreateTexture(nil, "ARTWORK")
-                iconTex:SetAllPoints()
-                iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+                local face = 136243
                 if gSpells and #gSpells > 0 then
-                    local faceId = (ns.BM2_PreferredSpell
-                        and ns.BM2_PreferredSpell(gind, SelectedBucketClass())) or gSpells[1]
-                    iconTex:SetTexture(GetSpellIcon(faceId))
-                else
-                    iconTex:SetTexture(136243)
+                    face = GetSpellIcon((ns.BM2_PreferredSpell
+                        and ns.BM2_PreferredSpell(gind, SelectedBucketClass())) or gSpells[1])
                 end
-                if PP then
-                    local iconBdr = CreateFrame("Frame", nil, iconFrame)
-                    iconBdr:SetAllPoints()
-                    iconBdr:SetFrameLevel(iconFrame:GetFrameLevel() + 1)
-                    PP.CreateBorder(iconBdr, 0, 0, 0, 0.6, 1)
-                end
-
-                local textX = 8 + ICON_SZ + 8
-                local textRight = -52
-
-                local gTypeName = INDICATOR_TYPE_MAP[gind.type]
-                    and INDICATOR_TYPE_MAP[gind.type].name or gind.type
-                local titleFS = tile:CreateFontString(nil, "OVERLAY")
-                titleFS:SetPoint("TOPLEFT", tile, "TOPLEFT", textX, -8)
-                titleFS:SetFont(fontPath, 13, "")
-                titleFS:SetJustifyH("LEFT")
-                titleFS:SetWordWrap(false)
-                titleFS:SetText(gind.name and EllesmereUI.L(gind.name) or EllesmereUI.L(gTypeName))
-                titleFS:SetTextColor(IR, IG, IB)
-
                 local gTypeInfo = INDICATOR_TYPE_MAP[gind.type]
+                local gTypeName = gTypeInfo and gTypeInfo.name or gind.type
+                local posText
                 if gTypeInfo and gTypeInfo.placed and gind.position then
-                    local posText = POSITION_VALUES[gind.position] or gind.position
-                    local posFS = tile:CreateFontString(nil, "OVERLAY")
-                    posFS:SetPoint("LEFT", titleFS, "RIGHT", 4, 0)
-                    posFS:SetPoint("RIGHT", tile, "RIGHT", textRight, 0)
-                    posFS:SetFont(fontPath, 11, "")
-                    posFS:SetJustifyH("LEFT")
-                    posFS:SetWordWrap(false)
-                    posFS:SetText("(" .. EllesmereUI.L(posText) .. ")")
-                    posFS:SetTextColor(0.75, 0.75, 0.75, 0.65)
+                    posText = "(" .. EllesmereUI.L(POSITION_VALUES[gind.position] or gind.position) .. ")"
                 end
-
-                -- Subtitle = the owning group, in the inherited tint.
-                local fromFS = tile:CreateFontString(nil, "OVERLAY")
-                fromFS:SetPoint("TOPLEFT", titleFS, "BOTTOMLEFT", 0, -4)
-                fromFS:SetPoint("RIGHT", tile, "RIGHT", textRight, 0)
-                fromFS:SetFont(fontPath, 11, "")
-                fromFS:SetJustifyH("LEFT")
-                fromFS:SetWordWrap(false)
-                fromFS:SetText(gname)
-                fromFS:SetTextColor(IR, IG, IB, 0.55)
-
-                -- Pill: the PER-SPEC enable ONLY -- it reflects and toggles
-                -- exactly the layer this view owns (a group-level disable is
-                -- conveyed by the dimmed tile below, never by this pill, so
-                -- the control can never look dead).
-                local disHere = ns.BM2_InhDisabled(selectedSpecKey, gkey, gind.id)
-                local pillOn = not disHere
-                local toggleBtn = CreateFrame("Button", nil, tile)
-                toggleBtn:SetSize(32, 16)
-                toggleBtn:SetPoint("TOPRIGHT", tile, "TOPRIGHT", -8, -8)
-                toggleBtn:SetFrameLevel(tile:GetFrameLevel() + 2)
-                -- The pill is the per-spec CONTROL: it stays full-brightness
-                -- even when the row itself dims (group-disabled) or wears the
-                -- inherited tint.
-                if toggleBtn.SetIgnoreParentAlpha then
-                    toggleBtn:SetIgnoreParentAlpha(true)
-                end
-                local toggleBg = toggleBtn:CreateTexture(nil, "BACKGROUND")
-                toggleBg:SetAllPoints()
-                local toggleKnob = toggleBtn:CreateTexture(nil, "ARTWORK")
-                toggleKnob:SetSize(12, 12)
-                if pillOn then
-                    local acr, acg, acb = EllesmereUI.ResolveActiveAccent()
-                    toggleBg:SetColorTexture(acr, acg, acb, 1)
-                    toggleKnob:SetPoint("RIGHT", toggleBtn, "RIGHT", -2, 0)
-                    toggleKnob:SetColorTexture(1, 1, 1, 1)
-                else
-                    toggleBg:SetColorTexture(0.25, 0.25, 0.25, 1)
-                    toggleKnob:SetPoint("LEFT", toggleBtn, "LEFT", 2, 0)
-                    toggleKnob:SetColorTexture(0.5, 0.5, 0.5, 1)
-                end
-                toggleBtn:SetScript("OnClick", function()
-                    ns.BM2_SetInhDisabled(selectedSpecKey, gkey, gind.id,
-                        not ns.BM2_InhDisabled(selectedSpecKey, gkey, gind.id))
-                    RebuildLookup(db)
-                    if ns.ReloadFrames then ns.ReloadFrames() end
-                    EllesmereUI:RefreshPage(true)
-                end)
-
-                tile:SetScript("OnClick", function()
-                    selectedIndicator = nil
-                    ns._bm2InhSel = { group = gkey, id = gind.id }
-                    EllesmereUI:RefreshPage(true)
-                end)
-                tile:SetScript("OnEnter", function()
-                    if not isSelected then tileBg:SetColorTexture(1, 1, 1, 0.04) end
-                    EllesmereUI.ShowWidgetTooltip(tile,
-                        EllesmereUI.Lf("Inherited from %1$s. Editable only there.", gname))
-                end)
-                tile:SetScript("OnLeave", function()
-                    if not isSelected then tileBg:SetColorTexture(1, 1, 1, 0) end
-                    EllesmereUI.HideWidgetTooltip()
-                end)
-
-                local sep = tile:CreateTexture(nil, "ARTWORK")
-                sep:SetHeight(1)
-                sep:SetPoint("BOTTOMLEFT", tile, "BOTTOMLEFT", 0, 0)
-                sep:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", 0, 0)
-                sep:SetColorTexture(1, 1, 1, 0.04)
-
-                -- Group-disabled indicators render dimmer here: they are off
-                -- everywhere until re-enabled in their group.
-                if not gind.enabled then tile:SetAlpha(0.55) end
-
-                tileY = tileY - TILE_H
+                -- Pill: the PER-SPEC enable ONLY; a group-level disable dims
+                -- the tile instead (the control can never look dead).
+                tileY = tileY - EllesmereUI.BuildManagerTile(sidebarFrame, tileY, {
+                    width = sidebarW, fontPath = fontPath, icon = face,
+                    title = gind.name and EllesmereUI.L(gind.name) or EllesmereUI.L(gTypeName),
+                    titleUnclamped = true, posText = posText, subtitle = gname,
+                    inheritedTooltip = EllesmereUI.Lf("Inherited from %1$s. Editable only there.", gname),
+                    selected = ns._bm2InhSel and ns._bm2InhSel.group == gkey
+                        and ns._bm2InhSel.id == gind.id,
+                    dimmed = not gind.enabled,
+                    enabled = not ns.BM2_InhDisabled(selectedSpecKey, gkey, gind.id),
+                    showToggle = true,
+                    onSelect = function()
+                        selectedIndicator = nil
+                        ns._bm2InhSel = { group = gkey, id = gind.id }
+                        EllesmereUI:RefreshPage(true)
+                    end,
+                    onToggle = function()
+                        ns.BM2_SetInhDisabled(selectedSpecKey, gkey, gind.id,
+                            not ns.BM2_InhDisabled(selectedSpecKey, gkey, gind.id))
+                        RebuildLookup(db)
+                        if ns.ReloadFrames then ns.ReloadFrames() end
+                        EllesmereUI:RefreshPage(true)
+                    end,
+                })
             end
         end
     end
     for _, ind in ipairs(specIndicators) do
-        local tile = CreateFrame("Button", nil, sidebarFrame)
-        tile:SetSize(sidebarW, TILE_H)
-        tile:SetPoint("TOPLEFT", sidebarFrame, "TOPLEFT", 0, tileY)
-        tile:SetFrameLevel(sidebarFrame:GetFrameLevel() + 1)
-
-        local tileBg = tile:CreateTexture(nil, "BACKGROUND")
-        tileBg:SetAllPoints()
-        local isSelected = selectedIndicator and selectedIndicator.id == ind.id
-        tileBg:SetColorTexture(1, 1, 1, isSelected and 0.06 or 0)
-
-        if isSelected then
-            local accent = tile:CreateTexture(nil, "ARTWORK", nil, 2)
-            accent:SetSize(2, TILE_H)
-            accent:SetPoint("TOPLEFT", tile, "TOPLEFT", 0, 0)
-            local ac = EllesmereUI.ELLESMERE_GREEN
-            if ac then
-                accent:SetColorTexture(ac.r, ac.g, ac.b, 1)
-            else
-                accent:SetColorTexture(0.05, 0.82, 0.62, 1)
-            end
-        end
-
-        local iconFrame = CreateFrame("Frame", nil, tile)
-        iconFrame:SetSize(ICON_SZ, ICON_SZ)
-        iconFrame:SetPoint("TOPLEFT", tile, "TOPLEFT", 8, -8)
-        iconFrame:SetFrameLevel(tile:GetFrameLevel() + 1)
-
         -- v2: tiles render the RESOLVED spell union (assigned filters + direct spells) -- the raw list is empty for filter-driven groups.
         local tileSpells = ind.spells
         if ns.BM2_ResolveSpells then
             tileSpells = ns.BM2_ResolveSpells(ind)
         end
-
-        local iconTex = iconFrame:CreateTexture(nil, "ARTWORK")
-        iconTex:SetAllPoints()
-        iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        local face = 136243
+        local subtitle = EllesmereUI.L("(no spells)")
         if tileSpells and #tileSpells > 0 then
             -- v2: prefer a spell the EDITED bucket's spec/class actually uses as the tile's face (known spell > class-tagged > all-class).
-            local faceId = (ns.BM2_PreferredSpell
-                and ns.BM2_PreferredSpell(ind, SelectedBucketClass())) or tileSpells[1]
-            iconTex:SetTexture(GetSpellIcon(faceId))
-        else
-            iconTex:SetTexture(136243)
-        end
-
-        if PP then
-            local iconBdr = CreateFrame("Frame", nil, iconFrame)
-            iconBdr:SetAllPoints()
-            iconBdr:SetFrameLevel(iconFrame:GetFrameLevel() + 1)
-            PP.CreateBorder(iconBdr, 0, 0, 0, 0.6, 1)
-        end
-
-        local textX = 8 + ICON_SZ + 8
-        local textRight = -52  -- room for toggle + delete
-
-        local typeName = INDICATOR_TYPE_MAP[ind.type] and INDICATOR_TYPE_MAP[ind.type].name or ind.type
-        local titleFS = tile:CreateFontString(nil, "OVERLAY")
-        titleFS:SetPoint("TOPLEFT", tile, "TOPLEFT", textX, -8)
-        titleFS:SetFont(fontPath, 13, "")
-        titleFS:SetJustifyH("LEFT")
-        titleFS:SetWordWrap(false)
-        -- v2: named indicators (the seeded filter groups) show their name.
-        if ind.name then
-            titleFS:SetText(EllesmereUI.L(ind.name))
-        else
-            titleFS:SetText(EllesmereUI.L(typeName))
-        end
-        titleFS:SetTextColor(1, 1, 1)
-
-        local typeInfo2 = INDICATOR_TYPE_MAP[ind.type]
-        if typeInfo2 and typeInfo2.placed and ind.position then
-            local posText = POSITION_VALUES[ind.position] or ind.position
-            local posFS = tile:CreateFontString(nil, "OVERLAY")
-            posFS:SetPoint("LEFT", titleFS, "RIGHT", 4, 0)
-            posFS:SetPoint("RIGHT", tile, "RIGHT", textRight, 0)
-            posFS:SetFont(fontPath, 11, "")
-            posFS:SetJustifyH("LEFT")
-            posFS:SetWordWrap(false)
-            posFS:SetText("(" .. EllesmereUI.L(posText) .. ")")
-            posFS:SetTextColor(0.75, 0.75, 0.75, 0.65)
-        end
-
-        local spellFS = tile:CreateFontString(nil, "OVERLAY")
-        spellFS:SetPoint("TOPLEFT", titleFS, "BOTTOMLEFT", 0, -4)
-        spellFS:SetPoint("RIGHT", tile, "RIGHT", textRight, 0)
-        spellFS:SetFont(fontPath, 11, "")
-        spellFS:SetJustifyH("LEFT")
-        spellFS:SetWordWrap(false)
-        if tileSpells and #tileSpells > 0 then
+            face = GetSpellIcon((ns.BM2_PreferredSpell
+                and ns.BM2_PreferredSpell(ind, SelectedBucketClass())) or tileSpells[1])
             local names = {}
             for _, sid in ipairs(tileSpells) do
                 names[#names + 1] = SPELL_NAME_BY_ID[sid]
                     or (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(sid))
                     or tostring(sid)
             end
-            spellFS:SetText(table.concat(names, ", "))
-        else
-            spellFS:SetText(EllesmereUI.L("(no spells)"))
+            subtitle = table.concat(names, ", ")
         end
-        spellFS:SetTextColor(0.4, 0.4, 0.4)
 
-        local toggleW, toggleH = 32, 16
-        local toggleBtn = CreateFrame("Button", nil, tile)
-        toggleBtn:SetSize(toggleW, toggleH)
-        toggleBtn:SetPoint("TOPRIGHT", tile, "TOPRIGHT", -8, -8)
-        toggleBtn:SetFrameLevel(tile:GetFrameLevel() + 2)
-
-        local toggleBg = toggleBtn:CreateTexture(nil, "BACKGROUND")
-        toggleBg:SetAllPoints()
-
-        local toggleKnob = toggleBtn:CreateTexture(nil, "ARTWORK")
-        toggleKnob:SetSize(toggleH - 4, toggleH - 4)
-
-        local function UpdateToggleVisual()
-            toggleKnob:ClearAllPoints()
-            if ind.enabled then
-                local acr, acg, acb = EllesmereUI.ResolveActiveAccent()
-                toggleBg:SetColorTexture(acr, acg, acb, 1)
-                toggleKnob:SetPoint("RIGHT", toggleBtn, "RIGHT", -2, 0)
-                toggleKnob:SetColorTexture(1, 1, 1, 1)
-            else
-                toggleBg:SetColorTexture(0.25, 0.25, 0.25, 1)
-                toggleKnob:SetPoint("LEFT", toggleBtn, "LEFT", 2, 0)
-                toggleKnob:SetColorTexture(0.5, 0.5, 0.5, 1)
-            end
+        local typeInfo2 = INDICATOR_TYPE_MAP[ind.type]
+        local typeName = typeInfo2 and typeInfo2.name or ind.type
+        local posText
+        if typeInfo2 and typeInfo2.placed and ind.position then
+            posText = "(" .. EllesmereUI.L(POSITION_VALUES[ind.position] or ind.position) .. ")"
         end
-        UpdateToggleVisual()
 
-        toggleBtn:SetScript("OnClick", function()
-            ind.enabled = not ind.enabled
-            -- Interacting adopts the explicit indicators-enabled key, replacing the shim default derived from the old mode.
-            if db and db.profile then
-                db.profile.bmIndicatorsEnabled = true
-            end
-            UpdateToggleVisual()
-            RebuildLookup(db)
-            if ns.ReloadFrames then ns.ReloadFrames() end
-            EllesmereUI:RefreshPage(true)
-        end)
-
-        local delBtn = CreateFrame("Button", nil, tile)
-        delBtn:SetSize(16, 16)
-        delBtn:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", -8, 6)
-        delBtn:SetFrameLevel(tile:GetFrameLevel() + 2)
-        local delTex = delBtn:CreateTexture(nil, "OVERLAY")
-        delTex:SetAllPoints()
-        delTex:SetAtlas("common-icon-delete")
-        delTex:SetDesaturated(true)
-        delTex:SetVertexColor(0.75, 0.75, 0.75)
-        delBtn:SetAlpha(0.5)
-        delBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.9) end)
-        delBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.5) end)
-        delBtn:SetScript("OnClick", function()
-            local spellName = ind.spells and #ind.spells > 0
-                and (SPELL_NAME_BY_ID[ind.spells[1]] or tostring(ind.spells[1]))
-                or "this indicator"
-            EllesmereUI:ShowConfirmPopup({
-                title = "Delete Indicator",
-                message = "Are you sure you want to delete the indicator for " .. spellName .. "?",
-                confirmText = "Delete",
-                cancelText = "Cancel",
-                onConfirm = function()
-                    local list = GetSpecIndicators(db, selectedSpecKey)
-                    for i = #list, 1, -1 do
-                        if list[i].id == ind.id then tremove(list, i); break end
-                    end
-                    if selectedIndicator and selectedIndicator.id == ind.id then
-                        selectedIndicator = nil
-                    end
-                    -- Deleting a GROUP indicator sweeps its per-spec disable
-                    -- keys from every concrete bucket (stale keys are inert
-                    -- but would leak forever).
-                    if ns.BM2_SweepInhDis and ns.BM_GROUP_BUCKET_INFO
-                        and ns.BM_GROUP_BUCKET_INFO[selectedSpecKey] then
-                        ns.BM2_SweepInhDis(selectedSpecKey, ind.id)
-                    end
-                    RebuildLookup(db)
-                    if ns.ReloadFrames then ns.ReloadFrames() end
-                    EllesmereUI:RefreshPage(true)
-                end,
-            })
-        end)
-
-        -- Rename pencil beside the trash (the suite's standard eui-edit
-        -- inline button, delete-icon size). Only under v2, which is what
-        -- renders ind.name in the tile title; the name is display-only, so a
-        -- rename never touches spells/signature -- page refresh suffices.
-        local editBtn = CreateFrame("Button", nil, tile)
-        editBtn:SetSize(16, 16)
-        editBtn:SetPoint("RIGHT", delBtn, "LEFT", -4, 0)
-        editBtn:SetFrameLevel(tile:GetFrameLevel() + 2)
-        local editTex = editBtn:CreateTexture(nil, "OVERLAY")
-        editTex:SetAllPoints()
-        if editTex.SetSnapToPixelGrid then editTex:SetSnapToPixelGrid(false); editTex:SetTexelSnappingBias(0) end
-        editTex:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-edit.png")
-        editBtn:SetAlpha(0.5)
-        editBtn:SetScript("OnEnter", function(self)
-            self:SetAlpha(0.9)
-            EllesmereUI.ShowWidgetTooltip(self, EllesmereUI.L("Rename Indicator"))
-        end)
-        editBtn:SetScript("OnLeave", function(self)
-            self:SetAlpha(0.5)
-            EllesmereUI.HideWidgetTooltip()
-        end)
-        editBtn:SetScript("OnClick", function()
-            local cur = ind.name or typeName
-            EllesmereUI:ShowInputPopup({
-                title = EllesmereUI.L("Rename Indicator"),
-                message = EllesmereUI.L("Enter a new name for this indicator:"),
-                placeholder = cur,
-                confirmText = EllesmereUI.L("Rename"),
-                cancelText = EllesmereUI.L("Cancel"),
-                onConfirm = function(text)
-                    text = text and text:gsub("^%s+", ""):gsub("%s+$", "") or ""
-                    -- Empty reverts to the type-name default.
-                    ind.name = (text ~= "") and text or nil
-                    EllesmereUI:RefreshPage(true)
-                end,
-            })
-        end)
-
-        -- Right-click: "Add To" context menu -- copies this indicator into
-        -- another editing-spec bucket (full clone, fresh id; source stays).
-        tile:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-        tile:SetScript("OnClick", function(self, btn)
-            if btn == "RightButton" then
+        local tileH, tile = EllesmereUI.BuildManagerTile(sidebarFrame, tileY, {
+            width = sidebarW, fontPath = fontPath, icon = face,
+            -- v2: named indicators (the seeded filter groups) show their name.
+            title = ind.name and EllesmereUI.L(ind.name) or EllesmereUI.L(typeName),
+            titleUnclamped = true, posText = posText, subtitle = subtitle,
+            selected = selectedIndicator and selectedIndicator.id == ind.id,
+            enabled = ind.enabled,
+            showToggle = true,
+            onSelect = function()
+                ns._bm2InhSel = nil
+                selectedIndicator = ind
+                EllesmereUI:RefreshPage(true)
+            end,
+            -- Right-click: "Add To" context menu -- copies this indicator into
+            -- another editing-spec bucket (full clone, fresh id; source stays).
+            onContext = function(tileFrame)
                 if not EllesmereUI.ShowPickMenu then return end
-                EllesmereUI.ShowPickMenu(tile, {
+                EllesmereUI.ShowPickMenu(tileFrame, {
                     title = EllesmereUI.L("Add To"),
                     fontPath = fontPath,
-                    items = BucketMenuItems(),
+                    items = EllesmereUI.SpecBucketMenuItems(selectedSpecKey, HealerRosterLead),
                     onPick = function(key)
                         -- Target cap: silently blocked at the limit (house
                         -- silent-correction pattern; CountSpecIndicators
@@ -2596,25 +2206,67 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                         end
                     end,
                 })
-                return
-            end
-            ns._bm2InhSel = nil
-            selectedIndicator = ind
-            EllesmereUI:RefreshPage(true)
-        end)
-
-        tile:SetScript("OnEnter", function()
-            if not isSelected then tileBg:SetColorTexture(1, 1, 1, 0.04) end
-        end)
-        tile:SetScript("OnLeave", function()
-            if not isSelected then tileBg:SetColorTexture(1, 1, 1, 0) end
-        end)
-
-        local sep = tile:CreateTexture(nil, "ARTWORK")
-        sep:SetHeight(1)
-        sep:SetPoint("BOTTOMLEFT", tile, "BOTTOMLEFT", 0, 0)
-        sep:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", 0, 0)
-        sep:SetColorTexture(1, 1, 1, 0.04)
+            end,
+            onToggle = function()
+                ind.enabled = not ind.enabled
+                -- Interacting adopts the explicit indicators-enabled key, replacing the shim default derived from the old mode.
+                if db and db.profile then
+                    db.profile.bmIndicatorsEnabled = true
+                end
+                RebuildLookup(db)
+                if ns.ReloadFrames then ns.ReloadFrames() end
+                EllesmereUI:RefreshPage(true)
+            end,
+            onDelete = function()
+                local spellName = ind.spells and #ind.spells > 0
+                    and (SPELL_NAME_BY_ID[ind.spells[1]] or tostring(ind.spells[1]))
+                    or "this indicator"
+                EllesmereUI:ShowConfirmPopup({
+                    title = "Delete Indicator",
+                    message = "Are you sure you want to delete the indicator for " .. spellName .. "?",
+                    confirmText = "Delete",
+                    cancelText = "Cancel",
+                    onConfirm = function()
+                        local list = GetSpecIndicators(db, selectedSpecKey)
+                        for i = #list, 1, -1 do
+                            if list[i].id == ind.id then tremove(list, i); break end
+                        end
+                        if selectedIndicator and selectedIndicator.id == ind.id then
+                            selectedIndicator = nil
+                        end
+                        -- Deleting a GROUP indicator sweeps its per-spec disable
+                        -- keys from every concrete bucket (stale keys are inert
+                        -- but would leak forever).
+                        if ns.BM2_SweepInhDis and ns.BM_GROUP_BUCKET_INFO
+                            and ns.BM_GROUP_BUCKET_INFO[selectedSpecKey] then
+                            ns.BM2_SweepInhDis(selectedSpecKey, ind.id)
+                        end
+                        RebuildLookup(db)
+                        if ns.ReloadFrames then ns.ReloadFrames() end
+                        EllesmereUI:RefreshPage(true)
+                    end,
+                })
+            end,
+            -- Rename: the name is display-only, so a rename never touches
+            -- spells/signature -- page refresh suffices.
+            editTooltip = EllesmereUI.L("Rename Indicator"),
+            onEdit = function()
+                local cur = ind.name or typeName
+                EllesmereUI:ShowInputPopup({
+                    title = EllesmereUI.L("Rename Indicator"),
+                    message = EllesmereUI.L("Enter a new name for this indicator:"),
+                    placeholder = cur,
+                    confirmText = EllesmereUI.L("Rename"),
+                    cancelText = EllesmereUI.L("Cancel"),
+                    onConfirm = function(text)
+                        text = text and text:gsub("^%s+", ""):gsub("%s+$", "") or ""
+                        -- Empty reverts to the type-name default.
+                        ind.name = (text ~= "") and text or nil
+                        EllesmereUI:RefreshPage(true)
+                    end,
+                })
+            end,
+        })
 
         -- Frame Alpha is removed: the notice covers the tile body but leaves the right controls usable so it can still be toggled off or deleted.
         if ind.type == "framealpha" then
@@ -2623,7 +2275,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
             ov:SetPoint("BOTTOMRIGHT", tile, "BOTTOMRIGHT", -52, 1)
         end
 
-        tileY = tileY - TILE_H
+        tileY = tileY - tileH
     end
 
     -------------------------------------------------------------------
@@ -2999,29 +2651,32 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
     end
 
     do
-        local PV_SCALE = 1.5
-        local rawW = s.frameWidth or 72
-        local rawH = s.frameHeight or 46
-        local previewPad = 20
-        -- Cap on-screen height at 100px via uniform downscale (keeps the rawW:rawH aspect). Simple + custom share this value -- adjust both together.
-        if rawH * PV_SCALE > 100 then PV_SCALE = 100 / rawH end
-        -- Scaled dimensions for layout spacing (frame is real size but SetScale'd)
-        local pvW = floor(rawW * PV_SCALE + 0.5)
-        local pvH = floor(rawH * PV_SCALE + 0.5)
-
-        -- Section height: max of preview height or spec selector content
-        local sectionH = max(pvH + previewPad * 2, 120)
         local pvSplitW = floor(leftW * 0.65)   -- left 65% for preview
         local specSplitW = leftW - pvSplitW     -- right 35% for editing spec
 
+        -- Roster shared with the right-click "Add To" menu (built once per
+        -- page build here; the menu rebuilds it lazily per open).
+        local specDDValues, specDDOrder, specDDIcons, specDDClass = EllesmereUI.BuildSpecBucketRoster(HealerRosterLead)
+
         ---------------------------------------------------------------
-        --  LEFT 65%: Preview frame (centered)
+        --  LEFT 65%: Preview frame (centered). Health color class =
+        --  selected spec's (per-spec buckets via the roster map), else
+        --  player's.
         ---------------------------------------------------------------
-        local pvFrame = CreateFrame("Frame", nil, leftFrame)
-        pvFrame:SetSize(rawW, rawH)
-        pvFrame:SetScale(PV_SCALE)
-        local pvCenterX = pvSplitW / 2
-        pvFrame:SetPoint("TOP", leftFrame, "TOPLEFT", floor(pvCenterX / PV_SCALE), (ly - previewPad) / PV_SCALE)
+        local previewClass
+        if selectedSpecKey and SPEC_BY_KEY[selectedSpecKey] then
+            previewClass = SPEC_BY_KEY[selectedSpecKey].classToken
+        end
+        if not previewClass and specDDClass then
+            previewClass = specDDClass[selectedSpecKey]
+        end
+        if not previewClass then
+            local _, pc = UnitClass("player")
+            previewClass = pc
+        end
+        local pvFrame, sectionH, PV_SCALE = ns.BM_BuildSimplePreview(leftFrame, s, fontPath, PP, pvSplitW / 2, ly - 20,
+            { previewClass = previewClass, minH = 120, noUniformRef = true })
+        local health = pvFrame._health
 
         -- Vertical divider between preview and editing spec
         local splitDiv = leftFixed:CreateTexture(nil, "ARTWORK")
@@ -3034,10 +2689,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
         --  RIGHT 35%: Background class icon + centered label + dropdown
         ---------------------------------------------------------------
         local specCenterX = pvSplitW + specSplitW / 2
-
-        -- Roster shared with the right-click "Add To" menu (built once per
-        -- page build here; the menu rebuilds it lazily per open).
-        local specDDValues, specDDOrder, specDDIcons, specDDClass = BuildSpecRoster()
 
         -- Background class icon (covers right section, faded)
         local classIconBg = leftFixed:CreateTexture(nil, "BACKGROUND", nil, 1)
@@ -3107,283 +2758,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
             end)
         specDD:SetPoint("TOP", specLabel, "BOTTOM", 0, -7)
 
-        -- Background (match user's bg settings)
-        local bgc = s.customBgColor or { r = 17/255, g = 17/255, b = 17/255 }
-        local bg = pvFrame:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints()
-
-        -- Health bar sizing (real sizes, not scaled)
-        local rawPowerH = (s.powerShowForHealer or s.powerShowForTank or s.powerShowForDPS) and (s.powerHeight or 4) or 0
-        local rawTopBarH = s.topNameBarEnabled and (s.topNameBarHeight or 20) or 0
-        local healthH = rawH - rawPowerH - rawTopBarH
-
-        -- Health bar
-        local texKey = s.healthBarTexture or "atrocity"
-        local texPath = EllesmereUI.ResolveTexturePath and
-            EllesmereUI.ResolveTexturePath(ns.healthBarTextures or {}, texKey, "Interface\\Buttons\\WHITE8X8")
-            or "Interface\\Buttons\\WHITE8X8"
-        local health = CreateFrame("StatusBar", nil, pvFrame)
-        health:SetFrameLevel(pvFrame:GetFrameLevel() + 2)
-        health:SetPoint("TOPLEFT", pvFrame, "TOPLEFT", 0, -rawTopBarH)
-        health:SetPoint("TOPRIGHT", pvFrame, "TOPRIGHT", 0, -rawTopBarH)
-        health:SetHeight(healthH)
-        health:SetStatusBarTexture(texPath)
-        health:GetStatusBarTexture():SetHorizTile(false)
-        health:SetMinMaxValues(0, 100)
-        health:SetValue(85)
-
-        -- Health color (all 4 modes); class = selected spec's, else player's.
-        local previewClass
-        if selectedSpecKey and SPEC_BY_KEY[selectedSpecKey] then
-            previewClass = SPEC_BY_KEY[selectedSpecKey].classToken
-        end
-        -- Per-spec buckets resolve their class through the roster map.
-        if not previewClass and specDDClass then
-            previewClass = specDDClass[selectedSpecKey]
-        end
-        if not previewClass then
-            local _, pc = UnitClass("player")
-            previewClass = pc
-        end
-        local cc = EllesmereUI.GetClassColor and EllesmereUI.GetClassColor(previewClass)
-        local mode = s.healthColorMode or "class"
-        local fillTex = health:GetStatusBarTexture()
-        if mode == "dark" then
-            local dfr, dfg, dfb, dfa = EllesmereUI.GetDarkModeFill()
-            health:SetStatusBarColor(dfr, dfg, dfb, 1)
-            if fillTex then fillTex:SetAlpha(dfa) end
-            bg:ClearAllPoints()
-            bg:SetPoint("TOPLEFT", fillTex, "TOPRIGHT", 0, 0)
-            bg:SetPoint("BOTTOMRIGHT", health, "BOTTOMRIGHT", 0, 0)
-            bg:SetColorTexture(EllesmereUI.GetDarkModeBg())
-        elseif mode == "classic" then
-            local pct = 0.85
-            local r = pct < 0.5 and 1 or (1 - (pct - 0.5) * 2)
-            local g = pct > 0.5 and 1 or (pct * 2)
-            health:SetStatusBarColor(r, g, 0, (s.healthBarOpacity or 100) / 100)
-            if fillTex then fillTex:SetAlpha(1) end
-            bg:SetAllPoints()
-            bg:SetColorTexture(bgc.r, bgc.g, bgc.b, (s.bgDarkness or 50) / 100)
-        elseif mode == "custom" then
-            local cfc = s.customFillColor or { r = 37/255, g = 193/255, b = 29/255 }
-            health:SetStatusBarColor(cfc.r, cfc.g, cfc.b, (s.healthBarOpacity or 100) / 100)
-            if fillTex then fillTex:SetAlpha(1) end
-            bg:SetAllPoints()
-            bg:SetColorTexture(bgc.r, bgc.g, bgc.b, (s.bgDarkness or 50) / 100)
-        else -- class
-            if cc then
-                health:SetStatusBarColor(cc.r, cc.g, cc.b, (s.healthBarOpacity or 100) / 100)
-            end
-            if fillTex then fillTex:SetAlpha(1) end
-            bg:SetAllPoints()
-            bg:SetColorTexture(bgc.r, bgc.g, bgc.b, (s.bgDarkness or 50) / 100)
-        end
-
-        -- Power bar
-        if rawPowerH > 0 then
-            local power = CreateFrame("StatusBar", nil, pvFrame)
-            power:SetFrameLevel(pvFrame:GetFrameLevel() + 3)
-            power:SetPoint("BOTTOMLEFT", pvFrame, "BOTTOMLEFT", 0, 0)
-            power:SetPoint("BOTTOMRIGHT", pvFrame, "BOTTOMRIGHT", 0, 0)
-            power:SetHeight(rawPowerH)
-            power:SetStatusBarTexture(texPath)
-            power:GetStatusBarTexture():SetHorizTile(false)
-            power:SetMinMaxValues(0, 100)
-            power:SetValue(72)
-            -- Power color: use MANA for healer specs (all healer specs use mana)
-            local pToken = "MANA"
-            local pInfo = EllesmereUI.GetPowerColor and EllesmereUI.GetPowerColor(pToken)
-            if pInfo then
-                power:SetStatusBarColor(pInfo.r, pInfo.g, pInfo.b, 1)
-            else
-                power:SetStatusBarColor(0, 0.5, 1, 1)
-            end
-            local pwBg = power:CreateTexture(nil, "BACKGROUND")
-            pwBg:SetAllPoints()
-            local pbc = (s.powerBgPowerColored and pInfo) or s.powerBgColor or { r=0, g=0, b=0 }
-            local pbF = (s.powerBgPowerColored and pInfo) and EllesmereUI.GetPowerBgDarkenFactor() or 1
-            pwBg:SetColorTexture(pbc.r * pbF, pbc.g * pbF, pbc.b * pbF, (s.powerBgDarkness or 70) / 100)
-
-            -- Power border (Classic WoW UI: the stock edge and divider)
-            if PP and ns.RF_Classic and ns.RF_Classic() then
-                ns.RF_StockBuild(pvFrame, pvFrame, power)
-                ns.RF_StockDivider(pvFrame)
-            elseif PP and s.powerBorderStyle and s.powerBorderStyle ~= "none" then
-                local pbSize = s.powerBorderSize or 1
-                if pbSize > 0 then
-                    local pwBdr = CreateFrame("Frame", nil, pvFrame)
-                    pwBdr:SetAllPoints(power)
-                    pwBdr:SetFrameLevel(power:GetFrameLevel() + 1)
-                    PP.CreateBorder(pwBdr, 0, 0, 0, 1, 1)
-                    local pBc = s.powerBorderColor or { r=0, g=0, b=0 }
-                    PP.UpdateBorder(pwBdr, pbSize, pBc.r, pBc.g, pBc.b, s.powerBorderAlpha or 1)
-                    local ppC = PP.GetBorders(pwBdr)
-                    if ppC and s.powerBorderStyle == "divider" then
-                        if ppC._bottom then ppC._bottom:SetAlpha(0) end
-                        if ppC._left then ppC._left:SetAlpha(0) end
-                        if ppC._right then ppC._right:SetAlpha(0) end
-                    end
-                end
-            end
-        end
-
-        -- Border (stock styles: the stock edge stands in)
-        if PP then
-            if ns.RF_Stock and ns.RF_Stock() then ns.RF_StockBuild(pvFrame, pvFrame) end
-            local bs = ns.RF_EffBorderSize and ns.RF_EffBorderSize(s) or (s.borderSize or 1)
-            if bs > 0 then
-                local bdr = CreateFrame("Frame", nil, pvFrame)
-                bdr:SetAllPoints(pvFrame)
-                bdr:SetFrameLevel(pvFrame:GetFrameLevel() + 8)
-                PP.CreateBorder(bdr, 0, 0, 0, 1, 1)
-                local bc = s.borderColor or { r=0, g=0, b=0 }
-                PP.UpdateBorder(bdr, bs, bc.r, bc.g, bc.b, s.borderAlpha or 1)
-            end
-        end
-
-        -- Name text (real sizes; SetScale magnifies), on a carrier in the live text band (ns.LVL_TEXT) so it draws above the +8 main border.
-        local nameCarrier = CreateFrame("Frame", nil, pvFrame)
-        nameCarrier:SetAllPoints(pvFrame)
-        nameCarrier:SetFrameLevel(pvFrame:GetFrameLevel() + (ns.LVL_TEXT or 12))
-        local nameFS = nameCarrier:CreateFontString(nil, "OVERLAY")
-        local outline = (EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("raidFrames")) or ""
-        if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(nameFS, outline == "" and (not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow("raidFrames"))) end
-        nameFS:SetFont(fontPath, s.nameSize or 10, outline)
-        nameFS:SetWordWrap(false)
-
-        -- Name position (exact match of AnchorNameText logic)
-        local pos = s.namePosition or "center"
-        nameFS:SetShown(pos ~= "none" and not s.topNameBarEnabled)
-        local ox = s.nameOffsetX or 0
-        local oy = s.nameOffsetY or 0
-        nameFS:SetPoint("LEFT", health, "LEFT", 2 + ox, 0)
-        nameFS:SetPoint("RIGHT", health, "RIGHT", -floor(rawW * 0.25) + ox, 0)
-        if pos == "topleft" then
-            nameFS:SetPoint("TOP", health, "TOP", 0, -2 + oy)
-            nameFS:SetJustifyH("LEFT"); nameFS:SetJustifyV("TOP")
-        elseif pos == "top" then
-            nameFS:SetPoint("TOP", health, "TOP", 0, -2 + oy)
-            nameFS:SetJustifyH("CENTER"); nameFS:SetJustifyV("TOP")
-        elseif pos == "topright" then
-            nameFS:SetPoint("TOP", health, "TOP", 0, -2 + oy)
-            nameFS:SetJustifyH("RIGHT"); nameFS:SetJustifyV("TOP")
-        elseif pos == "left" then
-            nameFS:SetPoint("CENTER", health, "CENTER", 0, oy)
-            nameFS:SetJustifyH("LEFT"); nameFS:SetJustifyV("MIDDLE")
-        elseif pos == "right" then
-            nameFS:SetPoint("CENTER", health, "CENTER", 0, oy)
-            nameFS:SetJustifyH("RIGHT"); nameFS:SetJustifyV("MIDDLE")
-        elseif pos == "bottomleft" then
-            nameFS:SetPoint("BOTTOM", health, "BOTTOM", 0, 2 + oy)
-            nameFS:SetJustifyH("LEFT"); nameFS:SetJustifyV("BOTTOM")
-        elseif pos == "bottom" then
-            nameFS:SetPoint("BOTTOM", health, "BOTTOM", 0, 2 + oy)
-            nameFS:SetJustifyH("CENTER"); nameFS:SetJustifyV("BOTTOM")
-        else -- center
-            nameFS:SetPoint("CENTER", health, "CENTER", 0, oy)
-            nameFS:SetJustifyH("CENTER"); nameFS:SetJustifyV("MIDDLE")
-        end
-
-        -- Name color (match all modes)
-        local playerName = UnitName("player") or "Player"
-        if Ambiguate then playerName = Ambiguate(playerName, "short") end
-        nameFS:SetText(playerName)
-        local nameMode = s.nameColorMode or "class"
-        if nameMode == "accent" then
-            local ar, ag, ab = EllesmereUI.ResolveActiveAccent()
-            if ar then nameFS:SetTextColor(ar, ag, ab)
-            else nameFS:SetTextColor(1, 1, 1) end
-        elseif nameMode == "custom" then
-            local c = s.nameCustomColor or { r=1, g=1, b=1 }
-            nameFS:SetTextColor(c.r, c.g, c.b)
-        else -- class
-            if cc then nameFS:SetTextColor(cc.r, cc.g, cc.b)
-            else nameFS:SetTextColor(1, 1, 1) end
-        end
-
-        -- Top Name Bar band (preview replica)
-        if s.topNameBarEnabled then
-            local tnb = CreateFrame("Frame", nil, pvFrame)
-            tnb:SetFrameLevel(pvFrame:GetFrameLevel() + 4)
-            tnb:SetPoint("TOPLEFT", pvFrame, "TOPLEFT", 0, 0)
-            tnb:SetPoint("TOPRIGHT", pvFrame, "TOPRIGHT", 0, 0)
-            tnb:SetHeight(rawTopBarH)
-            local tnbBg = tnb:CreateTexture(nil, "BACKGROUND")
-            tnbBg:SetAllPoints()
-            local tbgc = s.topNameBarBgColor or { r=17/255, g=17/255, b=17/255 }
-            tnbBg:SetColorTexture(tbgc.r, tbgc.g, tbgc.b, (s.topNameBarBgOpacity or 80) / 100)
-            local tnbText = tnb:CreateFontString(nil, "OVERLAY")
-            tnbText:SetFont(fontPath, s.topNameBarTextSize or 11, outline)
-            tnbText:SetWordWrap(false)
-            tnbText:SetText(playerName)
-            local talign = s.topNameBarTextAlign or "center"
-            local tox = s.topNameBarTextOffsetX or 0
-            local toy = s.topNameBarTextOffsetY or 0
-            if talign == "left" then
-                tnbText:SetPoint("LEFT", tnb, "LEFT", 4 + tox, toy); tnbText:SetJustifyH("LEFT")
-            elseif talign == "right" then
-                tnbText:SetPoint("RIGHT", tnb, "RIGHT", -4 + tox, toy); tnbText:SetJustifyH("RIGHT")
-            else
-                tnbText:SetPoint("CENTER", tnb, "CENTER", tox, toy); tnbText:SetJustifyH("CENTER")
-            end
-            tnbText:SetJustifyV("MIDDLE")
-            if (s.topNameBarTextColorMode or "class") == "custom" then
-                local c = s.topNameBarTextColor or { r=1, g=1, b=1 }
-                tnbText:SetTextColor(c.r, c.g, c.b)
-            elseif cc then
-                tnbText:SetTextColor(cc.r, cc.g, cc.b)
-            else
-                tnbText:SetTextColor(1, 1, 1)
-            end
-        end
-
-        -- Health text
-        local htMode = s.healthTextMode or "none"
-        if htMode ~= "none" then
-            local htFS = health:CreateFontString(nil, "OVERLAY")
-            htFS:SetFont(fontPath, s.healthTextSize or 9, outline)
-            htFS:SetTextColor(1, 1, 1, 0.9)
-            local htPos = s.healthTextPosition or "center"
-            local htOX = s.healthTextOffsetX or 0
-            local htOY = s.healthTextOffsetY or 0
-            htFS:SetWidth(rawW * 0.75)
-            htFS:SetHeight(0)
-            if htPos == "topleft" then
-                htFS:SetPoint("TOPLEFT", health, "TOPLEFT", 2 + htOX, -2 + htOY)
-                htFS:SetJustifyH("LEFT"); htFS:SetJustifyV("TOP")
-            elseif htPos == "top" then
-                htFS:SetPoint("TOP", health, "TOP", htOX, -2 + htOY)
-                htFS:SetJustifyH("CENTER"); htFS:SetJustifyV("TOP")
-            elseif htPos == "topright" then
-                htFS:SetPoint("TOPRIGHT", health, "TOPRIGHT", -2 + htOX, -2 + htOY)
-                htFS:SetJustifyH("RIGHT"); htFS:SetJustifyV("TOP")
-            elseif htPos == "left" then
-                htFS:SetPoint("LEFT", health, "LEFT", 2 + htOX, htOY)
-                htFS:SetJustifyH("LEFT"); htFS:SetJustifyV("MIDDLE")
-            elseif htPos == "right" then
-                htFS:SetPoint("RIGHT", health, "RIGHT", -2 + htOX, htOY)
-                htFS:SetJustifyH("RIGHT"); htFS:SetJustifyV("MIDDLE")
-            elseif htPos == "bottomleft" then
-                htFS:SetPoint("BOTTOMLEFT", health, "BOTTOMLEFT", 2 + htOX, 2 + htOY)
-                htFS:SetJustifyH("LEFT"); htFS:SetJustifyV("BOTTOM")
-            elseif htPos == "bottom" then
-                htFS:SetPoint("BOTTOM", health, "BOTTOM", htOX, 2 + htOY)
-                htFS:SetJustifyH("CENTER"); htFS:SetJustifyV("BOTTOM")
-            else
-                htFS:SetPoint("CENTER", health, "CENTER", htOX, htOY)
-                htFS:SetJustifyH("CENTER"); htFS:SetJustifyV("MIDDLE")
-            end
-            if htMode == "percent" then
-                htFS:SetText("85%")
-            elseif htMode == "percentNoSign" then
-                htFS:SetText("85")
-            elseif htMode == "number" then
-                htFS:SetText("1.02M")
-            end
-        end
-
         -- Buff manager indicators on the preview
-        pvFrame._health = health
         if ns.BM_CreatePreviewIndicators then
             ns.BM_CreatePreviewIndicators(pvFrame, health, PP)
         end
