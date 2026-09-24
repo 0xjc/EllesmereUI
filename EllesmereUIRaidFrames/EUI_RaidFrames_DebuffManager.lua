@@ -3213,14 +3213,8 @@ function ns.DM_CopyTile(src, bucketKey)
     local t = ns.DM_AddTile(src.type, bucketKey)
     if not t then return nil end
     local keep = t.id
-    local function Copy(v)
-        if type(v) ~= "table" then return v end
-        local o = {}
-        for k, v2 in pairs(v) do o[k] = Copy(v2) end
-        return o
-    end
     for k in pairs(t) do t[k] = nil end
-    for k, v in pairs(src) do t[k] = Copy(v) end
+    for k, v in pairs(CopyTable(src)) do t[k] = v end
     t.id = keep
     return t
 end
@@ -3257,13 +3251,6 @@ end
 -- Both hooks run EnsureMigrated first, so the one-shot preset mapping always precedes any fork traffic.
 -------------------------------------------------------------------------------
 
-local function DmLayerCopy(v)
-    if type(v) ~= "table" then return v end
-    local t = {}
-    for k, x in pairs(v) do t[k] = DmLayerCopy(x) end
-    return t
-end
-
 -- Snapshot of the live Debuff Manager config for layer harvests.
 function _G._ERF_DMHarvestFork()
     local p = ns.db and ns.db.profile
@@ -3271,7 +3258,7 @@ function _G._ERF_DMHarvestFork()
     EnsureMigrated()
     local dm = p.dmDebuff
     if type(dm) ~= "table" then return nil end
-    return DmLayerCopy(dm)
+    return CopyTable(dm)
 end
 
 -- Applies a SpecOverrides DM layer into the live profile (wipe + refill in place: open manager pages capture
@@ -3284,7 +3271,7 @@ function _G._ERF_DMApplyLayer(dm, noPageRefresh)
     local live = p.dmDebuff
     if type(live) ~= "table" then live = {}; p.dmDebuff = live end
     wipe(live)
-    for k, v in pairs(dm) do live[k] = DmLayerCopy(v) end
+    for k, v in pairs(CopyTable(dm)) do live[k] = v end
     if ns.RFC_ReloadAll then ns.RFC_ReloadAll() end
     if not noPageRefresh and ns._dmRoot and EllesmereUI and EllesmereUI.RefreshPage then
         EllesmereUI:RefreshPage(true)

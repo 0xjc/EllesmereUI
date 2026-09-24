@@ -1672,10 +1672,8 @@ local function HideVaultTooltip()
 end
 
 local function ToggleGreatVault()
-    local IsLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or _G.IsAddOnLoaded
-    local Load     = (C_AddOns and C_AddOns.LoadAddOn)     or _G.LoadAddOn
-    if Load and IsLoaded and not IsLoaded("Blizzard_WeeklyRewards") then
-        Load("Blizzard_WeeklyRewards")
+    if not C_AddOns.IsAddOnLoaded("Blizzard_WeeklyRewards") then
+        C_AddOns.LoadAddOn("Blizzard_WeeklyRewards")
     end
     if WeeklyRewardsFrame then
         WeeklyRewardsFrame:SetShown(not WeeklyRewardsFrame:IsShown())

@@ -2029,7 +2029,7 @@ ns.BlockFactories.gold = function(blockCfg, slot, content, barCtx)
             else r, g, b = BlockColorOf(blockCfg) end
             goldText:SetTextColor(r, g, b, 1)
         elseif mouseOver then
-            goldText:SetText(ns.FormatMoneyPlain(money, dg.showSmall == true, ci, ab, fe))
+            goldText:SetText(ns.FormatMoney(money, false, dg.showSmall == true, ci, ab, fe))
             local r, g, b = ns.GetAccent()
             goldText:SetTextColor(r, g, b, 1)
         else
@@ -2100,7 +2100,7 @@ ns.BlockFactories.gold = function(blockCfg, slot, content, barCtx)
         else
             local slotW = HBudget(inst, 100)
             -- Fit against BOTH money formats so font/icon size and frame width stay identical hovered or not; otherwise it resizes on mouseover.
-            local plainText = ns.FormatMoneyPlain(money, dg.showSmall == true, ci, ab, fe)
+            local plainText = ns.FormatMoney(money, false, dg.showSmall == true, ci, ab, fe)
             local fancyText = ns.FormatMoney(money, blockCfg.useCoinColor == true, dg.showSmall == true, ci, ab, fe)
             local moneyText
             if mouseOver then moneyText = plainText else moneyText = fancyText end
@@ -6232,10 +6232,8 @@ local function GVBuildPartyRows()
 end
 
 local function GVToggleVault()
-    local IsLoaded = (C_AddOns and C_AddOns.IsAddOnLoaded) or _G.IsAddOnLoaded
-    local Load     = (C_AddOns and C_AddOns.LoadAddOn)     or _G.LoadAddOn
-    if Load and IsLoaded and not IsLoaded("Blizzard_WeeklyRewards") then
-        Load("Blizzard_WeeklyRewards")
+    if not C_AddOns.IsAddOnLoaded("Blizzard_WeeklyRewards") then
+        C_AddOns.LoadAddOn("Blizzard_WeeklyRewards")
     end
     local wrf = _G.WeeklyRewardsFrame
     if not wrf then return end

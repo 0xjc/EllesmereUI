@@ -35,8 +35,7 @@ end
 -- frames we do; running both crashes the client on the loading screen. Detect
 -- and no-op our entire module so the user can at least log in.
 do
-    local isLoaded = C_AddOns and C_AddOns.IsAddOnLoaded or IsAddOnLoaded
-    if isLoaded and isLoaded("Ayije_CDM") then
+    if C_AddOns.IsAddOnLoaded("Ayije_CDM") then
         -- Skip the generic conflict checker so our Disable & Reload popup takes priority.
         _G._EUI_ECME_HandledAyijeCDM = true
         local function ShowCrashPopup()
@@ -116,8 +115,7 @@ do
                 btnLbl:SetTextColor(EG.r, EG.g, EG.b, 0.9)
             end)
             btn:SetScript("OnClick", function()
-                local disable = C_AddOns and C_AddOns.DisableAddOn or DisableAddOn
-                if disable then disable("EllesmereUICooldownManager") end
+                C_AddOns.DisableAddOn("EllesmereUICooldownManager")
                 ReloadUI()
             end)
         end
@@ -3144,8 +3142,7 @@ local function ShowManualEditModeFixPopup()
             cancelText = "Not Now",
             reload = true,
             onConfirm = function()
-                local disable = C_AddOns and C_AddOns.DisableAddOn or DisableAddOn
-                if disable then disable("EllesmereUICooldownManager") end
+                C_AddOns.DisableAddOn("EllesmereUICooldownManager")
             end,
         })
     end)

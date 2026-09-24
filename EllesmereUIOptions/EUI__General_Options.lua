@@ -3862,10 +3862,6 @@ initFrame:SetScript("OnEvent", function(self)
         return tonumber(GetCVar(cvar)) or 0
     end
 
-    local function GetCVarBool(cvar)
-        return GetCVar(cvar) == "1"
-    end
-
     local function SetCVarSafe(cvar, value)
         if InCombatLockdown() then return end
         SetCVar(cvar, value)

@@ -4104,7 +4104,7 @@ local function StyleButton(button)
         -- Aura icons enable mouse and propagate motion up to this button, so entering an icon fires
         -- its OnEnter (aura tooltip) then bubbles here, clobbering it with the unit tooltip. Bail
         -- when the cursor is over one of our aura icons (stashed _tipIID).
-        local foci = (GetMouseFoci and GetMouseFoci()) or (GetMouseFocus and { GetMouseFocus() })
+        local foci = GetMouseFoci()
         if foci then
             for _, mf in ipairs(foci) do
                 if mf ~= self and mf._tipIID ~= nil then return end

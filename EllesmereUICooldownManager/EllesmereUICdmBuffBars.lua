@@ -395,14 +395,7 @@ end
 --  system covers an empty slot.
 -------------------------------------------------------------------------------
 do
-    local function CopyEntry(v)
-        if type(v) ~= "table" then return v end
-        local t = {}
-        for k, x in pairs(v) do
-            t[k] = type(x) == "table" and CopyEntry(x) or x
-        end
-        return t
-    end
+    local CopyEntry = EllesmereUI.Lite.DeepCopy
 
     local function LiveStores(create)
         local db = EllesmereUIDB

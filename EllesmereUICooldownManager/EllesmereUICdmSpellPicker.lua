@@ -2107,8 +2107,8 @@ function ns.PruneEquipmentBuffRows()
     -- Second proof source, viewer-independent: an EQUIPPED item vouches for
     -- its own use-spell (GetItemSpell). Covers rows whose native viewer entry
     -- is gone (untracked in Blizzard's CDM) while the item is still worn.
-    local gis = (C_Item and C_Item.GetItemSpell) or GetItemSpell
-    if gis and GetInventoryItemID then
+    local gis = C_Item.GetItemSpell
+    if GetInventoryItemID then
         for slot = 1, 19 do
             local itemID = GetInventoryItemID("player", slot)
             if itemID then

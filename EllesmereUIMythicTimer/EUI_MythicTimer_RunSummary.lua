@@ -255,7 +255,7 @@ end
 -- and by short name otherwise. Never overwrites an item already recorded.
 local ITEM_CLASS   = Enum and Enum.ItemClass
 local ITEM_QUALITY = Enum and Enum.ItemQuality
-local GetInstant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+local GetInstant = C_Item.GetItemInfoInstant
 
 -- The column is for the chest's gear. Keystones, quest items, housing decor,
 -- reagents and anything below epic arrive through the same loot channels and

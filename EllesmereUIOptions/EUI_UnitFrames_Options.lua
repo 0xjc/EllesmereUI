@@ -909,13 +909,11 @@ initFrame:SetScript("OnEvent", function(self)
     -- Returns icon fileID + castTime (seconds) from the API, so instant-cast
     -- spells never reach the preview.
     local function ResolveSpellInfo(spellNameOrID)
-        if C_Spell and C_Spell.GetSpellInfo then
-            local info = C_Spell.GetSpellInfo(spellNameOrID)
-            if info then
-                local icon = info.iconID or 136197
-                local ct = (info.castTime or 0) / 1000  -- API returns ms
-                return icon, ct
-            end
+        local info = C_Spell.GetSpellInfo(spellNameOrID)
+        if info then
+            local icon = info.iconID or 136197
+            local ct = (info.castTime or 0) / 1000  -- API returns ms
+            return icon, ct
         end
         return 136197, 0
     end

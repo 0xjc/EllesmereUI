@@ -90,14 +90,14 @@ local db  -- set in EABR:OnInitialize()
 local texCache = {}
 local function Tex(id)
     local c = texCache[id]; if c then return c end
-    local t = (C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(id)) or GetSpellTexture(id)
+    local t = C_Spell.GetSpellTexture(id)
     if t then texCache[id] = t end; return t
 end
 
 local spellNameCache = {}
 local function SpellName(id)
     local c = spellNameCache[id]; if c then return c end
-    local n = (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(id)) or GetSpellInfo(id)
+    local n = C_Spell.GetSpellName(id)
     if n then spellNameCache[id] = n end; return n
 end
 

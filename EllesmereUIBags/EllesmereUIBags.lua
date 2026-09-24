@@ -2275,18 +2275,12 @@ do
         if win == EUI_Bags and EUI_Bags._unmergedLinks then wipe(EUI_Bags._unmergedLinks) end
     end
 
-    local function Clamp(n)
-        if n < 1 then return 1 end
-        if n > dialog._max then return dialog._max end
-        return n
-    end
-
     local function Current()
-        return Clamp(dialog._eb:GetNumber())
+        return Clamp(dialog._eb:GetNumber(), 1, dialog._max)
     end
 
     local function SetValue(n)
-        n = Clamp(n)
+        n = Clamp(n, 1, dialog._max)
         dialog._eb:SetText(tostring(n))
         dialog._eb:SetCursorPosition(#dialog._eb:GetText())
     end

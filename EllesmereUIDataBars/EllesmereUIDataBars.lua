@@ -406,23 +406,6 @@ function ns.MoneyTokens(amount, showSmall, coinIcons, coloured, abbreviate, forc
     return _moneyTokens
 end
 
-function ns.FormatMoneyPlain(amount, showSmall, coinIcons, abbreviate, forceEnglish)
-    amount = floor(abs(amount or 0))
-    local parts, foundGold = {}, false
-    for i, denom in ipairs(DENOMINATIONS) do
-        local val = floor(amount / denom.divisor)
-        amount = amount % denom.divisor
-        if i == 1 and val > 0 then
-            foundGold = true
-            parts[#parts + 1] = GoldDisplay(val, abbreviate, forceEnglish) .. CoinMarker(i, coinIcons, false)
-        elseif i > 1 and (not foundGold or showSmall ~= false) and (val > 0 or (i == 3 and #parts == 0)) then
-            parts[#parts + 1] = val .. CoinMarker(i, coinIcons, false)
-        end
-    end
-    if #parts > 0 then return tconcat(parts, " ") end
-    return "0" .. CoinMarker(3, coinIcons, false)
-end
-
 function ns.FormatMoney(amount, useColors, showSmall, coinIcons, abbreviate, forceEnglish)
     amount = floor(abs(amount or 0))
     local coloured = useColors ~= false

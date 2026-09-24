@@ -16520,23 +16520,12 @@ AttachExtraBarHoverHooks = function(info)
     end
 
     local function IsHoverRootActive()
-        -- Called from every hover edge and every scheduled fade-out check:
-        -- avoid the table-per-call fallback on clients that have GetMouseFoci
-        -- (all current ones); the legacy single-focus branch keeps the old
-        -- shape for anything older.
-        if GetMouseFoci then
-            local foci = GetMouseFoci()
-            if foci then
-                for _, focus in ipairs(foci) do
-                    if focus and IsChildOfHoverRoot(focus) then
-                        return true
-                    end
+        local foci = GetMouseFoci()
+        if foci then
+            for _, focus in ipairs(foci) do
+                if focus and IsChildOfHoverRoot(focus) then
+                    return true
                 end
-            end
-        elseif GetMouseFocus then
-            local focus = GetMouseFocus()
-            if focus and IsChildOfHoverRoot(focus) then
-                return true
             end
         end
 

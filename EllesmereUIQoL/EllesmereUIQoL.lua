@@ -764,7 +764,6 @@ qolFrame:SetScript("OnEvent", function(self)
         local function ApplyTrainAllButton()
             if EllesmereUIDB and EllesmereUIDB.trainAllButton then
                 EventUtil.ContinueOnAddOnLoaded("Blizzard_TrainerUI", SpawnButton)
-                if IsAddOnLoaded and IsAddOnLoaded("Blizzard_TrainerUI") then SpawnButton() end
             elseif trainBtn then
                 trainBtn:Hide()
             end
@@ -1315,7 +1314,7 @@ qolFrame:SetScript("OnEvent", function(self)
             end
         end)
 
-        if IsAddOnLoaded and IsAddOnLoaded("Blizzard_ChallengesUI") then
+        if C_AddOns.IsAddOnLoaded("Blizzard_ChallengesUI") then
             if ChallengesKeystoneFrame then
                 ChallengesKeystoneFrame:HookScript("OnShow", InsertKeystone)
             end

@@ -27,9 +27,9 @@ local min, max = math.min, math.max
 local sin, cos = _G.sin or math.sin, _G.cos or math.cos  -- WoW globals are degree-based
 local GetTime = GetTime
 local GetCursorPosition = GetCursorPosition
-local GetSpellCooldown = C_Spell and C_Spell.GetSpellCooldown or GetSpellCooldown
-local UnitCastingInfo = UnitCastingInfo or CastingInfo
-local UnitChannelInfo = UnitChannelInfo or ChannelInfo
+local GetSpellCooldown = C_Spell.GetSpellCooldown
+local UnitCastingInfo = UnitCastingInfo
+local UnitChannelInfo = UnitChannelInfo
 
 local f, t, reticle
 local lastX, lastY
