@@ -133,7 +133,7 @@ local _cachedOutline
 local function SetABRFont(fs, font, size)
     if not (fs and fs.SetFont) then return end
     if not _cachedOutline then _cachedOutline = EllesmereUI.GetFontOutlineFlag("auraBuff") end
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, _cachedOutline == "" and EllesmereUI.GetFontUseShadow("auraBuff")) end
+    EllesmereUI.PrimeFontShadow(fs, _cachedOutline == "" and EllesmereUI.GetFontUseShadow("auraBuff"))
     fs:SetFont(font, size, _cachedOutline)
 end
 
@@ -4989,16 +4989,12 @@ function EABR:OnEnable()
 
     -- Hook EUI panel show/hide
     if EllesmereUI then
-        if EllesmereUI.RegisterOnShow then
-            EllesmereUI:RegisterOnShow(function()
-                euiPanelOpen = true; HideAllIcons(); BeaconRefresh()
-            end)
-        end
-        if EllesmereUI.RegisterOnHide then
-            EllesmereUI:RegisterOnHide(function()
-                euiPanelOpen = false; RequestRefresh(); BeaconRefresh()
-            end)
-        end
+        EllesmereUI:RegisterOnShow(function()
+            euiPanelOpen = true; HideAllIcons(); BeaconRefresh()
+        end)
+        EllesmereUI:RegisterOnHide(function()
+            euiPanelOpen = false; RequestRefresh(); BeaconRefresh()
+        end)
     end
 
     -- Group spec intel over addon comms (LibSpecialization): the lib
@@ -5446,7 +5442,7 @@ local SetupReadyCheckManaWarning = function()
         local c = p and p.consumables
         local col = c and c.rcManaWarnColor
         if col and col.r then return col.r, col.g, col.b end
-        local mc = EllesmereUI.GetPowerColor and EllesmereUI.GetPowerColor("MANA")
+        local mc = EllesmereUI.GetPowerColor("MANA")
         if mc then
             return math.min(mc.r * 1.5, 1), math.min(mc.g * 1.5, 1), math.min(mc.b * 1.5, 1)
         end
@@ -5471,7 +5467,7 @@ local SetupReadyCheckManaWarning = function()
             (c and c.rcManaWarnX) or 0, 75 + ((c and c.rcManaWarnY) or 0))
         local font = ResolveFontPath(c and c.rcManaWarnFont)
         local outline = EllesmereUI.GetFontOutlineFlag("auraBuff")
-        if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(warnFS, outline == "" and EllesmereUI.GetFontUseShadow("auraBuff")) end
+        EllesmereUI.PrimeFontShadow(warnFS, outline == "" and EllesmereUI.GetFontUseShadow("auraBuff"))
         warnFS:SetFont(font, (c and c.rcManaWarnSize) or 48, outline)
         -- Explicit white instance color: tinted purely via SetVertexColor (curve result); with no instance color it would inherit the primed shadow FontObject's color, which resolves BLACK.
         warnFS:SetTextColor(1, 1, 1, 1)
