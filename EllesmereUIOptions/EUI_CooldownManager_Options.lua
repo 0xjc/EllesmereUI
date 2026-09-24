@@ -10208,17 +10208,21 @@ initFrame:SetScript("OnEvent", function(self)
                                     end)
                                 elseif item.val == "color" then
                                     -- Inline color swatch (same shape as the Active State swipe swatch): picking a color also enables the toggle.
-                                    local swatchBtn = CreateFrame("Button", nil, si)
-                                    swatchBtn:SetSize(14, 14)
+                                    si._noCapture = true
+                                    local swatchBtn = EllesmereUI.BuildColorSwatch(si, si:GetFrameLevel() + 3,
+                                        function()
+                                            return acc.get("thresholdColorR") or 1,
+                                                acc.get("thresholdColorG") or 0.2,
+                                                acc.get("thresholdColorB") or 0.2, 1
+                                        end,
+                                        function(r, g, b)
+                                            acc.set("thresholdColorR", r)
+                                            acc.set("thresholdColorG", g)
+                                            acc.set("thresholdColorB", b)
+                                            acc.refresh()
+                                        end, false, 14)
                                     swatchBtn:SetPoint("RIGHT", si, "RIGHT", -8, 0)
-                                    swatchBtn:SetFrameLevel(si:GetFrameLevel() + 3)
-                                    local swatchTex = swatchBtn:CreateTexture(nil, "ARTWORK")
-                                    swatchTex:SetAllPoints()
-                                    swatchTex:SetColorTexture(
-                                        acc.get("thresholdColorR") or 1,
-                                        acc.get("thresholdColorG") or 0.2,
-                                        acc.get("thresholdColorB") or 0.2, 1)
-                                    swatchBtn:SetScript("OnClick", function()
+                                    swatchBtn:HookScript("PreClick", function()
                                         acc.set("thresholdColorEnabled", true)
                                         if not acc.get("thresholdColorR") then
                                             acc.set("thresholdColorR", 1)
@@ -10228,28 +10232,6 @@ initFrame:SetScript("OnEvent", function(self)
                                         -- Keep the dropdown AND flyout open (OnUpdate cpOpen guard); re-highlight the now-on toggle.
                                         if sub._refreshSelection then sub._refreshSelection() end
                                         acc.refresh()
-                                        local snapR = acc.get("thresholdColorR") or 1
-                                        local snapG = acc.get("thresholdColorG") or 0.2
-                                        local snapB = acc.get("thresholdColorB") or 0.2
-                                        EllesmereUI:ShowColorPicker({
-                                            r = snapR, g = snapG, b = snapB,
-                                            swatchFunc = function()
-                                                local popup = EllesmereUI._colorPickerPopup
-                                                if not popup then return end
-                                                local r, g, b = popup:GetColorRGB()
-                                                acc.set("thresholdColorR", r)
-                                                acc.set("thresholdColorG", g)
-                                                acc.set("thresholdColorB", b)
-                                                swatchTex:SetColorTexture(r, g, b, 1)
-                                                acc.refresh()
-                                            end,
-                                            cancelFunc = function()
-                                                acc.set("thresholdColorR", snapR)
-                                                acc.set("thresholdColorG", snapG)
-                                                acc.set("thresholdColorB", snapB)
-                                                acc.refresh()
-                                            end,
-                                        }, swatchBtn)
                                     end)
                                 end
                             end)
@@ -10324,14 +10306,15 @@ initFrame:SetScript("OnEvent", function(self)
                             function() return ss.buffGlowColor == nil end,
                             function(si, item, sub)
                                 if item.val == "custom" then
-                                    local swatchBtn = CreateFrame("Button", nil, si)
-                                    swatchBtn:SetSize(14, 14)
+                                    si._noCapture = true
+                                    local swatchBtn = EllesmereUI.BuildColorSwatch(si, si:GetFrameLevel() + 3,
+                                        function() return ss.buffGlowColorR or 1, ss.buffGlowColorG or 0.776, ss.buffGlowColorB or 0.376, 1 end,
+                                        function(r, g, b)
+                                            ss.buffGlowColorR = r; ss.buffGlowColorG = g; ss.buffGlowColorB = b
+                                            if ns.RefreshCDMIconAppearance then ns.RefreshCDMIconAppearance(barKey) end
+                                        end, false, 14)
                                     swatchBtn:SetPoint("RIGHT", si, "RIGHT", -8, 0)
-                                    swatchBtn:SetFrameLevel(si:GetFrameLevel() + 3)
-                                    local swatchTex = swatchBtn:CreateTexture(nil, "ARTWORK")
-                                    swatchTex:SetAllPoints()
-                                    swatchTex:SetColorTexture(ss.buffGlowColorR or 1, ss.buffGlowColorG or 0.776, ss.buffGlowColorB or 0.376, 1)
-                                    swatchBtn:SetScript("OnClick", function()
+                                    swatchBtn:HookScript("PreClick", function()
                                         EnsureSS()
                                         ss.buffGlowColor = "custom"
                                         if not ss.buffGlowColorR then
@@ -10340,21 +10323,6 @@ initFrame:SetScript("OnEvent", function(self)
                                         -- Keep the dropdown AND flyout open (the OnUpdate cpOpen guard
                                         -- holds them while the picker is up); just re-highlight the now-selected Custom row.
                                         if sub._refreshSelection then sub._refreshSelection() end
-                                        local snapR, snapG, snapB = ss.buffGlowColorR, ss.buffGlowColorG, ss.buffGlowColorB
-                                        EllesmereUI:ShowColorPicker({
-                                            r = snapR, g = snapG, b = snapB,
-                                            swatchFunc = function()
-                                                local popup = EllesmereUI._colorPickerPopup
-                                                if not popup then return end
-                                                local r, g, b = popup:GetColorRGB()
-                                                ss.buffGlowColorR = r; ss.buffGlowColorG = g; ss.buffGlowColorB = b
-                                                swatchTex:SetColorTexture(r, g, b, 1)
-                                                if ns.RefreshCDMIconAppearance then ns.RefreshCDMIconAppearance(barKey) end
-                                            end,
-                                            cancelFunc = function()
-                                                ss.buffGlowColorR = snapR; ss.buffGlowColorG = snapG; ss.buffGlowColorB = snapB
-                                            end,
-                                        }, swatchBtn)
                                     end)
                                 end
                             end,
@@ -10393,35 +10361,21 @@ initFrame:SetScript("OnEvent", function(self)
                             function() return ss.cdSwipeColor == nil end,
                             function(si, item, sub)
                                 if item.val == "custom" then
-                                    local swatchBtn = CreateFrame("Button", nil, si)
-                                    swatchBtn:SetSize(14, 14)
+                                    si._noCapture = true
+                                    local swatchBtn = EllesmereUI.BuildColorSwatch(si, si:GetFrameLevel() + 3,
+                                        function() return ss.cdSwipeColorR or 1, ss.cdSwipeColorG or 0.776, ss.cdSwipeColorB or 0.376, 1 end,
+                                        function(r, g, b)
+                                            ss.cdSwipeColorR = r; ss.cdSwipeColorG = g; ss.cdSwipeColorB = b
+                                            if ns.RefreshCDMIconAppearance then ns.RefreshCDMIconAppearance(barKey) end
+                                        end, false, 14)
                                     swatchBtn:SetPoint("RIGHT", si, "RIGHT", -8, 0)
-                                    swatchBtn:SetFrameLevel(si:GetFrameLevel() + 3)
-                                    local swatchTex = swatchBtn:CreateTexture(nil, "ARTWORK")
-                                    swatchTex:SetAllPoints()
-                                    swatchTex:SetColorTexture(ss.cdSwipeColorR or 1, ss.cdSwipeColorG or 0.776, ss.cdSwipeColorB or 0.376, 1)
-                                    swatchBtn:SetScript("OnClick", function()
+                                    swatchBtn:HookScript("PreClick", function()
                                         EnsureSS()
                                         ss.cdSwipeColor = "custom"
                                         if not ss.cdSwipeColorR then
                                             ss.cdSwipeColorR = 1; ss.cdSwipeColorG = 0.776; ss.cdSwipeColorB = 0.376
                                         end
                                         if sub._refreshSelection then sub._refreshSelection() end
-                                        local snapR, snapG, snapB = ss.cdSwipeColorR, ss.cdSwipeColorG, ss.cdSwipeColorB
-                                        EllesmereUI:ShowColorPicker({
-                                            r = snapR, g = snapG, b = snapB,
-                                            swatchFunc = function()
-                                                local popup = EllesmereUI._colorPickerPopup
-                                                if not popup then return end
-                                                local r, g, b = popup:GetColorRGB()
-                                                ss.cdSwipeColorR = r; ss.cdSwipeColorG = g; ss.cdSwipeColorB = b
-                                                swatchTex:SetColorTexture(r, g, b, 1)
-                                                if ns.RefreshCDMIconAppearance then ns.RefreshCDMIconAppearance(barKey) end
-                                            end,
-                                            cancelFunc = function()
-                                                ss.cdSwipeColorR = snapR; ss.cdSwipeColorG = snapG; ss.cdSwipeColorB = snapB
-                                            end,
-                                        }, swatchBtn)
                                     end)
                                 end
                             end,
@@ -11316,19 +11270,19 @@ initFrame:SetScript("OnEvent", function(self)
                         function(si, item, sub)
                             if item.val == "custom" then
                                 -- Clickable color swatch on right (opens color picker)
-                                local swatchBtn = CreateFrame("Button", nil, si)
-                                swatchBtn:SetSize(14, 14)
+                                si._noCapture = true
+                                local swatchBtn = EllesmereUI.BuildColorSwatch(si, si:GetFrameLevel() + 3,
+                                    function()
+                                        return ss.activeSwipeR or 1, ss.activeSwipeG or 0.776,
+                                            ss.activeSwipeB or 0.376, ss.activeSwipeA or 0.7
+                                    end,
+                                    function(r, g, b, a)
+                                        ss.activeSwipeR = r; ss.activeSwipeG = g; ss.activeSwipeB = b
+                                        ss.activeSwipeA = a
+                                        if ns.QueueReanchor then ns.QueueReanchor() end
+                                    end, true, 14)
                                 swatchBtn:SetPoint("RIGHT", si, "RIGHT", -8, 0)
-                                swatchBtn:SetFrameLevel(si:GetFrameLevel() + 3)
-                                local swatchTex = swatchBtn:CreateTexture(nil, "ARTWORK")
-                                swatchTex:SetAllPoints()
-                                swatchTex:SetColorTexture(
-                                    ss.activeSwipeR or 1,
-                                    ss.activeSwipeG or 0.776,
-                                    ss.activeSwipeB or 0.376, 1)
-
-                                -- Swatch click: open color picker
-                                swatchBtn:SetScript("OnClick", function()
+                                swatchBtn:HookScript("PreClick", function()
                                     -- Persist before mutating: for a spell with no saved settings yet
                                     -- (e.g. a freshly added Hero-talent spell like Wither/Celestial
                                     -- Conduit), `ss` is a throwaway {} -- without EnsureSS the picked
@@ -11344,43 +11298,23 @@ initFrame:SetScript("OnEvent", function(self)
                                     -- Keep the dropdown AND flyout open (OnUpdate cpOpen guard); re-highlight the now-selected Custom row.
                                     if sub._refreshSelection then sub._refreshSelection() end
                                     if ns.QueueReanchor then ns.QueueReanchor() end
-                                    local snapR, snapG, snapB = ss.activeSwipeR, ss.activeSwipeG, ss.activeSwipeB
-                                    local snapA = ss.activeSwipeA or 0.7
-                                    local function OnPickerChanged()
-                                        local popup = EllesmereUI._colorPickerPopup
-                                        if not popup then return end
-                                        local r, g, b = popup:GetColorRGB()
-                                        local a = popup:GetColorAlpha()
-                                        ss.activeSwipeR = r; ss.activeSwipeG = g; ss.activeSwipeB = b
-                                        ss.activeSwipeA = a
-                                        swatchTex:SetColorTexture(r, g, b, a)
-                                        if ns.QueueReanchor then ns.QueueReanchor() end
-                                    end
-                                    EllesmereUI:ShowColorPicker({
-                                        r = snapR, g = snapG, b = snapB,
-                                        hasOpacity = true,
-                                        opacity = snapA,
-                                        opacityFunc = OnPickerChanged,
-                                        swatchFunc = OnPickerChanged,
-                                        cancelFunc = function()
-                                            ss.activeSwipeR = snapR; ss.activeSwipeG = snapG; ss.activeSwipeB = snapB
-                                            ss.activeSwipeA = snapA
-                                        end,
-                                    }, swatchBtn)
                                 end)
                             elseif item.activeBorder then
                                 -- Border Color swatch (mirrors CD Swipe Color): the swatch picks the color and enables the override; the row itself toggles it on/off (handled in the item loop).
-                                local swatchBtn = CreateFrame("Button", nil, si)
-                                swatchBtn:SetSize(14, 14)
+                                si._noCapture = true
+                                local swatchBtn = EllesmereUI.BuildColorSwatch(si, si:GetFrameLevel() + 3,
+                                    function()
+                                        return ss.activeBorderR or 1, ss.activeBorderG or 0.776,
+                                            ss.activeBorderB or 0.376, ss.activeBorderA or 1
+                                    end,
+                                    function(r, g, b, a)
+                                        ss.activeBorderR = r; ss.activeBorderG = g; ss.activeBorderB = b
+                                        ss.activeBorderA = a
+                                        if ns.RefreshCDMIconAppearance then ns.RefreshCDMIconAppearance(barKey) end
+                                        if ns.QueueReanchor then ns.QueueReanchor() end
+                                    end, true, 14)
                                 swatchBtn:SetPoint("RIGHT", si, "RIGHT", -8, 0)
-                                swatchBtn:SetFrameLevel(si:GetFrameLevel() + 3)
-                                local swatchTex = swatchBtn:CreateTexture(nil, "ARTWORK")
-                                swatchTex:SetAllPoints()
-                                swatchTex:SetColorTexture(
-                                    ss.activeBorderR or 1,
-                                    ss.activeBorderG or 0.776,
-                                    ss.activeBorderB or 0.376, 1)
-                                swatchBtn:SetScript("OnClick", function()
+                                swatchBtn:HookScript("PreClick", function()
                                     EnsureSS()
                                     ss.activeBorderEnabled = true
                                     if not ss.activeBorderR then
@@ -11390,30 +11324,6 @@ initFrame:SetScript("OnEvent", function(self)
                                     -- Keep the dropdown AND flyout open (OnUpdate cpOpen guard). The border toggle row manages its own highlight, so no selection refresh here.
                                     if ns.RefreshCDMIconAppearance then ns.RefreshCDMIconAppearance(barKey) end
                                     if ns.QueueReanchor then ns.QueueReanchor() end
-                                    local snapR, snapG, snapB = ss.activeBorderR, ss.activeBorderG, ss.activeBorderB
-                                    local snapA = ss.activeBorderA or 1
-                                    local function OnPickerChanged()
-                                        local popup = EllesmereUI._colorPickerPopup
-                                        if not popup then return end
-                                        local r, g, b = popup:GetColorRGB()
-                                        local a = popup:GetColorAlpha()
-                                        ss.activeBorderR = r; ss.activeBorderG = g; ss.activeBorderB = b
-                                        ss.activeBorderA = a
-                                        swatchTex:SetColorTexture(r, g, b, a)
-                                        if ns.RefreshCDMIconAppearance then ns.RefreshCDMIconAppearance(barKey) end
-                                        if ns.QueueReanchor then ns.QueueReanchor() end
-                                    end
-                                    EllesmereUI:ShowColorPicker({
-                                        r = snapR, g = snapG, b = snapB,
-                                        hasOpacity = true,
-                                        opacity = snapA,
-                                        opacityFunc = OnPickerChanged,
-                                        swatchFunc = OnPickerChanged,
-                                        cancelFunc = function()
-                                            ss.activeBorderR = snapR; ss.activeBorderG = snapG; ss.activeBorderB = snapB
-                                            ss.activeBorderA = snapA
-                                        end,
-                                    }, swatchBtn)
                                 end)
                             end
                         end,
@@ -11748,17 +11658,15 @@ initFrame:SetScript("OnEvent", function(self)
                         function() return ss.glowColor == nil end,
                         function(si, item, sub)
                             if item.val == "custom" then
-                                local swatchBtn = CreateFrame("Button", nil, si)
-                                swatchBtn:SetSize(14, 14)
+                                si._noCapture = true
+                                local swatchBtn = EllesmereUI.BuildColorSwatch(si, si:GetFrameLevel() + 3,
+                                    function() return ss.glowColorR or 1, ss.glowColorG or 0.788, ss.glowColorB or 0.137, 1 end,
+                                    function(r, g, b)
+                                        ss.glowColorR = r; ss.glowColorG = g; ss.glowColorB = b
+                                        if ns.RefreshCDMIconAppearance then ns.RefreshCDMIconAppearance(barKey) end
+                                    end, false, 14)
                                 swatchBtn:SetPoint("RIGHT", si, "RIGHT", -8, 0)
-                                swatchBtn:SetFrameLevel(si:GetFrameLevel() + 3)
-                                local swatchTex = swatchBtn:CreateTexture(nil, "ARTWORK")
-                                swatchTex:SetAllPoints()
-                                swatchTex:SetColorTexture(
-                                    ss.glowColorR or 1,
-                                    ss.glowColorG or 0.788,
-                                    ss.glowColorB or 0.137, 1)
-                                swatchBtn:SetScript("OnClick", function()
+                                swatchBtn:HookScript("PreClick", function()
                                     EnsureSS()
                                     ss.glowColor = "custom"
                                     if not ss.glowColorR then
@@ -11766,22 +11674,6 @@ initFrame:SetScript("OnEvent", function(self)
                                     end
                                     -- Keep the dropdown AND flyout open (OnUpdate cpOpen guard); re-highlight the now-selected Custom row.
                                     if sub._refreshSelection then sub._refreshSelection() end
-                                    local snapR, snapG, snapB = ss.glowColorR, ss.glowColorG, ss.glowColorB
-                                    local function OnPickerChanged()
-                                        local popup = EllesmereUI._colorPickerPopup
-                                        if not popup then return end
-                                        local r, g, b = popup:GetColorRGB()
-                                        ss.glowColorR = r; ss.glowColorG = g; ss.glowColorB = b
-                                        swatchTex:SetColorTexture(r, g, b, 1)
-                                        if ns.RefreshCDMIconAppearance then ns.RefreshCDMIconAppearance(barKey) end
-                                    end
-                                    EllesmereUI:ShowColorPicker({
-                                        r = snapR, g = snapG, b = snapB,
-                                        swatchFunc = OnPickerChanged,
-                                        cancelFunc = function()
-                                            ss.glowColorR = snapR; ss.glowColorG = snapG; ss.glowColorB = snapB
-                                        end,
-                                    }, swatchBtn)
                                 end)
                             end
                         end,
