@@ -5668,6 +5668,23 @@ initFrame:SetScript("OnEvent", function(self)
                 pf._wrapToggle = wrapToggle
                 pf._wrapToggleSnap = wrapToggleSnap
 
+                -- Optional second generic toggle row (own row, below Wrap), for an
+                -- element that needs one more switch than the toggle row gives it
+                -- (e.g. Level Text: Include Friendly); wired via pf._toggle2Get/Set, label per show.
+                local t2Label = MakeFont(pf, 12, nil, 1, 1, 1)
+                t2Label:SetAlpha(0.6)
+                t2Label:SetPoint("LEFT", pf, "TOPLEFT", SIDE_PAD, G_ROW_Y - GROWTH_ROW_H / 2)
+                t2Label:Hide()
+                pf._t2Label = t2Label
+                local t2Toggle, _, t2ToggleSnap = EllesmereUI.BuildToggleControl(pf, pf:GetFrameLevel() + 5,
+                    function() return pf._toggle2Get and pf._toggle2Get() or false end,
+                    function(v) if pf._toggle2Set then pf._toggle2Set(v) end end,
+                    { sizeRatio = 0.8, noAnim = true })
+                t2Toggle:SetPoint("RIGHT", pf, "TOPRIGHT", -SIDE_PAD, G_ROW_Y - GROWTH_ROW_H / 2)
+                t2Toggle:Hide()
+                pf._t2Toggle = t2Toggle
+                pf._t2ToggleSnap = t2ToggleSnap
+
                 -- Layout constants stored for height calc
                 pf._TOP_PAD = TOP_PAD; pf._TITLE_H = TITLE_H; pf._TITLE_GAP = TITLE_GAP
                 pf._GAP = GAP; pf._SLIDER_H = SLIDER_H; pf._SIDE_PAD = SIDE_PAD
@@ -5725,6 +5742,7 @@ initFrame:SetScript("OnEvent", function(self)
             local hasToggle = opts.toggleGet ~= nil
             local hasCrop = opts.cropGet ~= nil
             local hasWrap = opts.wrapGet ~= nil
+            local hasToggle2 = opts.toggle2Get ~= nil
             local hasRaiseStrata = opts.raiseStrataGet ~= nil
             local hasStrata = opts.strataGet ~= nil
             local hasCropPct = opts.cropPctGet ~= nil
@@ -5877,6 +5895,21 @@ initFrame:SetScript("OnEvent", function(self)
                 if cogPopup._wrapHover then cogPopup._wrapHover:Hide() end
             end
 
+            -- Show/hide the second toggle row
+            if hasToggle2 then
+                cogPopup._toggle2Get = opts.toggle2Get
+                cogPopup._toggle2Set = opts.toggle2Set
+                cogPopup._t2Label:SetText(EllesmereUI.L(opts.toggle2Label or ""))
+                cogPopup._t2Label:Show()
+                cogPopup._t2Toggle:Show()
+                if cogPopup._t2ToggleSnap then cogPopup._t2ToggleSnap() end
+            else
+                cogPopup._toggle2Get = nil
+                cogPopup._toggle2Set = nil
+                cogPopup._t2Label:Hide()
+                cogPopup._t2Toggle:Hide()
+            end
+
             -- Show/hide Raise Strata row (its own row, below all other toggles)
             if hasRaiseStrata then
                 cogPopup._rsGet = opts.raiseStrataGet
@@ -5952,8 +5985,14 @@ initFrame:SetScript("OnEvent", function(self)
                 p._tLabel:SetPoint("LEFT", p, "TOPLEFT", SPAD, toggleY - GRH / 2)
                 p._tToggle:ClearAllPoints()
                 p._tToggle:SetPoint("RIGHT", p, "TOPRIGHT", -SPAD, toggleY - GRH / 2)
+                -- Second toggle: directly below the first, so related switches sit together.
+                local t2Y = rowY(#seq + 1 + (hasGrowth and 1 or 0) + (hasToggle and 1 or 0))
+                p._t2Label:ClearAllPoints()
+                p._t2Label:SetPoint("LEFT", p, "TOPLEFT", SPAD, t2Y - GRH / 2)
+                p._t2Toggle:ClearAllPoints()
+                p._t2Toggle:SetPoint("RIGHT", p, "TOPRIGHT", -SPAD, t2Y - GRH / 2)
                 -- Strata dropdown row: last row of the Grow/toggle band.
-                local strataY = rowY(#seq + 1 + (hasGrowth and 1 or 0) + (hasToggle and 1 or 0))
+                local strataY = rowY(#seq + 1 + (hasGrowth and 1 or 0) + (hasToggle and 1 or 0) + (hasToggle2 and 1 or 0))
                 p._stLabel:ClearAllPoints()
                 p._stLabel:SetPoint("LEFT", p, "TOPLEFT", SPAD, strataY - GRH / 2)
                 if p._stDD then
@@ -5961,8 +6000,8 @@ initFrame:SetScript("OnEvent", function(self)
                     p._stDD:ClearAllPoints()
                     p._stDD:SetPoint("RIGHT", p, "TOPRIGHT", -SPAD / sds, (strataY - GRH / 2) / sds)
                 end
-                -- Rows consumed by the Grow/toggle/Strata band (0-3).
-                local extraRows = (hasGrowth and 1 or 0) + (hasToggle and 1 or 0) + (hasStrata and 1 or 0)
+                -- Rows consumed by the Grow/toggle/second toggle/Strata band (0-4).
+                local extraRows = (hasGrowth and 1 or 0) + (hasToggle and 1 or 0) + (hasToggle2 and 1 or 0) + (hasStrata and 1 or 0)
                 -- Cropped Icons sits in its own row below the Grow/toggle band, else directly after the data rows.
                 local cropY = rowY(#seq + 1 + extraRows)
                 p._cropLabel:ClearAllPoints()
@@ -6035,6 +6074,8 @@ initFrame:SetScript("OnEvent", function(self)
                 if hasCropPct then h = h + gap + rowH end
                 -- Wrap occupies its own extra row.
                 if hasWrap then h = h + gap + p._GROWTH_ROW_H end
+                -- Second toggle gets its own row (below the first toggle).
+                if hasToggle2 then h = h + gap + p._GROWTH_ROW_H end
                 -- Raise Strata occupies its own extra row.
                 if hasRaiseStrata then h = h + gap + p._GROWTH_ROW_H end
                 -- Strata dropdown occupies its own extra row.
@@ -6946,6 +6987,25 @@ initFrame:SetScript("OnEvent", function(self)
                     cogOpts.toggleGet = function() return DBVal(slotKey .. "PctDecimal") == true end
                     cogOpts.toggleSet = function(v)
                         DB()[slotKey .. "PctDecimal"] = v
+                        ns.RefreshAllSettings()
+                        UpdatePreview()
+                    end
+                end
+                -- Level text (alone or with the name): Level Difficulty Color takes the
+                -- toggle row (the standalone level has no use for "Show % Decimal").
+                local slotEl = DBVal(slotKey)
+                if slotEl == "level" or slotEl == "levelName" or slotEl == "nameLevel" then
+                    cogOpts.toggleLabel = "Level Text: Difficulty Color"
+                    cogOpts.toggleGet = function() return DBVal("levelDifficultyColor") == true end
+                    cogOpts.toggleSet = function(v)
+                        DB().levelDifficultyColor = v and true or false
+                        ns.RefreshAllSettings()
+                        UpdatePreview()
+                    end
+                    cogOpts.toggle2Label = "Level Text: Include Friendly"
+                    cogOpts.toggle2Get = function() return DBVal("levelDifficultyColorFriendly") == true end
+                    cogOpts.toggle2Set = function(v)
+                        DB().levelDifficultyColorFriendly = v and true or false
                         ns.RefreshAllSettings()
                         UpdatePreview()
                     end

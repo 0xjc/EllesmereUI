@@ -2763,6 +2763,21 @@ do
     P.perhp       = TagFns.perhp
     P.perhpnosign = TagFns.perhpnosign
     P.level       = TagFns.level
+    -- Level in Blizzard's difficulty colors (Level Difficulty Color). A secret
+    -- level passes through raw and uncolored, same rule as P.level.
+    P.levelcol    = function(u)
+        local l = TagFns.level(u)
+        if issecretvalue(l) or l == "" then return l end
+        local r, g, b = EllesmereUI.GetLevelColor(u, (l == "??") and -1 or l)
+        return EllesmereUI.ColorText(l, r, g, b)
+    end
+    -- Same, with friendly units in their difficulty color too (Include Friendly).
+    P.levelcolall = function(u)
+        local l = TagFns.level(u)
+        if issecretvalue(l) or l == "" then return l end
+        local r, g, b = EllesmereUI.GetLevelColor(u, (l == "??") and -1 or l, true)
+        return EllesmereUI.ColorText(l, r, g, b)
+    end
     P.name        = TagFns.name
     P.tgtcol      = TagFns.tgtcol
     P.tgtname     = TagFns.tgtname
@@ -2894,7 +2909,14 @@ do
         local def = ZONE_STATIC[content]
         if not def then return nil end
         local pieces = { }
-        for i = 2, #def do pieces[#pieces + 1] = P[def[i]] end
+        local lvlCol = settings and settings.levelDifficultyColor
+        for i = 2, #def do
+            local key = def[i]
+            if key == "level" and lvlCol then
+                key = settings.levelDifficultyColorFriendly and "levelcolall" or "levelcol"
+            end
+            pieces[#pieces + 1] = P[key]
+        end
         return def[1], pieces, ZONE_IDENTITY[content] or nil
     end
 

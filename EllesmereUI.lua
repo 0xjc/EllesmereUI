@@ -13528,3 +13528,37 @@ do
     EllesmereUI._SWIFTMEND_SPELL = 18562
     EllesmereUI._SWIFTMEND_ICON  = 134914
 end
+
+-------------------------------------------------------------------------------
+--  Level difficulty colors (unit frame and nameplate level text), Blizzard's
+--  rule: "??" (level <= 0) red, a unit you cannot attack gold, otherwise the
+--  color for its level against yours.
+-------------------------------------------------------------------------------
+function EllesmereUI.GetLevelDifficultyColor(level, attackable)
+    if level <= 0 then return 1, 0.1, 0.1 end
+    if not attackable then
+        local c = UNIT_LEVEL_NON_ATTACKABLE
+        if c then return c.r, c.g, c.b end
+        return 1, 0.82, 0
+    end
+    local mine = UnitEffectiveLevel("player")
+    if issecretvalue and issecretvalue(mine) then return nil end
+    local c = (GetRelativeDifficultyColor and GetRelativeDifficultyColor(mine, level))
+        or (GetQuestDifficultyColor and GetQuestDifficultyColor(level))
+    if c then return c.r, c.g, c.b end
+end
+-- For a unit; nil when the level or attackability cannot be read (secret).
+-- includeFriendly: friendly units get their difficulty color too, not gold.
+function EllesmereUI.GetLevelColor(unit, level, includeFriendly)
+    local sv = issecretvalue
+    if level == nil or (sv and sv(level)) then return nil end
+    if includeFriendly then return EllesmereUI.GetLevelDifficultyColor(level, true) end
+    local attackable = UnitCanAttack("player", unit)
+    if sv and sv(attackable) then return nil end
+    return EllesmereUI.GetLevelDifficultyColor(level, attackable)
+end
+function EllesmereUI.ColorText(text, r, g, b)
+    if not r then return text end
+    return ("|cff%02x%02x%02x%s|r"):format(math.floor(r * 255 + 0.5),
+        math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5), text)
+end

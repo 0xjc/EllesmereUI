@@ -1718,11 +1718,21 @@ do
     end
     -- Display string for the unit's EFFECTIVE level (so scaling/Chromie time read as the game
     -- ranks them). "??" for skull-ranked (-1) or unreadable (secret) levels, matching default UI.
+    -- Level Difficulty Color (text-slot cog) wraps it in Blizzard's difficulty
+    -- color; an unreadable (secret) level stays a plain "??".
     function ns.GetUnitLevelText(unit)
         local lvl = UnitEffectiveLevel(unit)
-        if type(lvl) ~= "number" or (issecretvalue and issecretvalue(lvl))
-           or lvl < 0 then
+        local col = p and p.levelDifficultyColor
+        if type(lvl) ~= "number" or (issecretvalue and issecretvalue(lvl)) then
             return "??"
+        end
+        if lvl < 0 then
+            if col then return EllesmereUI.ColorText("??", EllesmereUI.GetLevelDifficultyColor(-1)) end
+            return "??"
+        end
+        if col then
+            return EllesmereUI.ColorText(tostring(lvl),
+                EllesmereUI.GetLevelColor(unit, lvl, p.levelDifficultyColorFriendly))
         end
         return tostring(lvl)
     end
