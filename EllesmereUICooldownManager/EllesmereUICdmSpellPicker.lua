@@ -2029,9 +2029,7 @@ function ns.RemoveCDMBar(key)
             -- Deletion shifts every later bar's array index, so captured
             -- override paths into cdmBars.bars would point at the WRONG bars.
             -- Drop them all (users re-capture) -- honest beats corrupt.
-            if EllesmereUI.SpecOverrides_OnCDMBarsRestructured then
-                EllesmereUI.SpecOverrides_OnCDMBarsRestructured()
-            end
+            EllesmereUI.SpecOverrides_OnCDMBarsRestructured()
 
             -- Free all spells (don't ghost them): delete the bar's spell data
             -- from every spec of the ACTIVE profile only -- other profiles own
@@ -2047,9 +2045,7 @@ function ns.RemoveCDMBar(key)
                 end
             end
 
-            if EllesmereUI and EllesmereUI.UnregisterUnlockElement then
-                EllesmereUI:UnregisterUnlockElement("CDM_" .. key)
-            end
+            EllesmereUI:UnregisterUnlockElement("CDM_" .. key)
             -- Re-register remaining bars to update linkedKeys
             RegisterCDMUnlockElements()
             -- Reanchor so frames re-route to the ghost bar (or wherever)

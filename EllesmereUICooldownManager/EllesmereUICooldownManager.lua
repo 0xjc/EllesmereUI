@@ -74,13 +74,13 @@ do
             end
 
             local title = popup:CreateFontString(nil, "OVERLAY")
-            title:SetFont(FONT, 16, EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("cdm") or "")
+            title:SetFont(FONT, 16, EllesmereUI.GetFontOutlineFlag("cdm") or "")
             title:SetTextColor(1, 1, 1)
             title:SetPoint("TOP", popup, "TOP", 0, -20)
             title:SetText("CDM Addon Conflict")
 
             local msg = popup:CreateFontString(nil, "OVERLAY")
-            msg:SetFont(FONT, 12, EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("cdm") or "")
+            msg:SetFont(FONT, 12, EllesmereUI.GetFontOutlineFlag("cdm") or "")
             msg:SetTextColor(1, 1, 1, 0.75)
             msg:SetPoint("TOP", title, "BOTTOM", 0, -14)
             msg:SetWidth(POPUP_W - 60)
@@ -102,7 +102,7 @@ do
             btnBg:SetPoint("BOTTOMRIGHT", -1, 1)
             btnBg:SetColorTexture(0.06, 0.08, 0.10, 0.92)
             local btnLbl = btn:CreateFontString(nil, "OVERLAY")
-            btnLbl:SetFont(FONT, 12, EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("cdm") or "")
+            btnLbl:SetFont(FONT, 12, EllesmereUI.GetFontOutlineFlag("cdm") or "")
             btnLbl:SetTextColor(EG.r, EG.g, EG.b, 0.9)
             btnLbl:SetPoint("CENTER")
             btnLbl:SetText("Disable & Reload")
@@ -1970,9 +1970,7 @@ local function ProcessSpecChange(newSpecKey)
     end
 
     -- Signal the profile system that CDM's spec rebuild is complete: clears _specProfileSwitching and re-applies width/height matches.
-    if EllesmereUI and EllesmereUI.OnSpecSwitchComplete then
-        EllesmereUI.OnSpecSwitchComplete()
-    end
+    EllesmereUI.OnSpecSwitchComplete()
 
     -- Refresh the CDM options pages now that _cachedSpecKey is swapped: their own
     -- PLAYER_SPECIALIZATION_CHANGED watcher can fire before SPELLS_CHANGED, so driving it
@@ -6759,11 +6757,11 @@ local function FRSetFontSafe(fs, path, size, flags)
 end
 local function FRApplyFontShadow(fs)
     if not fs then return end
-    local useShadow = (EllesmereUI and EllesmereUI.GetFontUseShadow and EllesmereUI.GetFontUseShadow("cdm")) and true or false
+    local useShadow = (EllesmereUI.GetFontUseShadow("cdm")) and true or false
     -- Font is set by FRSetFontSafe before this call; capture and restore it so
     -- priming the shadow FontObject does not change the typeface.
     local _pf, _ps, _pfl = fs:GetFont()
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, useShadow) end
+    EllesmereUI.PrimeFontShadow(fs, useShadow)
     if _pf then fs:SetFont(_pf, _ps, _pfl) end
 end
 
@@ -7182,8 +7180,7 @@ _CDMApplyVisibility = function()
             local shouldHide = false
 
             -- Multi-select/dragonriding path: non-nil owns the mode step (priority 3); the legacy single-mode chain below is untouched.
-            local visExt = EllesmereUI.EvalVisibilityExtended
-                and EllesmereUI.EvalVisibilityExtended(barData, "barVisibility", visState, EllesmereUI.VIS_CAPS_DEFAULT)
+            local visExt = EllesmereUI.EvalVisibilityExtended(barData, "barVisibility", visState, EllesmereUI.VIS_CAPS_DEFAULT)
 
             -- Priority 1: vehicle always hides
             if inVehicle then
@@ -10012,13 +10009,11 @@ function ECME:CDMFinishSetup()
         end)
     end
     -- SharedMedia sounds feed the options dropdowns; append regardless.
-    if EllesmereUI.AppendSharedMediaSounds then
-        EllesmereUI.AppendSharedMediaSounds(
-            FOCUSKICK_SOUND_PATHS,
-            FOCUSKICK_SOUND_NAMES,
-            FOCUSKICK_SOUND_ORDER
-        )
-    end
+    EllesmereUI.AppendSharedMediaSounds(
+        FOCUSKICK_SOUND_PATHS,
+        FOCUSKICK_SOUND_NAMES,
+        FOCUSKICK_SOUND_ORDER
+    )
 
     -- One-time vehicle/petbattle proxy. Drives _CDMApplyVisibility on state change so CDM bars hide while the vehicle UI or pet battle UI is active.
     if not _cdmVehicleProxy and EllesmereUI.SecureSnippetsOK() then
@@ -10144,7 +10139,7 @@ end
 local function _rotResolveColor(cfg)
     local mode = cfg and cfg.rotationAssistColorMode or "default"
     if mode == "class" then
-        local c = EllesmereUI.GetClassColor and EllesmereUI.GetClassColor(EllesmereUI._playerClass)
+        local c = EllesmereUI.GetClassColor(EllesmereUI._playerClass)
         if c then return c.r, c.g, c.b end
     elseif mode == "custom" then
         return cfg.rotationAssistColorR or 1,
@@ -10699,9 +10694,7 @@ local function ScheduleRosterRebuild()
     -- Roster changes (promote, join, leave) don't change spells or bar
     -- routing. Only party frame anchoring needs a refresh. A full
     -- BuildAllCDMBars was causing massive single-frame CPU spikes.
-    if EllesmereUI and EllesmereUI.InvalidateFrameCache then
-        EllesmereUI.InvalidateFrameCache()
-    end
+    EllesmereUI.InvalidateFrameCache()
     if InCombatLockdown() then
         _rosterRebuildPending = true
         return
@@ -10941,9 +10934,7 @@ eventFrame:SetScript("OnEvent", function(_, event, unit, updateInfo, arg3)
         ns.DisarmOverrideRanges()   -- the new spec's overrides re-arm on their own events
         -- Non-rebuild work only. The actual spec change rebuild is driven by SPELLS_CHANGED above
         -- (which fires for both manual and auto swaps). This handler just invalidates caches that need immediate clearing.
-        if EllesmereUI and EllesmereUI.InvalidateFrameCache then
-            EllesmereUI.InvalidateFrameCache()
-        end
+        EllesmereUI.InvalidateFrameCache()
     end
     RequestUpdate()
 end)
@@ -10956,9 +10947,7 @@ SLASH_ECME2 = "/cdmeffects"
 SLASH_ECME3 = "/ecdm"
 SlashCmdList.ECME = function(msg)
     if InCombatLockdown and InCombatLockdown() then return end
-    if EllesmereUI and EllesmereUI.ShowModule then
-        EllesmereUI:ShowModule("EllesmereUICooldownManager")
-    end
+    EllesmereUI:ShowModule("EllesmereUICooldownManager")
 end
 
 

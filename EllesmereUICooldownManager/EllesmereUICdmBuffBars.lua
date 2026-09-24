@@ -5344,13 +5344,12 @@ local function TBBFillVisState()
 end
 
 local function TBBVisibilityHides(cfg)
-    if EllesmereUI.CheckVisibilityOptions and EllesmereUI.CheckVisibilityOptions(cfg) then
+    if EllesmereUI.CheckVisibilityOptions(cfg) then
         return true
     end
 
     local vis = cfg.barVisibility or "always"
-    local visExt = EllesmereUI.EvalVisibilityExtended
-        and EllesmereUI.EvalVisibilityExtended(cfg, "barVisibility", _tbbVisState, EllesmereUI.VIS_CAPS_DEFAULT)
+    local visExt = EllesmereUI.EvalVisibilityExtended(cfg, "barVisibility", _tbbVisState, EllesmereUI.VIS_CAPS_DEFAULT)
     if visExt ~= nil then return not visExt end
     if vis == "never" then return true end
     if vis == "in_combat" then return not _tbbVisState.inCombat end
@@ -5418,8 +5417,8 @@ function ns.UpdateTrackedBuffBarTimers()
 
     -- Self-heal placeholder mode when the user navigates away from Tracking Bars
     if ns._tbbPlaceholderMode then
-        local am = EllesmereUI and EllesmereUI.GetActiveModule and EllesmereUI:GetActiveModule()
-        local ap = EllesmereUI and EllesmereUI.GetActivePage and EllesmereUI:GetActivePage()
+        local am = EllesmereUI:GetActiveModule()
+        local ap = EllesmereUI:GetActivePage()
         if am ~= "EllesmereUICooldownManager" or ap ~= "Tracking Bars" then
             ns._tbbPlaceholderMode = false
             if ns.HideTBBPlaceholders then ns.HideTBBPlaceholders() end
