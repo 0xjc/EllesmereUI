@@ -5214,32 +5214,63 @@ initFrame:SetScript("OnEvent", function(self)
             if rgn._control then rgn._control:Hide() end
 
             local groupItems = {}
-            for i = 1, 8 do
-                groupItems[i] = { key = i, label = "Group " .. i }
+            if db.profile.customGroupOrder then
+                local savedGroupOrder = ns._RFValidatedGroupOrder(db.profile.groupOrder)
+                for i = 1, 8 do
+                    local group = savedGroupOrder and savedGroupOrder[i] or i
+                    groupItems[i] = { key = group, label = "Group " .. group }
+                end
+            else
+                for i = 1, 8 do
+                    groupItems[i] = { key = i, label = "Group " .. i }
+                end
             end
 
-            local cbDD, cbDDRefresh = EllesmereUI.BuildVisOptsCBDropdown(
-                rgn, 170, rgn:GetFrameLevel() + 2,
-                groupItems,
-                function(k)
-                    local vg = db.profile.visibleGroups
-                    return vg and vg[k] ~= false
-                end,
-                function(k, v)
-                    if not db.profile.visibleGroups then
-                        db.profile.visibleGroups = { true, true, true, true, true, true, false, false }
-                    end
-                    db.profile.visibleGroups[k] = v
-                    ReloadAndUpdate()
-                end)
+            local function GroupVisible(k)
+                local vg = db.profile.visibleGroups
+                return vg and vg[k] ~= false
+            end
+            local function SetGroupVisible(k, v)
+                if not db.profile.visibleGroups then
+                    db.profile.visibleGroups = { true, true, true, true, true, true, false, false }
+                end
+                db.profile.visibleGroups[k] = v
+                ReloadAndUpdate()
+            end
+
+            local cbDD, cbDDRefresh
+            if db.profile.customGroupOrder then
+                cbDD, cbDDRefresh = EllesmereUI.BuildReorderCBDropdown(
+                    rgn, 170, rgn:GetFrameLevel() + 2,
+                    groupItems, GroupVisible, SetGroupVisible, {
+                        hint = EllesmereUI.L("Drag to Reorder Groups"),
+                        canReorder = function() return not InCombatLockdown() and not db.profile.mergeGroups end,
+                        setOrder = function(order)
+                            if InCombatLockdown() or db.profile.mergeGroups then return end
+                            db.profile.groupOrder = order
+                            ReloadAndUpdate()
+                        end,
+                        summaryLabel = function(movable, _, getFn)
+                            local visible = {}
+                            for _, item in ipairs(movable) do
+                                if getFn(item.key) then
+                                    visible[#visible + 1] = EllesmereUI.L("Group") .. " " .. item.key
+                                end
+                            end
+                            return #visible > 0 and table.concat(visible, ", ") or EllesmereUI.L("None")
+                        end,
+                    })
+            else
+                cbDD, cbDDRefresh = EllesmereUI.BuildVisOptsCBDropdown(
+                    rgn, 170, rgn:GetFrameLevel() + 2,
+                    groupItems, GroupVisible, SetGroupVisible)
+            end
             PP.Point(cbDD, "RIGHT", rgn, "RIGHT", -20, 0)
             rgn._control = cbDD
             rgn._lastInline = nil
             EllesmereUI.RegisterWidgetRefresh(cbDDRefresh)
-
-            EllesmereUI.BuildInlineCog(rgn, {
-                title = "Show Groups",
-                rows = {
+            local cogShow
+            local cogRows = {
                     { type="toggle", label="Hide Empty Groups",
                       tooltip="Collapse subgroups that have no members so the remaining groups close ranks. For example, if only groups 1, 2, 3 and 6 have players, they show with no gaps instead of leaving empty space where groups 4 and 5 would be. Real raid frames only.",
                       get=function() return SVal("hideEmptyGroups", true) end,
@@ -5248,8 +5279,23 @@ initFrame:SetScript("OnEvent", function(self)
                       tooltip="When using custom raid sizes, don't count members in hidden groups toward the raid-size breakpoint. For example, if you hide groups 7 and 8, a full 40-man raid is sized as if it were 24-man instead of jumping to the 30-man frame size. Has no effect unless you have custom raid sizes set up.",
                       get=function() return SVal("excludeHiddenGroupsFromSize", true) end,
                       set=function(v) SSet("excludeHiddenGroupsFromSize", v) end },
-                },
-            })
+                    { type="toggle", label=EllesmereUI.L("Custom Group Order"),
+                      tooltip=EllesmereUI.L("Display separated raid groups in your chosen order."),
+                      get=function() return db.profile.customGroupOrder == true end,
+                      set=function(v)
+                          if InCombatLockdown() then return end
+                          db.profile.customGroupOrder = v
+                          ReloadAndUpdate()
+                          if cogShow and cogShow._popupFrame then cogShow._popupFrame:Hide() end
+                          EllesmereUI:RefreshPage(true)
+                      end,
+                      disabled=function() return InCombatLockdown() or db.profile.mergeGroups end,
+                      disabledTooltip=function()
+                          if InCombatLockdown() then return EllesmereUI.L("Unavailable in combat") end
+                          return EllesmereUI.L("Turn off Merge Groups to change group order")
+                      end, rawTooltip=true },
+            }
+            cogShow = select(2, EllesmereUI.BuildInlineCog(rgn, { title = "Show Groups", rows = cogRows }))
         end
             end
 
