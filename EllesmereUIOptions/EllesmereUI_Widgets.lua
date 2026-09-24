@@ -2930,6 +2930,107 @@ function EllesmereUI.AddCaptureAccessor(region, acc)
     end
 end
 
+-- Keybind capture button: left-click arms, the next key (with its modifiers) is the
+-- chord, Escape cancels, right-click unbinds. set(chord) writes, set(nil) unbinds;
+-- the caller anchors it. opts: w, h, pp (default PanelPP), level, font, get, set,
+-- tooltip, disabled + disabledTip, mouse (armed clicks bind mouse chords).
+-- Returns btn, refresh.
+function EllesmereUI.BuildKeybindButton(parent, opts)
+    local btn = CreateFrame("Button", nil, parent)
+    local pp = opts.pp or PP
+    pp.Size(btn, opts.w, opts.h)
+    btn:SetFrameLevel(parent:GetFrameLevel() + (opts.level or 2))
+    if opts.mouse then
+        btn:RegisterForClicks("AnyUp")
+    else
+        btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    end
+    local bg = SolidTex(btn, "BACKGROUND", DD_BG_R, DD_BG_G, DD_BG_B, DD_BG_A)
+    bg:SetAllPoints()
+    btn._border = MakeBorder(btn, 1, 1, 1, DD_BRD_A, PP)
+    local lbl = MakeFont(btn, opts.font or 12, nil, 1, 1, 1)
+    lbl:SetAlpha(DD_TXT_A)
+    lbl:SetPoint("CENTER")
+
+    local disabled = opts.disabled
+    local listening = false
+    local function Stop()
+        listening = false
+        btn:EnableKeyboard(false)
+    end
+    local function FormatKey(key)
+        if not key or key == "" then return EllesmereUI.L("Not Bound") end
+        local parts = {}
+        for mod in key:gmatch("(%u+)%-") do
+            parts[#parts + 1] = mod:sub(1, 1) .. mod:sub(2):lower()
+        end
+        parts[#parts + 1] = key:match("[^%-]+$") or key
+        return table.concat(parts, " + ")
+    end
+    local function Refresh()
+        if disabled then
+            local off = disabled()
+            btn:SetAlpha(off and 0.3 or 1)
+            btn:EnableMouse(not off)
+            if parent._label then parent._label:SetAlpha(off and 0.3 or 1) end
+            if off and listening then Stop() end
+        end
+        if not listening then lbl:SetText(FormatKey(opts.get())) end
+    end
+    local function Commit(chord)
+        Stop()
+        opts.set(chord)
+        Refresh()
+    end
+
+    btn:SetScript("OnClick", function(self, button)
+        if disabled and disabled() then return end
+        -- OnKeyDown never sees mouse buttons; plain left/right keep arm/unbind.
+        if opts.mouse and listening and ((button ~= "LeftButton" and button ~= "RightButton")
+            or IsModifierKeyDown()) then
+            Commit(CreateKeyChordStringUsingMetaKeyState(GetConvertedKeyOrButton(button)))
+            return
+        end
+        if button == "RightButton" then Commit(nil); return end
+        if button ~= "LeftButton" or listening then return end
+        listening = true
+        lbl:SetText(EllesmereUI.L("Press a key..."))
+        self:EnableKeyboard(true)
+    end)
+    btn:SetScript("OnKeyDown", function(self, key)
+        -- Bare modifiers pass through so they can be held for the chord.
+        if not listening or IsKeyPressIgnoredForBinding(key) then
+            self:SetPropagateKeyboardInput(true)
+            return
+        end
+        self:SetPropagateKeyboardInput(false)
+        if key == "ESCAPE" then Stop(); Refresh(); return end
+        Commit(CreateKeyChordStringUsingMetaKeyState(key))
+    end)
+    btn:SetScript("OnEnter", function(self)
+        if disabled and disabled() then
+            ShowWidgetTooltip(self, DisabledTooltip(opts.disabledTip))
+            return
+        end
+        bg:SetColorTexture(DD_BG_R, DD_BG_G, DD_BG_B, DD_BG_HA)
+        btn._border:SetColor(1, 1, 1, 0.3)
+        ShowWidgetTooltip(self, opts.tooltip or "Left-click to set a keybind.\nRight-click to unbind.")
+    end)
+    btn:SetScript("OnLeave", function()
+        if listening then return end
+        bg:SetColorTexture(DD_BG_R, DD_BG_G, DD_BG_B, DD_BG_A)
+        btn._border:SetColor(1, 1, 1, DD_BRD_A)
+        HideWidgetTooltip()
+    end)
+    btn:SetScript("OnHide", function()
+        if listening then Stop(); Refresh() end
+        HideWidgetTooltip()
+    end)
+
+    Refresh()
+    return btn, Refresh
+end
+
 -- DualRow: two widgets side by side on one full-width row, 1px center divider.
 -- Slider:      { type="slider", text, min, max, step, getValue, setValue }
 -- Dropdown:    { type="dropdown", text, values, getValue, setValue, order }
