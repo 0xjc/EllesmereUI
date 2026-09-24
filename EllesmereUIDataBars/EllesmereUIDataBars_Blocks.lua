@@ -32,9 +32,7 @@ ns.barTextureOrder = barTextureOrder
 ns.barTextureNames = barTextureNames
 
 -- Seed SharedMedia statusbar textures once at load so a saved LSM key resolves at login; the parent helper also registers for late LSM packs.
-if EllesmereUI.AppendSharedMediaTextures then
-    EllesmereUI.AppendSharedMediaTextures(barTextureNames, barTextureOrder, nil, barTextures)
-end
+EllesmereUI.AppendSharedMediaTextures(barTextureNames, barTextureOrder, nil, barTextures)
 
 
 -- Upvalues
@@ -4666,9 +4664,9 @@ local function MMOpenWhisper(charName, bnetName)
     -- as a real Mythic+. InProtectedInstance() itself reports true in dev mode; the
     -- separate branch exists only for the clearer message.
     local blocked
-    if EllesmereUI and EllesmereUI.IsDevModeActive and EllesmereUI.IsDevModeActive() then
+    if EllesmereUI.IsDevModeActive() then
         blocked = "This action is protected while dev mode (/euidev) is on."
-    elseif EllesmereUI and EllesmereUI.InProtectedInstance and EllesmereUI.InProtectedInstance() then
+    elseif EllesmereUI.InProtectedInstance() then
         blocked = "This action is protected in Mythic+ and raid combat."
     end
     if blocked then

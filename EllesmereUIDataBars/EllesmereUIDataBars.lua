@@ -314,8 +314,7 @@ function ns.SetFont(fs, size, barCfg)
     -- SetShadowOffset does not render on 12.x; shadows must ride a FontObject.
     -- Prime BEFORE SetFont -- the inherited shadow survives the typeface call.
     if EllesmereUI.PrimeFontShadow then
-        local useShadow = flags == "" and EllesmereUI.GetFontUseShadow
-            and EllesmereUI.GetFontUseShadow()
+        local useShadow = flags == "" and EllesmereUI.GetFontUseShadow()
         EllesmereUI.PrimeFontShadow(fs, useShadow and true or false)
     end
     fs:SetFont(path, sz, flags)
@@ -2140,7 +2139,7 @@ end
 --- reads never, and an override of Never disables one whose scalar does not.
 function ns.VisIsNever(cfg)
     if not cfg then return true end
-    local ov = EllesmereUI.VisOverrideValue and EllesmereUI.VisOverrideValue(cfg)
+    local ov = EllesmereUI.VisOverrideValue(cfg)
     if ov then return ov == "never" end
     return cfg.visibility == "never"
 end
@@ -2466,7 +2465,7 @@ do
             local rec = live[cfg.id]
             if rec and rec.enabled then
                 local vis
-                if EllesmereUI.CheckVisibilityOptions and EllesmereUI.CheckVisibilityOptions(cfg) then
+                if EllesmereUI.CheckVisibilityOptions(cfg) then
                     vis = false
                 else
                     st.inCombat = _inCombat
