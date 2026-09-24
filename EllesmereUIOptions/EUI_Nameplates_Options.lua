@@ -5748,13 +5748,13 @@ initFrame:SetScript("OnEvent", function(self)
                 if ns.NPC_ReloadAll then ns.NPC_ReloadAll() end
             end
             EllesmereUI.ShowTrackedAurasPopup({
-                eyebrow = "NAMEPLATE AURA FILTERS",
+                eyebrow = EllesmereUI.L("NAMEPLATE AURA FILTERS"),
                 title = NPF_KIND_TITLES[kind] or "Filters",
                 fontPath = (EllesmereUI.GetFontPath("nameplates")) or DBVal("font"),
                 includeGet = function() return ns.NPF_Include and ns.NPF_Include(side) end,
                 excludeGet = function() return ns.NPF_Exclude and ns.NPF_Exclude(side) end,
-                includePrompt = "Enter the spell ID to always show on nameplates.",
-                excludePrompt = "Enter the spell ID to exclude from nameplates.",
+                includePrompt = EllesmereUI.L("Enter the spell ID to always show on nameplates."),
+                excludePrompt = EllesmereUI.L("Enter the spell ID to exclude from nameplates."),
                 includeMine = { anyGet = AnyMap },
                 -- Fresh adds default to Only My Casts; a spell migrating to the exclude list drops any stale flag.
                 onAdd = function(id)
@@ -5763,7 +5763,7 @@ initFrame:SetScript("OnEvent", function(self)
                 end,
                 onChanged = Reload,
                 showAll = (kind == "debuffs") and {
-                    label = "Show All Debuffs",
+                    label = EllesmereUI.L("Show All Debuffs"),
                     get = function() return root.debuffs and root.debuffs.all end,
                     set = function(v)
                         root.debuffs = root.debuffs or {}
