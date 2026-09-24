@@ -6304,6 +6304,136 @@ function EllesmereUI.ClampPopupToScreen(popup, w, h)
     popup:SetScale(popup:GetScale() * fit)
 end
 
+-- Announcement popup shell: full-screen dimmer (name.."Dimmer") and a centred panel
+-- (name.."Popup") with an edge of physical pixels and Escape handling. opts: w, h; bump
+-- (PopupBump mult; nil = caller scales both frames later); strata; dimAlpha; bg {r,g,b};
+-- edge {r,g,b,a}; edgePx; clamp (ClampPopupToScreen); onEscape (nil = Escape is only
+-- swallowed); onDimmerDown. Other keys propagate. Returns dimmer, popup.
+function EllesmereUI.BuildPopupShell(name, opts)
+    local strata = opts.strata or "FULLSCREEN_DIALOG"
+    local dimmer = CreateFrame("Frame", name .. "Dimmer", UIParent)
+    dimmer:SetFrameStrata(strata)
+    dimmer:SetAllPoints(UIParent)
+    dimmer:EnableMouse(true)
+    dimmer:EnableMouseWheel(true)
+    dimmer:SetScript("OnMouseWheel", function() end)
+    if opts.onDimmerDown then dimmer:SetScript("OnMouseDown", opts.onDimmerDown) end
+    if opts.bump then dimmer:SetScale(GetPopupScale()) end
+    local dimTex = dimmer:CreateTexture(nil, "BACKGROUND")
+    dimTex:SetAllPoints()
+    dimTex:SetColorTexture(0, 0, 0, opts.dimAlpha or 0.35)
+
+    local popup = CreateFrame("Frame", name .. "Popup", dimmer)
+    if opts.bump then popup:SetScale(EllesmereUI.PopupBump(opts.bump)) end
+    popup:SetFrameStrata(strata)
+    popup:SetFrameLevel(dimmer:GetFrameLevel() + 10)
+    PanelPP.Size(popup, opts.w, opts.h)
+    if opts.clamp then EllesmereUI.ClampPopupToScreen(popup, opts.w, opts.h) end
+    popup:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    popup:EnableMouse(true)
+
+    local c = opts.bg or { 0.06, 0.08, 0.10 }
+    local bg = popup:CreateTexture(nil, "BACKGROUND")
+    bg:SetAllPoints()
+    bg:SetColorTexture(c[1], c[2], c[3], 1)
+
+    -- Edge width is read after every scale above, so it lands on whole physical pixels.
+    local e = opts.edge or { 1, 1, 1, 0.15 }
+    local edgeW = (1 / (popup:GetEffectiveScale() or 1)) * (opts.edgePx or 1)
+    local function MakeEdge()
+        local t = popup:CreateTexture(nil, "BORDER")
+        t:SetColorTexture(e[1], e[2], e[3], e[4])
+        if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false); t:SetTexelSnappingBias(0) end
+        return t
+    end
+    local spT = MakeEdge(); spT:SetPoint("TOPLEFT", 0, 0); spT:SetPoint("TOPRIGHT", 0, 0); spT:SetHeight(edgeW)
+    local spB = MakeEdge(); spB:SetPoint("BOTTOMLEFT", 0, 0); spB:SetPoint("BOTTOMRIGHT", 0, 0); spB:SetHeight(edgeW)
+    local spL = MakeEdge(); spL:SetPoint("TOPLEFT", spT, "BOTTOMLEFT"); spL:SetPoint("BOTTOMLEFT", spB, "TOPLEFT"); spL:SetWidth(edgeW)
+    local spR = MakeEdge(); spR:SetPoint("TOPRIGHT", spT, "BOTTOMRIGHT"); spR:SetPoint("BOTTOMRIGHT", spB, "TOPRIGHT"); spR:SetWidth(edgeW)
+
+    local onEscape = opts.onEscape
+    popup:EnableKeyboard(true)
+    popup:SetScript("OnKeyDown", function(self, key)
+        self:SetPropagateKeyboardInput(key ~= "ESCAPE")
+        if key == "ESCAPE" and onEscape then onEscape() end
+    end)
+    return dimmer, popup
+end
+
+-- Announcement action button, 38 tall: primary is bright, secondary dim. opts: w;
+-- secondary; hoverA (secondary border alpha on hover); hoverRGB {r,g,b} (secondary
+-- hovers to that colour instead, border alpha 0.95). The caller anchors it.
+function EllesmereUI.MakeActionButton(parent, font, text, r, g, b, opts)
+    local secondary, hoverRGB = opts.secondary, opts.hoverRGB
+    local btn = CreateFrame("Button", nil, parent)
+    btn:SetFrameLevel(parent:GetFrameLevel() + 2)
+    PanelPP.Size(btn, opts.w, 38)
+    local bbg = btn:CreateTexture(nil, "BACKGROUND")
+    bbg:SetAllPoints()
+    bbg:SetColorTexture(0.06, 0.08, 0.10, 0.92)
+    local brd = MakeBorder(btn, r, g, b, secondary and 0.35 or 0.9, PanelPP)
+    local lbl = btn:CreateFontString(nil, "OVERLAY")
+    lbl:SetFont(font, 15, "")
+    PanelPP.Point(lbl, "CENTER", btn, "CENTER", 0, 0)
+    lbl:SetTextColor(r, g, b, secondary and 0.55 or 0.9)
+    lbl:SetText(text)
+    btn:SetScript("OnEnter", function()
+        if secondary and hoverRGB then
+            lbl:SetTextColor(hoverRGB[1], hoverRGB[2], hoverRGB[3], 1)
+            brd:SetColor(hoverRGB[1], hoverRGB[2], hoverRGB[3], 0.95)
+        else
+            lbl:SetTextColor(r, g, b, 1)
+            brd:SetColor(r, g, b, secondary and opts.hoverA or 1)
+        end
+    end)
+    btn:SetScript("OnLeave", function()
+        lbl:SetTextColor(r, g, b, secondary and 0.55 or 0.9)
+        brd:SetColor(r, g, b, secondary and 0.35 or 0.9)
+    end)
+    return btn
+end
+
+-- Fading popup button (confirm and input popups): 125x27; text and border lerp from the
+-- default to the hover colours over 0.1s. Exposes btn._lbl and btn._resetAnim.
+function EllesmereUI.MakePopupButton(parent, anchorPoint, anchorTo, anchorRef, xOff, yOff, defR, defG, defB, defA, hovR, hovG, hovB, hovA, bDefR, bDefG, bDefB, bDefA, bHovR, bHovG, bHovB, bHovA)
+    local FADE_DUR = 0.1
+    local btn = CreateFrame("Button", nil, parent)
+    btn:SetSize(125, 27)
+    btn:SetPoint(anchorPoint, anchorTo, anchorRef, xOff, yOff)
+    btn:SetFrameLevel(parent:GetFrameLevel() + 2)
+
+    local bg = SolidTex(btn, "BACKGROUND", 0, 0, 0, 0.5)
+    bg:SetAllPoints()
+    local brd = MakeBorder(btn, bDefR, bDefG, bDefB, bDefA)
+
+    local lbl = MakeFont(btn, 12, nil, defR, defG, defB)
+    lbl:SetAlpha(defA)
+    lbl:SetPoint("CENTER")
+
+    local progress, target = 0, 0
+    local function Apply(t)
+        lbl:SetTextColor(lerp(defR, hovR, t), lerp(defG, hovG, t), lerp(defB, hovB, t), lerp(defA, hovA, t))
+        brd:SetColor(lerp(bDefR, bHovR, t), lerp(bDefG, bHovG, t), lerp(bDefB, bHovB, t), lerp(bDefA, bHovA, t))
+    end
+
+    local function OnUpdate(self, elapsed)
+        local dir = (target == 1) and 1 or -1
+        progress = progress + dir * (elapsed / FADE_DUR)
+        if (dir == 1 and progress >= 1) or (dir == -1 and progress <= 0) then
+            progress = target
+            self:SetScript("OnUpdate", nil)
+        end
+        Apply(progress)
+    end
+
+    btn:SetScript("OnEnter", function(self) target = 1; self:SetScript("OnUpdate", OnUpdate) end)
+    btn:SetScript("OnLeave", function(self) target = 0; self:SetScript("OnUpdate", OnUpdate) end)
+
+    btn._lbl = lbl
+    btn._resetAnim = function() progress = 0; target = 0; Apply(0); btn:SetScript("OnUpdate", nil) end
+    return btn
+end
+
 -- Re-apply the scale to the frame that OWNS it. A popup registered with a dimmer takes its
 -- scale from that dimmer and carries only its bump, so writing GetPopupScale() onto the popup
 -- here would restore the squared double-scale on the first slider change; scaling the dimmer also keeps it from holding its creation-time scale forever while the popup rescales underneath it.
@@ -6436,53 +6566,13 @@ local function CreateConfirmPopup()
     popup._baseH = POPUP_H
 
     -- Button dimensions
-    local BTN_W, BTN_H = 125, 27
+    local BTN_H = 27
     local BTN_GAP = 16
     local BTN_Y = 13
-    local FADE_DUR = 0.1
-
-    -- Styled popup button: sized 2px larger than the visual area, bg inset 1px so the full-button border texture peeks out as a 1px border on all sides.
-    local function MakePopupButton(parent, anchorPoint, anchorTo, anchorRef, xOff, yOff, defR, defG, defB, defA, hovR, hovG, hovB, hovA, bDefR, bDefG, bDefB, bDefA, bHovR, bHovG, bHovB, bHovA)
-        local btn = CreateFrame("Button", nil, parent)
-        btn:SetSize(BTN_W, BTN_H)
-        btn:SetPoint(anchorPoint, anchorTo, anchorRef, xOff, yOff)
-        btn:SetFrameLevel(parent:GetFrameLevel() + 2)
-
-        local bg = SolidTex(btn, "BACKGROUND", 0, 0, 0, 0.5)
-        bg:SetAllPoints()
-        local brd = MakeBorder(btn, bDefR, bDefG, bDefB, bDefA)
-
-        local lbl = MakeFont(btn, 12, nil, defR, defG, defB)
-        lbl:SetAlpha(defA)
-        lbl:SetPoint("CENTER")
-
-        local progress, target = 0, 0
-        local function Apply(t)
-            lbl:SetTextColor(lerp(defR, hovR, t), lerp(defG, hovG, t), lerp(defB, hovB, t), lerp(defA, hovA, t))
-            brd:SetColor(lerp(bDefR, bHovR, t), lerp(bDefG, bHovG, t), lerp(bDefB, bHovB, t), lerp(bDefA, bHovA, t))
-        end
-
-        local function OnUpdate(self, elapsed)
-            local dir = (target == 1) and 1 or -1
-            progress = progress + dir * (elapsed / FADE_DUR)
-            if (dir == 1 and progress >= 1) or (dir == -1 and progress <= 0) then
-                progress = target
-                self:SetScript("OnUpdate", nil)
-            end
-            Apply(progress)
-        end
-
-        btn:SetScript("OnEnter", function(self) target = 1; self:SetScript("OnUpdate", OnUpdate) end)
-        btn:SetScript("OnLeave", function(self) target = 0; self:SetScript("OnUpdate", OnUpdate) end)
-
-        btn._lbl = lbl
-        btn._resetAnim = function() progress = 0; target = 0; Apply(0); btn:SetScript("OnUpdate", nil) end
-        return btn
-    end
 
     -- Cancel button (left) -- dim white style
     local EG = ELLESMERE_GREEN
-    local cancelBtn = MakePopupButton(popup,
+    local cancelBtn = EllesmereUI.MakePopupButton(popup,
         "BOTTOMRIGHT", popup, "BOTTOM", -(BTN_GAP / 2), BTN_Y,
         1, 1, 1, 0.7,                                         -- default text
         1, 1, 1, 0.9,                                         -- hovered text
@@ -6491,7 +6581,7 @@ local function CreateConfirmPopup()
     )
 
     -- Confirm button (right) -- green style
-    local confirmBtn = MakePopupButton(popup,
+    local confirmBtn = EllesmereUI.MakePopupButton(popup,
         "BOTTOMLEFT", popup, "BOTTOM", BTN_GAP / 2, BTN_Y,
         EG.r, EG.g, EG.b, 0.9,        -- default text
         EG.r, EG.g, EG.b, 1,           -- hovered text
@@ -7080,50 +7170,16 @@ function EllesmereUI:ShowInputPopup(opts)
         popup._extraBtn = extraBtn
         popup._extraLbl = extraLbl
 
-        local BTN_W, BTN_H = 125, 27
         local BTN_GAP = 16
         local BTN_Y = 18
-        local FADE_DUR = 0.1
-
-        local function MakePopupButton(parent, anchorPoint, anchorTo, anchorRef, xOff, yOff, defR, defG, defB, defA, hovR, hovG, hovB, hovA, bDefR, bDefG, bDefB, bDefA, bHovR, bHovG, bHovB, bHovA)
-            local btn = CreateFrame("Button", nil, parent)
-            btn:SetSize(BTN_W, BTN_H)
-            btn:SetPoint(anchorPoint, anchorTo, anchorRef, xOff, yOff)
-            btn:SetFrameLevel(parent:GetFrameLevel() + 2)
-            local bg = SolidTex(btn, "BACKGROUND", 0, 0, 0, 0.5)
-            bg:SetAllPoints()
-            local brd = MakeBorder(btn, bDefR, bDefG, bDefB, bDefA)
-            local lbl = MakeFont(btn, 12, nil, defR, defG, defB)
-            lbl:SetAlpha(defA)
-            lbl:SetPoint("CENTER")
-            local progress, target = 0, 0
-            local function Apply(t)
-                lbl:SetTextColor(lerp(defR, hovR, t), lerp(defG, hovG, t), lerp(defB, hovB, t), lerp(defA, hovA, t))
-                brd:SetColor(lerp(bDefR, bHovR, t), lerp(bDefG, bHovG, t), lerp(bDefB, bHovB, t), lerp(bDefA, bHovA, t))
-            end
-            local function OnUpdate(self, elapsed)
-                local dir = (target == 1) and 1 or -1
-                progress = progress + dir * (elapsed / FADE_DUR)
-                if (dir == 1 and progress >= 1) or (dir == -1 and progress <= 0) then
-                    progress = target
-                    self:SetScript("OnUpdate", nil)
-                end
-                Apply(progress)
-            end
-            btn:SetScript("OnEnter", function(self) target = 1; self:SetScript("OnUpdate", OnUpdate) end)
-            btn:SetScript("OnLeave", function(self) target = 0; self:SetScript("OnUpdate", OnUpdate) end)
-            btn._lbl = lbl
-            btn._resetAnim = function() progress = 0; target = 0; Apply(0); btn:SetScript("OnUpdate", nil) end
-            return btn
-        end
 
         local EG = ELLESMERE_GREEN
-        local cancelBtn = MakePopupButton(popup,
+        local cancelBtn = EllesmereUI.MakePopupButton(popup,
             "BOTTOMRIGHT", popup, "BOTTOM", -(BTN_GAP / 2), BTN_Y,
             1, 1, 1, 0.7,   1, 1, 1, 0.9,
             1, 1, 1, 0.5,   1, 1, 1, 0.6
         )
-        local confirmBtn = MakePopupButton(popup,
+        local confirmBtn = EllesmereUI.MakePopupButton(popup,
             "BOTTOMLEFT", popup, "BOTTOM", BTN_GAP / 2, BTN_Y,
             EG.r, EG.g, EG.b, 0.9,   EG.r, EG.g, EG.b, 1,
             EG.r, EG.g, EG.b, 0.9,   EG.r, EG.g, EG.b, 1

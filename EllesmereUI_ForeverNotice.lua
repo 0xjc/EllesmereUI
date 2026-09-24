@@ -30,48 +30,16 @@ local function ShowForeverNotice()
     if not (PP and MakeBorder) then return end
     local FONT = EllesmereUI._font or ("Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.ttf")
     local POPUP_W, POPUP_H = 520, 440
-    local ppScale = (EllesmereUI.GetPopupScale and EllesmereUI.GetPopupScale()) or 1
-
     -- Dimmer: darker than the announcements, eats clicks, no close on outside
     -- click. TOOLTIP strata so the notice sits above the first-install picker
-    -- when both land on one login.
-    local dimmer = CreateFrame("Frame", "EUIForeverNoticeDimmer", UIParent)
-    dimmer:SetFrameStrata("TOOLTIP")
-    dimmer:SetAllPoints(UIParent)
-    dimmer:EnableMouse(true)
-    dimmer:EnableMouseWheel(true)
-    dimmer:SetScript("OnMouseWheel", function() end)
-    dimmer:SetScale(ppScale)
-    local dimTex = dimmer:CreateTexture(nil, "BACKGROUND")
-    dimTex:SetAllPoints()
-    dimTex:SetColorTexture(0, 0, 0, 0.6)
-
-    local popup = CreateFrame("Frame", "EUIForeverNoticePopup", dimmer)
-    popup:SetScale((EllesmereUI.PopupBump and EllesmereUI.PopupBump(1.15)) or 1.15)
-    popup:SetFrameStrata("TOOLTIP")
-    popup:SetFrameLevel(dimmer:GetFrameLevel() + 10)
-    PP.Size(popup, POPUP_W, POPUP_H)
-    popup:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-    popup:EnableMouse(true)
-
-    local bg = popup:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(0.085, 0.07, 0.05, 1)
-
-    -- Warning frame: a 2px orange edge, then a soft inner glow band so the
-    -- panel reads as a warning from across the room.
-    local onePhys = 1 / (popup:GetEffectiveScale() or 1)
-    local edgeW = onePhys * 2
-    local function MakeEdge()
-        local t = popup:CreateTexture(nil, "BORDER")
-        t:SetColorTexture(WARN_R, WARN_G, WARN_B, 0.95)
-        if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false); t:SetTexelSnappingBias(0) end
-        return t
-    end
-    local spT = MakeEdge(); spT:SetPoint("TOPLEFT", 0, 0); spT:SetPoint("TOPRIGHT", 0, 0); spT:SetHeight(edgeW)
-    local spB = MakeEdge(); spB:SetPoint("BOTTOMLEFT", 0, 0); spB:SetPoint("BOTTOMRIGHT", 0, 0); spB:SetHeight(edgeW)
-    local spL = MakeEdge(); spL:SetPoint("TOPLEFT", spT, "BOTTOMLEFT"); spL:SetPoint("BOTTOMLEFT", spB, "TOPLEFT"); spL:SetWidth(edgeW)
-    local spR = MakeEdge(); spR:SetPoint("TOPRIGHT", spT, "BOTTOMRIGHT"); spR:SetPoint("BOTTOMRIGHT", spB, "TOPRIGHT"); spR:SetWidth(edgeW)
+    -- when both land on one login. Warning frame: a 2px orange edge, then a
+    -- soft inner glow band so the panel reads as a warning from across the room.
+    local Finish
+    local dimmer, popup = EllesmereUI.BuildPopupShell("EUIForeverNotice", {
+        w = POPUP_W, h = POPUP_H, bump = 1.15, strata = "TOOLTIP", dimAlpha = 0.6,
+        bg = { 0.085, 0.07, 0.05 }, edge = { WARN_R, WARN_G, WARN_B, 0.95 }, edgePx = 2,
+        onEscape = function() Finish() end,
+    })
     local glow = popup:CreateTexture(nil, "BORDER", nil, -1)
     glow:SetPoint("TOPLEFT", popup, "TOPLEFT", 0, 0)
     glow:SetPoint("TOPRIGHT", popup, "TOPRIGHT", 0, 0)
@@ -124,7 +92,7 @@ local function ShowForeverNotice()
         note:SetText("The current client also has a bug that prevents some Action Bars functionality and switches off Raid Frames, Quickdraw and Raid Tools until Blizzard fixes it.")
     end
 
-    local function Finish()
+    Finish = function()
         if not EllesmereUIDB then EllesmereUIDB = {} end
         -- Persists only once the client saves again, which is exactly when
         -- the notice should stop.
@@ -154,12 +122,6 @@ local function ShowForeverNotice()
         brd:SetColor(WARN_R, WARN_G, WARN_B, 0.9)
     end)
     btn:SetScript("OnClick", Finish)
-
-    popup:EnableKeyboard(true)
-    popup:SetScript("OnKeyDown", function(self, key)
-        self:SetPropagateKeyboardInput(key ~= "ESCAPE")
-        if key == "ESCAPE" then Finish() end
-    end)
 
     dimmer:Show()
 end

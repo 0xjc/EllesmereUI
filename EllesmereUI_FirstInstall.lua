@@ -137,52 +137,12 @@ local function ShowFirstInstallPopup()
     local contentH = HEADER_H + HEADER_PAD + tallestRows * ROW_H
     local POPUP_H  = CONTENT_TOP + contentH + 110  -- room for links + button
 
-    local ppScale = (EllesmereUI.GetPopupScale and EllesmereUI.GetPopupScale()) or 1
-
-    -- Dimmer
-    local dimmer = CreateFrame("Frame", "EUIFirstInstallDimmer", UIParent)
-    dimmer:SetFrameStrata("FULLSCREEN_DIALOG")
-    dimmer:SetAllPoints(UIParent)
-    dimmer:EnableMouse(true)
-    dimmer:EnableMouseWheel(true)
-    dimmer:SetScript("OnMouseWheel", function() end)
-    dimmer:SetScale(ppScale)
-    local dimTex = dimmer:CreateTexture(nil, "BACKGROUND")
-    dimTex:SetAllPoints()
-    dimTex:SetColorTexture(0, 0, 0, 0.35)
-
-    -- Popup
-    local popup = CreateFrame("Frame", "EUIFirstInstallPopup", dimmer)
-    popup:SetScale(EllesmereUI.PopupBump(1))
-    popup:SetFrameStrata("FULLSCREEN_DIALOG")
-    popup:SetFrameLevel(dimmer:GetFrameLevel() + 10)
-    PP.Size(popup, POPUP_W, POPUP_H)
-    -- This popup is modal and has no Escape route, so it must never exceed the
-    -- display (see ClampPopupToScreen).
-    if EllesmereUI.ClampPopupToScreen then
-        EllesmereUI.ClampPopupToScreen(popup, POPUP_W, POPUP_H)
-    end
-    popup:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-    popup:EnableMouse(true)
-
-    local bg = popup:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(0.06, 0.08, 0.10, 1)
-
-    -- 1 physical-pixel white border (announcement-popup chrome), scale-derived
-    -- so each edge stays exactly one physical pixel. Snap disabled.
-    local onePhys = 1 / (popup:GetEffectiveScale() or 1)
-    local BRD_A = 0.15
-    local function MakeEdge()
-        local t = popup:CreateTexture(nil, "BORDER")
-        t:SetColorTexture(1, 1, 1, BRD_A)
-        if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false); t:SetTexelSnappingBias(0) end
-        return t
-    end
-    local spT = MakeEdge(); spT:SetPoint("TOPLEFT", 0, 0); spT:SetPoint("TOPRIGHT", 0, 0); spT:SetHeight(onePhys)
-    local spB = MakeEdge(); spB:SetPoint("BOTTOMLEFT", 0, 0); spB:SetPoint("BOTTOMRIGHT", 0, 0); spB:SetHeight(onePhys)
-    local spL = MakeEdge(); spL:SetPoint("TOPLEFT", spT, "BOTTOMLEFT"); spL:SetPoint("BOTTOMLEFT", spB, "TOPLEFT"); spL:SetWidth(onePhys)
-    local spR = MakeEdge(); spR:SetPoint("TOPRIGHT", spT, "BOTTOMRIGHT"); spR:SetPoint("BOTTOMRIGHT", spB, "TOPRIGHT"); spR:SetWidth(onePhys)
+    -- Escape is disabled (no onEscape): the user must click Reload UI so their
+    -- addon selection always takes effect. The popup is modal with no Escape
+    -- route, so it is clamped to never exceed the display.
+    local dimmer, popup = EllesmereUI.BuildPopupShell("EUIFirstInstall", {
+        w = POPUP_W, h = POPUP_H, bump = 1, clamp = true,
+    })
 
     -- Decorative header visual (announcement-popup style): three mini module
     -- cards echoing the three picker columns below, each with the green top
@@ -531,13 +491,6 @@ local function ShowFirstInstallPopup()
     doneBtn:SetScript("OnClick", function()
         -- Always reload so the addon enable/disable selections take effect.
         Close(true)
-    end)
-
-    -- Escape is disabled: the user must click Reload UI so their addon
-    -- selection always takes effect. Consume Escape; let other keys propagate.
-    popup:EnableKeyboard(true)
-    popup:SetScript("OnKeyDown", function(self, key)
-        self:SetPropagateKeyboardInput(key ~= "ESCAPE")
     end)
 
     dimmer:Show()

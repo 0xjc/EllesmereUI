@@ -71,42 +71,12 @@ local function ShowStyleChoicePopup()
         or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.ttf"
     local EG = ELLESMERE_GREEN
     local POPUP_W, POPUP_H = 700, 470
-    local ppScale = (EllesmereUI.GetPopupScale and EllesmereUI.GetPopupScale()) or 1
-
-    local dimmer = CreateFrame("Frame", "EUIStyleChoiceDimmer", UIParent)
-    dimmer:SetFrameStrata("FULLSCREEN_DIALOG")
-    dimmer:SetAllPoints(UIParent)
-    dimmer:EnableMouse(true)
-    dimmer:EnableMouseWheel(true)
-    dimmer:SetScript("OnMouseWheel", function() end)
-    dimmer:SetScale(ppScale)
-    local dimTex = dimmer:CreateTexture(nil, "BACKGROUND")
-    dimTex:SetAllPoints()
-    dimTex:SetColorTexture(0, 0, 0, 0.45)
-
-    local popup = CreateFrame("Frame", "EUIStyleChoicePopup", dimmer)
-    popup:SetScale((EllesmereUI.PopupBump and EllesmereUI.PopupBump(1.15)) or 1.15)
-    popup:SetFrameStrata("FULLSCREEN_DIALOG")
-    popup:SetFrameLevel(dimmer:GetFrameLevel() + 10)
-    PP.Size(popup, POPUP_W, POPUP_H)
-    popup:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-    popup:EnableMouse(true)
-
-    local bg = popup:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(0.06, 0.08, 0.10, 1)
-
-    local onePhys = 1 / (popup:GetEffectiveScale() or 1)
-    local function MakeEdge()
-        local t = popup:CreateTexture(nil, "BORDER")
-        t:SetColorTexture(1, 1, 1, 0.15)
-        if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false); t:SetTexelSnappingBias(0) end
-        return t
-    end
-    local spT = MakeEdge(); spT:SetPoint("TOPLEFT", 0, 0); spT:SetPoint("TOPRIGHT", 0, 0); spT:SetHeight(onePhys)
-    local spB = MakeEdge(); spB:SetPoint("BOTTOMLEFT", 0, 0); spB:SetPoint("BOTTOMRIGHT", 0, 0); spB:SetHeight(onePhys)
-    local spL = MakeEdge(); spL:SetPoint("TOPLEFT", spT, "BOTTOMLEFT"); spL:SetPoint("BOTTOMLEFT", spB, "TOPLEFT"); spL:SetWidth(onePhys)
-    local spR = MakeEdge(); spR:SetPoint("TOPRIGHT", spT, "BOTTOMRIGHT"); spR:SetPoint("BOTTOMRIGHT", spB, "TOPRIGHT"); spR:SetWidth(onePhys)
+    -- Escape = the EllesmereUI look (the non-destructive default).
+    local ChooseEUI
+    local dimmer, popup = EllesmereUI.BuildPopupShell("EUIStyleChoice", {
+        w = POPUP_W, h = POPUP_H, bump = 1.15, dimAlpha = 0.45,
+        onEscape = function() ChooseEUI() end,
+    })
 
     local eyebrow = popup:CreateFontString(nil, "OVERLAY")
     eyebrow:SetFont(FONT, 13, "")
@@ -129,7 +99,7 @@ local function ShowStyleChoicePopup()
     PP.Point(desc, "TOP", title, "BOTTOM", 0, -10)
     desc:SetText("EllesmereUI's features work with every look. Change your mind any time under Global Settings > Style.")
 
-    local function ChooseEUI()
+    ChooseEUI = function()
         Stamp()
         dimmer:Hide()
         Release()
@@ -161,13 +131,6 @@ local function ShowStyleChoicePopup()
     footnote:SetJustifyH("CENTER")
     PP.Point(footnote, "BOTTOM", popup, "BOTTOM", 0, 14)
     footnote:SetText("Blizzard Style and Classic WoW UI reload the UI once to apply. Each module can be switched separately later.")
-
-    -- Escape = the EllesmereUI look (the non-destructive default).
-    popup:EnableKeyboard(true)
-    popup:SetScript("OnKeyDown", function(self, key)
-        self:SetPropagateKeyboardInput(key ~= "ESCAPE")
-        if key == "ESCAPE" then ChooseEUI() end
-    end)
 
     dimmer:Show()
 end
