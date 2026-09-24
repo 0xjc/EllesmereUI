@@ -11294,6 +11294,14 @@ initFrame:SetScript("OnEvent", function(self)
                       requireState="disabled",
                       get=function() return SValSupported("buffIconZoom", 0.07) end,
                       set=function(v) SSetSupported("buffIconZoom", v) end },
+                    { type="toggle", label="Dispel Type Borders",
+                      disabled=function() return selectedUnit == "player" or EllesmereUI.BlizzStyle.Get("unitframes") end,
+                      disabledTooltip=function()
+                          if selectedUnit == "player" then return "This option is not available on the player frame" end
+                          return "This option requires Blizzard Style to be disabled"
+                      end,
+                      get=function() return selectedUnit ~= "player" and SValSupported("buffDispelBorder", false) == true end,
+                      set=function(v) SSetSupported("buffDispelBorder", v) end },
                 },
             })
             MakeCogBtn(leftRgn, buffCogShow, nil, nil, BuffDisabled)
@@ -16200,6 +16208,11 @@ initFrame:SetScript("OnEvent", function(self)
                         { type="slider", label="Max Per Row", min=1, max=20, step=1,
                           get=function() return db.profile.boss.buffMaxPerRow or db.profile.boss.maxBuffs or 4 end,
                           set=function(v) db.profile.boss.buffMaxPerRow = v; ReloadAndUpdate() end },
+                        { type="toggle", label="Dispel Type Borders",
+                          disabled=function() return EllesmereUI.BlizzStyle.Get("unitframes") end,
+                          disabledTooltip="This option requires Blizzard Style to be disabled",
+                          get=function() return db.profile.boss.buffDispelBorder == true end,
+                          set=function(v) db.profile.boss.buffDispelBorder = v; ReloadAndUpdate() end },
                     },
                 })
                 local cogBtn = BossCogBtn(leftRgn, bBuffCogShowRaw)
