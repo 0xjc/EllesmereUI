@@ -65,11 +65,6 @@ local function FP(...)
     return table.concat(FP_JOIN, "|")
 end
 
-local function Prof()
-    local p = ns.NP_GetProfile and ns.NP_GetProfile()
-    return p or (ns.NP_GetDefaults and ns.NP_GetDefaults()) or {}
-end
-
 local function PVal(key)
     local p = ns.NP_GetProfile and ns.NP_GetProfile()
     if p and p[key] ~= nil then return p[key] end
@@ -174,7 +169,7 @@ local function ApplyNPText(button, d, style)
             button:SetMouseMotionEnabled(motion)
         end
     end
-    local path = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("nameplates")) or "Fonts\\FRIZQT__.TTF"
+    local path = (EllesmereUI.GetFontPath("nameplates")) or "Fonts\\FRIZQT__.TTF"
     if d.duration then
         local fontKey = path .. "|" .. (style.durSize or 11)
         if d.npDurFont ~= fontKey then
@@ -1533,7 +1528,7 @@ local function StyleFPFor(kind, idx)
     local durFP = FP(dur.size, dur.x, dur.y, dur.pos, dur.color.r, dur.color.g, dur.color.b)
     local stkFP = FP(stk.size, stk.x, stk.y, stk.pos, stk.color.r, stk.color.g, stk.color.b)
     return FP(kind, size, height, durFP, stkFP, purge,
-        EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("nameplates") or "",
+        EllesmereUI.GetFontPath("nameplates") or "",
         -- NOT `fn(kind) or true`: the getter legitimately returns false, and
         -- `false or true` would pin this fingerprint input to a constant so
         -- the toggle never restyles (the ternary-falsy trap).

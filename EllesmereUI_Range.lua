@@ -248,7 +248,7 @@ end
 -- a restricted query degrades to nil (no display) instead of a blocked action.
 local function ItemChecksAllowed(unit)
     if not (InCombatLockdown()
-        or (EllesmereUI.InProtectedInstance and EllesmereUI.InProtectedInstance())) then
+        or (EllesmereUI.InProtectedInstance())) then
         return true
     end
     local can = UnitCanAttack("player", unit)

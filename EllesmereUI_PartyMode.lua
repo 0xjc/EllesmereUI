@@ -267,9 +267,7 @@ local function GetSoundTables()
     if not _soundPaths then
         local EUI = _G.EllesmereUI
         _soundPaths, _soundNames, _soundOrder = EUI.BuildAlertSoundTables()
-        if EUI.AppendSharedMediaSounds then
-            EUI.AppendSharedMediaSounds(_soundPaths, _soundNames, _soundOrder)
-        end
+        EUI.AppendSharedMediaSounds(_soundPaths, _soundNames, _soundOrder)
     end
     return _soundPaths, _soundNames, _soundOrder
 end

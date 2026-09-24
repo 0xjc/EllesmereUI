@@ -8,22 +8,6 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 
 local floor = math.floor
 
---- Round all width/height values in a table to whole pixels. Call from each child
---- addon's OnInitialize after its DB loads. keys: field names to round (e.g.
---- {"width", "height"}); tables: profile sub-tables to scan.
-function EllesmereUI.RoundSizeFields(keys, tables)
-    for _, tbl in ipairs(tables) do
-        if type(tbl) == "table" then
-            for _, key in ipairs(keys) do
-                local v = tbl[key]
-                if type(v) == "number" then
-                    tbl[key] = floor(v + 0.5)
-                end
-            end
-        end
-    end
-end
-
 --------------------------------------------------------------------------------
 --  ONE-TIME MIGRATION RUNNER
 --

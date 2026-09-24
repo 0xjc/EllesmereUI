@@ -1267,14 +1267,6 @@ function AK.RestyleSoon(styleKey)
     restyler:Show()
 end
 
--- Module hook: park a style key for the restriction-lift drain WITHOUT
--- queueing it now. For module-side pcall'd button calls that were denied
--- under secrecy -- re-queueing immediately would just spin while the
--- restriction holds; the lift watcher re-runs the key when it can succeed.
-function AK.DeferRestyle(styleKey)
-    if styleKey then deferredRestyles[styleKey] = true end
-end
-
 ------------------------------------------------------------------------------
 -- Restriction-lift watcher. Aura secrecy is instance-gated (combat end, encounter end,
 -- zoning) plus the /euidev forced-restriction CVars; on each edge, re-probe and drain
@@ -1782,10 +1774,6 @@ end)
 function AK.RequestContainer(parent, unitToken, spec, callback)
     local container, slotFrames = AK.CreateContainer(parent, unitToken, spec)
     if callback then callback(container, slotFrames) end
-end
-
-function AK.GetContainerData(container)
-    return containerData[container]
 end
 
 -- Releases a swapped-out container's tracked slot buttons from the restyle registry.

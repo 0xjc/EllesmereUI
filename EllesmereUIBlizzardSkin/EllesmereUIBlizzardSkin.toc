@@ -17,10 +17,10 @@ EllesmereUIBlizzardSkin_SocketPanel.lua
 EllesmereUIBlizzardSkin_InspectSheet.lua
 EllesmereUIBlizzardSkin_DragonRiding.lua
 EllesmereUIBlizzardSkin_GreatVault.lua
-EllesmereUIBlizzardSkin_GroupFinder.lua
 
 # Window Skins (shared engine + per-window packs)
 EllesmereUIBlizzardSkin_WindowEngine.lua
+EllesmereUIBlizzardSkin_GroupFinder.lua
 EllesmereUIBlizzardSkin_WindowPacks.lua
 # WoW Forever only: plain window treatment + stats sidebar for the character sheet
 EllesmereUIBlizzardSkin_CharacterSheetForever.lua

@@ -19,14 +19,7 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 -------------------------------------------------------------------------------
 local _, ns = ...
 
-local function DeepCopy(t)
-    local fn = EllesmereUI.Lite and EllesmereUI.Lite.DeepCopy
-    if fn then return fn(t) end
-    if type(t) ~= "table" then return t end
-    local r = {}
-    for k, v in pairs(t) do r[k] = DeepCopy(v) end
-    return r
-end
+local DeepCopy = EllesmereUI.Lite.DeepCopy
 
 local function GetSA()
     if not EllesmereUIDB then return nil end

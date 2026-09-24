@@ -199,7 +199,7 @@ local _sfFile, _sfSize, _sfFlags
 local function ApplySubtitleFont()
     local file = GetFont()
     local size = GetSubTextSize()
-    local flags = (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG"
+    local flags = (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG"
     if file == _sfFile and size == _sfSize and flags == _sfFlags then return end
     _sfFile, _sfSize, _sfFlags = file, size, flags
     subtitleFont:SetFont(file, size, flags)
@@ -355,11 +355,6 @@ local function EnsureNameUnconstrained(nameFS)
     if nameFS.SetTextHeight then hooksecurefunc(nameFS, "SetTextHeight", ApplyNameTextHeight) end
 end
 
-local function ApplyFontToNameplate(nameplate)
-    -- No-op: font is applied globally via the SystemFont_NamePlate override.
-end
-ns.ApplyFontToNameplate = ApplyFontToNameplate
-
 -- Exposed so the options panel can live-apply a new friendly name-only size.
 -- Re-running the override re-reads GetFriendlyNameSize and resizes the shared
 -- font object; the name FontStrings inherit it on the next render.
@@ -401,19 +396,6 @@ local function ScheduleNameSizeReapply(force)
         -- the existing debounce, so a burst costs one sweep.
         if ReanchorAllPlayerNames then ReanchorAllPlayerNames() end
     end)
-end
-
--- Exposed so the options panel can trigger a refresh after font changes
-function ns.RefreshFriendlyFontOverride()
-    if IsNameOnlyMode() then
-        -- Re-style all currently visible friendly nameplates
-        for i, nameplate in ipairs(C_NamePlate.GetNamePlates(true)) do
-            local unit = nameplate.namePlateUnitToken
-            if unit and not UnitCanAttack("player", unit) and not UnitIsUnit(unit, "player") then
-                ApplyFontToNameplate(nameplate)
-            end
-        end
-    end
 end
 
 -------------------------------------------------------------------------------
