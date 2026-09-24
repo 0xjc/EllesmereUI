@@ -249,7 +249,7 @@ local function AppendIncludeLinks(chain, s, unit)
     if mm then
         chain[#chain + 1] = { key = "incmine|" .. CandFP({ includeSpellIDs = mm }),
             tokens = { "HARMFUL", "PLAYER" },
-            cand = { includeSpellIDs = mm, excludeSpellIDs = {} }, inc = true }
+            cand = { includeSpellIDs = mm, excludeSpellIDs = {} }, inc = true, mine = true }
     end
 end
 
@@ -1694,25 +1694,49 @@ end
 -- Tracked Auras on a FRIENDLY target / focus
 --
 -- The include links ("inc" / "incmine") filter by spell ID alone, and the engine
--- skips spell-ID candidates for debuffs on a unit the player can assist -- so on
--- a friendly target or focus those groups would accept EVERY debuff (and the
--- other groups' tracked-spell excludes are skipped too, doubling every debuff the
--- mode shows). While the unit can be assisted the include groups park at 0;
--- everything else on the frame is unchanged. An unreadable answer (pcall failure
--- or a secret value) leaves them live, as before. Re-checked only on the unit's
--- own change event and UNIT_FACTION, registered only while that unit has an
--- active include group (zero cost otherwise). Boss frames are left as they are.
+-- skips spell-ID candidates for debuffs on a unit the player can assist (unless
+-- the spell is never-secret) -- so on a friendly target or focus those groups
+-- would accept every other debuff (and the other groups' tracked-spell excludes
+-- are skipped too, doubling every debuff the mode shows). While the unit can be
+-- assisted the include groups park at 0; everything else on the frame is
+-- unchanged. Only Tracked Auras is the exception: the include links are its
+-- whole display, so parking would blank the frame. There the links NARROW
+-- instead (ApplyGroupConfig): player-cast only, which keeps the never-secret
+-- lockouts people track and drops the NPC/boss debuffs; if both links exist
+-- the any-caster one also drops your casts and "incmine" lists every tracked
+-- spell, so no debuff renders twice. What narrowing cannot drop: other
+-- players' debuffs that are not never-secret pass the spell check unfiltered
+-- (in PvP, enemy players' debuffs on that friendly unit), and NPC-cast tracked
+-- spells are lost there. The check matches the engine's (immune and
+-- uninteractable units count as assistable). An unreadable answer (pcall
+-- failure or a secret value) leaves the groups live, as before. A missing
+-- unit (no target, focus out of range) keeps the last real answer, and the
+-- frame's own show (unit watch, the unit existing again -- a focus back in
+-- range fires no change event) re-checks it. Also re-checked on target/focus
+-- changes (unitWatcher, below), on the unit's UNIT_FACTION (registered only
+-- while that unit has an active include group), and on the player's own
+-- faction flips (the player recovery watcher). Boss frames are left as they are.
 --   state[unit] = { keys = { [groupKey] = true }, num = liveCount, parked = bool }
 ------------------------------------------------------------------------------
-local IncGate = { state = {} }
+local IncGate = { state = {}, hooked = setmetatable({}, { __mode = "k" }) }
 
 function IncGate.Assistable(unit)
-    local ok, can = pcall(UnitCanAssist, "player", unit)
+    local ok, can = pcall(UnitCanAssist, "player", unit, true, true)
     if ok and not (issecretvalue and issecretvalue(can)) and can == true then return true end
     return false
 end
 
--- Events follow the live state: registered per unit only while it holds keys.
+-- The gate's answer for config passes: live while the unit exists, else the
+-- last real answer (false before there was one).
+function IncGate.Answer(unit)
+    if UnitExists(unit) then return IncGate.Assistable(unit) end
+    local g = IncGate.state[unit]
+    return g ~= nil and g.parked == true
+end
+
+-- UNIT_FACTION follows the live state: registered per unit only while it holds
+-- keys. The unit change events ride the always-on unitWatcher instead, so a
+-- target swap runs the gate before its one aura re-parse.
 function IncGate.Sync()
     local st = IncGate.state
     local sig = (st.target and 1 or 0) + (st.focus and 2 or 0)
@@ -1728,8 +1752,6 @@ function IncGate.Sync()
         IncGate.frame = f
         f:SetScript("OnEvent", IncGate.OnEvent)
     end
-    if st.target then f:RegisterEvent("PLAYER_TARGET_CHANGED") else f:UnregisterEvent("PLAYER_TARGET_CHANGED") end
-    if st.focus then f:RegisterEvent("PLAYER_FOCUS_CHANGED") else f:UnregisterEvent("PLAYER_FOCUS_CHANGED") end
     f:UnregisterEvent("UNIT_FACTION")
     if st.target and st.focus then
         f:RegisterUnitEvent("UNIT_FACTION", "target", "focus")
@@ -1747,10 +1769,11 @@ function IncGate.Store(unit, keys, num)
     local st = IncGate.state
     local g
     if keys then
-        g = st[unit] or {}
-        st[unit] = g
+        g = st[unit]
+        local parked = IncGate.Answer(unit)
+        if not g then g = {}; st[unit] = g end
         g.keys, g.num = keys, num
-        g.parked = IncGate.Assistable(unit)
+        g.parked = parked
     else
         st[unit] = nil
     end
@@ -1762,17 +1785,20 @@ end
 -- tracked-spell excludes follow the park state too (ApplyGroupConfig), so a flip
 -- forces the element's config pass (which re-stores the counts) and then
 -- re-parses: membership was decided under the old answer, and re-setting
--- candidates is what makes the engine re-decide it.
-function IncGate.Apply(unit)
+-- candidates is what makes the engine re-decide it. noParse: the caller
+-- re-parses right after (unitWatcher's RefreshUnit), so only one parse runs.
+function IncGate.Apply(unit, noParse)
     local g = IncGate.state[unit]
     local entry = registry[unit]
     if not (g and entry and entry.debuffs) or entry.building then return end
+    -- No unit: keep the last answer (nothing is shown; the next unit re-checks).
+    if not UnitExists(unit) then return end
     local park = IncGate.Assistable(unit)
     if park == g.parked then return end
     g.parked = park
     entry.cfgDirty = true
     if entry.frame and ns.UF_ReloadAuraContainers then ns.UF_ReloadAuraContainers(entry.frame, unit) end
-    entry.debuffs:UpdateAllAuras()
+    if not noParse then entry.debuffs:UpdateAllAuras() end
 end
 
 -- UNIT_FACTION can fire in bursts: one coalesced check a frame later.
@@ -1783,12 +1809,8 @@ function IncGate.Flush()
     if f then IncGate.Apply("focus") end
 end
 
-function IncGate.OnEvent(_, event, unit)
-    if event == "PLAYER_TARGET_CHANGED" then
-        IncGate.Apply("target")
-    elseif event == "PLAYER_FOCUS_CHANGED" then
-        IncGate.Apply("focus")
-    elseif unit == "target" or unit == "focus" then
+function IncGate.OnEvent(_, _, unit)
+    if unit == "target" or unit == "focus" then
         if not (IncGate.pendT or IncGate.pendF) then C_Timer.After(0, IncGate.Flush) end
         if unit == "target" then IncGate.pendT = true else IncGate.pendF = true end
     end
@@ -1868,7 +1890,7 @@ local function ApplyGroupConfig(container, unit, base, s, chain, declared)
             -- Not while IncGate parks the include links (a friendly target or
             -- focus): a never-secret tracked spell still honours the excludes
             -- there and would show nowhere.
-            if incLink and not ((unit == "target" or unit == "focus") and IncGate.Assistable(unit)) then
+            if incLink and not ((unit == "target" or unit == "focus") and IncGate.Answer(unit)) then
                 for id, v in pairs(uinc) do if v then ex[id] = true end end
             end
         end
@@ -1918,6 +1940,33 @@ local function ApplyGroupConfig(container, unit, base, s, chain, declared)
     -- (IncGate above); the debuff element owns the unit's gate state.
     local incPark = false
     if not isBuff then incPark = IncGate.Store(unit, incKeys, num) end
+    -- Only Tracked Auras (the chain is nothing but include links) narrows
+    -- instead of parking, see IncGate above: per-pass overrides of the links'
+    -- own tokens and candidates, which the next pass after the unit turns
+    -- hostile restores from the chain.
+    if incPark then
+        local anyC, mineC, onlyInc = nil, nil, true
+        for i = 1, #chain do
+            local c = chain[i]
+            if not c.inc then onlyInc = false break end
+            if c.mine then mineC = c else anyC = c end
+        end
+        if onlyInc then
+            incPark = false
+            if anyC then
+                local cd = { isFromPlayerOrPlayerPet = true }
+                for k, v in pairs(anyC.cand) do cd[k] = v end
+                active[anyC.key] = cd
+                if mineC then tokensOf[anyC.key] = { "HARMFUL", "!PLAYER" } end
+            end
+            if anyC and mineC then
+                local ids = {}
+                for id in pairs(anyC.cand.includeSpellIDs) do ids[id] = true end
+                for id in pairs(mineC.cand.includeSpellIDs) do ids[id] = true end
+                active[mineC.key] = { includeSpellIDs = ids, excludeSpellIDs = {} }
+            end
+        end
+    end
     for eff, info in pairs(declared) do
         if active[eff] ~= nil then
             local n = num
@@ -2410,6 +2459,11 @@ do
         pending = true
         C_Timer.After(0, function()
             pending = false
+            -- The player's own faction/PvP flip changes whether the target and
+            -- focus can be assisted: re-check the Tracked Auras gate (a no-op
+            -- unless that unit holds include groups and the answer flipped).
+            IncGate.Apply("target")
+            IncGate.Apply("focus")
             local entry = registry.player
             if not entry or entry.building then return end
             entry.cfgDirty = true
@@ -2431,9 +2485,13 @@ unitWatcher:RegisterEvent("PLAYER_FOCUS_CHANGED")
 unitWatcher:RegisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT")
 unitWatcher:RegisterEvent("PLAYER_REGEN_ENABLED")
 unitWatcher:SetScript("OnEvent", function(_, event)
+    -- The Tracked Auras gate first (a friendly/hostile flip re-configures the
+    -- debuff groups), then the one re-parse.
     if event == "PLAYER_TARGET_CHANGED" then
+        IncGate.Apply("target", true)
         RefreshUnit("target")
     elseif event == "PLAYER_FOCUS_CHANGED" then
+        IncGate.Apply("focus", true)
         RefreshUnit("focus")
     elseif event == "PLAYER_REGEN_ENABLED" then
         -- Filter-set swaps requested during combat run now.
@@ -2547,6 +2605,14 @@ local function BuildUnitContainers(frame, unit)
         entry.buffs = AdoptShell(frame, unit, "buffs")
         entry.debuffs = AdoptShell(frame, unit, "debuffs")
         registry[unit] = entry
+        -- Tracked Auras gate: a focus coming back into range (or any unit
+        -- appearing without a change event) shows the frame through unit
+        -- watch, so re-check there; the container parses on its next update,
+        -- after this. A no-op unless the unit holds include groups.
+        if (unit == "target" or unit == "focus") and not IncGate.hooked[frame] then
+            IncGate.hooked[frame] = true
+            frame:HookScript("OnShow", function() IncGate.Apply(unit) end)
+        end
         return "again"
     end
 
