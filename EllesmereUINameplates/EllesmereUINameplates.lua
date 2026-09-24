@@ -3916,7 +3916,7 @@ do
 end
 
 function ns.GetActiveKickSpell()
-    return EllesmereUI and EllesmereUI.GetActiveKickSpell and EllesmereUI.GetActiveKickSpell()
+    return EllesmereUI.GetActiveKickSpell()
 end
 -- Cast overlay uses the same tint as the on-plate cast bar.
 ns.ComputeCastBarTint = function(readyTint, baseTint)
@@ -4515,12 +4515,12 @@ local function GetClassPipColor(classFile, powerKey)
         if powerKey then
             local alias = powerKey:match("^(.+)_BAR$")
             local key = alias or powerKey
-            local c = EllesmereUI.GetPowerColor and EllesmereUI.GetPowerColor(key)
+            local c = EllesmereUI.GetPowerColor(key)
             if c then return { c.r, c.g, c.b } end
         end
-        local rc = EllesmereUI.GetResourceColor and EllesmereUI.GetResourceColor(classFile)
+        local rc = EllesmereUI.GetResourceColor(classFile)
         if rc then return { rc.r, rc.g, rc.b } end
-        local cc = EllesmereUI.GetClassColor and EllesmereUI.GetClassColor(classFile)
+        local cc = EllesmereUI.GetClassColor(classFile)
         if cc then return { cc.r, cc.g, cc.b } end
     end
     return CP_DEFAULT_COLOR
@@ -5319,16 +5319,12 @@ local function EnableClassPowerWatcher()
                 end
                 local unit, castGUID, spellID = ...
                 if unit == "player" and EllesmereUI then
-                    if EllesmereUI.HandleTipOfTheSpear then
-                        EllesmereUI.HandleTipOfTheSpear(event, unit, castGUID, spellID)
-                    end
+                    EllesmereUI.HandleTipOfTheSpear(event, unit, castGUID, spellID)
                 end
                 RefreshClassPower()
             elseif event == "PLAYER_DEAD" or event == "PLAYER_ALIVE" then
                 if not _G._ERB_AceDB and EllesmereUI then
-                    if EllesmereUI.HandleTipOfTheSpear then
-                        EllesmereUI.HandleTipOfTheSpear(event)
-                    end
+                    EllesmereUI.HandleTipOfTheSpear(event)
                 end
                 RefreshClassPower()
             elseif event == "PLAYER_REGEN_ENABLED" then
@@ -8861,7 +8857,7 @@ function NameplateFrame:ShowInterrupted(interrupterGUID)
         self.castName:SetWidth(hasInterrupter and math.max(castW - 8, 20) or castW * cnWPct / 100)
     end
 
-    local interruptedText = (EllesmereUI and EllesmereUI.L and EllesmereUI.L("Interrupted")) or "Interrupted"
+    local interruptedText = (EllesmereUI.L("Interrupted")) or "Interrupted"
     if hasInterrupter then
         -- The base FontString color carries SECRET class RGB; only the clean
         -- localized label/punctuation uses an inline profile-color escape.
@@ -9742,14 +9738,12 @@ function npAddon:OnInitialize()
     -- so the apply loop no-ops; SetUnit fades new plates as they spawn).
     if ns.NT_RefreshSetting then ns.NT_RefreshSetting() end
     -- Append SharedMedia textures to runtime tables so SM texture keys resolve at runtime
-    if EllesmereUI.AppendSharedMediaTextures then
-        EllesmereUI.AppendSharedMediaTextures(
-            ns.healthBarTextureNames,
-            ns.healthBarTextureOrder,
-            nil,
-            ns.healthBarTextures
-        )
-    end
+    EllesmereUI.AppendSharedMediaTextures(
+        ns.healthBarTextureNames,
+        ns.healthBarTextureOrder,
+        nil,
+        ns.healthBarTextures
+    )
 end
 function npAddon:OnEnable()
     -- Re-read profile: PreSeedSpecProfile may have re-pointed db.profile between OnInitialize and OnEnable.

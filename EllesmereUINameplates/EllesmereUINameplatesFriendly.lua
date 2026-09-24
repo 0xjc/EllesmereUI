@@ -199,7 +199,7 @@ local _sfFile, _sfSize, _sfFlags
 local function ApplySubtitleFont()
     local file = GetFont()
     local size = GetSubTextSize()
-    local flags = (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG"
+    local flags = (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG"
     if file == _sfFile and size == _sfSize and flags == _sfFlags then return end
     _sfFile, _sfSize, _sfFlags = file, size, flags
     subtitleFont:SetFont(file, size, flags)
