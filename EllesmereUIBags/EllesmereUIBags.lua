@@ -232,7 +232,7 @@ local function GetItemLevelAtLocation(loc, itemLink)
 end
 local function GetFont() return EUI.GetFontPath("bags") end
 local function SetBagFont(fs, size)
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, true) end
+    EllesmereUI.PrimeFontShadow(fs, true)
     fs:SetFont(GetFont(), size, EUI.GetFontOutlineFlag("bags"))
 end
 local function GetAccentRGB()
@@ -996,11 +996,11 @@ local function CreateHeader()
 
     sort:SetScript("OnEnter", function(self)
         self.icon:SetAlpha(1)
-        if EUI.ShowWidgetTooltip then EUI.ShowWidgetTooltip(self, "Sort Items") end
+        EUI.ShowWidgetTooltip(self, "Sort Items")
     end)
     sort:SetScript("OnLeave", function(self)
         self.icon:SetAlpha(0.9)
-        if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+        EUI.HideWidgetTooltip()
     end)
 
     local sortLocked = false
@@ -1427,12 +1427,12 @@ local function CreateHeader()
     dice:SetScript("OnEnter", function(self)
         self.icon:SetVertexColor(0.88, 0.8, 0.7)
         self.icon:SetAlpha(1)
-        if EUI.ShowWidgetTooltip then EUI.ShowWidgetTooltip(self, "Randomize") end
+        EUI.ShowWidgetTooltip(self, "Randomize")
     end)
     dice:SetScript("OnLeave", function(self)
         self.icon:SetVertexColor(0.82, 0.7, 0.55)
         self.icon:SetAlpha(0.9)
-        if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+        EUI.HideWidgetTooltip()
     end)
     local function DoRandomize()
         LockSort()
@@ -1546,13 +1546,13 @@ local function CreateHeader()
     end)
     bagsBtn:SetScript("OnLeave", function(self)
         self.icon:SetAlpha(0.9)
-        if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+        EUI.HideWidgetTooltip()
     end)
     bagsBtn:SetScript("OnClick", function()
         if EUI_BagsWindow:IsVisible() then
             EUI_BagsWindow:Hide()
         else
-            if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+            EUI.HideWidgetTooltip()
             EUI_BagsWindow:Show()
             EUI_BagsWindow:RefreshBags()
         end
@@ -1775,8 +1775,8 @@ local function GetGoldTooltip()
 end
 
 local function EnsureGoldRows(count)
-    local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("bags")) or "Fonts\\FRIZQT__.TTF"
-    local fontFlags = (EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("bags")) or ""
+    local fontPath = (EllesmereUI.GetFontPath("bags")) or "Fonts\\FRIZQT__.TTF"
+    local fontFlags = (EllesmereUI.GetFontOutlineFlag("bags")) or ""
     local tt = GetGoldTooltip()
     for i = 1, count do
         if not _goldTTRows[i] then
@@ -2250,7 +2250,7 @@ function ns.SkinItemButton(btn, opts)
     btn._textOverlay = textOverlay
 
     local fontPath = GetFont()
-    local outline = (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG"
+    local outline = (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG"
     local countFS = btn.Count
     if countFS then
         countFS:SetParent(textOverlay)
@@ -2315,13 +2315,11 @@ function ns.CreateSidebarHeader(sidebar, label, dbKey)
 
     collapseBtn:SetScript("OnEnter", function(self)
         self._icon:SetAlpha(0.9)
-        if EUI.ShowWidgetTooltip then
-            EUI.ShowWidgetTooltip(self, BP()[dbKey] and "Expand Sidebar" or "Collapse Sidebar")
-        end
+        EUI.ShowWidgetTooltip(self, BP()[dbKey] and "Expand Sidebar" or "Collapse Sidebar")
     end)
     collapseBtn:SetScript("OnLeave", function(self)
         self._icon:SetAlpha(0.4)
-        if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+        EUI.HideWidgetTooltip()
     end)
     return hdr, collapseBtn, UpdateArrow
 end
@@ -2714,11 +2712,9 @@ do
         auto:SetPoint("BOTTOMRIGHT", d, "BOTTOMRIGHT", -10, 10)
         auto:SetScript("OnClick", function() DoSplit(true) end)
         auto:HookScript("OnEnter", function()
-            if EUI.ShowWidgetTooltip then
-                EUI.ShowWidgetTooltip(auto, EllesmereUI.L("Split this stack into empty slots repeatedly until only the chosen amount or less remains. Alt+Enter does the same."))
-            end
+            EUI.ShowWidgetTooltip(auto, EllesmereUI.L("Split this stack into empty slots repeatedly until only the chosen amount or less remains. Alt+Enter does the same."))
         end)
-        auto:HookScript("OnLeave", function() if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end end)
+        auto:HookScript("OnLeave", function() EUI.HideWidgetTooltip() end)
 
         d:SetScript("OnMouseWheel", function(_, delta) SetValue(Current() + (delta > 0 and 1 or -1)) end)
         d:SetScript("OnHide", function() eb:ClearFocus() end)
@@ -2957,7 +2953,7 @@ local function GetOrCreateSlot(idx)
         btn.KeystoneText:SetPoint("TOPLEFT", btn, "TOPLEFT", 1, -1)
         btn.KeystoneText:SetTextColor(1, 1, 1, 1)
     end
-    btn.KeystoneText:SetFont(fontPath, countSize, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
+    btn.KeystoneText:SetFont(fontPath, countSize, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
     btn.KeystoneText:SetText("")
     -- Keystone dungeon abbreviation (bottom-right, same position as stack count)
     if not btn.KeystoneDungeonText then
@@ -2966,7 +2962,7 @@ local function GetOrCreateSlot(idx)
         btn.KeystoneDungeonText:SetTextColor(1, 1, 1, 1)
         btn.KeystoneDungeonText:SetJustifyH("RIGHT")
     end
-    btn.KeystoneDungeonText:SetFont(fontPath, math.max(countSize - 2, 7), (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
+    btn.KeystoneDungeonText:SetFont(fontPath, math.max(countSize - 2, 7), (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
     btn.KeystoneDungeonText:SetText("")
 
     -- Equipment set name FontString is lazy-created in RenderButton: never
@@ -3054,7 +3050,7 @@ local function GetOrCreateReagentSlot(idx)
         btn.ItemLevelText:SetTextColor(1, 1, 1, 1)
     end
     local fontSize = BP().itemlevelFontSize or 12
-    btn.ItemLevelText:SetFont(STANDARD_TEXT_FONT, fontSize, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
+    btn.ItemLevelText:SetFont(STANDARD_TEXT_FONT, fontSize, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
     btn.ItemLevelText:SetText("")
 
     btn:HookScript("PostClick", function(self)
@@ -3110,15 +3106,15 @@ local function RefreshTextSizes()
     local bindTypeSize = BP().bagBindTypeFontSize or 11
     for _, btn in pairs(itemSlots) do
         if btn.Count then EllesmereUI.ApplyIconTextFont(btn.Count, fontPath, countSize, "bags") end
-        if btn.ItemLevelText then btn.ItemLevelText:SetFont(fontPath, ilvlSize, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG") end
-        if btn.KeystoneText then btn.KeystoneText:SetFont(fontPath, countSize, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG") end
-        if btn.KeystoneDungeonText then btn.KeystoneDungeonText:SetFont(fontPath, math.max(countSize - 2, 7), (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG") end
-        if btn.BindTypeText then btn.BindTypeText:SetFont(fontPath, bindTypeSize, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG") end
-        if btn.SetNameText then btn.SetNameText:SetFont(fontPath, BP().bagSetNameFontSize or 9, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG") end
+        if btn.ItemLevelText then btn.ItemLevelText:SetFont(fontPath, ilvlSize, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG") end
+        if btn.KeystoneText then btn.KeystoneText:SetFont(fontPath, countSize, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG") end
+        if btn.KeystoneDungeonText then btn.KeystoneDungeonText:SetFont(fontPath, math.max(countSize - 2, 7), (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG") end
+        if btn.BindTypeText then btn.BindTypeText:SetFont(fontPath, bindTypeSize, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG") end
+        if btn.SetNameText then btn.SetNameText:SetFont(fontPath, BP().bagSetNameFontSize or 9, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG") end
     end
     for _, btn in pairs(reagentSlots) do
         if btn.Count then EllesmereUI.ApplyIconTextFont(btn.Count, fontPath, countSize, "bags") end
-        if btn.ItemLevelText then btn.ItemLevelText:SetFont(STANDARD_TEXT_FONT, ilvlSize, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG") end
+        if btn.ItemLevelText then btn.ItemLevelText:SetFont(STANDARD_TEXT_FONT, ilvlSize, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG") end
     end
 end
 EUI_Bags.RefreshTextSizes = RefreshTextSizes
@@ -3311,7 +3307,7 @@ local function RenderButton(btn, data, _, col, row, startX, currentY, _, interac
                     btn.SetNameText:SetWordWrap(false)
                     btn.SetNameText:SetMaxLines(1)
                     btn.SetNameText:SetWidth(SLOT_SIZE - 4)
-                    btn.SetNameText:SetFont(GetFont(), BP().bagSetNameFontSize or 9, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
+                    btn.SetNameText:SetFont(GetFont(), BP().bagSetNameFontSize or 9, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
                 end
                 btn.SetNameText:SetText(data._setName)
             elseif btn.SetNameText then
@@ -3452,17 +3448,17 @@ local function GetOrCreatePinOverlay()
     ov.bg:SetAllPoints()
     ov.bg:SetColorTexture(0, 0, 0, 0.4)
     ov.plus = ov:CreateFontString(nil, "OVERLAY")
-    ov.plus:SetFont(GetFont(), 18, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
+    ov.plus:SetFont(GetFont(), 18, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
     ov.plus:SetPoint("CENTER", 0, 0)
     ov.plus:SetText("+")
     ov.plus:SetTextColor(1, 1, 1, 0.5)
     ov:SetScript("OnEnter", function(self)
         self.plus:SetTextColor(1, 1, 1, 1)
-        if EUI.ShowWidgetTooltip then EUI.ShowWidgetTooltip(self, "Pin an Item") end
+        EUI.ShowWidgetTooltip(self, "Pin an Item")
     end)
     ov:SetScript("OnLeave", function(self)
         self.plus:SetTextColor(1, 1, 1, 0.5)
-        if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+        EUI.HideWidgetTooltip()
     end)
     ov:RegisterForDrag("LeftButton")
     ov:SetScript("OnReceiveDrag", function()
@@ -3498,7 +3494,7 @@ local function GetOrCreatePinOverlay()
             if EUI_Bags.RefreshInventory then EUI_Bags:RefreshInventory() end
             return
         end
-        if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+        EUI.HideWidgetTooltip()
         EnterPinSelectMode()
     end)
     ov:Hide()
@@ -3520,17 +3516,17 @@ local function GetOrCreateAssignOverlay()
     ov.bg:SetAllPoints()
     ov.bg:SetColorTexture(0, 0, 0, 0.4)
     ov.plus = ov:CreateFontString(nil, "OVERLAY")
-    ov.plus:SetFont(GetFont(), 18, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
+    ov.plus:SetFont(GetFont(), 18, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
     ov.plus:SetPoint("CENTER", 0, 0)
     ov.plus:SetText("+")
     ov.plus:SetTextColor(1, 1, 1, 0.5)
     ov:SetScript("OnEnter", function(self)
         self.plus:SetTextColor(1, 1, 1, 1)
-        if EUI.ShowWidgetTooltip then EUI.ShowWidgetTooltip(self, "Assign an item to this category") end
+        EUI.ShowWidgetTooltip(self, "Assign an item to this category")
     end)
     ov:SetScript("OnLeave", function(self)
         self.plus:SetTextColor(1, 1, 1, 0.5)
-        if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+        EUI.HideWidgetTooltip()
     end)
     local function DoAssign(self)
         local cursorType, itemID = GetCursorInfo()
@@ -3542,7 +3538,7 @@ local function GetOrCreateAssignOverlay()
         end
         -- No cursor item: enter assign select mode (like pin select)
         if self._assignCatKey then
-            if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+            EUI.HideWidgetTooltip()
             EnterAssignSelectMode(self._assignCatKey)
         end
     end
@@ -4912,7 +4908,7 @@ local function BuildSidebarButtons(categoryCounts, totalCount)
                 local isSel = (self._isGroupHeader and self._groupName == selectedGroupName)
                     or (not self._isGroupHeader and self._catIdx == selectedCategoryIndex and not selectedGroupName)
                 if not isSel then self._bg:SetColorTexture(1, 1, 1, 0) end
-                if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+                EUI.HideWidgetTooltip()
             end)
             btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
             btn:SetScript("OnClick", function(self, button)
@@ -5465,13 +5461,11 @@ local function ShowRecentClearButton(hdr, hideBtn)
         cb._fs:SetTextColor(0.5, 0.5, 0.5, 0.7)
         cb:SetScript("OnEnter", function(self)
             self._fs:SetTextColor(1, 1, 1, 0.9)
-            if EUI.ShowWidgetTooltip then
-                EUI.ShowWidgetTooltip(self, "Clears the Recent Items list.")
-            end
+            EUI.ShowWidgetTooltip(self, "Clears the Recent Items list.")
         end)
         cb:SetScript("OnLeave", function(self)
             self._fs:SetTextColor(0.5, 0.5, 0.5, 0.7)
-            if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+            EUI.HideWidgetTooltip()
         end)
         cb:SetScript("OnClick", function()
             if EUI_Bags.ClearRecentItems then EUI_Bags:ClearRecentItems() end
@@ -5642,7 +5636,7 @@ function EUI_Bags:RefreshInventory()
         if EUI.ShowWidgetTooltip then
             EUI.ShowWidgetTooltip(EUI_Bags, "Positions can only be changed\nin the All Items, OneBag, or MultiBag views", { anchor = "cursor" })
             C_Timer.After(3, function()
-                if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+                EUI.HideWidgetTooltip()
             end)
         end
     end
@@ -6201,11 +6195,11 @@ function EUI_Bags:RefreshInventory()
                 hb._fs:SetTextColor(0.5, 0.5, 0.5, 0.7)
                 hb:SetScript("OnEnter", function(self)
                     self._fs:SetTextColor(1, 1, 1, 0.9)
-                    if EUI.ShowWidgetTooltip then EUI.ShowWidgetTooltip(self, "Hides Pinned Items. Re-show in settings.") end
+                    EUI.ShowWidgetTooltip(self, "Hides Pinned Items. Re-show in settings.")
                 end)
                 hb:SetScript("OnLeave", function(self)
                     self._fs:SetTextColor(0.5, 0.5, 0.5, 0.7)
-                    if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+                    EUI.HideWidgetTooltip()
                 end)
                 pinHdr._hideBtn = hb
             end
@@ -6294,11 +6288,11 @@ function EUI_Bags:RefreshInventory()
                 hb._fs:SetTextColor(0.5, 0.5, 0.5, 0.7)
                 hb:SetScript("OnEnter", function(self)
                     self._fs:SetTextColor(1, 1, 1, 0.9)
-                    if EUI.ShowWidgetTooltip then EUI.ShowWidgetTooltip(self, "Hides Recent Items. Re-show in settings.") end
+                    EUI.ShowWidgetTooltip(self, "Hides Recent Items. Re-show in settings.")
                 end)
                 hb:SetScript("OnLeave", function(self)
                     self._fs:SetTextColor(0.5, 0.5, 0.5, 0.7)
-                    if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+                    EUI.HideWidgetTooltip()
                 end)
                 recHdr._hideBtn = hb
             end
@@ -6517,13 +6511,11 @@ function EUI_Bags:RefreshInventory()
                     hb._fs:SetTextColor(0.5, 0.5, 0.5, 0.7)
                     hb:SetScript("OnEnter", function(self)
                         self._fs:SetTextColor(1, 1, 1, 0.9)
-                        if EUI.ShowWidgetTooltip then
-                            EUI.ShowWidgetTooltip(self, self._tooltip)
-                        end
+                        EUI.ShowWidgetTooltip(self, self._tooltip)
                     end)
                     hb:SetScript("OnLeave", function(self)
                         self._fs:SetTextColor(0.5, 0.5, 0.5, 0.7)
-                        if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+                        EUI.HideWidgetTooltip()
                     end)
                     hb:SetScript("OnClick", function(self)
                         BP()[self._dbKey] = false
@@ -7193,7 +7185,7 @@ function EUI_BagsReagent:RefreshInventory()
                             local loc = ItemLocation:CreateFromBagAndSlot(data.bag, data.slot)
                             local level = GetItemLevelAtLocation(loc, itemLink)
                             local fs = BP().itemlevelFontSize or 12
-                            btn.ItemLevelText:SetFont(STANDARD_TEXT_FONT, fs, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
+                            btn.ItemLevelText:SetFont(STANDARD_TEXT_FONT, fs, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
                             btn.ItemLevelText:SetText(level or "")
                             local r, g, b
                             if BP().itemlevelUseCustomColor and BP().itemlevelCustomColor then
@@ -7281,7 +7273,7 @@ function EUI_BagsWindow:RefreshBags()
         end)
         btn:SetScript("OnLeave", function(self)
             SetInsetBorderColor(self, self._bdrR, self._bdrG, self._bdrB, 1)
-            if EUI.HideWidgetTooltip then EUI.HideWidgetTooltip() end
+            EUI.HideWidgetTooltip()
         end)
 
         parent:ClearAllPoints()
@@ -7833,7 +7825,7 @@ local function StartAddon()
             if EUI_Bags:IsVisible() then
                 SyncBagFrameToFooter()
             end
-            if EllesmereUI and EllesmereUI.RefreshPage then EllesmereUI:RefreshPage() end
+            EllesmereUI:RefreshPage()
         end, EUI_Bags)
     end
 
