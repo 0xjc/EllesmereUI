@@ -29,13 +29,11 @@ local ADDON_NAME, ns = ...
 local EUI = EllesmereUI
 local issecretvalue = issecretvalue or function() return false end
 
--- Weak-keyed external state (prevents tainting Blizzard frames) ----------------
-local FFD = setmetatable({}, { __mode = "k" })
-local function GetFFD(frame)
-    local d = FFD[frame]
-    if not d then d = {}; FFD[frame] = d end
-    return d
-end
+-- Shared primitives from the window engine (loads before this file).
+local WSkin = ns.WSkin
+local FFD, GetFFD = WSkin.FFD, WSkin.GetFFD
+local Theme, ResolveTheme = WSkin.Theme, WSkin.ResolveTheme
+local SolidTex, FadeRegions = WSkin.SolidTex, WSkin.FadeRegions
 
 -------------------------------------------------------------------------------
 --  Enable gate. Independent toggle, default on (not tied to any master reskin).
@@ -45,32 +43,7 @@ local function SkinEnabled()
         and not (EllesmereUI.BlizzWindowSkinsKilled and EllesmereUI.BlizzWindowSkinsKilled())
 end
 
--------------------------------------------------------------------------------
---  Theme tokens. Resolved once at apply time; the accent is theme-driven and
---  re-registered via RegAccent so it tracks the user's accent color live.
--------------------------------------------------------------------------------
-local Theme = {}
-local function ResolveTheme()
-    local EG = (EUI and EUI.ELLESMERE_GREEN) or { r = 0.047, g = 0.824, b = 0.616 }
-    Theme.accR, Theme.accG, Theme.accB = EG.r or 0.047, EG.g or 0.824, EG.b or 0.616
-    -- Neutral dark gray glass (no color cast).
-    Theme.bgR, Theme.bgG, Theme.bgB, Theme.bgA = 0.08, 0.08, 0.08, 0.92
-    -- Darker gray for nested insets so sub-panels melt into the main backdrop.
-    Theme.insetR, Theme.insetG, Theme.insetB, Theme.insetA = 0.04, 0.04, 0.04, 0.85
-    -- Panel border (matches CharacterSheet grey).
-    Theme.brdR, Theme.brdG, Theme.brdB, Theme.brdA = 0.2, 0.2, 0.2, 1
-    Theme.fontPath = (EUI and EUI.GetFontPath and EUI.GetFontPath("blizzardSkin")) or STANDARD_TEXT_FONT
-end
-
-local function SolidTex(parent, layer, r, g, b, a, sublevel)
-    if EUI and EUI.SolidTex and sublevel == nil then
-        return EUI.SolidTex(parent, layer, r, g, b, a)
-    end
-    local t = parent:CreateTexture(nil, layer, nil, sublevel)
-    t:SetColorTexture(r, g, b, a)
-    return t
-end
-
+-- Unlike WSkin.AddBorder: OVERLAY/7 strips at the default container level.
 local function AddBorder(frame, r, g, b, a)
     if GetFFD(frame).border then return end
     local PP = EUI and (EUI.PanelPP or EUI.PP)
@@ -78,22 +51,6 @@ local function AddBorder(frame, r, g, b, a)
         PP.CreateBorder(frame, r or Theme.brdR, g or Theme.brdG, b or Theme.brdB, a or Theme.brdA, 1, "OVERLAY", 7)
         GetFFD(frame).border = true
     end
-end
-
--------------------------------------------------------------------------------
---  FadeRegions: alpha-out every direct texture region on a frame (+ NineSlice).
---  `keep` is a set of texture objects to leave alone. Visual-only, no Hide().
--------------------------------------------------------------------------------
-local function FadeRegions(frame, keep)
-    if not frame or frame:IsForbidden() then return end
-    local regions = { frame:GetRegions() }
-    for i = 1, #regions do
-        local r = regions[i]
-        if r and r.IsObjectType and r:IsObjectType("Texture") and not (keep and keep[r]) then
-            r:SetAlpha(0)
-        end
-    end
-    if frame.NineSlice then FadeRegions(frame.NineSlice, keep) end
 end
 
 -- Frames we have skinned; re-flattened whenever Blizzard repaints (tab switch,
@@ -117,14 +74,8 @@ local function Restrip()
                 if d.selWash then k[d.selWash] = true end
                 if d.leftWash then k[d.leftWash] = true end
                 if d.leftSep then k[d.leftSep] = true end
-            end
-            -- The Modern flat backdrop (AdoptShell) lives in the ENGINE's FFD,
-            -- not ours -- protect it too, or every restrip blanks the Modern
-            -- style's only background on this window.
-            local ed = ns.WSkin and ns.WSkin.FFD and ns.WSkin.FFD[frame]
-            if ed and ed.modernBg then
-                k = k or {}
-                k[ed.modernBg] = true
+                -- AdoptShell's Modern flat backdrop: the style's only background.
+                if d.modernBg then k[d.modernBg] = true end
             end
             FadeRegions(frame, k)
         end
@@ -147,9 +98,7 @@ local function SkinAtlasPanel(frame)
     if d.topBar then keep[d.topBar] = true end
     if d.leftWash then keep[d.leftWash] = true end
     if d.leftSep then keep[d.leftSep] = true end
-    -- Spare the engine-owned Modern flat backdrop (see Restrip).
-    local ed0 = ns.WSkin and ns.WSkin.FFD and ns.WSkin.FFD[frame]
-    if ed0 and ed0.modernBg then keep[ed0.modernBg] = true end
+    if d.modernBg then keep[d.modernBg] = true end
     FadeRegions(frame, keep)
     Register(frame, true)
     if not d.bg then
@@ -552,8 +501,6 @@ local function UpdateTabVisuals()
             if d.activeHL then d.activeHL:SetShown(isActive) end
         end
     end
-    -- Registered lazily: the engine file loads after this one, so ns.WSkin
-    -- is only reachable at runtime.
     if not _gfLooksHooked and ns.WSkin and ns.WSkin.OnLooksChanged then
         _gfLooksHooked = true
         ns.WSkin.OnLooksChanged(UpdateTabVisuals)

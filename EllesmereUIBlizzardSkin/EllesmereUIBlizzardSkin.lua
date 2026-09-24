@@ -3236,7 +3236,7 @@ do
         return frame and frame.IsProtected and frame:IsProtected()
     end
     local function FireHoveredOnEnter()
-        local foci = (GetMouseFoci and GetMouseFoci()) or (GetMouseFocus and { GetMouseFocus() })
+        local foci = GetMouseFoci()
         local anchorFrame = foci and foci[1]
         if IsFrameForbidden(anchorFrame) then anchorFrame = nil end
         if foci then

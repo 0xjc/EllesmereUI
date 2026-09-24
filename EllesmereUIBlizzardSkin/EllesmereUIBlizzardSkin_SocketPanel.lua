@@ -31,7 +31,7 @@ local GetItemGemFn     = C_Item and C_Item.GetItemGem
 local GetItemStatsFn   = C_Item and C_Item.GetItemStats
 local GetInfoInstant   = C_Item and C_Item.GetItemInfoInstant
 local GetIconByID      = C_Item and C_Item.GetItemIconByID
-local GetItemCountFn   = (C_Item and C_Item.GetItemCount) or _G.GetItemCount
+local GetItemCountFn   = C_Item.GetItemCount
 local CClear           = _G.ClearCursor
 local CHasItem         = _G.CursorHasItem
 
