@@ -50,7 +50,7 @@ function EllesmereUI.BuildMacroFactory(parent, startY, PP)
     local SPEC_ICON_GAP = 70
     local FIRST_ICON_Y = -34
     local ROW_STRIDE = 66
-    local fontPath = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath() or STANDARD_TEXT_FONT
+    local fontPath = EllesmereUI.GetFontPath() or STANDARD_TEXT_FONT
     local EG = EllesmereUI.ELLESMERE_GREEN
     local y = startY
 
@@ -156,7 +156,7 @@ function EllesmereUI.BuildMacroFactory(parent, startY, PP)
                     -- baked when written, so a later game-language switch keeps
                     -- the old wording until a toggle is touched -- inherent to
                     -- macros).
-                    local focusWord = (EllesmereUI.L and EllesmereUI.L("Focus")) or "Focus"
+                    local focusWord = (EllesmereUI.L("Focus")) or "Focus"
                     lines[#lines + 1] = db.autoMark
                         and ("/p " .. focusWord .. ": {rt" .. mark .. "} %f")
                         or ("/p " .. focusWord .. ": %f")
@@ -1436,9 +1436,9 @@ EllesmereUI._macroSpecWatcher = EllesmereUI._macroSpecWatcher or CreateFrame("Fr
 EllesmereUI._macroSpecWatcher:UnregisterAllEvents()
 EllesmereUI._macroSpecWatcher:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
 EllesmereUI._macroSpecWatcher:SetScript("OnEvent", function()
-    if EllesmereUI.RefreshMacroFactory then EllesmereUI.RefreshMacroFactory() end
+    EllesmereUI.RefreshMacroFactory()
     -- Also re-run the active page's in-place widget refreshers so other
     -- spec-dependent controls update, as the old per-build event frame did.
     -- No-arg (fast path) => re-reads values only, no frame teardown, no flash.
-    if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage() end
+    EllesmereUI:RefreshPage()
 end)

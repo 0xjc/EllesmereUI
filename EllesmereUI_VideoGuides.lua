@@ -423,9 +423,9 @@ local function Show(id)
     local def = guides[id]
     if not def then return false end
     -- The trigger's widget tooltip is still on screen at click time.
-    if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+    EllesmereUI.HideWidgetTooltip()
     BuildShell()
-    local ppScale = (EllesmereUI.GetPopupScale and EllesmereUI.GetPopupScale()) or 1
+    local ppScale = (EllesmereUI.GetPopupScale()) or 1
     ui.dimmer:SetScale(ppScale)
     ui.popup:SetScale(EllesmereUI.PopupBump(1.15))
     SetGuide(id, def)
@@ -467,9 +467,7 @@ local function AttachTip(region, tipId, opts)
     local EG = EllesmereUI.ELLESMERE_GREEN
     if EG then
         icon:SetVertexColor(EG.r, EG.g, EG.b, 1)
-        if EllesmereUI.RegAccent then
-            EllesmereUI.RegAccent({ type = "vertex", obj = icon })
-        end
+        EllesmereUI.RegAccent({ type = "vertex", obj = icon })
     else
         icon:SetVertexColor(1, 1, 1, 0.9)
     end
@@ -484,14 +482,14 @@ local function AttachTip(region, tipId, opts)
     tip:SetScript("OnEnter", function(self)
         self:SetAlpha(1)
         if EllesmereUI.ShowWidgetTooltip then
-            local t = (EllesmereUI.L and EllesmereUI.L(tipText)) or tipText
-            local hint = (EllesmereUI.L and EllesmereUI.L("Shift + right click to hide video guide icons"))
+            local t = (EllesmereUI.L(tipText)) or tipText
+            local hint = (EllesmereUI.L("Shift + right click to hide video guide icons"))
                 or "Shift + right click to hide video guide icons"
             EllesmereUI.ShowWidgetTooltip(self, t .. "\n|cff909090" .. hint .. "|r")
         end
     end)
     tip:SetScript("OnLeave", function(self)
-        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+        EllesmereUI.HideWidgetTooltip()
         self:SetAlpha(0.8)
     end)
     tip:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -503,16 +501,16 @@ local function AttachTip(region, tipId, opts)
             if not IsShiftKeyDown() then return end
             if not EllesmereUIDB then EllesmereUIDB = {} end
             EllesmereUIDB.tutorialTipsDisabled = true
-            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+            EllesmereUI.HideWidgetTooltip()
             RefreshTips()
             -- Re-run the active page's widget refreshers so the Global
             -- Settings toggle flips live if it is on screen right now.
-            if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage() end
+            EllesmereUI:RefreshPage()
             return
         end
         -- One shot: retire forever, then open the guide.
         MarkTipSeen(tipId)
-        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+        EllesmereUI.HideWidgetTooltip()
         self:Hide()
         Show(opts.guide or tipId)
     end)

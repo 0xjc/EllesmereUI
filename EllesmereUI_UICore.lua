@@ -546,8 +546,8 @@ local function ShowContextMenu(anchor, items, opts)
 
     local ITEM_H = 26
     local MENU_PAD = 4
-    local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath()) or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
-    local outline  = (EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag()) or ""
+    local fontPath = (EllesmereUI.GetFontPath()) or STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+    local outline  = (EllesmereUI.GetFontOutlineFlag()) or ""
 
     if not _ctxMenu._measureFS then
         _ctxMenu._measureFS = _ctxMenu:CreateFontString(nil, "OVERLAY")

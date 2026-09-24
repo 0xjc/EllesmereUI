@@ -224,7 +224,7 @@ local ROLE_ICONS = {
 }
 local ROLE_ORDER = { "TANK", "HEALER", "DAMAGER" }
 
-local L = function(s) return EllesmereUI.L and EllesmereUI.L(s) or s end
+local L = function(s) return EllesmereUI.L(s) or s end
 
 -- Forward declarations
 local ExitGroupEdit, EnterGroupEdit, ShowEditBanner, HideEditBanner, SetEditStatus
@@ -247,7 +247,7 @@ local DeepCopy = EllesmereUI.Lite.DeepCopy
 local function CurrentSpecID()
     local id = EllesmereUI._specID
     if not id or id == 0 then
-        if EllesmereUI._RefreshSpecID then EllesmereUI._RefreshSpecID() end
+        EllesmereUI._RefreshSpecID()
         id = EllesmereUI._specID
     end
     return (id and id ~= 0) and id or nil
@@ -271,7 +271,7 @@ end
 --  Storage
 -------------------------------------------------------------------------------
 local function GetProfileRoot()
-    return EllesmereUI.GetActiveProfileData and EllesmereUI.GetActiveProfileData()
+    return EllesmereUI.GetActiveProfileData()
 end
 
 local function GetStore(create)
@@ -2847,9 +2847,9 @@ end
 --- live fork (the prelude force-activates it), so every consumer (card locks,
 --- session-entry blocks, passive chrome) keys off this.
 function EllesmereUI.SpecOverrides_BmPageLockInfo()
-    local mod = EllesmereUI.GetActiveModule and EllesmereUI:GetActiveModule()
+    local mod = EllesmereUI:GetActiveModule()
     if mod ~= "EllesmereUIRaidFrames" then return nil end
-    local page = EllesmereUI.GetActivePage and EllesmereUI:GetActivePage()
+    local page = EllesmereUI:GetActivePage()
     if page ~= "Buff Manager" then return nil end
     if EllesmereUI._bmSessionGid then return "cond", EllesmereUI._bmSessionGid end
     local s = GetBmStore()
@@ -3135,9 +3135,9 @@ end
 --- kind + gid of the fork LIVE on the Debuff Manager page, or nil when not
 --- on that page / live is the baseline (mirror of BmPageLockInfo).
 function EllesmereUI.SpecOverrides_DmPageLockInfo()
-    local mod = EllesmereUI.GetActiveModule and EllesmereUI:GetActiveModule()
+    local mod = EllesmereUI:GetActiveModule()
     if mod ~= "EllesmereUIRaidFrames" then return nil end
-    local page = EllesmereUI.GetActivePage and EllesmereUI:GetActivePage()
+    local page = EllesmereUI:GetActivePage()
     if page ~= "Debuff Manager" then return nil end
     if EllesmereUI._dmSessionGid then return "cond", EllesmereUI._dmSessionGid end
     local s = GetDmStore()
@@ -3678,7 +3678,7 @@ function EllesmereUI.SpecOverrides_ActivateBm(kind, gid, source)
             BmSessionEngage(gid)
         end
     end
-    if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage(true) end
+    EllesmereUI:RefreshPage(true)
 end
 
 --- Overlay policy for the Debuff Manager page (mirror of BmOverlayState;
@@ -3810,7 +3810,7 @@ function EllesmereUI.SpecOverrides_ActivateDm(kind, gid)
             DmSessionEngage(gid)
         end
     end
-    if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage(true) end
+    EllesmereUI:RefreshPage(true)
 end
 
 --- True for module folders excluded wholesale from the override systems (drives
@@ -4544,12 +4544,8 @@ function EllesmereUI.SpecOverrides_CondTransition(oldGid, newGid, establish)
         -- was live at export/save time while the imported active pointer was
         -- reset, and a nil==nil early-out would strand them.
         EllesmereUI.SpecOverrides_ApplyUnlock(CurrentSpecID(), establish)
-        if EllesmereUI.SpecOverrides_ApplyBm then
-            EllesmereUI.SpecOverrides_ApplyBm(CurrentSpecID(), establish)
-        end
-        if EllesmereUI.SpecOverrides_ApplyDm then
-            EllesmereUI.SpecOverrides_ApplyDm(CurrentSpecID(), establish)
-        end
+        EllesmereUI.SpecOverrides_ApplyBm(CurrentSpecID(), establish)
+        EllesmereUI.SpecOverrides_ApplyDm(CurrentSpecID(), establish)
         Cond._resolveOverride = nil
     end
     if touched then RunRefreshers(touched) end
@@ -4586,7 +4582,7 @@ function EllesmereUI.RegisterCaptureContext(folder, fn)
 end
 
 local function CurrentContext()
-    local modFolder = EllesmereUI.GetActiveModule and EllesmereUI:GetActiveModule()
+    local modFolder = EllesmereUI:GetActiveModule()
     local ctxFn = modFolder and _captureContexts[modFolder]
     if not ctxFn then return nil end
     local ok, ctx = pcall(ctxFn)
@@ -4701,11 +4697,11 @@ end
 -- sections are outside the system, enforced where the section is known
 -- (AutoCapture attribution and entry pruning).
 local function IsExcludedContext(section)
-    local module = EllesmereUI.GetActiveModule and EllesmereUI:GetActiveModule()
+    local module = EllesmereUI:GetActiveModule()
     local ex = module and EXCLUDED_CONTEXTS[module]
     if ex == true then return true end
     if type(ex) == "table" then
-        local page = EllesmereUI.GetActivePage and EllesmereUI:GetActivePage()
+        local page = EllesmereUI:GetActivePage()
         local pex = page and ex[page]
         if pex == true then return true end
         if type(pex) == "table" then
@@ -4839,7 +4835,7 @@ local function SetSlotMark(region, mode, conflictSpecID, condName, tip)
         end)
         badge:SetScript("OnLeave", function()
             ico:SetVertexColor(GOLD_R, GOLD_G, GOLD_B, 0.85)
-            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+            EllesmereUI.HideWidgetTooltip()
         end)
         badge:SetMouseClickEnabled(false)
         region._specOvHover = badge
@@ -4859,7 +4855,7 @@ local function SetSlotMark(region, mode, conflictSpecID, condName, tip)
             end
         end)
         blocker:SetScript("OnLeave", function()
-            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+            EllesmereUI.HideWidgetTooltip()
         end)
         host._blocker = blocker
         region._specOvRed = host
@@ -4882,8 +4878,8 @@ local function SetSlotMark(region, mode, conflictSpecID, condName, tip)
         if EllesmereUI.PP and EllesmereUI.PP.CreateBorder then
             EllesmereUI.PP.CreateBorder(blocker, GOLD_R, GOLD_G, GOLD_B, 0.9, 1, "OVERLAY", 7)
         end
-        local font = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath()) or "Fonts\\FRIZQT__.TTF"
-        local flag = (EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag()) or ""
+        local font = (EllesmereUI.GetFontPath()) or "Fonts\\FRIZQT__.TTF"
+        local flag = (EllesmereUI.GetFontOutlineFlag()) or ""
         local label = blocker:CreateFontString(nil, "OVERLAY")
         if EllesmereUI.PrimeFontShadow and EllesmereUI.GetFontUseShadow then
             EllesmereUI.PrimeFontShadow(label, EllesmereUI.GetFontUseShadow())
@@ -4900,7 +4896,7 @@ local function SetSlotMark(region, mode, conflictSpecID, condName, tip)
             end
         end)
         blocker:SetScript("OnLeave", function()
-            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+            EllesmereUI.HideWidgetTooltip()
         end)
         host._blocker = blocker
         host._label = label
@@ -4998,7 +4994,7 @@ function EllesmereUI.SpecOverrides_AttachEditLock(region, tip, predicate)
             end
         end)
         blocker:SetScript("OnLeave", function()
-            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+            EllesmereUI.HideWidgetTooltip()
         end)
         host._blocker = blocker
         _editLocks[region] = host
@@ -5295,8 +5291,8 @@ local function AutoCapture(changes)
 
     local cfg = region._captureCfg
     local slotLabel = tostring(cfg.text or "?")
-    local module = EllesmereUI.GetActiveModule and EllesmereUI:GetActiveModule()
-    local page = EllesmereUI.GetActivePage and EllesmereUI:GetActivePage()
+    local module = EllesmereUI:GetActiveModule()
+    local page = EllesmereUI:GetActivePage()
     local element = CurrentContext()
 
     -- Session routing: a conditional session banks into the CONDITIONAL store
@@ -5318,7 +5314,7 @@ local function AutoCapture(changes)
     if not entry then
         isNew = true
         local crumbParts = {}
-        local modTitle = module and EllesmereUI.GetModuleTitle and EllesmereUI:GetModuleTitle(module)
+        local modTitle = module and EllesmereUI:GetModuleTitle(module)
         if modTitle then crumbParts[#crumbParts + 1] = L(modTitle) end
         if element then crumbParts[#crumbParts + 1] = L(element) end
         if page then crumbParts[#crumbParts + 1] = L(page) end
@@ -5755,7 +5751,7 @@ SweepUncaptured = function(group)
             if type(orig) == "table" then orig = nil end
             local entry = {
                 label = PrettyKey(c.fkey),
-                crumb = (EllesmereUI.GetModuleTitle and EllesmereUI:GetModuleTitle(c.folder)) or c.folder,
+                crumb = (EllesmereUI:GetModuleTitle(c.folder)) or c.folder,
                 module = c.folder,
                 group = group.id,
                 values = { default = { [c.fkey] = (orig == nil) and NIL_SENT or orig } },
@@ -5955,15 +5951,13 @@ local _bmPassiveChrome = false
 
 function EllesmereUI.SpecOverrides_UpdateBmPassiveChrome()
     if _editGroup or Cond._edit then return end   -- real session owns chrome
-    local kind = EllesmereUI.SpecOverrides_BmPageLockInfo
-        and EllesmereUI.SpecOverrides_BmPageLockInfo() or nil
+    local kind = EllesmereUI.SpecOverrides_BmPageLockInfo() or nil
     local status = L("Buff Manager changes on this page apply only to this override.")
     local nameFn = EllesmereUI.SpecOverrides_BmActiveInfo
     if not kind then
         -- Same chrome serves the Debuff Manager page (one page is active at a
         -- time, so the two locks can never both report).
-        kind = EllesmereUI.SpecOverrides_DmPageLockInfo
-            and EllesmereUI.SpecOverrides_DmPageLockInfo() or nil
+        kind = EllesmereUI.SpecOverrides_DmPageLockInfo() or nil
         if kind then
             status = L("Debuff Manager changes on this page apply only to this override.")
             nameFn = EllesmereUI.SpecOverrides_DmActiveInfo
@@ -6012,7 +6006,7 @@ EnterDefaultView = function()
     if touched then RunRefreshers(touched) end
     -- FORCED rebuild: default values may drive different page structure than
     -- the spec values they replaced.
-    if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage(true) end
+    EllesmereUI:RefreshPage(true)
     UpdateIndicator()
 end
 
@@ -6076,7 +6070,7 @@ ExitGroupEdit = function(noRecheck)
     -- FORCED rebuild: restored values can change page STRUCTURE (sections
     -- shown/hidden by a visibility dropdown); the fast refresh only re-reads
     -- widget values and would leave stale structure on screen.
-    if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage(true) end
+    EllesmereUI:RefreshPage(true)
     RequestGoldWalk()
     -- Back to Default Editing Mode: the open panel returns to the baseline.
     if PanelShown() then EnterDefaultView() end
@@ -6157,7 +6151,7 @@ EnterGroupEdit = function(group)
     if touched then RunRefreshers(touched) end
     -- FORCED rebuild (structure may differ under the group's values); runs
     -- before the snapshot so lazy page seeding is absorbed.
-    if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage(true) end
+    EllesmereUI:RefreshPage(true)
     _watchSnap = SnapshotProfiles()
     _enterSnap = _watchSnap   -- session baseline for the exit sweep
     _sessionIgnored = {}
@@ -6238,7 +6232,7 @@ function Cond.SweepUncapturedEdit(g)
             if type(orig) == "table" then orig = nil end
             local entry = {
                 label = PrettyKey(c.fkey),
-                crumb = (EllesmereUI.GetModuleTitle and EllesmereUI:GetModuleTitle(c.folder)) or c.folder,
+                crumb = (EllesmereUI:GetModuleTitle(c.folder)) or c.folder,
                 module = c.folder,
                 group = g.id,
                 values = { default = { [c.fkey] = (orig == nil) and NIL_SENT or orig } },
@@ -6261,12 +6255,8 @@ Cond.ExitEdit = function(noRestore, noRecheck)
     -- Release the Buff Manager session swap FIRST: banks the session's BM edits
     -- into the group's fork while live still holds them, then puts the runtime
     -- layer back (skipped on noRestore: the transition's ApplyBm does it).
-    if EllesmereUI.SpecOverrides_BmSessionRelease then
-        EllesmereUI.SpecOverrides_BmSessionRelease(noRestore and true or false)
-    end
-    if EllesmereUI.SpecOverrides_DmSessionRelease then
-        EllesmereUI.SpecOverrides_DmSessionRelease(noRestore and true or false)
-    end
+    EllesmereUI.SpecOverrides_BmSessionRelease(noRestore and true or false)
+    EllesmereUI.SpecOverrides_DmSessionRelease(noRestore and true or false)
     local g = Cond._edit
     Cond._edit = nil
     Cond.SweepUncapturedEdit(g)
@@ -6283,7 +6273,7 @@ Cond.ExitEdit = function(noRestore, noRecheck)
         end
         if touched then RunRefreshers(touched) end
         -- FORCED rebuild: see ExitGroupEdit (stale structure otherwise).
-        if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage(true) end
+        EllesmereUI:RefreshPage(true)
         RequestGoldWalk()
         if PanelShown() then EnterDefaultView() end
         -- A mid-session condition flip was deferred (the transition handler
@@ -6347,7 +6337,7 @@ Cond.EnterEdit = function(g)
     end
     if touched then RunRefreshers(touched) end
     -- FORCED rebuild (structure may differ under the conditional's values).
-    if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage(true) end
+    EllesmereUI:RefreshPage(true)
     _watchSnap = SnapshotProfiles()
     _enterSnap = _watchSnap
     _sessionIgnored = {}
@@ -6514,34 +6504,26 @@ function EllesmereUI.SpecOverrides_SetupButton(btn)
     btn:SetAlpha(0.9)
     btn:SetScript("OnEnter", function(self)
         if self._ovPageDisabled then
-            if EllesmereUI.ShowWidgetTooltip then
-                EllesmereUI.ShowWidgetTooltip(self, L("This page is excluded from overrides."))
-            end
+            EllesmereUI.ShowWidgetTooltip(self, L("This page is excluded from overrides."))
             return
         end
         if self._ovBmLocked then
-            if EllesmereUI.ShowWidgetTooltip then
-                EllesmereUI.ShowWidgetTooltip(self, L("Overrides are locked: this page's custom Buff Manager is active. Leave the Buff Manager tab to manage overrides."))
-            end
+            EllesmereUI.ShowWidgetTooltip(self, L("Overrides are locked: this page's custom Buff Manager is active. Leave the Buff Manager tab to manage overrides."))
             return
         end
         self:SetAlpha(1)
-        if EllesmereUI.ShowWidgetTooltip then
-            EllesmereUI.ShowWidgetTooltip(self, L("Settings Overrides"))
-        end
+        EllesmereUI.ShowWidgetTooltip(self, L("Settings Overrides"))
     end)
     btn:SetScript("OnLeave", function(self)
         self:SetAlpha((self._ovPageDisabled or self._ovBmLocked) and 0.35 or 0.9)
-        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+        EllesmereUI.HideWidgetTooltip()
     end)
     btn:SetScript("OnClick", function(self)
         StopButtonPulse()   -- attention served the moment it is clicked
         if self._ovPageDisabled then return end
         if self._ovBmLocked then
             -- Blocked: explain at the icon instead of opening the dropdown.
-            if EllesmereUI.ShowWidgetTooltip then
-                EllesmereUI.ShowWidgetTooltip(self, L("Overrides are locked: this page's custom Buff Manager is active. Leave the Buff Manager tab to manage overrides."))
-            end
+            EllesmereUI.ShowWidgetTooltip(self, L("Overrides are locked: this page's custom Buff Manager is active. Leave the Buff Manager tab to manage overrides."))
             return
         end
         -- First-ever press shows the Settings Overrides video guide instead of
@@ -6680,7 +6662,7 @@ local function ShowNameIconPopup(specIDs, editing)
                 p:Hide()
                 if UpdateIndicator then UpdateIndicator() end
                 if RefreshCardsPopup then RefreshCardsPopup() end
-                local ap = EllesmereUI.GetActivePage and EllesmereUI:GetActivePage()
+                local ap = EllesmereUI:GetActivePage()
                 if ap == LIST_PAGE then EllesmereUI:RefreshPage(true) end
                 return
             end
@@ -6786,10 +6768,10 @@ local function BuildCardRow(parent, y, opts)
     name:SetText(opts.name)
     if opts.tooltip then
         row:SetScript("OnEnter", function(self)
-            if EllesmereUI.ShowWidgetTooltip then EllesmereUI.ShowWidgetTooltip(self, opts.tooltip) end
+            EllesmereUI.ShowWidgetTooltip(self, opts.tooltip)
         end)
         row:SetScript("OnLeave", function()
-            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+            EllesmereUI.HideWidgetTooltip()
         end)
     end
     if opts.locked then
@@ -6797,9 +6779,7 @@ local function BuildCardRow(parent, y, opts)
         -- bound to the open page. Dim + inert (tooltip only).
         row:SetAlpha(0.4)
         row:SetScript("OnClick", function(self)
-            if EllesmereUI.ShowWidgetTooltip then
-                EllesmereUI.ShowWidgetTooltip(self, L("The active override's Buff Manager is bound to the open page. Leave the Buff Manager tab to switch overrides."))
-            end
+            EllesmereUI.ShowWidgetTooltip(self, L("The active override's Buff Manager is bound to the open page. Leave the Buff Manager tab to switch overrides."))
         end)
     else
         row:SetScript("OnClick", opts.onClick)
@@ -6818,13 +6798,11 @@ local function BuildCardRow(parent, y, opts)
         xt:SetVertexColor(1, 1, 1, 0.75)
         del:SetScript("OnEnter", function(self)
             xt:SetVertexColor(1, 1, 1, 1)
-            if EllesmereUI.ShowWidgetTooltip then
-                EllesmereUI.ShowWidgetTooltip(self, L("Delete Override Group"))
-            end
+            EllesmereUI.ShowWidgetTooltip(self, L("Delete Override Group"))
         end)
         del:SetScript("OnLeave", function()
             xt:SetVertexColor(1, 1, 1, 0.75)
-            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+            EllesmereUI.HideWidgetTooltip()
         end)
         del:SetScript("OnClick", opts.onDelete)
     end
@@ -6846,13 +6824,11 @@ local function BuildCardRow(parent, y, opts)
         ed:SetAlpha(0.75)
         ed:SetScript("OnEnter", function(self)
             self:SetAlpha(1)
-            if EllesmereUI.ShowWidgetTooltip then
-                EllesmereUI.ShowWidgetTooltip(self, L("Edit Override Group"))
-            end
+            EllesmereUI.ShowWidgetTooltip(self, L("Edit Override Group"))
         end)
         ed:SetScript("OnLeave", function(self)
             self:SetAlpha(0.75)
-            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+            EllesmereUI.HideWidgetTooltip()
         end)
         ed:SetScript("OnClick", opts.onEdit)
     end
@@ -6892,7 +6868,7 @@ local function BuildCardRow(parent, y, opts)
         end)
         ub:SetScript("OnLeave", function(self)
             self:SetAlpha(enabled and 0.75 or 0.3)
-            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+            EllesmereUI.HideWidgetTooltip()
         end)
         ub:SetScript("OnClick", function()
             if enabled then opts.onUnlock() end
@@ -7018,9 +6994,7 @@ local function SetGroupSpecs(g, newSpecs)
             end
         end
     end
-    if EllesmereUI.SpecOverrides_Apply then
-        EllesmereUI.SpecOverrides_Apply(_activeSpec or CurrentSpecID())
-    end
+    EllesmereUI.SpecOverrides_Apply(_activeSpec or CurrentSpecID())
     UpdateIndicator()
     RequestGoldWalk()
     RefreshCardsPopup()
@@ -7190,23 +7164,17 @@ RefreshCardsPopup = function()
                         end
                         -- The group's custom unlock mode goes with it; if it
                         -- was live, the baseline layout is applied back.
-                        if EllesmereUI.SpecOverrides_RemoveUnlockLayout then
-                            EllesmereUI.SpecOverrides_RemoveUnlockLayout(g.id)
-                        end
+                        EllesmereUI.SpecOverrides_RemoveUnlockLayout(g.id)
                         -- Same for its custom Buff Manager: otherwise the fork stays
                         -- orphaned AND live, with the BM page and preview showing it
                         -- until a reload's establish heals the dangling pointer.
-                        if EllesmereUI.SpecOverrides_RemoveBmLayout then
-                            EllesmereUI.SpecOverrides_RemoveBmLayout(g.id)
-                        end
-                        if EllesmereUI.SpecOverrides_RemoveDmLayout then
-                            EllesmereUI.SpecOverrides_RemoveDmLayout(g.id)
-                        end
+                        EllesmereUI.SpecOverrides_RemoveBmLayout(g.id)
+                        EllesmereUI.SpecOverrides_RemoveDmLayout(g.id)
                         RebuildFKeyIndex()
                         RequestGoldWalk()
                         UpdateIndicator()   -- current spec may have been a member
                         RefreshCardsPopup()
-                        if EllesmereUI.GetActivePage and EllesmereUI:GetActivePage() == LIST_PAGE then
+                        if EllesmereUI:GetActivePage() == LIST_PAGE then
                             EllesmereUI:RefreshPage(true)
                         end
                     end,
@@ -7310,18 +7278,12 @@ RefreshCardsPopup = function()
                             if next(touched) then RunRefreshers(touched) end
                         end
                         Cond.RebuildIndex()
-                        if EllesmereUI.Conditions_RemoveUnlockLayout then
-                            EllesmereUI.Conditions_RemoveUnlockLayout(g.id)
-                        end
+                        EllesmereUI.Conditions_RemoveUnlockLayout(g.id)
                         -- The group's custom Buff Manager goes with it; if it was live
                         -- (or session-applied) the runtime layer is applied back, else
                         -- the fork stays orphaned AND live until a reload.
-                        if EllesmereUI.Conditions_RemoveBmLayout then
-                            EllesmereUI.Conditions_RemoveBmLayout(g.id)
-                        end
-                        if EllesmereUI.Conditions_RemoveDmLayout then
-                            EllesmereUI.Conditions_RemoveDmLayout(g.id)
-                        end
+                        EllesmereUI.Conditions_RemoveBmLayout(g.id)
+                        EllesmereUI.Conditions_RemoveDmLayout(g.id)
                         if EllesmereUI.Conditions_RebuildKeyBindings then EllesmereUI.Conditions_RebuildKeyBindings() end
                         if EllesmereUI.Conditions_Recheck then EllesmereUI.Conditions_Recheck() end
                         RequestGoldWalk()
@@ -7331,7 +7293,7 @@ RefreshCardsPopup = function()
                         -- plus the transition's writes for surviving entries), so open widgets
                         -- would show the deleted override's values until they re-read. Forced
                         -- because restored values can change page STRUCTURE too.
-                        if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage(true) end
+                        EllesmereUI:RefreshPage(true)
                     end,
                 })
             end,
@@ -7366,11 +7328,9 @@ RefreshCardsPopup = function()
         p:Hide()
         -- Profiles & Presets is session-locked (excluded module): leave any
         -- editing session first or the navigation is refused.
-        if EllesmereUI.SpecOverrides_CloseEditSessions then
-            EllesmereUI.SpecOverrides_CloseEditSessions()
-        end
+        EllesmereUI.SpecOverrides_CloseEditSessions()
         EllesmereUI:SelectModule(PROFILES_MODULE)
-        if EllesmereUI.SelectPage then EllesmereUI:SelectPage(LIST_PAGE) end
+        EllesmereUI:SelectPage(LIST_PAGE)
     end)
     p._rows[#p._rows + 1] = link
     y = y - 26
@@ -7521,7 +7481,7 @@ function Cond.ShowNameIconPopup(conds, keyStr, existing)
             -- self-guards the BM page lock and any active session.
             if newGroup then Cond.EnterEdit(newGroup) end
             Cond.RefreshCards()
-            if EllesmereUI.GetActivePage and EllesmereUI:GetActivePage() == LIST_PAGE then
+            if EllesmereUI:GetActivePage() == LIST_PAGE then
                 EllesmereUI:RefreshPage(true)
             end
         end)
@@ -7607,12 +7567,10 @@ function Cond.ShowPickerPopup(existing)
             row._condID = def.id
             if def.comingSoon then
                 row:SetScript("OnEnter", function(self)
-                    if EllesmereUI.ShowWidgetTooltip then
-                        EllesmereUI.ShowWidgetTooltip(self, L("This condition is coming in a future update."))
-                    end
+                    EllesmereUI.ShowWidgetTooltip(self, L("This condition is coming in a future update."))
                 end)
                 row:SetScript("OnLeave", function()
-                    if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                    EllesmereUI.HideWidgetTooltip()
                 end)
             elseif def.requires then
                 -- Requirement-gated condition (e.g. Dark Mode needs the master toggle
@@ -7635,7 +7593,7 @@ function Cond.ShowPickerPopup(existing)
                     end
                 end)
                 row:SetScript("OnLeave", function()
-                    if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                    EllesmereUI.HideWidgetTooltip()
                 end)
             else
                 row:SetScript("OnClick", function(self)
@@ -7743,9 +7701,7 @@ function Cond.ShowPickerPopup(existing)
         nextBtn:SetScript("OnClick", function()
             if not next(p._staged) then return end
             if p._staged.keybind and not p._stagedKey then
-                if EllesmereUI.ShowWidgetTooltip then
-                    EllesmereUI.ShowWidgetTooltip(nextBtn, L("Set the toggle key first (or uncheck Keybind)."))
-                end
+                EllesmereUI.ShowWidgetTooltip(nextBtn, L("Set the toggle key first (or uncheck Keybind)."))
                 return
             end
             local conds = {}
@@ -7866,13 +7822,11 @@ local function BuildListRow(parent, y, entry)
             hit:SetAllPoints(warn)
             hit:EnableMouse(true)
             hit:SetScript("OnEnter", function(self)
-                if EllesmereUI.ShowWidgetTooltip then
-                    EllesmereUI.ShowWidgetTooltip(self,
-                        L("A spec override owns this setting, so this conditional value never applies outside an editing session. Remove the spec override to let it through."))
-                end
+                EllesmereUI.ShowWidgetTooltip(self,
+                    L("A spec override owns this setting, so this conditional value never applies outside an editing session. Remove the spec override to let it through."))
             end)
             hit:SetScript("OnLeave", function()
-                if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                EllesmereUI.HideWidgetTooltip()
             end)
         end
     end
@@ -7911,7 +7865,7 @@ local function BuildListRow(parent, y, entry)
                 break
             end
         end
-        if mod and EllesmereUI.GetModuleTitle and EllesmereUI:GetModuleTitle(mod) then
+        if mod and EllesmereUI:GetModuleTitle(mod) then
             EllesmereUI:SelectModule(mod)
             if entry.page and EllesmereUI.SelectPage then
                 EllesmereUI:SelectPage(entry.page)
@@ -7961,9 +7915,7 @@ local function BuildStrandedRow(parent, y, entry, specID)
             cancelText = L("Cancel"),
             onConfirm = function()
                 entry.values[specID] = nil
-                if EllesmereUI.SpecOverrides_Apply then
-                    EllesmereUI.SpecOverrides_Apply(_activeSpec or CurrentSpecID())
-                end
+                EllesmereUI.SpecOverrides_Apply(_activeSpec or CurrentSpecID())
                 RequestGoldWalk()
                 EllesmereUI:RefreshPage(true)
             end,
@@ -8086,9 +8038,7 @@ local function PruneOrphanEntries()
         -- rebuild) mid-build. Safe to defer: PruneRedundantValues' live-guard refuses
         -- to GC a recorded default while live still differs, so nothing is lost.
         C_Timer.After(0, function()
-            if EllesmereUI.SpecOverrides_Apply then
-                EllesmereUI.SpecOverrides_Apply(_activeSpec or CurrentSpecID())
-            end
+            EllesmereUI.SpecOverrides_Apply(_activeSpec or CurrentSpecID())
         end)
     end
     if touched then RunRefreshers(touched) end
@@ -8164,7 +8114,7 @@ local function BuildUnlockLayoutRow(parent, y, g, opts)
         e:SetScript("OnClick", function()
             -- Raid Frames must be registered to navigate to (same gate as the
             -- entry rows' Go to Setting).
-            if not (EllesmereUI.GetModuleTitle and EllesmereUI:GetModuleTitle("EllesmereUIRaidFrames")) then return end
+            if not (EllesmereUI:GetModuleTitle("EllesmereUIRaidFrames")) then return end
             -- Both entry points refuse (own popup) when another fork holds the
             -- manager page; only navigate once the session actually opened.
             if opts.editKind == "cond" then
@@ -8177,9 +8127,7 @@ local function BuildUnlockLayoutRow(parent, y, g, opts)
                 if _editGroup ~= g then return end
             end
             EllesmereUI:SelectModule("EllesmereUIRaidFrames")
-            if EllesmereUI.SelectPage then
-                EllesmereUI:SelectPage(opts.editPage)
-            end
+            EllesmereUI:SelectPage(opts.editPage)
         end)
     end
 
@@ -8247,9 +8195,7 @@ local function PromoteGroupToProfile(g)
     end
     -- Bank any open session and leave the Default view so the stores hold the
     -- freshest edits and live holds canonical spec values.
-    if EllesmereUI.SpecOverrides_CloseEditSessions then
-        EllesmereUI.SpecOverrides_CloseEditSessions()
-    end
+    EllesmereUI.SpecOverrides_CloseEditSessions()
 
     -- 1) VALUES: the group's stored values become the recorded defaults.
     --    Resolution mirrors WriteGroupValues (first member spec's map, per-fkey
@@ -8385,15 +8331,9 @@ local function PromoteGroupToProfile(g)
     --    import converge: an error must not strand the cleanup half-done.
     local sid = CurrentSpecID()
     if sid then
-        if EllesmereUI.SpecOverrides_ApplyUnlock then
-            pcall(EllesmereUI.SpecOverrides_ApplyUnlock, sid, true)
-        end
-        if EllesmereUI.SpecOverrides_ApplyBm then
-            pcall(EllesmereUI.SpecOverrides_ApplyBm, sid, true)
-        end
-        if EllesmereUI.SpecOverrides_ApplyDm then
-            pcall(EllesmereUI.SpecOverrides_ApplyDm, sid, true)
-        end
+        pcall(EllesmereUI.SpecOverrides_ApplyUnlock, sid, true)
+        pcall(EllesmereUI.SpecOverrides_ApplyBm, sid, true)
+        pcall(EllesmereUI.SpecOverrides_ApplyDm, sid, true)
     end
     -- 6) RELOAD. The converge's element writes are DEFERRED (FlushUnlock) and
     --    reloading inside that window strands them: the logout bank keeps the
@@ -8401,9 +8341,7 @@ local function PromoteGroupToProfile(g)
     --    active pointer and never paints it back into module DBs. Flush
     --    synchronously first (out of combat by the gate above), then reload --
     --    every runtime cache, ticker and session structure rebuilds clean.
-    if EllesmereUI.SpecOverrides_FlushUnlock then
-        pcall(EllesmereUI.SpecOverrides_FlushUnlock)
-    end
+    pcall(EllesmereUI.SpecOverrides_FlushUnlock)
     ReloadUI()
 end
 
@@ -8775,9 +8713,7 @@ function EllesmereUI.Conditions_BuildListPage(parent, startY)
                     confirmText = L("Delete"),
                     cancelText = L("Cancel"),
                     onConfirm = function()
-                        if EllesmereUI.Conditions_RemoveUnlockLayout then
-                            EllesmereUI.Conditions_RemoveUnlockLayout(gid)
-                        end
+                        EllesmereUI.Conditions_RemoveUnlockLayout(gid)
                         EllesmereUI:RefreshPage(true)
                     end,
                 })

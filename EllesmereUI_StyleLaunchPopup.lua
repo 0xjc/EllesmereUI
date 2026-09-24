@@ -113,9 +113,7 @@ local function ShowStyleLaunchPopup()
         ReleaseConflictCheck()
         if not openStyle then return end
         if InCombatLockdown() then
-            if EllesmereUI.Print then
-                EllesmereUI.Print("|cffff6060[EllesmereUI]|r Cannot open options during combat. The looks are under Global Settings > Style.")
-            end
+            EllesmereUI.Print("|cffff6060[EllesmereUI]|r Cannot open options during combat. The looks are under Global Settings > Style.")
             return
         end
         if EllesmereUI.NavigateToElementSettings then

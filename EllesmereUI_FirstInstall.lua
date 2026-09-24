@@ -353,15 +353,13 @@ local function ShowFirstInstallPopup()
             end)
             row:SetScript("OnEnter", function(self)
                 if self._informational then
-                    if EllesmereUI.ShowWidgetTooltip then
-                        EllesmereUI.ShowWidgetTooltip(self, "Coming soon")
-                    end
+                    EllesmereUI.ShowWidgetTooltip(self, "Coming soon")
                     return
                 end
                 self._lbl:SetTextColor(1, 1, 1, 0.90)
             end)
             row:SetScript("OnLeave", function(self)
-                if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                EllesmereUI.HideWidgetTooltip()
                 if self._informational then return end
                 self._lbl:SetTextColor(1, 1, 1, 0.65)
             end)

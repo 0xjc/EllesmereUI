@@ -55,9 +55,7 @@ local function ChooseStockStyle(styleKey, label, dimmer)
         ReloadUI()
         return
     end
-    if EllesmereUI.Print then
-        EllesmereUI.Print("|cff00ff98EllesmereUI:|r " .. label .. " can be switched on under Global Settings > Style.")
-    end
+    EllesmereUI.Print("|cff00ff98EllesmereUI:|r " .. label .. " can be switched on under Global Settings > Style.")
     if dimmer then dimmer:Hide() end
     Release()
 end

@@ -402,7 +402,7 @@ function EllesmereUI.CreatePortalFlyout(opts)
             label:SetFont(opts.labelFont, 8, opts.labelFlags)
             label:SetPoint("BOTTOM", btn, "BOTTOM", 0, 2)
             label:SetTextColor(1, 1, 1, 0.9)
-            label:SetText((EllesmereUI.L and EllesmereUI.L(short)) or short)
+            label:SetText((EllesmereUI.L(short)) or short)
         end
 
         AddHighlights(btn)
@@ -5118,7 +5118,7 @@ function EllesmereUI.GetIconTextOutlineFlag(moduleKey)
     local flag
     if t and t[moduleKey] == false then
         -- Follows the outline mode, which is already slug-gated at the source.
-        flag = (EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag(moduleKey)) or ""
+        flag = (EllesmereUI.GetFontOutlineFlag(moduleKey)) or ""
     else
         -- Forced crisp outline; "Never Show Slug" still drops the slug token.
         flag = EllesmereUI.SlugFlag("OUTLINE, SLUG")
@@ -7660,7 +7660,7 @@ local function CreateMainFrame()
     end)
     mainFrame:SetScript("OnHide", function()
         -- Close the sidebar sync popup so it never lingers after the window is dismissed.
-        if EllesmereUI.CloseSyncPopup then EllesmereUI.CloseSyncPopup() end
+        EllesmereUI.CloseSyncPopup()
         if _onHideCallbacks then
             for _, fn in ipairs(_onHideCallbacks) do fn() end
         end
@@ -8432,7 +8432,7 @@ local function CreateMainFrame()
     EllesmereUI._addonScrollArrow = arrowBtn
 
     local function UpdateAddonThumb()
-        local maxScroll = EllesmereUI.SafeScrollRange and EllesmereUI.SafeScrollRange(addonScrollFrame) or 0
+        local maxScroll = EllesmereUI.SafeScrollRange(addonScrollFrame) or 0
         -- Arrow state: dimmed when nothing is below. Runs before the no-scroll return.
         do
             local cur = tonumber(addonScrollFrame:GetVerticalScroll()) or 0
@@ -8472,7 +8472,7 @@ local function CreateMainFrame()
     -- positions and the rasterizer picks different pixels per frame: 1px scroll jitter.
     addonSmoothFrame:SetScript("OnUpdate", function(_, elapsed)
         local cur = addonScrollFrame:GetVerticalScroll()
-        local maxScroll = EllesmereUI.SafeScrollRange and EllesmereUI.SafeScrollRange(addonScrollFrame) or 0
+        local maxScroll = EllesmereUI.SafeScrollRange(addonScrollFrame) or 0
         local scale = addonScrollFrame:GetEffectiveScale()
         -- Snap max down to a pixel boundary so target can't exceed it.
         maxScroll = math.floor(maxScroll * scale) / scale
@@ -8498,7 +8498,7 @@ local function CreateMainFrame()
     end)
 
     addonScrollFrame:SetScript("OnMouseWheel", function(self, delta)
-        local maxScroll = EllesmereUI.SafeScrollRange and EllesmereUI.SafeScrollRange(self) or 0
+        local maxScroll = EllesmereUI.SafeScrollRange(self) or 0
         if maxScroll <= 0 then return end
         local scale = self:GetEffectiveScale()
         maxScroll = math.floor(maxScroll * scale) / scale
@@ -8517,7 +8517,7 @@ local function CreateMainFrame()
 
     -- Arrow click: smooth-animate to the bottom, reusing the wheel's scroll state.
     arrowBtn:SetScript("OnClick", function()
-        local maxScroll = EllesmereUI.SafeScrollRange and EllesmereUI.SafeScrollRange(addonScrollFrame) or 0
+        local maxScroll = EllesmereUI.SafeScrollRange(addonScrollFrame) or 0
         if maxScroll <= 0 then return end
         local scale = addonScrollFrame:GetEffectiveScale()
         maxScroll = math.floor(maxScroll * scale) / scale
@@ -8533,7 +8533,7 @@ local function CreateMainFrame()
     addonTrack:EnableMouse(true)
     addonTrack:SetHitRectInsets(-8, -2, 0, 0)
     local function _scrollToCursor()
-        local maxScroll = EllesmereUI.SafeScrollRange and EllesmereUI.SafeScrollRange(addonScrollFrame) or 0
+        local maxScroll = EllesmereUI.SafeScrollRange(addonScrollFrame) or 0
         if maxScroll <= 0 then return end
         local trackH = addonTrack:GetHeight()
         local thumbH = addonThumb:GetHeight()
@@ -8791,9 +8791,7 @@ local function CreateMainFrame()
             end)
             syncBtn:SetScript("OnClick", function(self)
                 if isGlobalOnly then return end
-                if EllesmereUI.OpenSyncPopup then
-                    EllesmereUI.OpenSyncPopup(self._folder, self._display, self)
-                end
+                EllesmereUI.OpenSyncPopup(self._folder, self._display, self)
             end)
             btn._syncBtn = syncBtn
         end
@@ -10306,7 +10304,7 @@ function EllesmereUI:NavigateToElementSettings(moduleName, pageName, sectionName
     -- back to the full row. Inline, not a file-scope local: the main chunk is at the 200-local cap.
     local function ResolveHighlightSlot(row, text)
         if not text or not row.GetChildren then return nil end
-        local locText = EllesmereUI.L and EllesmereUI.L(text) or text
+        local locText = EllesmereUI.L(text) or text
         for _, region in ipairs({ row:GetChildren() }) do
             local lbl = region._label
             if lbl and lbl.GetText then
@@ -11861,13 +11859,11 @@ do
             local msg = "The following EllesmereUI addons are out of date. "
                 .. "Please update so all addons are the same version:\n\n"
                 .. table.concat(outdated, ", ")
-            if EllesmereUI.ShowConfirmPopup then
-                EllesmereUI:ShowConfirmPopup({
-                    title       = "Out of Date",
-                    message     = msg,
-                    confirmText = "OK",
-                })
-            end
+            EllesmereUI:ShowConfirmPopup({
+                title       = "Out of Date",
+                message     = msg,
+                confirmText = "OK",
+            })
         end)
     end)
 end
@@ -12070,7 +12066,7 @@ C_Timer.After(2, function()
            or EllesmereUI._windowSkinsIntroPending or EllesmereUI._specOvIntroPending
            or EllesmereUI._ptrManagersIntroPending or EllesmereUI._launchVideoIntroPending
            or EllesmereUI._styleLaunchIntroPending or EllesmereUI._styleChoicePending then return end
-        if EllesmereUI._RunConflictCheck then EllesmereUI._RunConflictCheck() end
+        EllesmereUI._RunConflictCheck()
     end
 end)
 
@@ -12245,7 +12241,7 @@ do
         -- Label
         local label = f:CreateFontString(nil, "OVERLAY")
         label:SetFont(EllesmereUI.EXPRESSWAY, 11,
-            (EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE")
+            (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE")
         label:SetText("DEV MODE ACTIVE")
         label:SetTextColor(accent.r, accent.g, accent.b, 1)
         label:SetPoint("LEFT", dot, "RIGHT", 8, 0)
@@ -12276,7 +12272,7 @@ do
     ev:SetScript("OnEvent", function(self)
         self:UnregisterAllEvents()
         C_Timer.After(2, function()
-            if EllesmereUI.UpdateDevModeIndicator then EllesmereUI.UpdateDevModeIndicator() end
+            EllesmereUI.UpdateDevModeIndicator()
         end)
     end)
 end
@@ -12599,7 +12595,7 @@ initFrame:SetScript("OnEvent", function(self, event)
                 hl:SetColorTexture(1, 1, 1, 0.1)
                 local cfs = customBtn:GetFontString()
                 if cfs then
-                    local euiFont = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath() or nil
+                    local euiFont = EllesmereUI.GetFontPath() or nil
                     local _, size, flags = cfs:GetFont()
                     cfs:SetFont(euiFont or "Fonts\\FRIZQT__.TTF", (size or 14) - 2, flags or "")
                     -- Native mode keeps the branded inline-code labels set by
@@ -12667,7 +12663,7 @@ initFrame:SetScript("OnEvent", function(self, event)
             -- Position our buttons in a chain below the anchor
             local extraH = 0
             local lastBtn = anchorBtn
-            local euiFont = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath() or "Fonts\\FRIZQT__.TTF"
+            local euiFont = EllesmereUI.GetFontPath() or "Fonts\\FRIZQT__.TTF"
             local btnFontSize = 13
             -- Branded two-tone labels are the default (native mode, or when BlizzardSkin is not
             -- loaded) -- applied via inline color codes in SetText, which works with the
@@ -13346,14 +13342,14 @@ function EllesmereUI.CheckVisibilityOptionsNonMacro(opts, skipMountAxis)
     if not skipMountAxis then
         -- Hide when Mounted (includes druid travel/flight/aquatic forms)
         if opts.visHideMounted then
-            if EllesmereUI.IsPlayerMountedLike and EllesmereUI.IsPlayerMountedLike() then return true end
+            if EllesmereUI.IsPlayerMountedLike() then return true end
         end
 
         -- Only Show when Mounted (inverse; druid mount-like forms count as mounted
         -- here too -- secure action bars carry a [nomounted] clause instead, which
         -- cannot see forms, see BuildVisibilityString)
         if opts.visOnlyMounted then
-            if not (EllesmereUI.IsPlayerMountedLike and EllesmereUI.IsPlayerMountedLike()) then return true end
+            if not (EllesmereUI.IsPlayerMountedLike()) then return true end
         end
     end
 
@@ -13364,11 +13360,11 @@ function EllesmereUI.CheckVisibilityOptionsNonMacro(opts, skipMountAxis)
     -- the truthy marker "mountaxis" so a secure-driver caller can bake a combat escape
     -- hatch into what it writes (a bare "hide" cannot re-evaluate once combat starts).
     if opts.visHideDragonriding then
-        if EllesmereUI.IsPlayerSkyriding and EllesmereUI.IsPlayerSkyriding() then return "mountaxis" end
+        if EllesmereUI.IsPlayerSkyriding() then return "mountaxis" end
     end
 
     if opts.visOnlySkyriding then
-        if not (EllesmereUI.IsPlayerSkyriding and EllesmereUI.IsPlayerSkyriding()) then return "mountaxis" end
+        if not (EllesmereUI.IsPlayerSkyriding()) then return "mountaxis" end
     end
 
     -- Resting axis: Only Show while Resting / Hide while Resting share one probe.

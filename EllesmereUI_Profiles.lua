@@ -922,9 +922,7 @@ local function RepointAllDBs(profileName)
     -- palette + darken amounts change on every repoint. Re-read and repaint.
     -- RefreshDarkMode() also runs ApplyColorsToOUF, so the (possibly different)
     -- darken propagates to class/power colours even in global colour mode.
-    if EllesmereUI.RefreshDarkMode then
-        EllesmereUI.RefreshDarkMode()
-    end
+    EllesmereUI.RefreshDarkMode()
     -- Sidebar sync icons key off the ACTIVE profile's group membership;
     -- re-evaluate them on every repoint (switch/create/delete/rename/import)
     if EllesmereUI._syncRefreshFns then
@@ -1353,7 +1351,7 @@ function EllesmereUI.ApplyProfileData(profileData)
     -- fonts/colors applied above. activeProfile is already repointed before
     -- ApplyProfileData runs, so this reads the correct profile's euiAccent and
     -- falls back to the frozen global root when none is set.
-    if EllesmereUI.RefreshAccent then EllesmereUI.RefreshAccent() end
+    EllesmereUI.RefreshAccent()
 end
 
 --- Per-module refresh steps for RefreshAllAddons, in load-bearing order.
@@ -1433,7 +1431,7 @@ local REFRESH_ADDON_STEPS = {
         if _G._EMIN_RefreshFlyout then _G._EMIN_RefreshFlyout() end
     end,
     -- Global class/power colors (updates oUF, nameplates, raid frames)
-    function() if EllesmereUI.ApplyColorsToOUF then EllesmereUI.ApplyColorsToOUF() end end,
+    function() EllesmereUI.ApplyColorsToOUF() end,
     -- Re-register unlock elements for all modules whose bar sets can
     -- differ between profiles. Without this, _applySavedPositions uses
     -- stale registrations from the outgoing profile and anchors fail
@@ -1482,8 +1480,8 @@ local function RefreshAllAddonsTail()
     -- rebuilds fresh on next view, and rebuild the one on screen now. The profile
     -- DROPDOWN switch already does this inline; routing it through here also
     -- covers profile keybind + spec-driven auto-swaps, which only call us.
-    if EllesmereUI.InvalidatePageCache then EllesmereUI:InvalidatePageCache() end
-    if EllesmereUI.IsShown and EllesmereUI:IsShown() and EllesmereUI.RefreshPage then
+    EllesmereUI:InvalidatePageCache()
+    if EllesmereUI:IsShown() and EllesmereUI.RefreshPage then
         EllesmereUI:RefreshPage(true)
     end
     -- Conditional overrides: a profile apply swaps every store wholesale, so
@@ -1543,7 +1541,7 @@ function EllesmereUI.RefreshAllAddons(budgeted)
     -- own apply (chat, cursor, mythic timer, glows, borders). Per-profile accent
     -- falls back to the frozen global root, so swapping profiles never changes
     -- the accent for users who never set a per-profile one.
-    if EllesmereUI.RefreshAccent then EllesmereUI.RefreshAccent() end
+    EllesmereUI.RefreshAccent()
     if budgeted and EllesmereUI.RunBudgeted then
         EllesmereUI.RunBudgeted(REFRESH_ADDON_STEPS, 8, RefreshAllAddonsTail)
     else
@@ -1712,7 +1710,7 @@ end
 --- the switch (compares the CURRENT active profile root against the target).
 function EllesmereUI.ProfileChangesWindowSkins(profileData)
     if type(profileData) ~= "table" then return false end
-    local cur = EllesmereUI.GetActiveProfileData and EllesmereUI.GetActiveProfileData()
+    local cur = EllesmereUI.GetActiveProfileData()
     local a = (cur and cur.disableWindowSkins) and true or false
     local b = profileData.disableWindowSkins and true or false
     if a ~= b then return true end
@@ -2871,27 +2869,19 @@ local function BuildImportedCDMSpellBucket(profileName, activeName, incomingSpec
             -- spellSettings; transform NOW so the live session reads the
             -- new shape (the registered migration also covers it on the
             -- next reload -- both idempotent, flag lives in the bucket).
-            if EllesmereUI.MigrateCdmSpellSettingsShape then
-                EllesmereUI.MigrateCdmSpellSettingsShape(specProf, importedBarsCfg)
-            end
+            EllesmereUI.MigrateCdmSpellSettingsShape(specProf, importedBarsCfg)
             -- Hosted-buff settings moved family stores (CD -> BUFF);
             -- relocate old-format imports the same way (idempotent).
-            if EllesmereUI.MigrateCdmHostedBuffSettings then
-                EllesmereUI.MigrateCdmHostedBuffSettings(specProf)
-            end
+            EllesmereUI.MigrateCdmHostedBuffSettings(specProf)
             -- Collided-buff cooldownID claims moved from the
             -- assignedBuffCdIDs side-table to cd-claim markers inside
             -- assignedSpells; convert old-format imports too (idempotent),
             -- or their claims sit unread and the slots silently unclaim.
-            if EllesmereUI.MigrateCdmBuffCdClaims then
-                EllesmereUI.MigrateCdmBuffCdClaims(specProf)
-            end
+            EllesmereUI.MigrateCdmBuffCdClaims(specProf)
             -- Strings exported before _buffDisplayOrderUserModified existed carry a
             -- drag-arranged buffDisplayOrder without the flag; stamp it or the first
             -- live reconcile resyncs the imported order to Blizzard order (idempotent).
-            if EllesmereUI.MigrateCdmBuffOrderUserFlag then
-                EllesmereUI.MigrateCdmBuffOrderUserFlag(specProf)
-            end
+            EllesmereUI.MigrateCdmBuffOrderUserFlag(specProf)
         end
     end
 end
@@ -3170,9 +3160,7 @@ function EllesmereUI.ImportProfile(importStr, profileName)
 
         -- Snap all positions to the physical pixel grid (imported profiles
         -- may come from a different version without pixel snapping)
-        if EllesmereUI.SnapProfilePositions then
-            EllesmereUI.SnapProfilePositions(merged)
-        end
+        EllesmereUI.SnapProfilePositions(merged)
         db.profiles[profileName] = merged
         -- Add to order if not present
         local found = false
@@ -3247,9 +3235,7 @@ function EllesmereUI.ImportProfile(importStr, profileName)
             -- Stored but not activated: migrate legacy Resource Bars Advanced
             -- data now (the runner's flag was inherited from the base profile,
             -- so it would never run for this import otherwise).
-            if EllesmereUI.MigrateRBAdvancedProfile then
-                EllesmereUI.MigrateRBAdvancedProfile(db.profiles[profileName])
-            end
+            EllesmereUI.MigrateRBAdvancedProfile(db.profiles[profileName])
             -- Import window guard, spec_locked flavor: the merged profile was built on
             -- the dirty active profile all the same, so its first ACTIVATION (e.g. a
             -- later login preseeding onto an auto-assigned spec) hits the same
@@ -3329,9 +3315,7 @@ function EllesmereUI.ImportProfile(importStr, profileName)
         -- Resource Bars: migrate legacy Advanced/per-spec-enable data carried
         -- by old export strings (ApplyProfileData refilled the live RB table
         -- from the raw payload, so this must run after it). Idempotent.
-        if EllesmereUI.MigrateRBAdvancedProfile then
-            EllesmereUI.MigrateRBAdvancedProfile(db.profiles[profileName])
-        end
+        EllesmereUI.MigrateRBAdvancedProfile(db.profiles[profileName])
         -- NO default re-bank here. The imported entries carry the EXPORTER's recorded
         -- values.default, consistent with the imported addon blobs by construction
         -- (MergeImportedStores partitions per folder). The old

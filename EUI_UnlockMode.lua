@@ -420,7 +420,7 @@ end
 -------------------------------------------------------------------------------
 --  Constants
 -------------------------------------------------------------------------------
-local FONT_PATH   = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("extras"))
+local FONT_PATH   = (EllesmereUI.GetFontPath("extras"))
     or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
 
 -- At very low UI scale the overlays/top bar are hard to read, so they're nudged up.
@@ -2826,7 +2826,7 @@ local function MakeGhostSet(opts)
         labelFrame:SetClipsChildren(true)
         labelFrame:SetFrameLevel(g:GetFrameLevel() + 2)
         local fs = labelFrame:CreateFontString(nil, "OVERLAY")
-        if EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, true) end
+        EllesmereUI.PrimeFontShadow(fs, true)
         fs:SetFont(FONT_PATH, 10 + (UIParent:GetEffectiveScale() < 0.6 and 1 or 0), "")
         fs:SetTextColor(1, 1, 1, 0.75)
         fs:SetWordWrap(false)
@@ -3052,7 +3052,7 @@ do
     -- store shape: { [childKey] = { [gid] = { target, side, offsetX, offsetY } } }
     -- offsets are UIParent-space deltas from the side-snap point (ghost drags).
     local function Store(create)
-        local prof = EllesmereUI.GetActiveProfileData and EllesmereUI.GetActiveProfileData()
+        local prof = EllesmereUI.GetActiveProfileData()
         if not prof then return nil end
         if create and not prof.unlockOverrideAnchors then
             prof.unlockOverrideAnchors = {}
@@ -3061,7 +3061,7 @@ do
     end
 
     local function Groups()
-        local prof = EllesmereUI.GetActiveProfileData and EllesmereUI.GetActiveProfileData()
+        local prof = EllesmereUI.GetActiveProfileData()
         return prof and prof.specOverrideGroups
     end
 
@@ -3116,7 +3116,7 @@ do
         end
         local specID = EllesmereUI._specID
         if not specID or specID == 0 then
-            if EllesmereUI._RefreshSpecID then EllesmereUI._RefreshSpecID() end
+            EllesmereUI._RefreshSpecID()
             specID = EllesmereUI._specID
         end
         if not specID or specID == 0 then return nil end
@@ -6623,7 +6623,7 @@ local function CreateBlizzOwnedOverlay(def, parent)
     ov._brd = brd
     -- Label (always visible, same style as mover labels)
     local nameFs = ov:CreateFontString(nil, "OVERLAY")
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(nameFs, true) end
+    EllesmereUI.PrimeFontShadow(nameFs, true)
     nameFs:SetFont(FONT_PATH, 10 + (UIParent:GetEffectiveScale() < 0.6 and 1 or 0), "")
     nameFs:SetPoint("CENTER", ov, "CENTER", 0, 0)
     nameFs:SetTextColor(1, 1, 1, 0.75)
@@ -6632,7 +6632,7 @@ local function CreateBlizzOwnedOverlay(def, parent)
     ov._nameFs = nameFs
     -- Action text (hidden at idle, fades in on hover)
     local actionFs = ov:CreateFontString(nil, "OVERLAY")
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(actionFs, true) end
+    EllesmereUI.PrimeFontShadow(actionFs, true)
     actionFs:SetFont(FONT_PATH, 9 + (UIParent:GetEffectiveScale() < 0.6 and 1 or 0), "")
     actionFs:SetPoint("TOP", nameFs, "BOTTOM", 0, -2)
     actionFs:SetTextColor(ar, ag, ab, 0.9)
@@ -6847,7 +6847,7 @@ local function CreateMover(barKey)
     labelFrame:SetClipsChildren(true)
     labelFrame:SetFrameLevel(mover:GetFrameLevel() + 3)
     local nameFS = labelFrame:CreateFontString(nil, "OVERLAY")
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(nameFS, true) end
+    EllesmereUI.PrimeFontShadow(nameFS, true)
     nameFS:SetFont(FONT_PATH, 10 + (UIParent:GetEffectiveScale() < 0.6 and 1 or 0), "")
     nameFS:SetText(EllesmereUI.L(label))
     nameFS:SetTextColor(1, 1, 1, 0.75)
@@ -6860,7 +6860,7 @@ local function CreateMover(barKey)
     -- Optional dimmed subtitle under the label (element definition field)
     if regElem and regElem.subtitle then
         local subFS = labelFrame:CreateFontString(nil, "OVERLAY")
-        if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(subFS, true) end
+        EllesmereUI.PrimeFontShadow(subFS, true)
         subFS:SetFont(FONT_PATH, 8 + (UIParent:GetEffectiveScale() < 0.6 and 1 or 0), "")
         subFS:SetText(EllesmereUI.L(regElem.subtitle))
         subFS:SetTextColor(1, 1, 1, 0.40)
@@ -6876,7 +6876,7 @@ local function CreateMover(barKey)
 
     -- Coordinate readout (shows during drag and selection, top-left of mover)
     local coordFS = labelFrame:CreateFontString(nil, "OVERLAY")
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(coordFS, true) end
+    EllesmereUI.PrimeFontShadow(coordFS, true)
     coordFS:SetFont(FONT_PATH, 9 + (UIParent:GetEffectiveScale() < 0.6 and 1 or 0), "")
     coordFS:SetTextColor(1, 1, 1, 0.7)
     coordFS:SetPoint("TOPLEFT", mover, "TOPLEFT", 3, -2)
@@ -6923,28 +6923,28 @@ local function CreateMover(barKey)
 
     -- Font strings inside each button (accent colored, drop shadow)
     local wmFS = wmBtn:CreateFontString(nil, "OVERLAY")
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(wmFS, true) end
+    EllesmereUI.PrimeFontShadow(wmFS, true)
     wmFS:SetFont(FONT_PATH, 9, "")
     wmFS:SetTextColor(ar, ag, ab, 0.85)
     wmFS:SetText(EllesmereUI.L(WM_TEXT))
     wmFS:SetPoint("CENTER")
 
     local hmFS = hmBtn:CreateFontString(nil, "OVERLAY")
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(hmFS, true) end
+    EllesmereUI.PrimeFontShadow(hmFS, true)
     hmFS:SetFont(FONT_PATH, 9, "")
     hmFS:SetTextColor(ar, ag, ab, 0.85)
     hmFS:SetText(EllesmereUI.L(HM_TEXT))
     hmFS:SetPoint("CENTER")
 
     local atFS = atBtn:CreateFontString(nil, "OVERLAY")
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(atFS, true) end
+    EllesmereUI.PrimeFontShadow(atFS, true)
     atFS:SetFont(FONT_PATH, 9, "")
     atFS:SetTextColor(ar, ag, ab, 0.85)
     atFS:SetText(EllesmereUI.L(AT_TEXT))
     atFS:SetPoint("CENTER")
 
     local gdFS = gdBtn:CreateFontString(nil, "OVERLAY")
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(gdFS, true) end
+    EllesmereUI.PrimeFontShadow(gdFS, true)
     gdFS:SetFont(FONT_PATH, 9, "")
     gdFS:SetTextColor(ar, ag, ab, 0.85)
     gdFS:SetText(EllesmereUI.L(GD_TEXT))
@@ -7049,7 +7049,7 @@ local function CreateMover(barKey)
 
     -- Pick mode instruction text (shown when in pick mode, replaces all other text)
     local pickFS = labelFrame:CreateFontString(nil, "OVERLAY")
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(pickFS, true) end
+    EllesmereUI.PrimeFontShadow(pickFS, true)
     pickFS:SetFont(FONT_PATH, 10 + (UIParent:GetEffectiveScale() < 0.6 and 1 or 0), "")
     pickFS:SetTextColor(1, 1, 1, 0.85)
     pickFS:SetPoint("CENTER", mover, "CENTER")
@@ -7557,9 +7557,7 @@ local function CreateMover(barKey)
         if elem and elem.matchUnavailable then
             local why = elem.matchUnavailable(barKey)
             if why then
-                if EllesmereUI.ShowWidgetTooltip then
-                    EllesmereUI.ShowWidgetTooltip(wmBtn, why)
-                end
+                EllesmereUI.ShowWidgetTooltip(wmBtn, why)
                 return
             end
         end
@@ -7587,9 +7585,7 @@ local function CreateMover(barKey)
         if elem and elem.matchUnavailable then
             local why = elem.matchUnavailable(barKey)
             if why then
-                if EllesmereUI.ShowWidgetTooltip then
-                    EllesmereUI.ShowWidgetTooltip(hmBtn, why)
-                end
+                EllesmereUI.ShowWidgetTooltip(hmBtn, why)
                 return
             end
         end
@@ -7675,7 +7671,7 @@ local function CreateMover(barKey)
 
         local ddY = -4
         local titleFS = growDropdownFrame:CreateFontString(nil, "OVERLAY")
-        if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(titleFS, true) end
+        EllesmereUI.PrimeFontShadow(titleFS, true)
         titleFS:SetFont(FONT_PATH, 10, "")
         titleFS:SetTextColor(1, 1, 1, 0.40)
         titleFS:SetJustifyH("LEFT")
@@ -7771,7 +7767,7 @@ local function CreateMover(barKey)
             hl:SetAllPoints()
             hl:SetColorTexture(1, 1, 1, 0)
             local lbl = item:CreateFontString(nil, "OVERLAY")
-            if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(lbl, true) end
+            EllesmereUI.PrimeFontShadow(lbl, true)
             lbl:SetFont(FONT_PATH, 11, "")
             lbl:SetJustifyH("LEFT")
             lbl:SetPoint("LEFT", item, "LEFT", 10, 0)
@@ -9812,7 +9808,7 @@ local function CreateMover(barKey)
         -- arrow keys nudge the selected element 1px in any direction.
         do
             local hintFS = cogMenu:CreateFontString(nil, "OVERLAY")
-            if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(hintFS, true) end
+            EllesmereUI.PrimeFontShadow(hintFS, true)
             hintFS:SetFont(FONT_PATH, 10, "")
             hintFS:SetTextColor(0.7, 0.7, 0.7, 0.85)
             hintFS:SetJustifyH("CENTER")
@@ -9864,7 +9860,7 @@ local function CreateMover(barKey)
             optHl:SetAllPoints()
             optHl:SetColorTexture(1, 1, 1, 0)
             local optLbl = optItem:CreateFontString(nil, "OVERLAY")
-            if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(optLbl, true) end
+            EllesmereUI.PrimeFontShadow(optLbl, true)
             optLbl:SetFont(FONT_PATH, 11, "")
             optLbl:SetTextColor(0.75, 0.75, 0.75, 0.9)
             optLbl:SetJustifyH("LEFT")
@@ -9934,12 +9930,12 @@ local function CreateMover(barKey)
                 rowFrame:SetFrameLevel(cogMenu:GetFrameLevel() + 2)
 
                 local lbl = rowFrame:CreateFontString(nil, "OVERLAY")
-                if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(lbl, true) end
+                EllesmereUI.PrimeFontShadow(lbl, true)
                 lbl:SetFont(FONT_PATH, 11, "")
                 lbl:SetTextColor(0.75, 0.75, 0.75, 0.9)
                 lbl:SetJustifyH("LEFT")
                 lbl:SetPoint("LEFT", rowFrame, "LEFT", 10, 0)
-                lbl:SetText((EllesmereUI and EllesmereUI.L and EllesmereUI.L(axis)) or axis)
+                lbl:SetText((EllesmereUI.L(axis)) or axis)
 
                 local box = CreateFrame("EditBox", nil, rowFrame)
                 box:SetSize(INPUT_W, INPUT_H)
@@ -10106,7 +10102,7 @@ local function CreateMover(barKey)
                     rowFrame:SetFrameLevel(cogMenu:GetFrameLevel() + 2)
 
                     local lbl = rowFrame:CreateFontString(nil, "OVERLAY")
-                    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(lbl, true) end
+                    EllesmereUI.PrimeFontShadow(lbl, true)
                     lbl:SetFont(FONT_PATH, 11, "")
                     lbl:SetTextColor(0.75, 0.75, 0.75, 0.9)
                     lbl:SetJustifyH("LEFT")
@@ -10210,7 +10206,7 @@ local function CreateMover(barKey)
                     rowFrame:SetPoint("TOPRIGHT", cogMenu, "TOPRIGHT", -1, yOff)
                     rowFrame:SetFrameLevel(cogMenu:GetFrameLevel() + 2)
                     local lbl = rowFrame:CreateFontString(nil, "OVERLAY")
-                    if EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(lbl, true) end
+                    EllesmereUI.PrimeFontShadow(lbl, true)
                     lbl:SetFont(FONT_PATH, 11, "")
                     lbl:SetTextColor(0.75, 0.75, 0.75, 0.9)
                     lbl:SetJustifyH("LEFT")
@@ -10280,7 +10276,7 @@ local function CreateMover(barKey)
                     rowFrame:SetPoint("TOPRIGHT", cogMenu, "TOPRIGHT", -1, yOff)
                     rowFrame:SetFrameLevel(cogMenu:GetFrameLevel() + 2)
                     local lbl = rowFrame:CreateFontString(nil, "OVERLAY")
-                    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(lbl, true) end
+                    EllesmereUI.PrimeFontShadow(lbl, true)
                     lbl:SetFont(FONT_PATH, 11, "")
                     lbl:SetTextColor(0.75, 0.75, 0.75, 0.9)
                     lbl:SetJustifyH("LEFT")
@@ -10388,7 +10384,7 @@ local function CreateMover(barKey)
         selElemHl:SetAllPoints()
         selElemHl:SetColorTexture(1, 1, 1, 0)
         local selElemLbl = selElemItem:CreateFontString(nil, "OVERLAY")
-        if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(selElemLbl, true) end
+        EllesmereUI.PrimeFontShadow(selElemLbl, true)
         selElemLbl:SetFont(FONT_PATH, 11, "")
         selElemLbl:SetJustifyH("LEFT")
         selElemLbl:SetPoint("LEFT", selElemItem, "LEFT", 10, 0)
@@ -10438,7 +10434,7 @@ local function CreateMover(barKey)
             hl:SetAllPoints()
             hl:SetColorTexture(1, 1, 1, 0)
             local lbl = item:CreateFontString(nil, "OVERLAY")
-            if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(lbl, true) end
+            EllesmereUI.PrimeFontShadow(lbl, true)
             lbl:SetFont(FONT_PATH, 11, "")
             lbl:SetTextColor(0.75, 0.75, 0.75, 0.9)
             lbl:SetJustifyH("LEFT")
@@ -10883,7 +10879,7 @@ local function CreateMover(barKey)
                     hl:SetAllPoints()
                     hl:SetColorTexture(1, 1, 1, 0)
                     local lbl = item:CreateFontString(nil, "OVERLAY")
-                    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(lbl, true) end
+                    EllesmereUI.PrimeFontShadow(lbl, true)
                     lbl:SetFont(FONT_PATH, 11, "")
                     lbl:SetTextColor(0.75, 0.75, 0.75, 0.9)
                     lbl:SetJustifyH("LEFT")
@@ -11108,10 +11104,10 @@ local function CreateMover(barKey)
         end
     end)
     mover:HookScript("OnLeave", function()
-        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+        EllesmereUI.HideWidgetTooltip()
     end)
     mover:HookScript("OnDragStart", function()
-        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+        EllesmereUI.HideWidgetTooltip()
     end)
 
     movers[barKey] = mover
@@ -12495,17 +12491,15 @@ local function DoClose(closeAction)
             EllesmereUI._unlockReturnPage = nil
             EllesmereUI._unlockReturnModule = nil
             if restoreModule then
-                if EllesmereUI.SelectModule then
-                    EllesmereUI:SelectModule(restoreModule)
-                end
+                EllesmereUI:SelectModule(restoreModule)
                 if restorePage and EllesmereUI.SelectPage then
-                    local currentPage = EllesmereUI.GetActivePage and EllesmereUI:GetActivePage()
+                    local currentPage = EllesmereUI:GetActivePage()
                     if currentPage ~= restorePage then
                         EllesmereUI:SelectPage(restorePage)
                     end
                 end
                 -- NOW show the panel — one clean Show, no prior cycling.
-                if EllesmereUI.Toggle then EllesmereUI:Toggle() end
+                EllesmereUI:Toggle()
             end
         end
     end
@@ -12999,10 +12993,8 @@ function ns.OpenUnlockMode()
     if not EllesmereUI._unlockReturnModule then
         local panel = EllesmereUI._mainFrame
         if panel and panel:IsShown() then
-            EllesmereUI._unlockReturnModule = EllesmereUI.GetActiveModule
-                and EllesmereUI:GetActiveModule() or nil
-            EllesmereUI._unlockReturnPage = EllesmereUI.GetActivePage
-                and EllesmereUI:GetActivePage() or nil
+            EllesmereUI._unlockReturnModule = EllesmereUI:GetActiveModule() or nil
+            EllesmereUI._unlockReturnPage = EllesmereUI:GetActivePage() or nil
         end
     end
     -- Permanent gold variant: when the current spec's owning group has a custom
@@ -13566,9 +13558,7 @@ function ns.OpenUnlockMode()
                     panelHidden = true
                     panel:SetScale(panelRealScale)
                     panel:SetAlpha(1)
-                    if EllesmereUI and EllesmereUI.Hide then
-                        EllesmereUI:Hide()
-                    end
+                    EllesmereUI:Hide()
                 end
             end
 
@@ -13592,7 +13582,7 @@ function ns.OpenUnlockMode()
         if not panelHidden then
             panelHidden = true
             if panel then panel:SetScale(panelRealScale); panel:SetAlpha(1) end
-            if EllesmereUI and EllesmereUI.Hide then EllesmereUI:Hide() end
+            EllesmereUI:Hide()
         end
 
         -- Post-morph: container at final scale, inner/outer fully visible
@@ -13779,7 +13769,7 @@ if EllesmereUI and EllesmereUI.RegisterOnShow then
             if panel then panel:Hide() end
             -- Close unlock mode, then re-open the panel after
             ns.CloseUnlockMode(function()
-                if EllesmereUI.Toggle then EllesmereUI:Toggle() end
+                EllesmereUI:Toggle()
             end)
         end
     end)

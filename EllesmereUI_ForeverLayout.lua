@@ -366,7 +366,7 @@ end
 -- screen size once that is final, in the world, over the skin's own login
 -- seed (Blizzard's Edit Mode spot), and the box is re-parked at once.
 local function PlaceTooltipAnchor()
-    local prof = EllesmereUI.GetActiveProfileData and EllesmereUI.GetActiveProfileData()
+    local prof = EllesmereUI.GetActiveProfileData()
     if not prof then return end
     local uw, uh = UIParent:GetWidth(), UIParent:GetHeight()
     if not uw or not uh or uw <= 0 or uh <= 0 then return end
