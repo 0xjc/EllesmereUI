@@ -766,7 +766,7 @@ local function CreateFlyoutToggle()
     btn:SetScript("OnClick", function(self)
         if GetFFD(self).freeMoveJustDragged then return end
         -- Opening the grid replaces the label tooltip (same as M+ Portals)
-        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip(true) end
+        EllesmereUI.HideWidgetTooltip(true)
         ToggleFlyoutPanel()
     end)
     btn:SetScript("OnEnter", function(self)
@@ -776,7 +776,7 @@ local function CreateFlyoutToggle()
         end
     end)
     btn:SetScript("OnLeave", function(self)
-        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+        EllesmereUI.HideWidgetTooltip()
     end)
 
     -- Blizzard/addon hooks on minimap children can disable mouse; re-assert on Show.
@@ -1555,8 +1555,8 @@ local function ShowVaultTooltip(anchor)
     -- Scale the whole tooltip to the user's Custom Tooltip Size (re-applied each show).
     tt:SetScale(GetCustomTooltipScale())
 
-    local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("minimap")) or "Fonts\\FRIZQT__.TTF"
-    local fontFlags = (EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("minimap")) or ""
+    local fontPath = (EllesmereUI.GetFontPath("minimap")) or "Fonts\\FRIZQT__.TTF"
+    local fontFlags = (EllesmereUI.GetFontOutlineFlag("minimap")) or ""
     tt._title:SetFont(fontPath, 11, fontFlags)
     for r = 1, 3 do
         _vaultTTRows[r][0]:SetFont(fontPath, 11, fontFlags)
@@ -1673,7 +1673,7 @@ local function CreateGreatVaultBtn(parent)
     btn:SetScript("OnLeave", function(self)
         self._whole:SetVertexColor(0.85, 0.85, 0.85, 1)
         HideVaultTooltip()
-        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+        EllesmereUI.HideWidgetTooltip()
     end)
     btn:SetScript("OnMouseDown", function(self)
         self._whole:SetVertexColor(0.7, 0.7, 0.7, 1)
@@ -1707,7 +1707,7 @@ local function ToggleMinimapPortalFlyout(anchorBtn)
     if not _portalFlyout then
         _portalFlyout = EllesmereUI.CreatePortalFlyout({
             name = "EUIMinimap", bg = { 0.04, 0.04, 0.06 }, clamp = true, unitEvents = true,
-            labelFont = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("minimap")) or "Fonts\\FRIZQT__.TTF",
+            labelFont = (EllesmereUI.GetFontPath("minimap")) or "Fonts\\FRIZQT__.TTF",
             labelFlags = "OUTLINE",
         })
         -- Keep the mouseover stack shown while open; re-evaluate on close so it can hide.
@@ -1780,11 +1780,11 @@ local function CreatePortalBtn(parent)
     btn:SetScript("OnEnter", function(self)
         self._icon:SetVertexColor(1, 1, 1, 1)
         if _portalFlyout and _portalFlyout:IsShown() then return end
-        if EllesmereUI.ShowWidgetTooltip then EllesmereUI.ShowWidgetTooltip(self, "M+ Portals", { anchor = EBS._Grow.TT(), scale = GetCustomTooltipScale() }) end
+        EllesmereUI.ShowWidgetTooltip(self, "M+ Portals", { anchor = EBS._Grow.TT(), scale = GetCustomTooltipScale() })
     end)
     btn:SetScript("OnLeave", function(self)
         self._icon:SetVertexColor(0.85, 0.85, 0.85, 1)
-        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+        EllesmereUI.HideWidgetTooltip()
     end)
     btn:SetScript("OnMouseDown", function(self)
         self._icon:SetVertexColor(0.7, 0.7, 0.7, 1)
@@ -1796,7 +1796,7 @@ local function CreatePortalBtn(parent)
     end)
     btn:SetScript("OnClick", function(self)
         if GetFFD(self).freeMoveJustDragged then return end
-        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip(true) end
+        EllesmereUI.HideWidgetTooltip(true)
         ToggleMinimapPortalFlyout(self)
     end)
 
@@ -1926,7 +1926,7 @@ end
 -- lives in the do-block so locals release instead of eating main-chunk slots (200-local
 -- cap). Only ShowFriendsTooltip/HideFriendsTooltip are used outside, hence the forward declarations.
 local function FTT_FONT()
-    return (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("minimap")) or EllesmereUI.EXPRESSWAY or "Fonts\\FRIZQT__.TTF"
+    return (EllesmereUI.GetFontPath("minimap")) or EllesmereUI.EXPRESSWAY or "Fonts\\FRIZQT__.TTF"
 end
 local ShowFriendsTooltip, HideFriendsTooltip
 do
@@ -1962,7 +1962,7 @@ end
 -- EllesmereUI.InProtectedInstance(), the canonical EUI guard for taint-sensitive ops.
 -- Whispering is suppressed entirely there; invites stay allowed.
 local function FTTInProtectedContent()
-    return EllesmereUI.InProtectedInstance and EllesmereUI.InProtectedInstance() or false
+    return EllesmereUI.InProtectedInstance() or false
 end
 
 -- Open a whisper. BNet friends go via their Battle.net account (reaches any character/
@@ -1974,7 +1974,7 @@ local function FTTOpenWhisper(charName, bnetName)
     -- same secret-value environment as a real Mythic+). InProtectedInstance() itself
     -- reports true in dev mode; the separate branch exists only for the clearer message.
     local blocked
-    if EllesmereUI.IsDevModeActive and EllesmereUI.IsDevModeActive() then
+    if EllesmereUI.IsDevModeActive() then
         blocked = "This action is protected while dev mode (/euidev) is on."
     elseif FTTInProtectedContent() then
         blocked = "This action is protected in Mythic+ and raid combat."
@@ -2629,7 +2629,7 @@ local function BuildCustomIndicators(minimap)
     end)
     _customIndicators.tracking:SetScript("OnLeave", function(self)
         if trackBaseLeave then trackBaseLeave(self) end
-        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+        EllesmereUI.HideWidgetTooltip()
     end)
 
     -- Calendar (day-of-month atlas)
@@ -2647,7 +2647,7 @@ local function BuildCustomIndicators(minimap)
         if calBaseEnter then calBaseEnter(self) end
         if GetFFD(self).freeMoveJustDragged then return end
         local lockoutEntries
-        if not (EllesmereUI.InProtectedInstance and EllesmereUI.InProtectedInstance()) then
+        if not (EllesmereUI.InProtectedInstance()) then
             lockoutEntries = GetCalendarLockoutEntries()
         end
         if lockoutEntries then
@@ -2659,7 +2659,7 @@ local function BuildCustomIndicators(minimap)
     _customIndicators.calendar:SetScript("OnLeave", function(self)
         if calBaseLeave then calBaseLeave(self) end
         HideCalendarTooltip()
-        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+        EllesmereUI.HideWidgetTooltip()
     end)
 
     -- Mail (informational: tooltip + hover atlas only)
@@ -2676,7 +2676,7 @@ local function BuildCustomIndicators(minimap)
     end)
     _customIndicators.mail:SetScript("OnLeave", function(self)
         if mailBaseLeave then mailBaseLeave(self) end
-        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+        EllesmereUI.HideWidgetTooltip()
     end)
 
     -- Crafting Order (informational: tooltip + hover atlas only)
@@ -2709,7 +2709,7 @@ local function BuildCustomIndicators(minimap)
     end)
     _customIndicators.crafting:SetScript("OnLeave", function(self)
         if craftBaseLeave then craftBaseLeave(self) end
-        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+        EllesmereUI.HideWidgetTooltip()
     end)
 
     -- Friends Online button
@@ -4780,7 +4780,7 @@ local function ApplyMinimap()
                 local mp = EBS.db and EBS.db.profile.minimap
                 local mode = (mp and mp.clockHoverTooltip) or "none"
                 if mode == "lockouts" then
-                    if EllesmereUI.InProtectedInstance and EllesmereUI.InProtectedInstance() then return end
+                    if EllesmereUI.InProtectedInstance() then return end
                     local entries = GetCalendarLockoutEntries()
                     if entries then ShowCalendarTooltip(self, entries) end
                 elseif mode == "vault" then
@@ -5020,7 +5020,7 @@ local function ApplyMinimap()
                 local mp = EBS.db and EBS.db.profile.minimap
                 local mode = (mp and mp.fpsHoverTooltip) or "none"
                 if mode == "lockouts" then
-                    if EllesmereUI.InProtectedInstance and EllesmereUI.InProtectedInstance() then return end
+                    if EllesmereUI.InProtectedInstance() then return end
                     local entries = GetCalendarLockoutEntries()
                     if entries then ShowCalendarTooltip(self, entries) end
                 elseif mode == "vault" then
@@ -5226,7 +5226,7 @@ local _mmDriverStr
 local function MinimapDriverString(p, vm)
     -- An applied Visibility override replaces the whole setting: a constant, and the
     -- shared selection underneath never reaches the driver.
-    local visOv = EllesmereUI.VisOverrideValue and EllesmereUI.VisOverrideValue(p)
+    local visOv = EllesmereUI.VisOverrideValue(p)
     if visOv then return (visOv == "never") and "hide" or "show" end
     -- Any match: Lua-only lanes (instances, housing, skyriding mount) are resolved at
     -- build time (caller runs out of combat only); a later zone/mount edge re-runs the
@@ -5235,8 +5235,7 @@ local function MinimapDriverString(p, vm)
         return (EllesmereUI.BuildAnyMatchTail(p, "visibility", vm))
     end
     if vm then
-        return EllesmereUI.BuildVisibilityDriverString
-            and EllesmereUI.BuildVisibilityDriverString("", vm)
+        return EllesmereUI.BuildVisibilityDriverString("", vm)
     end
     local mode = p.visibility
     if mode == "in_combat" then return "[combat] show; hide" end
@@ -5262,11 +5261,9 @@ local function UpdateMinimapVisibility()
     -- skipping the update would leave "Out of Combat" permanently visible and "In Combat"
     -- permanently hidden. Alpha is no stand-in: engine-drawn map surface/blips ignore
     -- frame alpha. A secure state driver is the only thing that can legally hide this frame mid-combat, so combat-dependent selections get one; others keep plain Show()/Hide().
-    local vm = EllesmereUI.GetActiveVisibilityModes
-        and EllesmereUI.GetActiveVisibilityModes(p, "visibility")
+    local vm = EllesmereUI.GetActiveVisibilityModes(p, "visibility")
     -- Mouseover cannot be expressed as a macro conditional, and the poll's own Show()/Hide() would fight a driver, so those selections stay on Lua.
-    local want = EllesmereUI.VisDependsOnCombat
-        and EllesmereUI.VisDependsOnCombat(p, "visibility")
+    local want = EllesmereUI.VisDependsOnCombat(p, "visibility")
         and not (vm and vm.mouseover)
         and MinimapDriverString(p, vm)
         or nil
@@ -5402,8 +5399,8 @@ do
                 hl:SetColorTexture(1, 1, 1, 0.08)
 
                 local label = btn:CreateFontString(nil, "OVERLAY")
-                if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(label, true) end
-                label:SetFont((EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("minimap"))
+                EllesmereUI.PrimeFontShadow(label, true)
+                label:SetFont((EllesmereUI.GetFontPath("minimap"))
                     or "Fonts\\FRIZQT__.TTF", 11, "")
                 label:SetPoint("LEFT", btn, "LEFT", 10, 0)
                 label:SetTextColor(0.9, 0.9, 0.9)
@@ -5456,8 +5453,8 @@ do
                 hl:SetColorTexture(1, 1, 1, 0.08)
 
                 local label = btn:CreateFontString(nil, "OVERLAY")
-                if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(label, true) end
-                label:SetFont((EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("minimap"))
+                EllesmereUI.PrimeFontShadow(label, true)
+                label:SetFont((EllesmereUI.GetFontPath("minimap"))
                     or "Fonts\\FRIZQT__.TTF", 11, "")
                 label:SetPoint("LEFT", btn, "LEFT", 10, 0)
                 label:SetTextColor(0.9, 0.9, 0.9)
@@ -5533,9 +5530,7 @@ function EBS:OnInitialize()
     _G._EMM_FullRebuildMinimap = FullRebuildMinimap
 
     -- Register visibility updater + mouseover target
-    if EllesmereUI.RegisterVisibilityUpdater then
-        EllesmereUI.RegisterVisibilityUpdater(UpdateMinimapVisibility)
-    end
+    EllesmereUI.RegisterVisibilityUpdater(UpdateMinimapVisibility)
     if EllesmereUI.RegisterMouseoverTarget and Minimap then
         EllesmereUI.RegisterMouseoverTarget(Minimap, function()
             -- Minimap is the one mouseover target that is a raw protected Blizzard frame
