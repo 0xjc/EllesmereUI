@@ -362,7 +362,7 @@ end
 --  Media paths
 -------------------------------------------------------------------------------
 local MEDIA_DIR = "Interface\\AddOns\\EllesmereUIActionBars\\Media\\"
-local FONT_PATH = (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("actionBars"))
+local FONT_PATH = (EllesmereUI.GetFontPath("actionBars"))
     or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
 local HIGHLIGHT_TEXTURES = {
     MEDIA_DIR .. "highlight-2.png",
@@ -2525,7 +2525,7 @@ local function SetupPagingFrame()
 
     -- Page number text
     local pageText = f:CreateFontString(nil, "OVERLAY")
-    pageText:SetFont(STANDARD_TEXT_FONT, 12, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
+    pageText:SetFont(STANDARD_TEXT_FONT, 12, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
     pageText:SetTextColor(1, 1, 1, 0.9)
     pageText:SetText("1")
     f._pageText = pageText
@@ -2639,7 +2639,7 @@ LayoutPagingFrame = function()
 
     f._upBtn:SetSize(arrowSize, arrowSize)
     f._downBtn:SetSize(arrowSize, arrowSize)
-    f._pageText:SetFont(STANDARD_TEXT_FONT, textSize, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
+    f._pageText:SetFont(STANDARD_TEXT_FONT, textSize, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
 
     f._upBtn:ClearAllPoints()
     f._downBtn:ClearAllPoints()
@@ -7703,7 +7703,7 @@ function EAB:ApplyFontsForBar(barKey)
     if not s then return end
     local buttons = barButtons[barKey]
     if not buttons then return end
-    local fontPath = EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("actionBars") or FONT_PATH
+    local fontPath = EllesmereUI.GetFontPath("actionBars") or FONT_PATH
     local hideKB = s.hideKeybind
     local kbSize = s.keybindFontSize or 12
     -- Stance/pet bar buttons are smaller (30px vs 45px) shrink keybind text
@@ -7794,8 +7794,8 @@ function EAB:ApplyFontsForBar(barKey)
                 nm:SetAlpha(0)
             else
                 nm:SetAlpha(1)
-                if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(nm, false) end
-                nm:SetFont(fontPath, macroSize, (EllesmereUI and EllesmereUI.SlugFlag and EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
+                EllesmereUI.PrimeFontShadow(nm, false)
+                nm:SetFont(fontPath, macroSize, (EllesmereUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
                 nm:SetTextColor(macroColor.r, macroColor.g, macroColor.b)
                 if not (macroAnchor and EAB.PlaceButtonText(nm, btn, macroAnchor, macroOX, macroOY)) then
                     nm:ClearAllPoints()
@@ -7854,7 +7854,7 @@ end
 --  Cooldown Countdown Font Override
 -------------------------------------------------------------------------------
 function EAB_VTABLE.CooldownFonts.GetSettings(s)
-    return (EllesmereUI and EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("actionBars")) or FONT_PATH,
+    return (EllesmereUI.GetFontPath("actionBars")) or FONT_PATH,
         s.cooldownFontSize or 12,
         s.cooldownTextXOffset or 0,
         s.cooldownTextYOffset or 0,
@@ -9274,8 +9274,7 @@ local function BuildVisibilityString(info, s, visOverride)
     -- An applied Visibility override replaces the whole setting, the shared option
     -- lanes included. The runtime toggle keybind still wins over it, the same way it
     -- wins over the saved mode.
-    local visOv = (not visOverride) and EllesmereUI.VisOverrideValue
-        and EllesmereUI.VisOverrideValue(s) or nil
+    local visOv = (not visOverride) and EllesmereUI.VisOverrideValue(s) or nil
 
     if info.isStance and (GetNumShapeshiftForms() or 0) == 0 then
         return "hide" -- classes/specs with no forms have no stance bar to show
@@ -9456,7 +9455,7 @@ function EAB_VTABLE.ExtraBars.ShouldShowManagedNonSecureBar(s)
         return false
     end
     if s.enabled == false or s.alwaysHidden then return false end
-    if EllesmereUI and EllesmereUI.CheckVisibilityOptions and EllesmereUI.CheckVisibilityOptions(s) then
+    if EllesmereUI.CheckVisibilityOptions(s) then
         return false
     end
     local state = EAB_VTABLE.ExtraBars.GetManagedNonSecureVisibilityState()
@@ -9740,8 +9739,7 @@ function EAB:ApplyCombatVisibility()
                 -- ShouldHideNonMacro carries; with all of them skipping it, the "any"
                 -- branch inside CheckVisibilityOptionsNonMacro has no live caller left and
                 -- is kept only so the helper stays correct for a future non-driver one.
-                elseif s.visibilityMatch ~= "any" and EllesmereUI.CheckVisibilityOptionsNonMacro
-                    and EllesmereUI.CheckVisibilityOptionsNonMacro(s) then
+                elseif s.visibilityMatch ~= "any" and EllesmereUI.CheckVisibilityOptionsNonMacro(s) then
                     newStr = "hide"
                 else
                     newStr = BuildVisibilityString(info, s)
@@ -9791,8 +9789,7 @@ function EAB:_RefreshSoftTargetGate()
             -- for that bar. Deliberately over-inclusive (it also matches the
             -- macro-expressible lanes) -- a needless walk on a rare zone/mount edge is
             -- cheap, a missed one leaves the bar stale until the next settings change.
-            if not anyNonMacro and EllesmereUI.VisHasAnyOption
-               and EllesmereUI.VisHasAnyOption(s) then
+            if not anyNonMacro and EllesmereUI.VisHasAnyOption(s) then
                 anyNonMacro = true
             end
         end
@@ -9937,8 +9934,7 @@ function EAB:RefreshRuntimeVisibility()
                         -- (which may be "never") and any non-macro hide options.
                         newStr = BuildVisibilityString(info, s, "always")
                     -- Any is driver-owned, same reason as in ApplyCombatVisibility.
-                    elseif s.visibilityMatch ~= "any" and EllesmereUI.CheckVisibilityOptionsNonMacro
-                        and EllesmereUI.CheckVisibilityOptionsNonMacro(s) then
+                    elseif s.visibilityMatch ~= "any" and EllesmereUI.CheckVisibilityOptionsNonMacro(s) then
                         newStr = "hide"
                     else
                         newStr = BuildVisibilityString(info, s)
@@ -10114,7 +10110,7 @@ function EAB:SetMyslotForceShow(on)
             self:ApplyAlwaysShowButtons(info.key)
         end
     end
-    if EllesmereUI and EllesmereUI.RefreshPage then EllesmereUI:RefreshPage() end
+    EllesmereUI:RefreshPage()
 end
 end -- do: MYSLOT_VIS_FIELDS scope
 
@@ -10335,7 +10331,7 @@ function EAB:UpdateHousingVisibility()
             -- lanes included, and BuildVisibilityString already compiles it into a
             -- constant. Checked before the two raw lane reads below, which would otherwise
             -- keep hiding the bar on a lane the override took over.
-            if EllesmereUI.VisOverrideValue and EllesmereUI.VisOverrideValue(s) then return false end
+            if EllesmereUI.VisOverrideValue(s) then return false end
             -- Under Any the driver string already carries both halves (Show lanes as
             -- disjuncts, Hide lanes as leading gates, the Lua-only ones resolved at build
             -- time with their own combat escape hatch), and the rebuild below refreshes
@@ -10358,7 +10354,7 @@ function EAB:UpdateHousingVisibility()
                 -- in combat, where this handler bails), so the marker lets the write
                 -- site bake a combat escape hatch into the string instead.
                 if not (IsMounted and IsMounted())
-                    and EllesmereUI and EllesmereUI.IsPlayerMountedLike and EllesmereUI.IsPlayerMountedLike() then
+                    and EllesmereUI.IsPlayerMountedLike() then
                     return "combathide"
                 end
             end
@@ -13528,9 +13524,7 @@ function EAB:OnInitialize()
 
     SLASH_ELLESMEREACTIONBARS1 = "/eab"
     SlashCmdList["ELLESMEREACTIONBARS"] = function(msg)
-        if EllesmereUI and EllesmereUI.ShowModule then
-            EllesmereUI:ShowModule("EllesmereUIActionBars")
-        end
+        EllesmereUI:ShowModule("EllesmereUIActionBars")
     end
 
     SLASH_EABQUICKKEYBIND1 = "/kb"
@@ -14640,11 +14634,9 @@ function EAB:FinishSetup()
     -- five relevant events here, ride the shared visibility dispatcher: it already watches
     -- exactly that set, pcall-wraps each updater and defers one frame (imperceptible for
     -- alpha). Same registration Friends, Quest Tracker and Damage Meters use.
-    if EllesmereUI.RegisterVisibilityUpdater then
-        EllesmereUI.RegisterVisibilityUpdater(function()
-            EAB:RefreshHoverGatedAlpha()
-        end)
-    end
+    EllesmereUI.RegisterVisibilityUpdater(function()
+        EAB:RefreshHoverGatedAlpha()
+    end)
     local lastI, lastE, lastF, lastT
     local function PollSoftTargetState()
         if InCombatLockdown() then return end
@@ -15172,9 +15164,7 @@ local DATA_BAR_COLORS = {
 -- ns-hosted (no new file-scope locals; the chunk is at the 200-local cap).
 do
     local lookup, names, order = EllesmereUI.BuildBarTextureTables()
-    if EllesmereUI.AppendSharedMediaTextures then
-        EllesmereUI.AppendSharedMediaTextures(names, order, nil, lookup)
-    end
+    EllesmereUI.AppendSharedMediaTextures(names, order, nil, lookup)
     ns.dataBarTextures = lookup
     ns.dataBarTextureNames = names
     ns.dataBarTextureOrder = order
@@ -15182,8 +15172,7 @@ end
 
 function ns.ResolveDataBarTexture(key)
     if key and key ~= "none" then
-        local path = EllesmereUI and EllesmereUI.ResolveTexturePath
-            and EllesmereUI.ResolveTexturePath(ns.dataBarTextures, key, nil)
+        local path = EllesmereUI.ResolveTexturePath(ns.dataBarTextures, key, nil)
         if path then return path end
     end
     return "Interface\\BUTTONS\\WHITE8X8"
@@ -15205,14 +15194,12 @@ function ns.ResolveDataBarColor(s, r, g, b)
 end
 
 -- Accent-mode bars repaint live when the user changes the accent color.
-if EllesmereUI.RegAccent then
-    EllesmereUI.RegAccent({ type = "callback", fn = function()
-        for _, bk in ipairs({ "XPBar", "RepBar", "FavorBar" }) do
-            local f = dataBarFrames[bk]
-            if f and f._updateFunc then f._updateFunc() end
-        end
-    end })
-end
+EllesmereUI.RegAccent({ type = "callback", fn = function()
+    for _, bk in ipairs({ "XPBar", "RepBar", "FavorBar" }) do
+        local f = dataBarFrames[bk]
+        if f and f._updateFunc then f._updateFunc() end
+    end
+end })
 
 local function ApplyDataBarLayout(barKey)
     local frame = dataBarFrames[barKey]
@@ -15305,7 +15292,7 @@ local function CreateDataBarFrame(barKey, updateFunc)
         or holder:GetFrameLevel() + 2) + 1)
 
     local text = textHost:CreateFontString(nil, "OVERLAY")
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(text, EllesmereUI.GetFontUseShadow("actionBars")) end
+    EllesmereUI.PrimeFontShadow(text, EllesmereUI.GetFontUseShadow("actionBars"))
     local sInit = EAB.db and EAB.db.profile and EAB.db.profile.bars
         and EAB.db.profile.bars[barKey]
     text:SetFont(FONT_PATH, sInit and sInit.textSize or 9, EllesmereUI.GetFontOutlineFlag("actionBars"))
