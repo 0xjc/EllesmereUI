@@ -5731,7 +5731,6 @@ initFrame:SetScript("OnEvent", function(self)
                 w = 160, h = 30, font = 13,
                 get = function() return EllesmereUI.GetProfileKeybind(profileName) end,
                 set = function(v) EllesmereUI.SetProfileKeybind(profileName, v) end,
-                tooltip = EllesmereUI.L("Left-click to set a keybind.\nRight-click to unbind."),
             })
             kbBtn:SetPoint("CENTER", popup, "CENTER", 0, -2)
 

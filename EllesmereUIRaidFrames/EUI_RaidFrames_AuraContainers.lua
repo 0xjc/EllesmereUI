@@ -23,7 +23,6 @@ local FALLBACK_FONT = "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.
 ns.RFC_OwnsDebuffs = true
 ns.RFC_OwnsDefensives = true
 ns.RFC_OwnsDispel = true
-ns.RFC_OwnsBM = true
 
 local SATED_DEBUFFS = {
     [57723] = true, [57724] = true, [80354] = true, [95809] = true,

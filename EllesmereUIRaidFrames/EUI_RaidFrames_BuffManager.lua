@@ -1675,7 +1675,7 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
     nameCarrier:SetFrameLevel(pvFrame:GetFrameLevel() + (ns.LVL_TEXT or 12))
     local nameFS = nameCarrier:CreateFontString(nil, "OVERLAY")
     local outline = (EllesmereUI.GetFontOutlineFlag("raidFrames")) or ""
-    EllesmereUI.PrimeFontShadow(nameFS, outline == "" and (not EllesmereUI.GetFontUseShadow or EllesmereUI.GetFontUseShadow("raidFrames")))
+    EllesmereUI.PrimeFontShadow(nameFS, outline == "" and EllesmereUI.GetFontUseShadow("raidFrames"))
     nameFS:SetFont(fontPath, s.nameSize or 10, outline)
     nameFS:SetWordWrap(false)
     local npos = s.namePosition or "center"

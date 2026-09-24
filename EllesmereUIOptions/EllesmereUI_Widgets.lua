@@ -3014,7 +3014,7 @@ function EllesmereUI.BuildKeybindButton(parent, opts)
         end
         bg:SetColorTexture(DD_BG_R, DD_BG_G, DD_BG_B, DD_BG_HA)
         btn._border:SetColor(1, 1, 1, 0.3)
-        ShowWidgetTooltip(self, opts.tooltip or "Left-click to set a keybind.\nRight-click to unbind.")
+        ShowWidgetTooltip(self, opts.tooltip or EllesmereUI.L("Left-click to set a keybind.\nRight-click to unbind."))
     end)
     btn:SetScript("OnLeave", function()
         if listening then return end
@@ -10176,7 +10176,7 @@ end
 -- editSnap (keep pixel snapping on the pencil). Returns height, tile.
 function EllesmereUI.BuildManagerTile(parentFrame, y, opts)
     local fontPath = opts.fontPath
-    local PP = EllesmereUI.PanelPP or EllesmereUI.PP
+    local PP = EllesmereUI.PanelPP
     local TILE_H = opts.height or 66
     local IR, IG, IB = 0.55, 0.72, 1
     local tile = CreateFrame("Button", nil, parentFrame)
@@ -10196,8 +10196,7 @@ function EllesmereUI.BuildManagerTile(parentFrame, y, opts)
             accent:SetColorTexture(IR, IG, IB, 1)
         else
             local ac = EllesmereUI.ELLESMERE_GREEN
-            if ac then accent:SetColorTexture(ac.r, ac.g, ac.b, 1)
-            else accent:SetColorTexture(0.05, 0.82, 0.62, 1) end
+            accent:SetColorTexture(ac.r, ac.g, ac.b, 1)
         end
     elseif opts.inheritedTooltip then
         local edge = tile:CreateTexture(nil, "ARTWORK", nil, 2)
@@ -10220,12 +10219,10 @@ function EllesmereUI.BuildManagerTile(parentFrame, y, opts)
         iconTex:SetAllPoints()
         iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         iconTex:SetTexture(opts.icon)
-        if PP then
-            local iconBdr = CreateFrame("Frame", nil, iconFrame)
-            iconBdr:SetAllPoints()
-            iconBdr:SetFrameLevel(iconFrame:GetFrameLevel() + 1)
-            PP.CreateBorder(iconBdr, 0, 0, 0, 0.6, 1)
-        end
+        local iconBdr = CreateFrame("Frame", nil, iconFrame)
+        iconBdr:SetAllPoints()
+        iconBdr:SetFrameLevel(iconFrame:GetFrameLevel() + 1)
+        PP.CreateBorder(iconBdr, 0, 0, 0, 0.6, 1)
         textX = 8 + ICON_SZ + 8
         titleY = -8
     end
@@ -10313,10 +10310,7 @@ function EllesmereUI.BuildManagerTile(parentFrame, y, opts)
         local toggleKnob = toggleBtn:CreateTexture(nil, "ARTWORK")
         toggleKnob:SetSize(toggleH - 4, toggleH - 4)
         if opts.enabled then
-            local acr, acg, acb = 0.05, 0.82, 0.62
-            if EllesmereUI.ResolveActiveAccent then
-                acr, acg, acb = EllesmereUI.ResolveActiveAccent()
-            end
+            local acr, acg, acb = EllesmereUI.ResolveActiveAccent()
             toggleBg:SetColorTexture(acr, acg, acb, 1)
             toggleKnob:SetPoint("RIGHT", toggleBtn, "RIGHT", -2, 0)
             toggleKnob:SetColorTexture(1, 1, 1, 1)
@@ -10432,13 +10426,9 @@ function EllesmereUI.BuildActivationOverlay(outerRoot, opts)
     local lbl = EllesmereUI.MakeFont(btn, 12, nil, 1, 1, 1, 0.85)
     lbl:SetPoint("CENTER")
     lbl:SetText(opts.buttonLabel)
-    local eg = EllesmereUI.ELLESMERE_GREEN or { r = 0.05, g = 0.83, b = 0.62 }
-    btn:SetScript("OnEnter", function()
-        if brd and brd.SetColor then brd:SetColor(eg.r, eg.g, eg.b, 0.9) end
-    end)
-    btn:SetScript("OnLeave", function()
-        if brd and brd.SetColor then brd:SetColor(1, 1, 1, 0.22) end
-    end)
+    local eg = EllesmereUI.ELLESMERE_GREEN
+    btn:SetScript("OnEnter", function() brd:SetColor(eg.r, eg.g, eg.b, 0.9) end)
+    btn:SetScript("OnLeave", function() brd:SetColor(1, 1, 1, 0.22) end)
     return ov, btn
 end
 
@@ -10453,16 +10443,9 @@ function EllesmereUI.BuildPopupButton(parent, w, h, label, onClick)
     lbl:SetAlpha(0.6)
     lbl:SetPoint("CENTER")
     lbl:SetText(EllesmereUI.L(label))
-    local ar, ag, ab = 1, 0.82, 0.30
-    if EllesmereUI.GetAccentColor then ar, ag, ab = EllesmereUI.GetAccentColor() end
-    btn:SetScript("OnEnter", function()
-        lbl:SetAlpha(0.9)
-        if brd and brd.SetColor then brd:SetColor(ar, ag, ab, 0.6) end
-    end)
-    btn:SetScript("OnLeave", function()
-        lbl:SetAlpha(0.6)
-        if brd and brd.SetColor then brd:SetColor(1, 1, 1, 0.25) end
-    end)
+    local ar, ag, ab = EllesmereUI.GetAccentColor()
+    btn:SetScript("OnEnter", function() lbl:SetAlpha(0.9); brd:SetColor(ar, ag, ab, 0.6) end)
+    btn:SetScript("OnLeave", function() lbl:SetAlpha(0.6); brd:SetColor(1, 1, 1, 0.25) end)
     btn:SetScript("OnClick", onClick)
     return btn
 end
