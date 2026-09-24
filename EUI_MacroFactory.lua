@@ -715,9 +715,6 @@ function EllesmereUI.BuildMacroFactory(parent, startY, PP)
         local iconAnchor = container
         local scrollCenterX = centerX
         if maxVisibleRows and totalRows > maxVisibleRows then
-            local SCROLL_STEP_LOCAL = 45
-            local SMOOTH_SPEED_LOCAL = 12
-
             local visH = math.abs(FIRST_ICON_Y) + maxVisibleRows * ROW_STRIDE
             local contentH = math.abs(FIRST_ICON_Y) + totalRows * ROW_STRIDE
 
@@ -732,110 +729,7 @@ function EllesmereUI.BuildMacroFactory(parent, startY, PP)
             sc:SetSize(halfW, contentH)
             sf:SetScrollChild(sc)
 
-            -- Scrollbar track
-            local scrollTrack = CreateFrame("Frame", nil, sf)
-            scrollTrack:SetWidth(4)
-            scrollTrack:SetPoint("TOPRIGHT", sf, "TOPRIGHT", -70, -32)
-            scrollTrack:SetPoint("BOTTOMRIGHT", sf, "BOTTOMRIGHT", -70, 8)
-            scrollTrack:SetFrameLevel(sf:GetFrameLevel() + 2)
-            scrollTrack:Hide()
-            local trackBg = scrollTrack:CreateTexture(nil, "BACKGROUND")
-            trackBg:SetAllPoints(); trackBg:SetColorTexture(1, 1, 1, 0.02)
-
-            local scrollThumb = CreateFrame("Button", nil, scrollTrack)
-            scrollThumb:SetWidth(4); scrollThumb:SetHeight(60)
-            scrollThumb:SetPoint("TOP", scrollTrack, "TOP", 0, 0)
-            scrollThumb:SetFrameLevel(scrollTrack:GetFrameLevel() + 1)
-            scrollThumb:EnableMouse(true)
-            scrollThumb:RegisterForDrag("LeftButton")
-            scrollThumb:SetScript("OnDragStart", function() end)
-            scrollThumb:SetScript("OnDragStop", function() end)
-            local thumbTex = scrollThumb:CreateTexture(nil, "ARTWORK")
-            thumbTex:SetAllPoints(); thumbTex:SetColorTexture(1, 1, 1, 0.27)
-
-            local scrollTarget = 0
-            local isSmoothing = false
-            local smoothFrame = CreateFrame("Frame"); smoothFrame:Hide()
-
-            local function UpdateThumb()
-                local maxScroll = EllesmereUI.SafeScrollRange(sf)
-                if maxScroll <= 0 then scrollTrack:Hide(); return end
-                scrollTrack:Show()
-                local trackH = scrollTrack:GetHeight()
-                local ratio = visH / (visH + maxScroll)
-                local thumbH = math.max(30, trackH * ratio)
-                scrollThumb:SetHeight(thumbH)
-                local scrollRatio = (tonumber(sf:GetVerticalScroll()) or 0) / maxScroll
-                scrollThumb:ClearAllPoints()
-                scrollThumb:SetPoint("TOP", scrollTrack, "TOP", 0, -(scrollRatio * (trackH - thumbH)))
-            end
-
-            smoothFrame:SetScript("OnUpdate", function(_, elapsed)
-                local cur = sf:GetVerticalScroll()
-                local maxScroll = EllesmereUI.SafeScrollRange(sf)
-                scrollTarget = math.max(0, math.min(maxScroll, scrollTarget))
-                local diff = scrollTarget - cur
-                if math.abs(diff) < 0.3 then
-                    sf:SetVerticalScroll(scrollTarget)
-                    UpdateThumb()
-                    isSmoothing = false
-                    smoothFrame:Hide()
-                    return
-                end
-                local newScroll = cur + diff * math.min(1, SMOOTH_SPEED_LOCAL * elapsed)
-                newScroll = math.max(0, math.min(maxScroll, newScroll))
-                sf:SetVerticalScroll(newScroll)
-                UpdateThumb()
-            end)
-
-            local function SmoothScrollTo(target)
-                local maxScroll = EllesmereUI.SafeScrollRange(sf)
-                scrollTarget = math.max(0, math.min(maxScroll, target))
-                if not isSmoothing then isSmoothing = true; smoothFrame:Show() end
-            end
-
-            sf:SetScript("OnMouseWheel", function(self, delta)
-                local maxScroll = EllesmereUI.SafeScrollRange(self)
-                if maxScroll <= 0 then return end
-                local base = isSmoothing and scrollTarget or self:GetVerticalScroll()
-                SmoothScrollTo(base - delta * SCROLL_STEP_LOCAL)
-            end)
-            sf:SetScript("OnScrollRangeChanged", function() UpdateThumb() end)
-
-            -- Thumb drag
-            local isDragging = false
-            local dragStartY, dragStartScroll
-            local function StopDrag()
-                if not isDragging then return end
-                isDragging = false
-                scrollThumb:SetScript("OnUpdate", nil)
-            end
-            scrollThumb:SetScript("OnMouseDown", function(self, button)
-                if button ~= "LeftButton" then return end
-                isSmoothing = false; smoothFrame:Hide()
-                isDragging = true
-                local _, cy = GetCursorPosition()
-                dragStartY = cy / self:GetEffectiveScale()
-                dragStartScroll = sf:GetVerticalScroll()
-                self:SetScript("OnUpdate", function(self2)
-                    if not IsMouseButtonDown("LeftButton") then StopDrag(); return end
-                    isSmoothing = false; smoothFrame:Hide()
-                    local _, cy2 = GetCursorPosition()
-                    cy2 = cy2 / self2:GetEffectiveScale()
-                    local deltaY = dragStartY - cy2
-                    local trackH = scrollTrack:GetHeight()
-                    local maxTravel = trackH - self2:GetHeight()
-                    if maxTravel <= 0 then return end
-                    local maxScroll = EllesmereUI.SafeScrollRange(sf)
-                    local newScroll = math.max(0, math.min(maxScroll, dragStartScroll + (deltaY / maxTravel) * maxScroll))
-                    scrollTarget = newScroll
-                    sf:SetVerticalScroll(newScroll)
-                    UpdateThumb()
-                end)
-            end)
-            scrollThumb:SetScript("OnMouseUp", function(_, button)
-                if button == "LeftButton" then StopDrag() end
-            end)
+            EllesmereUI.AttachSmoothScrollbar(sf, { rightInset = 70, topInset = 32, bottomInset = 8 })
 
             iconParent = sc
             iconAnchor = sc

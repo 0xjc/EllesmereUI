@@ -5594,6 +5594,119 @@ function EllesmereUI.SafeScrollRange(sf)
     return 0
 end
 
+-- Smooth wheel scroll + thin draggable scrollbar (shown only on overflow) for a ScrollFrame.
+-- opts: step (45), thumbMin (30), width (4), rightInset (2), topInset (4), bottomInset (topInset),
+-- trackParent (sf), level (2, above trackParent), trackAlpha (0.02), thumbAlpha (0.27),
+-- child (range = child height - sf height, else SafeScrollRange), onScroll(v), thumb (false = wheel only).
+-- Returns UpdateThumb, ScrollTo(v) (immediate: stops the lerp, clamps, syncs the thumb).
+function EllesmereUI.AttachSmoothScrollbar(sf, opts)
+    opts = opts or {}
+    local step, child, onScroll = opts.step or 45, opts.child, opts.onScroll
+    local function MaxScroll()
+        if child then return math.max(0, child:GetHeight() - sf:GetHeight()) end
+        return EllesmereUI.SafeScrollRange(sf)
+    end
+    local UpdateThumb = function() end
+    local track, thumb
+    if opts.thumb ~= false then
+        local w, thumbMin, tp = opts.width or 4, opts.thumbMin or 30, opts.trackParent or sf
+        local top = opts.topInset or 4
+        track = CreateFrame("Frame", nil, tp)
+        track:SetWidth(w)
+        track:SetPoint("TOPRIGHT", tp, "TOPRIGHT", -(opts.rightInset or 2), -top)
+        track:SetPoint("BOTTOMRIGHT", tp, "BOTTOMRIGHT", -(opts.rightInset or 2), opts.bottomInset or top)
+        track:SetFrameLevel(tp:GetFrameLevel() + (opts.level or 2))
+        track:Hide()
+        SolidTex(track, "BACKGROUND", 1, 1, 1, opts.trackAlpha or 0.02):SetAllPoints()
+        thumb = CreateFrame("Button", nil, track)
+        thumb:SetWidth(w)
+        thumb:SetFrameLevel(track:GetFrameLevel() + 1)
+        thumb:EnableMouse(true)
+        thumb:RegisterForDrag("LeftButton")
+        thumb:SetScript("OnDragStart", function() end)
+        thumb:SetScript("OnDragStop", function() end)
+        SolidTex(thumb, "ARTWORK", 1, 1, 1, opts.thumbAlpha or 0.27):SetAllPoints()
+        UpdateThumb = function()
+            local maxScroll = MaxScroll()
+            if maxScroll <= 0 then track:Hide(); return end
+            track:Show()
+            local trackH = track:GetHeight()
+            local visH = sf:GetHeight()
+            local thumbH = math.max(thumbMin, trackH * (visH / (visH + maxScroll)))
+            thumb:SetHeight(thumbH)
+            -- Guarded read: the preview scroll frames can return a secret value.
+            local cur = 0
+            local ok, val = pcall(sf.GetVerticalScroll, sf)
+            if ok and val then
+                local ok2, n = pcall(tonumber, val)
+                if ok2 and n then cur = n end
+            end
+            thumb:ClearAllPoints()
+            thumb:SetPoint("TOP", track, "TOP", 0, -(cur / maxScroll * (trackH - thumbH)))
+        end
+    end
+
+    local target, smoothing = 0, false
+    local smoothFrame = CreateFrame("Frame", nil, sf)
+    smoothFrame:Hide()
+    local function Stop() smoothing = false; smoothFrame:Hide() end
+    local function Set(v)
+        sf:SetVerticalScroll(v)
+        UpdateThumb()
+        if onScroll then onScroll(v) end
+    end
+    smoothFrame:SetScript("OnUpdate", function(_, elapsed)
+        local cur = sf:GetVerticalScroll()
+        local maxScroll = MaxScroll()
+        target = math.max(0, math.min(maxScroll, target))
+        local diff = target - cur
+        if math.abs(diff) < 0.3 then
+            Stop(); Set(target)
+            return
+        end
+        Set(math.max(0, math.min(maxScroll, cur + diff * math.min(1, 12 * elapsed))))
+    end)
+    sf:EnableMouseWheel(true)
+    sf:SetScript("OnMouseWheel", function(self, delta)
+        local maxScroll = MaxScroll()
+        if maxScroll <= 0 then return end
+        local base = smoothing and target or self:GetVerticalScroll()
+        target = math.max(0, math.min(maxScroll, base - delta * step))
+        if not smoothing then smoothing = true; smoothFrame:Show() end
+    end)
+
+    local function ScrollTo(v)
+        Stop()
+        target = math.max(0, math.min(MaxScroll(), v))
+        Set(target)
+    end
+    if not thumb then return UpdateThumb, ScrollTo end
+    sf:SetScript("OnScrollRangeChanged", function() UpdateThumb() end)
+
+    thumb:SetScript("OnMouseDown", function(self, button)
+        if button ~= "LeftButton" then return end
+        Stop()
+        local _, cy = GetCursorPosition()
+        local startY = cy / self:GetEffectiveScale()
+        local startScroll = sf:GetVerticalScroll()
+        self:SetScript("OnUpdate", function(self2)
+            if not IsMouseButtonDown("LeftButton") then self2:SetScript("OnUpdate", nil); return end
+            Stop()
+            local _, cy2 = GetCursorPosition()
+            local maxTravel = track:GetHeight() - self2:GetHeight()
+            if maxTravel <= 0 then return end
+            local maxScroll = MaxScroll()
+            target = math.max(0, math.min(maxScroll,
+                startScroll + ((startY - cy2 / self2:GetEffectiveScale()) / maxTravel) * maxScroll))
+            Set(target)
+        end)
+    end)
+    thumb:SetScript("OnMouseUp", function(self, button)
+        if button == "LeftButton" then self:SetScript("OnUpdate", nil) end
+    end)
+    return UpdateThumb, ScrollTo
+end
+
 -- Utility functions
 EllesmereUI.SolidTex          = SolidTex
 EllesmereUI.MakeFont          = MakeFont
@@ -6697,8 +6810,6 @@ local function CreateInfoPopup()
     if infoPopup then return infoPopup end
 
     local POPUP_W, POPUP_H = 400, 310
-    local SCROLL_STEP = 45
-    local SMOOTH_SPEED = 12
 
     -- Dimmer
     local dimmer = CreateFrame("Frame", "EUIInfoDimmer", UIParent)
@@ -6752,121 +6863,7 @@ local function CreateInfoPopup()
     contentFS:SetSpacing(3)
     popup._contentFS = contentFS
 
-    -- Smooth scroll
-    local scrollTarget = 0
-    local isSmoothing = false
-    local smoothFrame = CreateFrame("Frame")
-    smoothFrame:Hide()
-
-    -- Scrollbar track
-    local scrollTrack = CreateFrame("Frame", nil, sf)
-    scrollTrack:SetWidth(4)
-    scrollTrack:SetPoint("TOPRIGHT", sf, "TOPRIGHT", -2, -4)
-    scrollTrack:SetPoint("BOTTOMRIGHT", sf, "BOTTOMRIGHT", -2, 4)
-    scrollTrack:SetFrameLevel(sf:GetFrameLevel() + 2)
-    scrollTrack:Hide()
-
-    local trackBg = SolidTex(scrollTrack, "BACKGROUND", 1, 1, 1, 0.02)
-    trackBg:SetAllPoints()
-
-    local scrollThumb = CreateFrame("Button", nil, scrollTrack)
-    scrollThumb:SetWidth(4)
-    scrollThumb:SetHeight(60)
-    scrollThumb:SetPoint("TOP", scrollTrack, "TOP", 0, 0)
-    scrollThumb:SetFrameLevel(scrollTrack:GetFrameLevel() + 1)
-    scrollThumb:EnableMouse(true)
-    scrollThumb:RegisterForDrag("LeftButton")
-    scrollThumb:SetScript("OnDragStart", function() end)
-    scrollThumb:SetScript("OnDragStop", function() end)
-
-    local thumbTex = SolidTex(scrollThumb, "ARTWORK", 1, 1, 1, 0.27)
-    thumbTex:SetAllPoints()
-
-    local isDragging = false
-    local dragStartY, dragStartScroll
-
-    local function UpdateThumb()
-        local maxScroll = EllesmereUI.SafeScrollRange(sf)
-        if maxScroll <= 0 then scrollTrack:Hide(); return end
-        scrollTrack:Show()
-        local trackH = scrollTrack:GetHeight()
-        local visH = sf:GetHeight()
-        local ratio = visH / (visH + maxScroll)
-        local thumbH = math.max(30, trackH * ratio)
-        scrollThumb:SetHeight(thumbH)
-        local scrollRatio = (tonumber(sf:GetVerticalScroll()) or 0) / maxScroll
-        scrollThumb:ClearAllPoints()
-        scrollThumb:SetPoint("TOP", scrollTrack, "TOP", 0, -(scrollRatio * (trackH - thumbH)))
-    end
-
-    smoothFrame:SetScript("OnUpdate", function(_, elapsed)
-        local cur = sf:GetVerticalScroll()
-        local maxScroll = EllesmereUI.SafeScrollRange(sf)
-        scrollTarget = math.max(0, math.min(maxScroll, scrollTarget))
-        local diff = scrollTarget - cur
-        if math.abs(diff) < 0.3 then
-            sf:SetVerticalScroll(scrollTarget)
-            UpdateThumb()
-            isSmoothing = false
-            smoothFrame:Hide()
-            return
-        end
-        local newScroll = cur + diff * math.min(1, SMOOTH_SPEED * elapsed)
-        newScroll = math.max(0, math.min(maxScroll, newScroll))
-        sf:SetVerticalScroll(newScroll)
-        UpdateThumb()
-    end)
-
-    local function SmoothScrollTo(target)
-        local maxScroll = EllesmereUI.SafeScrollRange(sf)
-        scrollTarget = math.max(0, math.min(maxScroll, target))
-        if not isSmoothing then
-            isSmoothing = true
-            smoothFrame:Show()
-        end
-    end
-
-    sf:SetScript("OnMouseWheel", function(self, delta)
-        local maxScroll = EllesmereUI.SafeScrollRange(self)
-        if maxScroll <= 0 then return end
-        local base = isSmoothing and scrollTarget or self:GetVerticalScroll()
-        SmoothScrollTo(base - delta * SCROLL_STEP)
-    end)
-    sf:SetScript("OnScrollRangeChanged", function() UpdateThumb() end)
-
-    -- Thumb drag
-    local function StopDrag()
-        if not isDragging then return end
-        isDragging = false
-        scrollThumb:SetScript("OnUpdate", nil)
-    end
-
-    scrollThumb:SetScript("OnMouseDown", function(self, button)
-        if button ~= "LeftButton" then return end
-        isSmoothing = false; smoothFrame:Hide()
-        isDragging = true
-        local _, cy = GetCursorPosition()
-        dragStartY = cy / self:GetEffectiveScale()
-        dragStartScroll = sf:GetVerticalScroll()
-        self:SetScript("OnUpdate", function(self2)
-            if not IsMouseButtonDown("LeftButton") then StopDrag(); return end
-            isSmoothing = false; smoothFrame:Hide()
-            local _, cy2 = GetCursorPosition()
-            cy2 = cy2 / self2:GetEffectiveScale()
-            local deltaY = dragStartY - cy2
-            local trackH = scrollTrack:GetHeight()
-            local maxTravel = trackH - self2:GetHeight()
-            if maxTravel <= 0 then return end
-            local maxScroll = EllesmereUI.SafeScrollRange(sf)
-            local newScroll = math.max(0, math.min(maxScroll, dragStartScroll + (deltaY / maxTravel) * maxScroll))
-            scrollTarget = newScroll
-            sf:SetVerticalScroll(newScroll)
-            UpdateThumb()
-        end)
-    end)
-    scrollThumb:SetScript("OnMouseUp", function(_, button)
-        if button == "LeftButton" then StopDrag() end
-    end)
+    local _, scrollTo = EllesmereUI.AttachSmoothScrollbar(sf)
 
     -- Close button
     local closeBtn = CreateFrame("Button", nil, popup)
@@ -6885,11 +6882,7 @@ local function CreateInfoPopup()
     WirePopupEscape(popup, dimmer)
 
     -- Reset scroll on hide
-    dimmer:HookScript("OnHide", function()
-        isSmoothing = false; smoothFrame:Hide()
-        scrollTarget = 0
-        sf:SetVerticalScroll(0)
-    end)
+    dimmer:HookScript("OnHide", function() scrollTo(0) end)
 
     popup._dimmer = dimmer
     popup._scrollFrame = sf

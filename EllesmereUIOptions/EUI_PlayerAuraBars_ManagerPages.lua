@@ -2392,97 +2392,13 @@ local function PopupButton(parent, w, h, label, onClick)
     return btn
 end
 
--- Standard smooth scroll + thin custom scrollbar (verbatim port of AttachEditorScroll
--- from EUI_RaidFrames_ManagerPages.lua). Track shows only on overflow. Returns
--- UpdateThumb and SetScrollTo(v). rightInset (optional, default 2): distance from
--- `scroll`'s OWN right edge to the track. Only WrapCompensatedBody's call needs a
--- bigger value here -- since its `scroll` extends padDiff (~25px) past the pane's true
--- visible right edge (mirrors RaidFrames' settingsScroll), so the default 2 would land
--- the track deep inside the sidebar instead of near the visible edge. The other two
--- callers (Filter Editor's plain, unshifted scrolls) keep the default.
+-- Editor scroll (manager-page style bar). Returns UpdateThumb and SetScrollTo(v).
+-- rightInset (default 2): only WrapCompensatedBody passes more, since its scroll
+-- extends padDiff (~25px) past the pane's visible right edge.
 AttachEditorScroll = function(scroll, child, onScroll, rightInset)
-    rightInset = rightInset or 2
-    local SBAR_W = 4
-    local track = CreateFrame("Frame", nil, scroll)
-    track:SetPoint("TOPRIGHT", scroll, "TOPRIGHT", -rightInset, -2)
-    track:SetPoint("BOTTOMRIGHT", scroll, "BOTTOMRIGHT", -rightInset, 2)
-    track:SetWidth(SBAR_W)
-    track:SetFrameLevel(scroll:GetFrameLevel() + 5)
-    do local tx = track:CreateTexture(nil, "BACKGROUND"); tx:SetAllPoints(); tx:SetColorTexture(1, 1, 1, 0.05) end
-    local thumb = CreateFrame("Frame", nil, track)
-    thumb:SetWidth(SBAR_W); thumb:SetHeight(30)
-    thumb:SetPoint("TOP", track, "TOP", 0, 0)
-    thumb:EnableMouse(true)
-    do local tx = thumb:CreateTexture(nil, "ARTWORK"); tx:SetAllPoints(); tx:SetColorTexture(1, 1, 1, 0.22) end
-    track:Hide()
-
-    local function MaxScroll() return max(0, child:GetHeight() - scroll:GetHeight()) end
-    local function UpdateThumb()
-        local ms = MaxScroll()
-        if ms <= 0 then track:Hide(); return end
-        track:Show()
-        local trackH = track:GetHeight()
-        local visH = scroll:GetHeight()
-        local thumbH = max(20, trackH * (visH / (visH + ms)))
-        thumb:SetHeight(thumbH)
-        local ratio = (scroll:GetVerticalScroll() or 0) / ms
-        thumb:ClearAllPoints()
-        thumb:SetPoint("TOP", track, "TOP", 0, -(ratio * (trackH - thumbH)))
-    end
-
-    local SCROLL_STEP, SMOOTH_SPEED = 60, 12
-    local target = 0
-    local smooth = CreateFrame("Frame", nil, scroll)
-    smooth:Hide()
-    smooth:SetScript("OnUpdate", function(_, elapsed)
-        local cur = scroll:GetVerticalScroll()
-        local ms = MaxScroll()
-        target = max(0, math.min(ms, target))
-        local diff = target - cur
-        if math.abs(diff) < 0.3 then
-            scroll:SetVerticalScroll(target); UpdateThumb(); smooth:Hide()
-            if onScroll then onScroll(target) end
-            return
-        end
-        local nv = max(0, math.min(ms, cur + diff * math.min(1, SMOOTH_SPEED * elapsed)))
-        scroll:SetVerticalScroll(nv); UpdateThumb()
-        if onScroll then onScroll(nv) end
-    end)
-    scroll:EnableMouseWheel(true)
-    scroll:SetScript("OnMouseWheel", function(_, delta)
-        if MaxScroll() <= 0 then return end
-        local base = smooth:IsShown() and target or scroll:GetVerticalScroll()
-        target = max(0, math.min(MaxScroll(), base - delta * SCROLL_STEP))
-        smooth:Show()
-    end)
-    thumb:SetScript("OnMouseDown", function()
-        smooth:Hide()
-        local _, cy0 = GetCursorPosition()
-        local startY = cy0 / scroll:GetEffectiveScale()
-        local startScroll = scroll:GetVerticalScroll()
-        thumb:SetScript("OnUpdate", function(self2)
-            if not IsMouseButtonDown("LeftButton") then self2:SetScript("OnUpdate", nil); return end
-            local ms = MaxScroll()
-            local travel = track:GetHeight() - thumb:GetHeight()
-            if travel <= 0 then return end
-            local _, cy = GetCursorPosition(); cy = cy / scroll:GetEffectiveScale()
-            local nv = max(0, math.min(ms, startScroll + ((startY - cy) / travel) * ms))
-            target = nv
-            scroll:SetVerticalScroll(nv); UpdateThumb()
-            if onScroll then onScroll(nv) end
-        end)
-    end)
-
-    local function SetScrollTo(v)
-        local ms = MaxScroll()
-        if v > ms then v = ms end
-        if v < 0 then v = 0 end
-        target = v
-        scroll:SetVerticalScroll(v)
-        UpdateThumb()
-        if onScroll then onScroll(v) end
-    end
-    return UpdateThumb, SetScrollTo
+    return EllesmereUI.AttachSmoothScrollbar(scroll, {
+        step = 60, thumbMin = 20, rightInset = rightInset, topInset = 2, level = 5,
+        trackAlpha = 0.05, thumbAlpha = 0.22, child = child, onScroll = onScroll })
 end
 
 function ns.PABMP_ShowFilterEditor()

@@ -2278,111 +2278,10 @@ initFrame:SetScript("OnEvent", function(self)
         child:SetWidth(ZONE_DD_W)
         sf:SetScrollChild(child)
 
-        -- Thin scrollbar track
-        local zTrack = CreateFrame("Frame", nil, sf)
-        zTrack:SetWidth(4)
-        zTrack:SetPoint("TOPRIGHT", sf, "TOPRIGHT", -4, -4)
-        zTrack:SetPoint("BOTTOMRIGHT", sf, "BOTTOMRIGHT", -4, 4)
-        zTrack:SetFrameLevel(sf:GetFrameLevel() + 2)
-        do local t = zTrack:CreateTexture(nil, "BACKGROUND"); t:SetAllPoints(); t:SetColorTexture(1, 1, 1, 0.02) end
-
-        local zThumb = CreateFrame("Button", nil, zTrack)
-        zThumb:SetWidth(4)
-        zThumb:SetFrameLevel(zTrack:GetFrameLevel() + 1)
-        zThumb:EnableMouse(true)
-        zThumb:RegisterForDrag("LeftButton")
-        zThumb:SetScript("OnDragStart", function() end)
-        zThumb:SetScript("OnDragStop", function() end)
-        do local t = zThumb:CreateTexture(nil, "ARTWORK"); t:SetAllPoints(); t:SetColorTexture(1, 1, 1, 0.27) end
-
-        local zScrollTarget = 0
-        local zSmoothing = false
-        local Z_SCROLL_STEP = 40
-        local Z_SMOOTH_SPEED = 12
-        local zSmoothFrame = CreateFrame("Frame")
-        zSmoothFrame:Hide()
-
-        local function UpdateZThumb()
-            local maxScroll = math.max(0, child:GetHeight() - sf:GetHeight())
-            if maxScroll <= 0 then zTrack:Hide(); return end
-            zTrack:Show()
-            local trackH = zTrack:GetHeight()
-            local visH = sf:GetHeight()
-            local ratio = visH / (visH + maxScroll)
-            local thumbH = math.max(20, trackH * ratio)
-            zThumb:SetHeight(thumbH)
-            local scrollRatio = (tonumber(sf:GetVerticalScroll()) or 0) / maxScroll
-            local maxTravel = trackH - thumbH
-            zThumb:ClearAllPoints()
-            zThumb:SetPoint("TOP", zTrack, "TOP", 0, -(scrollRatio * maxTravel))
-        end
-
-        zSmoothFrame:SetScript("OnUpdate", function(_, elapsed)
-            local cur = sf:GetVerticalScroll()
-            local maxScroll = math.max(0, child:GetHeight() - sf:GetHeight())
-            zScrollTarget = math.max(0, math.min(maxScroll, zScrollTarget))
-            local diff = zScrollTarget - cur
-            if math.abs(diff) < 0.3 then
-                sf:SetVerticalScroll(zScrollTarget)
-                UpdateZThumb()
-                zSmoothing = false
-                zSmoothFrame:Hide()
-                return
-            end
-            local newScroll = cur + diff * math.min(1, Z_SMOOTH_SPEED * elapsed)
-            newScroll = math.max(0, math.min(maxScroll, newScroll))
-            sf:SetVerticalScroll(newScroll)
-            UpdateZThumb()
-        end)
-
-        local function ZSmoothScrollTo(target)
-            local maxScroll = math.max(0, child:GetHeight() - sf:GetHeight())
-            zScrollTarget = math.max(0, math.min(maxScroll, target))
-            if not zSmoothing then
-                zSmoothing = true
-                zSmoothFrame:Show()
-            end
-        end
-
-        sf:SetScript("OnMouseWheel", function(self, delta)
-            local maxScroll = math.max(0, child:GetHeight() - self:GetHeight())
-            if maxScroll <= 0 then return end
-            local base = zSmoothing and zScrollTarget or self:GetVerticalScroll()
-            ZSmoothScrollTo(base - delta * Z_SCROLL_STEP)
-        end)
+        local _, zScrollTo = EllesmereUI.AttachSmoothScrollbar(sf, {
+            step = 40, thumbMin = 20, rightInset = 4, child = child })
         zonePopup:SetScript("OnMouseWheel", function(_, delta)
             sf:GetScript("OnMouseWheel")(sf, delta)
-        end)
-
-        -- Thumb drag
-        local zDragging = false
-        local zDragStartY, zDragStartScroll
-        zThumb:SetScript("OnMouseDown", function(self, button)
-            if button ~= "LeftButton" then return end
-            zDragging = true
-            zSmoothing = false
-            zSmoothFrame:Hide()
-            local _, cursorY = GetCursorPosition()
-            zDragStartY = cursorY / self:GetEffectiveScale()
-            zDragStartScroll = sf:GetVerticalScroll()
-        end)
-        zThumb:SetScript("OnMouseUp", function(_, button)
-            if button == "LeftButton" then zDragging = false end
-        end)
-        zThumb:SetScript("OnUpdate", function(self)
-            if not zDragging then return end
-            local _, cursorY = GetCursorPosition()
-            cursorY = cursorY / self:GetEffectiveScale()
-            local dy = zDragStartY - cursorY
-            local trackH = zTrack:GetHeight()
-            local thumbH = zThumb:GetHeight()
-            local maxTravel = trackH - thumbH
-            if maxTravel <= 0 then return end
-            local maxScroll = math.max(0, child:GetHeight() - sf:GetHeight())
-            local newScroll = zDragStartScroll + (dy / maxTravel) * maxScroll
-            newScroll = math.max(0, math.min(maxScroll, newScroll))
-            sf:SetVerticalScroll(newScroll)
-            UpdateZThumb()
         end)
 
         local eg = EllesmereUI.ELLESMERE_GREEN or {r=0.047, g=0.824, b=0.624}
@@ -2470,11 +2369,7 @@ initFrame:SetScript("OnEvent", function(self)
             zonePopup:SetPoint("TOPLEFT", zoneDDBtn, "BOTTOMLEFT", 0, -2)
             zoneSearch:SetText("")
             zoneSearch:SetFocus()
-            zScrollTarget = 0
-            zSmoothing = false
-            zSmoothFrame:Hide()
-            sf:SetVerticalScroll(0)
-            UpdateZThumb()
+            zScrollTo(0)
             -- Refresh checks
             for i, item in ipairs(checkItems) do
                 item._cbCheck:SetShown(selectedZoneMap[i] == true)
@@ -2650,110 +2545,10 @@ initFrame:SetScript("OnEvent", function(self)
             end)
 
             -- Scrollbar + smooth scroll
-            local tTrack = CreateFrame("Frame", nil, sf)
-            tTrack:SetWidth(4)
-            tTrack:SetPoint("TOPRIGHT", sf, "TOPRIGHT", -4, -4)
-            tTrack:SetPoint("BOTTOMRIGHT", sf, "BOTTOMRIGHT", -4, 4)
-            tTrack:SetFrameLevel(sf:GetFrameLevel() + 2)
-            do local t2 = tTrack:CreateTexture(nil, "BACKGROUND"); t2:SetAllPoints(); t2:SetColorTexture(1, 1, 1, 0.02) end
-
-            local tThumb = CreateFrame("Button", nil, tTrack)
-            tThumb:SetWidth(4)
-            tThumb:SetFrameLevel(tTrack:GetFrameLevel() + 1)
-            tThumb:EnableMouse(true)
-            tThumb:RegisterForDrag("LeftButton")
-            tThumb:SetScript("OnDragStart", function() end)
-            tThumb:SetScript("OnDragStop", function() end)
-            do local t2 = tThumb:CreateTexture(nil, "ARTWORK"); t2:SetAllPoints(); t2:SetColorTexture(1, 1, 1, 0.27) end
-
-            local tScrollTarget = 0
-            local tSmoothing = false
-            local T_SCROLL_STEP = 40
-            local T_SMOOTH_SPEED = 12
-            local tSmoothFrame = CreateFrame("Frame")
-            tSmoothFrame:Hide()
-
-            local function UpdateTThumb()
-                local maxScroll = math.max(0, child:GetHeight() - sf:GetHeight())
-                if maxScroll <= 0 then tTrack:Hide(); return end
-                tTrack:Show()
-                local trackH = tTrack:GetHeight()
-                local visH = sf:GetHeight()
-                local ratio = visH / (visH + maxScroll)
-                local thumbH = math.max(20, trackH * ratio)
-                tThumb:SetHeight(thumbH)
-                local scrollRatio = (tonumber(sf:GetVerticalScroll()) or 0) / maxScroll
-                local maxTravel = trackH - thumbH
-                tThumb:ClearAllPoints()
-                tThumb:SetPoint("TOP", tTrack, "TOP", 0, -(scrollRatio * maxTravel))
-            end
-
-            tSmoothFrame:SetScript("OnUpdate", function(_, elapsed)
-                local cur = sf:GetVerticalScroll()
-                local maxScroll = math.max(0, child:GetHeight() - sf:GetHeight())
-                tScrollTarget = math.max(0, math.min(maxScroll, tScrollTarget))
-                local diff = tScrollTarget - cur
-                if math.abs(diff) < 0.3 then
-                    sf:SetVerticalScroll(tScrollTarget)
-                    UpdateTThumb()
-                    tSmoothing = false
-                    tSmoothFrame:Hide()
-                    return
-                end
-                local newScroll = cur + diff * math.min(1, T_SMOOTH_SPEED * elapsed)
-                newScroll = math.max(0, math.min(maxScroll, newScroll))
-                sf:SetVerticalScroll(newScroll)
-                UpdateTThumb()
-            end)
-
-            local function TSmoothScrollTo(target)
-                local maxScroll = math.max(0, child:GetHeight() - sf:GetHeight())
-                tScrollTarget = math.max(0, math.min(maxScroll, target))
-                if not tSmoothing then
-                    tSmoothing = true
-                    tSmoothFrame:Show()
-                end
-            end
-
-            sf:SetScript("OnMouseWheel", function(self, delta)
-                local maxScroll = math.max(0, child:GetHeight() - self:GetHeight())
-                if maxScroll <= 0 then return end
-                local base = tSmoothing and tScrollTarget or self:GetVerticalScroll()
-                TSmoothScrollTo(base - delta * T_SCROLL_STEP)
-            end)
+            local _, tScrollTo = EllesmereUI.AttachSmoothScrollbar(sf, {
+                step = 40, thumbMin = 20, rightInset = 4, child = child })
             popup:SetScript("OnMouseWheel", function(_, delta)
                 sf:GetScript("OnMouseWheel")(sf, delta)
-            end)
-
-            -- Thumb drag
-            local tDragging = false
-            local tDragStartY, tDragStartScroll
-            tThumb:SetScript("OnMouseDown", function(self2, button)
-                if button ~= "LeftButton" then return end
-                tDragging = true
-                tSmoothing = false
-                tSmoothFrame:Hide()
-                local _, cursorY = GetCursorPosition()
-                tDragStartY = cursorY / self2:GetEffectiveScale()
-                tDragStartScroll = sf:GetVerticalScroll()
-            end)
-            tThumb:SetScript("OnMouseUp", function(_, button)
-                if button == "LeftButton" then tDragging = false end
-            end)
-            tThumb:SetScript("OnUpdate", function(self2)
-                if not tDragging then return end
-                local _, cursorY = GetCursorPosition()
-                cursorY = cursorY / self2:GetEffectiveScale()
-                local dy = tDragStartY - cursorY
-                local trackH = tTrack:GetHeight()
-                local thumbH = tThumb:GetHeight()
-                local maxTravel = trackH - thumbH
-                if maxTravel <= 0 then return end
-                local maxScroll = math.max(0, child:GetHeight() - sf:GetHeight())
-                local newScroll = tDragStartScroll + (dy / maxTravel) * maxScroll
-                newScroll = math.max(0, math.min(maxScroll, newScroll))
-                sf:SetVerticalScroll(newScroll)
-                UpdateTThumb()
             end)
 
             -- Show/hide
@@ -2762,11 +2557,7 @@ initFrame:SetScript("OnEvent", function(self)
                 popup:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2)
                 search:SetText("")
                 search:SetFocus()
-                tScrollTarget = 0
-                tSmoothing = false
-                tSmoothFrame:Hide()
-                sf:SetVerticalScroll(0)
-                UpdateTThumb()
+                tScrollTo(0)
             end)
             popup:SetScript("OnUpdate", function()
                 if not popup:IsMouseOver() and not btn:IsMouseOver() and IsMouseButtonDown("LeftButton") then

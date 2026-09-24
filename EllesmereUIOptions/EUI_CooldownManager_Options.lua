@@ -7509,29 +7509,7 @@ initFrame:SetScript("OnEvent", function(self)
             sf:EnableMouseWheel(true)
             sf:SetScrollChild(inner)
             inner:SetWidth(menuW)
-            local scrollTarget = 0
-            local maxScroll = (mH + 4) - MAX_H
-            local SCROLL_STEP = 40
-            local SMOOTH_SPEED = 12
-            local smoothFrame = CreateFrame("Frame")
-            smoothFrame:Hide()
-            smoothFrame:SetScript("OnUpdate", function(_, elapsed)
-                local cur = sf:GetVerticalScroll()
-                scrollTarget = math.max(0, math.min(maxScroll, scrollTarget))
-                local diff = scrollTarget - cur
-                if math.abs(diff) < 0.3 then
-                    sf:SetVerticalScroll(scrollTarget)
-                    smoothFrame:Hide()
-                    return
-                end
-                sf:SetVerticalScroll(cur + diff * math.min(1, SMOOTH_SPEED * elapsed))
-            end)
-            sf:SetScript("OnMouseWheel", function(_, delta)
-                if maxScroll <= 0 then return end
-                local base = smoothFrame:IsShown() and scrollTarget or sf:GetVerticalScroll()
-                scrollTarget = math.max(0, math.min(maxScroll, base - delta * SCROLL_STEP))
-                smoothFrame:Show()
-            end)
+            EllesmereUI.AttachSmoothScrollbar(sf, { step = 40, thumb = false })
         end
 
         menu:ClearAllPoints()
@@ -7775,25 +7753,7 @@ initFrame:SetScript("OnEvent", function(self)
             sf:EnableMouseWheel(true)
             sf:SetScrollChild(inner)
             inner:SetWidth(menuW)
-            local scrollTarget = 0
-            local maxScroll = (mH + 4) - MAX_H
-            local SCROLL_STEP = 40
-            local SMOOTH_SPEED = 12
-            local smoothFrame = CreateFrame("Frame")
-            smoothFrame:Hide()
-            smoothFrame:SetScript("OnUpdate", function(_, elapsed)
-                local cur = sf:GetVerticalScroll()
-                scrollTarget = math.max(0, math.min(maxScroll, scrollTarget))
-                local diff = scrollTarget - cur
-                if math.abs(diff) < 0.3 then sf:SetVerticalScroll(scrollTarget); smoothFrame:Hide(); return end
-                sf:SetVerticalScroll(cur + diff * math.min(1, SMOOTH_SPEED * elapsed))
-            end)
-            sf:SetScript("OnMouseWheel", function(_, delta)
-                if maxScroll <= 0 then return end
-                local base = smoothFrame:IsShown() and scrollTarget or sf:GetVerticalScroll()
-                scrollTarget = math.max(0, math.min(maxScroll, base - delta * SCROLL_STEP))
-                smoothFrame:Show()
-            end)
+            EllesmereUI.AttachSmoothScrollbar(sf, { step = 40, thumb = false })
         end
 
         menu:ClearAllPoints()
@@ -10073,30 +10033,7 @@ initFrame:SetScript("OnEvent", function(self)
                                 sf:SetScrollChild(subInner)
                                 subInner:SetWidth(subW)
 
-                                local scrollTarget = 0
-                                local SCROLL_STEP = 40
-                                local SMOOTH_SPEED = 12
-                                local smoothFrame = CreateFrame("Frame")
-                                smoothFrame:Hide()
-                                smoothFrame:SetScript("OnUpdate", function(_, elapsed)
-                                    local cur = sf:GetVerticalScroll()
-                                    local maxScroll = EllesmereUI.SafeScrollRange(sf)
-                                    scrollTarget = math.max(0, math.min(maxScroll, scrollTarget))
-                                    local diff = scrollTarget - cur
-                                    if math.abs(diff) < 0.3 then
-                                        sf:SetVerticalScroll(scrollTarget)
-                                        smoothFrame:Hide()
-                                        return
-                                    end
-                                    sf:SetVerticalScroll(cur + diff * math.min(1, SMOOTH_SPEED * elapsed))
-                                end)
-                                sf:SetScript("OnMouseWheel", function(_, delta)
-                                    local maxScroll = EllesmereUI.SafeScrollRange(sf)
-                                    if maxScroll <= 0 then return end
-                                    local base = smoothFrame:IsShown() and scrollTarget or sf:GetVerticalScroll()
-                                    scrollTarget = math.max(0, math.min(maxScroll, base - delta * SCROLL_STEP))
-                                    smoothFrame:Show()
-                                end)
+                                local _, scrollTo = EllesmereUI.AttachSmoothScrollbar(sf, { step = 40, thumb = false })
 
                                 local function ApplyFlyoutFilter(raw)
                                     local q = strlower(strtrim(raw or ""))
@@ -10128,9 +10065,7 @@ initFrame:SetScript("OnEvent", function(self)
                                         end
                                     end
                                     subInner:SetHeight(math.max(1, yy + 4))
-                                    scrollTarget = 0
-                                    smoothFrame:Hide()
-                                    sf:SetVerticalScroll(0)
+                                    scrollTo(0)
                                 end
                                 searchEdit:SetScript("OnTextChanged", function(self) ApplyFlyoutFilter(self:GetText()) end)
                                 ApplyFlyoutFilter("")
@@ -10143,29 +10078,7 @@ initFrame:SetScript("OnEvent", function(self)
                                 sf:EnableMouseWheel(true)
                                 sf:SetScrollChild(subInner)
                                 subInner:SetWidth(subW)
-                                local scrollTarget = 0
-                                local maxScroll = totalSubH - FLYOUT_MAX_H
-                                local SCROLL_STEP = 40
-                                local SMOOTH_SPEED = 12
-                                local smoothFrame = CreateFrame("Frame")
-                                smoothFrame:Hide()
-                                smoothFrame:SetScript("OnUpdate", function(_, elapsed)
-                                    local cur = sf:GetVerticalScroll()
-                                    scrollTarget = math.max(0, math.min(maxScroll, scrollTarget))
-                                    local diff = scrollTarget - cur
-                                    if math.abs(diff) < 0.3 then
-                                        sf:SetVerticalScroll(scrollTarget)
-                                        smoothFrame:Hide()
-                                        return
-                                    end
-                                    sf:SetVerticalScroll(cur + diff * math.min(1, SMOOTH_SPEED * elapsed))
-                                end)
-                                sf:SetScript("OnMouseWheel", function(_, delta)
-                                    if maxScroll <= 0 then return end
-                                    local base = smoothFrame:IsShown() and scrollTarget or sf:GetVerticalScroll()
-                                    scrollTarget = math.max(0, math.min(maxScroll, base - delta * SCROLL_STEP))
-                                    smoothFrame:Show()
-                                end)
+                                EllesmereUI.AttachSmoothScrollbar(sf, { step = 40, thumb = false })
                             else
                                 sub:SetSize(subW, totalSubH)
                             end
@@ -12792,29 +12705,7 @@ initFrame:SetScript("OnEvent", function(self)
                     sf:SetFrameLevel(_customTrackingSub:GetFrameLevel() + 1)
                     sf:EnableMouseWheel(true); sf:SetScrollChild(subInner)
                     subInner:SetWidth(subW)
-                    local scrollTarget = 0
-                    local maxScroll = totalSubH - SUB_MAX_H
-                    local SCROLL_STEP = 40
-                    local SMOOTH_SPEED = 12
-                    local smoothFrame = CreateFrame("Frame")
-                    smoothFrame:Hide()
-                    smoothFrame:SetScript("OnUpdate", function(_, elapsed)
-                        local cur = sf:GetVerticalScroll()
-                        scrollTarget = math.max(0, math.min(maxScroll, scrollTarget))
-                        local diff = scrollTarget - cur
-                        if math.abs(diff) < 0.3 then
-                            sf:SetVerticalScroll(scrollTarget)
-                            smoothFrame:Hide()
-                            return
-                        end
-                        sf:SetVerticalScroll(cur + diff * math.min(1, SMOOTH_SPEED * elapsed))
-                    end)
-                    sf:SetScript("OnMouseWheel", function(_, delta)
-                        if maxScroll <= 0 then return end
-                        local base = smoothFrame:IsShown() and scrollTarget or sf:GetVerticalScroll()
-                        scrollTarget = math.max(0, math.min(maxScroll, base - delta * SCROLL_STEP))
-                        smoothFrame:Show()
-                    end)
+                    EllesmereUI.AttachSmoothScrollbar(sf, { step = 40, thumb = false })
                 else
                     _customTrackingSub:SetHeight(totalSubH)
                     subInner:SetParent(_customTrackingSub); subInner:SetPoint("TOPLEFT")
@@ -13464,29 +13355,7 @@ initFrame:SetScript("OnEvent", function(self)
             sf:EnableMouseWheel(true)
             sf:SetScrollChild(inner)
             inner:SetWidth(menuW)
-            local scrollTarget = 0
-            local maxScroll = totalH - MAX_H
-            local SCROLL_STEP = 40
-            local SMOOTH_SPEED = 12
-            local smoothFrame = CreateFrame("Frame")
-            smoothFrame:Hide()
-            smoothFrame:SetScript("OnUpdate", function(_, elapsed)
-                local cur = sf:GetVerticalScroll()
-                scrollTarget = max(0, min(maxScroll, scrollTarget))
-                local diff = scrollTarget - cur
-                if abs(diff) < 0.3 then
-                    sf:SetVerticalScroll(scrollTarget)
-                    smoothFrame:Hide()
-                    return
-                end
-                sf:SetVerticalScroll(cur + diff * min(1, SMOOTH_SPEED * elapsed))
-            end)
-            sf:SetScript("OnMouseWheel", function(_, delta)
-                if maxScroll <= 0 then return end
-                local base = smoothFrame:IsShown() and scrollTarget or sf:GetVerticalScroll()
-                scrollTarget = max(0, min(maxScroll, base - delta * SCROLL_STEP))
-                smoothFrame:Show()
-            end)
+            EllesmereUI.AttachSmoothScrollbar(sf, { step = 40, thumb = false })
         else
             menu:SetHeight(totalH)
             inner:SetParent(menu)
@@ -13553,129 +13422,8 @@ initFrame:SetScript("OnEvent", function(self)
         sf:SetScrollChild(pf)
         sf:EnableMouseWheel(true)
 
-        -- Thin scrollbar track (4px, right side)
-        local pvTrack = CreateFrame("Frame", nil, wrapper)
-        pvTrack:SetWidth(4)
-        pvTrack:SetPoint("TOPRIGHT", wrapper, "TOPRIGHT", -2, -2)
-        pvTrack:SetPoint("BOTTOMRIGHT", wrapper, "BOTTOMRIGHT", -2, 2)
-        pvTrack:SetFrameLevel(wrapper:GetFrameLevel() + 5)
-        do
-            local bg = pvTrack:CreateTexture(nil, "BACKGROUND")
-            bg:SetAllPoints()
-            bg:SetColorTexture(1, 1, 1, 0.02)
-        end
-        pvTrack:Hide()
-
-        local pvThumb = CreateFrame("Button", nil, pvTrack)
-        pvThumb:SetWidth(4)
-        pvThumb:SetFrameLevel(pvTrack:GetFrameLevel() + 1)
-        pvThumb:EnableMouse(true)
-        pvThumb:RegisterForDrag("LeftButton")
-        pvThumb:SetScript("OnDragStart", function() end)
-        pvThumb:SetScript("OnDragStop", function() end)
-        do
-            local t = pvThumb:CreateTexture(nil, "ARTWORK")
-            t:SetAllPoints()
-            t:SetColorTexture(1, 1, 1, 0.27)
-        end
-
-        -- Smooth scroll state
-        local pvScrollTarget = 0
-        local pvSmoothing = false
-        local PV_SCROLL_STEP = 40
-        local PV_SMOOTH_SPEED = 12
-        local pvSmoothFrame = CreateFrame("Frame")
-        pvSmoothFrame:Hide()
-
-        local function UpdatePVThumb()
-            local maxScroll = EllesmereUI.SafeScrollRange(sf)
-            if maxScroll <= 0 then pvTrack:Hide(); return end
-            pvTrack:Show()
-            local trackH = pvTrack:GetHeight()
-            local visH = sf:GetHeight()
-            local ratio = visH / (visH + maxScroll)
-            local thumbH = math.max(20, trackH * ratio)
-            pvThumb:SetHeight(thumbH)
-            local curScroll = 0
-            do
-                local ok, val = pcall(sf.GetVerticalScroll, sf)
-                if ok and val then
-                    local ok2, n = pcall(tonumber, val)
-                    if ok2 and n then curScroll = n end
-                end
-            end
-            local scrollRatio = curScroll / maxScroll
-            local maxTravel = trackH - thumbH
-            pvThumb:ClearAllPoints()
-            pvThumb:SetPoint("TOP", pvTrack, "TOP", 0, -(scrollRatio * maxTravel))
-        end
-
-        pvSmoothFrame:SetScript("OnUpdate", function(_, elapsed)
-            local cur = sf:GetVerticalScroll()
-            local maxScroll = EllesmereUI.SafeScrollRange(sf)
-            pvScrollTarget = math.max(0, math.min(maxScroll, pvScrollTarget))
-            local diff = pvScrollTarget - cur
-            if math.abs(diff) < 0.3 then
-                sf:SetVerticalScroll(pvScrollTarget)
-                UpdatePVThumb()
-                pvSmoothing = false
-                pvSmoothFrame:Hide()
-                return
-            end
-            local newScroll = cur + diff * math.min(1, PV_SMOOTH_SPEED * elapsed)
-            newScroll = math.max(0, math.min(maxScroll, newScroll))
-            sf:SetVerticalScroll(newScroll)
-            UpdatePVThumb()
-        end)
-
-        local function PVSmoothScrollTo(target)
-            local maxScroll = EllesmereUI.SafeScrollRange(sf)
-            pvScrollTarget = math.max(0, math.min(maxScroll, target))
-            if not pvSmoothing then
-                pvSmoothing = true
-                pvSmoothFrame:Show()
-            end
-        end
-
-        sf:SetScript("OnMouseWheel", function(self, delta)
-            local maxScroll = EllesmereUI.SafeScrollRange(self)
-            if maxScroll <= 0 then return end
-            local base = pvSmoothing and pvScrollTarget or self:GetVerticalScroll()
-            PVSmoothScrollTo(base - delta * PV_SCROLL_STEP)
-        end)
-        sf:SetScript("OnScrollRangeChanged", UpdatePVThumb)
-
-        -- Thumb drag
-        pvThumb:SetScript("OnMouseDown", function(self, button)
-            if button ~= "LeftButton" then return end
-            pvSmoothing = false
-            pvSmoothFrame:Hide()
-            local _, cursorY = GetCursorPosition()
-            local dragStartY = cursorY / self:GetEffectiveScale()
-            local dragStartScroll = sf:GetVerticalScroll()
-            self:SetScript("OnUpdate", function(self2)
-                if not IsMouseButtonDown("LeftButton") then
-                    self2:SetScript("OnUpdate", nil)
-                    return
-                end
-                local _, cy = GetCursorPosition()
-                cy = cy / self2:GetEffectiveScale()
-                local deltaY = dragStartY - cy
-                local trackH = pvTrack:GetHeight()
-                local maxTravel = trackH - self2:GetHeight()
-                if maxTravel <= 0 then return end
-                local maxScroll = EllesmereUI.SafeScrollRange(sf)
-                local newScroll = math.max(0, math.min(maxScroll,
-                    dragStartScroll + (deltaY / maxTravel) * maxScroll))
-                pvScrollTarget = newScroll
-                sf:SetVerticalScroll(newScroll)
-                UpdatePVThumb()
-            end)
-        end)
-        pvThumb:SetScript("OnMouseUp", function(self, button)
-            if button ~= "LeftButton" then return end
-            self:SetScript("OnUpdate", nil)
-        end)
+        local UpdatePVThumb = EllesmereUI.AttachSmoothScrollbar(sf, {
+            step = 40, thumbMin = 20, trackParent = wrapper, topInset = 2, level = 5 })
 
         -- Store refs for height management after Update()
         pf._wrapper = wrapper

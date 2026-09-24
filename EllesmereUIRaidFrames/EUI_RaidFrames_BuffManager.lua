@@ -3499,7 +3499,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
     local settingsW = leftW + padDiff * 2
 
     -- Smooth-scrolling viewport (mirrors the main options page): rows build into the
-    -- scroll child, sized to content after building. OnUpdate smooth frame is a child of root, so it stops on page rebuild.
+    -- scroll child, sized to content after building. The smooth frame is parented to the scroll frame, so it stops on page rebuild.
     local settingsScroll = CreateFrame("ScrollFrame", nil, root)
     -- +5 raises the settings panel (CORE section first) 5px into the fixed area's bottom spacing, tightening the gap above CORE for every indicator.
     settingsScroll:SetPoint("TOPLEFT", leftFixed, "BOTTOMLEFT", -padDiff, 5)
@@ -3512,74 +3512,9 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
     settingsScroll:SetScrollChild(settingsChild)
 
     -- Scrollbar: thin track + thumb at the viewport's right edge (shown only on overflow).
-    local SBAR_W = 5
-    local sbTrack = CreateFrame("Frame", nil, settingsScroll)
-    sbTrack:SetPoint("TOPRIGHT", settingsScroll, "TOPRIGHT", -31, -12)
-    sbTrack:SetPoint("BOTTOMRIGHT", settingsScroll, "BOTTOMRIGHT", -31, 12)
-    sbTrack:SetWidth(SBAR_W)
-    sbTrack:SetFrameLevel(settingsScroll:GetFrameLevel() + 20)
-    do local t = sbTrack:CreateTexture(nil, "BACKGROUND"); t:SetAllPoints(); t:SetColorTexture(1, 1, 1, 0.05) end
-    local sbThumb = CreateFrame("Frame", nil, sbTrack)
-    sbThumb:SetWidth(SBAR_W); sbThumb:SetHeight(30)
-    sbThumb:SetPoint("TOP", sbTrack, "TOP", 0, 0)
-    sbThumb:EnableMouse(true)
-    do local t = sbThumb:CreateTexture(nil, "ARTWORK"); t:SetAllPoints(); t:SetColorTexture(1, 1, 1, 0.22) end
-    sbTrack:Hide()
-
-    local SCROLL_STEP, SMOOTH_SPEED = 60, 12
-    local scrollTarget = 0
-    local function MaxScroll() return max(0, settingsChild:GetHeight() - settingsScroll:GetHeight()) end
-    local function UpdateThumb()
-        local ms = MaxScroll()
-        if ms <= 0 then sbTrack:Hide(); return end
-        sbTrack:Show()
-        local trackH = sbTrack:GetHeight()
-        local visH = settingsScroll:GetHeight()
-        local thumbH = max(30, trackH * (visH / (visH + ms)))
-        sbThumb:SetHeight(thumbH)
-        local ratio = (settingsScroll:GetVerticalScroll() or 0) / ms
-        sbThumb:ClearAllPoints()
-        sbThumb:SetPoint("TOP", sbTrack, "TOP", 0, -(ratio * (trackH - thumbH)))
-    end
-    local smoothFrame = CreateFrame("Frame", nil, root)
-    smoothFrame:Hide()
-    smoothFrame:SetScript("OnUpdate", function(_, elapsed)
-        local cur = settingsScroll:GetVerticalScroll()
-        local ms = MaxScroll()
-        scrollTarget = max(0, min(ms, scrollTarget))
-        local diff = scrollTarget - cur
-        if math.abs(diff) < 0.3 then
-            settingsScroll:SetVerticalScroll(scrollTarget); UpdateThumb(); smoothFrame:Hide(); return
-        end
-        local nv = max(0, min(ms, cur + diff * min(1, SMOOTH_SPEED * elapsed)))
-        settingsScroll:SetVerticalScroll(nv); UpdateThumb()
-    end)
-    local function SmoothTo(t)
-        scrollTarget = max(0, min(MaxScroll(), t))
-        smoothFrame:Show()
-    end
-    settingsScroll:EnableMouseWheel(true)
-    settingsScroll:SetScript("OnMouseWheel", function(_, delta)
-        if MaxScroll() <= 0 then return end
-        local base = smoothFrame:IsShown() and scrollTarget or settingsScroll:GetVerticalScroll()
-        SmoothTo(base - delta * SCROLL_STEP)
-    end)
-    sbThumb:SetScript("OnMouseDown", function()
-        smoothFrame:Hide()
-        local _, cy0 = GetCursorPosition()
-        local startY = cy0 / settingsScroll:GetEffectiveScale()
-        local startScroll = settingsScroll:GetVerticalScroll()
-        sbThumb:SetScript("OnUpdate", function(self)
-            if not IsMouseButtonDown("LeftButton") then self:SetScript("OnUpdate", nil); return end
-            local ms = MaxScroll()
-            local travel = sbTrack:GetHeight() - sbThumb:GetHeight()
-            if travel <= 0 then return end
-            local _, cy = GetCursorPosition(); cy = cy / settingsScroll:GetEffectiveScale()
-            local nv = max(0, min(ms, startScroll + ((startY - cy) / travel) * ms))
-            scrollTarget = nv
-            settingsScroll:SetVerticalScroll(nv); UpdateThumb()
-        end)
-    end)
+    local UpdateThumb = EllesmereUI.AttachSmoothScrollbar(settingsScroll, {
+        step = 60, width = 5, rightInset = 31, topInset = 12, level = 20,
+        trackAlpha = 0.05, thumbAlpha = 0.22, child = settingsChild })
 
     -- From here, DualRows build inside the scroll child
     leftFrame = settingsChild
