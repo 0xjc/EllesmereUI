@@ -91,7 +91,7 @@ local function BuildToggleControl(parent, frameLevel, getValue, setValue, opts)
         local _s = setValue
         setValue = function(...)
             _s(...)
-            if EllesmereUI._NotifySettingWrite then EllesmereUI._NotifySettingWrite(parent) end
+            EllesmereUI._NotifySettingWrite(parent)
         end
     end
     do local _r = setValue; setValue = function(...) _r(...); EllesmereUI._settingsChanged = true end end
@@ -435,7 +435,7 @@ local function BuildDropdownMenu(ddBtn, menuW, order, values, getValue, setValue
             _r(...)
             EllesmereUI._settingsChanged = true
             -- Spec Overrides auto-capture (see BuildToggleControl): dropdown button sits inside the host slot's region.
-            if EllesmereUI._NotifySettingWrite then EllesmereUI._NotifySettingWrite(ddBtn) end
+            EllesmereUI._NotifySettingWrite(ddBtn)
         end
     end
     local isWide = (style == "wide")
@@ -1200,7 +1200,7 @@ local function BuildSliderCore(parent, trackW, trackH, thumbSz, inputW, inputH, 
         local _s = setValue
         setValue = function(...)
             _s(...)
-            if EllesmereUI._NotifySettingWrite then EllesmereUI._NotifySettingWrite(parent) end
+            EllesmereUI._NotifySettingWrite(parent)
         end
     end
     do local _r = setValue; setValue = function(...) _r(...); EllesmereUI._settingsChanged = true end end
@@ -1376,7 +1376,7 @@ local function BuildSliderCore(parent, trackW, trackH, thumbSz, inputW, inputH, 
                 for fn in pairs(checks) do fn() end
             end
             -- Re-evaluate widget state (sync icons, disabled overlays) once drag fully ends. Fast path: no page rebuild.
-            if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage() end
+            EllesmereUI:RefreshPage()
         end
     end
 
@@ -2601,7 +2601,7 @@ local function BuildColorPickerPopup()
         EllesmereUI._deferredDriftChecks = nil
         if checks then for fn in pairs(checks) do fn() end end
         -- Re-evaluate widget state (sync icons, disabled overlays) now the picked color is committed. Fast path: no rebuild.
-        if EllesmereUI.RefreshPage then EllesmereUI:RefreshPage() end
+        EllesmereUI:RefreshPage()
     end)
     EllesmereUI.RegisterEscapeClose(popup)
 
@@ -2673,7 +2673,7 @@ local function BuildColorSwatch(parentFrame, baseLevel, getValue, setValue, hasA
         local _s = setValue
         setValue = function(...)
             _s(...)
-            if EllesmereUI._NotifySettingWrite then EllesmereUI._NotifySettingWrite(parentFrame) end
+            EllesmereUI._NotifySettingWrite(parentFrame)
         end
     end
     do local _r = setValue; setValue = function(...) _r(...); EllesmereUI._settingsChanged = true end end
@@ -4242,9 +4242,7 @@ local function BuildCogPopup(opts)
                 local _s = row.set
                 row.set = function(...)
                     _s(...)
-                    if EllesmereUI._NotifySettingWrite then
-                        EllesmereUI._NotifySettingWrite(popupOwner or opts.captureRegion)
-                    end
+                    EllesmereUI._NotifySettingWrite(popupOwner or opts.captureRegion)
                 end
             end
         end
@@ -4314,7 +4312,7 @@ local function BuildCogPopup(opts)
         pf._euiOptionsPopup = true
 
         -- Match panel scale so the popup matches scrollable-area widgets
-        local ppScale = EllesmereUI.GetPopupScale and EllesmereUI.GetPopupScale() or 1
+        local ppScale = EllesmereUI.GetPopupScale() or 1
         pf:SetScale(ppScale)
         if EllesmereUI._popupFrames then
             EllesmereUI._popupFrames[#EllesmereUI._popupFrames + 1] = { popup = pf }
@@ -4346,12 +4344,10 @@ local function BuildCogPopup(opts)
                     hitFrame:SetFrameLevel(pf:GetFrameLevel() + 3)
                     hitFrame:EnableMouse(true)
                     hitFrame:SetScript("OnEnter", function()
-                        if EllesmereUI.ShowWidgetTooltip then
-                            EllesmereUI.ShowWidgetTooltip(lbl, row.tooltip)
-                        end
+                        EllesmereUI.ShowWidgetTooltip(lbl, row.tooltip)
                     end)
                     hitFrame:SetScript("OnLeave", function()
-                        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                        EllesmereUI.HideWidgetTooltip()
                     end)
                 end
 
@@ -4377,7 +4373,7 @@ local function BuildCogPopup(opts)
                             EllesmereUI.ShowWidgetTooltip(self, tip)
                         end
                     end)
-                    sliderDis:SetScript("OnLeave", function() if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end end)
+                    sliderDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
                 end
 
                 rowWidgets[#rowWidgets + 1] = { type = "slider", updateVisual = updateVisual, get = srow.get, disOverlay = sliderDis, disCheck = row.disabled }
@@ -4395,12 +4391,10 @@ local function BuildCogPopup(opts)
                     hitFrame:SetFrameLevel(pf:GetFrameLevel() + 3)
                     hitFrame:EnableMouse(true)
                     hitFrame:SetScript("OnEnter", function()
-                        if EllesmereUI.ShowWidgetTooltip then
-                            EllesmereUI.ShowWidgetTooltip(lbl, row.tooltip)
-                        end
+                        EllesmereUI.ShowWidgetTooltip(lbl, row.tooltip)
                     end)
                     hitFrame:SetScript("OnLeave", function()
-                        if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                        EllesmereUI.HideWidgetTooltip()
                     end)
                 end
 
@@ -4432,7 +4426,7 @@ local function BuildCogPopup(opts)
                             EllesmereUI.ShowWidgetTooltip(self, tip)
                         end
                     end)
-                    toggleDis:SetScript("OnLeave", function() if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end end)
+                    toggleDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
                 end
 
                 rowWidgets[#rowWidgets + 1] = { type = "toggle", updateVisual = UpdateToggleVisual, disOverlay = toggleDis, disCheck = row.disabled }
@@ -4483,7 +4477,7 @@ local function BuildCogPopup(opts)
                             EllesmereUI.ShowWidgetTooltip(self, tip)
                         end
                     end)
-                    ddDis:SetScript("OnLeave", function() if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end end)
+                    ddDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
                 end
 
                 rowWidgets[#rowWidgets + 1] = { type = 'dropdown', btn = ddBtn, lbl = ddLbl, get = row.get, values = row.values, refresh = ddBtn._ddRefresh, disOverlay = ddDis, disCheck = row.disabled }
@@ -4558,7 +4552,7 @@ local function BuildCogPopup(opts)
                             EllesmereUI.ShowWidgetTooltip(self, tip)
                         end
                     end)
-                    segDis:SetScript("OnLeave", function() if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end end)
+                    segDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
                 end
 
                 rowWidgets[#rowWidgets + 1] = { type = 'segmented', seg = seg, refresh = segRefresh, disOverlay = segDis, disCheck = row.disabled }
@@ -4592,7 +4586,7 @@ local function BuildCogPopup(opts)
                             EllesmereUI.ShowWidgetTooltip(cpSwatch, tip)
                         end
                     end)
-                    cpSwBlock:SetScript("OnLeave", function() if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end end)
+                    cpSwBlock:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
 
                     cpLblBlock = CreateFrame("Frame", nil, pf)
                     cpLblBlock:SetPoint("TOPLEFT", lbl, "TOPLEFT", -2, 2)
@@ -4605,7 +4599,7 @@ local function BuildCogPopup(opts)
                             EllesmereUI.ShowWidgetTooltip(lbl, tip)
                         end
                     end)
-                    cpLblBlock:SetScript("OnLeave", function() if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end end)
+                    cpLblBlock:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
                 end
 
                 rowWidgets[#rowWidgets + 1] = { type = 'colorpicker', updateSwatch = cpUpdate, swatch = cpSwatch, lbl = lbl, swBlock = cpSwBlock, lblBlock = cpLblBlock, disCheck = row.disabled }
@@ -4637,9 +4631,7 @@ local function BuildCogPopup(opts)
                         sc.getValue,
                         function(r, g, b, a)
                             if sc.setValue then sc.setValue(r, g, b, a) end
-                            if EllesmereUI._NotifySettingWrite then
-                                EllesmereUI._NotifySettingWrite(popupOwner or opts.captureRegion)
-                            end
+                            EllesmereUI._NotifySettingWrite(popupOwner or opts.captureRegion)
                             if pf._refresh then pf._refresh() end
                         end,
                         sc.hasAlpha, 20)
@@ -4650,18 +4642,16 @@ local function BuildCogPopup(opts)
                         swatch._eabOrigClick = swatch:GetScript('OnClick')
                         swatch:SetScript('OnClick', function(self, ...)
                             sc.onClick(self, ...)
-                            if EllesmereUI._NotifySettingWrite then
-                                EllesmereUI._NotifySettingWrite(popupOwner or opts.captureRegion)
-                            end
+                            EllesmereUI._NotifySettingWrite(popupOwner or opts.captureRegion)
                             if pf._refresh then pf._refresh() end
                         end)
                     end
                     if sc.tooltip then
                         swatch:HookScript('OnEnter', function()
-                            if EllesmereUI.ShowWidgetTooltip then EllesmereUI.ShowWidgetTooltip(swatch, sc.tooltip) end
+                            EllesmereUI.ShowWidgetTooltip(swatch, sc.tooltip)
                         end)
                         swatch:HookScript('OnLeave', function()
-                            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                            EllesmereUI.HideWidgetTooltip()
                         end)
                     end
                     mswUpdates[#mswUpdates + 1] = updateSwatch
@@ -4688,7 +4678,7 @@ local function BuildCogPopup(opts)
                             EllesmereUI.ShowWidgetTooltip(self, tip)
                         end
                     end)
-                    mswDis:SetScript("OnLeave", function() if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end end)
+                    mswDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
                     local initDis = type(row.disabled) == "function" and row.disabled() or row.disabled
                     if initDis then mswDis:Show() else mswDis:Hide() end
                 end
@@ -4790,7 +4780,7 @@ local function BuildCogPopup(opts)
                             EllesmereUI.ShowWidgetTooltip(self, tip)
                         end
                     end)
-                    inputDis:SetScript("OnLeave", function() if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end end)
+                    inputDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
                 end
 
                 rowWidgets[#rowWidgets + 1] = { type = 'input', box = box, get = row.get, disOverlay = inputDis, disCheck = row.disabled, saveBg = saveBg }
@@ -4847,7 +4837,7 @@ local function BuildCogPopup(opts)
 
                 -- Menu is FULLSCREEN_DIALOG so it floats above the popup
                 local MH = 26
-                local FONT = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath()) or "Fonts\\FRIZQT__.TTF"
+                local FONT = (EllesmereUI.GetFontPath()) or "Fonts\\FRIZQT__.TTF"
                 local menu = CreateFrame("Frame", nil, UIParent)
                 menu:SetFrameStrata("FULLSCREEN_DIALOG")
                 menu:SetFrameLevel(220)
@@ -5062,7 +5052,7 @@ local function BuildCogPopup(opts)
                         local tip = ResolveDisabledTip(row)
                         if tip and EllesmereUI.ShowWidgetTooltip then EllesmereUI.ShowWidgetTooltip(self, tip) end
                     end)
-                    reorderDis:SetScript("OnLeave", function() if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end end)
+                    reorderDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
                     local initDis = type(row.disabled) == "function" and row.disabled() or row.disabled
                     if initDis then reorderDis:Show() else reorderDis:Hide() end
                 end
@@ -6021,7 +6011,7 @@ local function BuildMultiApplyDropdown(anchorFrame, opts, flashTargets)
     mBg:SetColorTexture(EllesmereUI.DD_BG_R, EllesmereUI.DD_BG_G, EllesmereUI.DD_BG_B, 0.96)
     EllesmereUI.MakeBorder(menu, 1, 1, 1, EllesmereUI.DD_BRD_A, PP)
 
-    local ppScale = EllesmereUI.GetPopupScale and EllesmereUI.GetPopupScale() or 1
+    local ppScale = EllesmereUI.GetPopupScale() or 1
     menu:SetScale(ppScale)
 
     -- Reset the checked state to all-true on every open. Intentionally NOT carried over between opens: a prior per-operation deselection must never silently persist to another source unit or another sync icon (e.g. a stale exclusion could make a Bar Background sync from Target/Focus silently skip the Player frame).
@@ -6503,7 +6493,7 @@ local function BuildInlineCog(rgn, opts)
     if EllesmereUI._prebuilding then return end
     -- A disabled cog with no tooltip of its own explains itself with its host control's requirement.
     local tipSrc = (opts.disabled and not opts.disabledTooltip) and rgn._cfg or opts
-    if opts.disabled and not (tipSrc and tipSrc.disabledTooltip) and EllesmereUI.IsDevModeActive and EllesmereUI.IsDevModeActive() then
+    if opts.disabled and not (tipSrc and tipSrc.disabledTooltip) and EllesmereUI.IsDevModeActive() then
         error("BuildInlineCog: disabled needs a disabledTooltip", 2)
     end
     local show = opts.show or select(2, BuildCogPopup(opts))
@@ -6831,7 +6821,7 @@ function EllesmereUI.ShowPickMenu(anchor, opts)
         local bg = menu:CreateTexture(nil, "BACKGROUND")
         bg:SetAllPoints()
         bg:SetColorTexture(0.067, 0.067, 0.067, 0.98)
-        if EllesmereUI.MakeBorder then EllesmereUI.MakeBorder(menu, 1, 1, 1, 0.2) end
+        EllesmereUI.MakeBorder(menu, 1, 1, 1, 0.2)
 
         local catcher = CreateFrame("Button", nil, UIParent)
         catcher:SetAllPoints(UIParent)
@@ -7102,7 +7092,7 @@ local _trackedAurasDimmer
 function EllesmereUI.ShowTrackedAurasPopup(opts)
     local PP = EllesmereUI.PP or EllesmereUI.PanelPP
     local fontPath = opts.fontPath or EllesmereUI.EXPRESSWAY or "Fonts\\FRIZQT__.TTF"
-    local ppScale = (EllesmereUI.GetPopupScale and EllesmereUI.GetPopupScale()) or 1
+    local ppScale = (EllesmereUI.GetPopupScale()) or 1
     local EG = EllesmereUI.ELLESMERE_GREEN
 
     if _trackedAurasDimmer then _trackedAurasDimmer:Hide(); _trackedAurasDimmer = nil end
@@ -7244,7 +7234,7 @@ function EllesmereUI.ShowTrackedAurasPopup(opts)
         applyBtn:SetPoint("RIGHT", panel, "TOPRIGHT", -24, -80 - hdrY)
         local apBg = applyBtn:CreateTexture(nil, "BACKGROUND")
         apBg:SetAllPoints(); apBg:SetColorTexture(0.06, 0.08, 0.10, 0.92)
-        local apBrd = EllesmereUI.MakeBorder and EllesmereUI.MakeBorder(applyBtn, EG.r, EG.g, EG.b, 0.35, PP)
+        local apBrd = EllesmereUI.MakeBorder(applyBtn, EG.r, EG.g, EG.b, 0.35, PP)
         local apLbl = applyBtn:CreateFontString(nil, "OVERLAY")
         apLbl:SetFont(fontPath, 12, "")
         apLbl:SetPoint("CENTER")
@@ -7273,7 +7263,7 @@ function EllesmereUI.ShowTrackedAurasPopup(opts)
         ddLbl:SetWordWrap(false)
         ddLbl:SetTextColor(1, 1, 1, 0.8)
         ddLbl:SetText(EllesmereUI.L("Select..."))
-        if EllesmereUI.MakeDropdownArrow then EllesmereUI.MakeDropdownArrow(ddBtn, 10, PP) end
+        EllesmereUI.MakeDropdownArrow(ddBtn, 10, PP)
 
         local chosen
         local menu = CreateFrame("Frame", nil, panel)
@@ -7373,7 +7363,7 @@ function EllesmereUI.ShowTrackedAurasPopup(opts)
         addBtn:SetPoint("TOPRIGHT", panel, "TOPRIGHT", x + COL_W - 520, secY - 8)
         local abg = addBtn:CreateTexture(nil, "BACKGROUND")
         abg:SetAllPoints(); abg:SetColorTexture(0.06, 0.08, 0.10, 0.92)
-        local abrd = EllesmereUI.MakeBorder and EllesmereUI.MakeBorder(addBtn, EG.r, EG.g, EG.b, 0.35, PP)
+        local abrd = EllesmereUI.MakeBorder(addBtn, EG.r, EG.g, EG.b, 0.35, PP)
         local al = addBtn:CreateFontString(nil, "OVERLAY")
         al:SetFont(fontPath, 12, "")
         al:SetPoint("CENTER")
@@ -7582,7 +7572,7 @@ function EllesmereUI.ShowTrackedAurasPopup(opts)
     doneBtn:SetPoint("BOTTOM", panel, "BOTTOM", 0, 14)
     local dbg2 = doneBtn:CreateTexture(nil, "BACKGROUND")
     dbg2:SetAllPoints(); dbg2:SetColorTexture(0.06, 0.08, 0.10, 0.92)
-    local dbrd = EllesmereUI.MakeBorder and EllesmereUI.MakeBorder(doneBtn, EG.r, EG.g, EG.b, 0.9, PP)
+    local dbrd = EllesmereUI.MakeBorder(doneBtn, EG.r, EG.g, EG.b, 0.9, PP)
     local dl2 = doneBtn:CreateFontString(nil, "OVERLAY")
     dl2:SetFont(fontPath, 14, "")
     dl2:SetPoint("CENTER")
@@ -7957,7 +7947,7 @@ function EllesmereUI.BuildVisOptsCBDropdown(parentFrame, ddW, fLevel, items, get
         mBg:SetAllPoints()
         mBg:SetColorTexture(EllesmereUI.DD_BG_R, EllesmereUI.DD_BG_G, EllesmereUI.DD_BG_B, EllesmereUI.DD_BG_HA or 0.92)
         EllesmereUI.MakeBorder(menu, 1, 1, 1, EllesmereUI.DD_BRD_A, PP)
-        local ppScale = EllesmereUI.GetPopupScale and EllesmereUI.GetPopupScale() or 1
+        local ppScale = EllesmereUI.GetPopupScale() or 1
         menu:SetScale(ppScale)
 
         -- Top-action rows above the search box, divider under the group.
@@ -8008,7 +7998,7 @@ function EllesmereUI.BuildVisOptsCBDropdown(parentFrame, ddW, fLevel, items, get
                 end)
                 row:SetScript("OnLeave", function()
                     hl:SetColorTexture(1, 1, 1, 0)
-                    if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+                    EllesmereUI.HideWidgetTooltip()
                     TATint()
                 end)
                 row:SetScript("OnClick", function()
@@ -8902,8 +8892,7 @@ function EllesmereUI.AttachVisibilityChecklist(region, opts)
     -- profile with nothing owning it. On those pages the row simply behaves as it does
     -- outside a session.
     local function OvSessionActive()
-        return (EllesmereUI.SpecOverrides_SlotOverridable
-            and EllesmereUI.SpecOverrides_SlotOverridable()) and true or false
+        return (EllesmereUI.SpecOverrides_SlotOverridable()) and true or false
     end
     local OV_LOCK_TIP = "Not overridable. These conditions are shared and can only be changed while no override is being edited. An override replaces the Visibility setting outright -- Never, Always or Mouseover -- and ignores everything set here while it applies."
     local OV_PICK_TIP = "Makes this the override. It replaces the whole Visibility setting, so the conditions below no longer apply while it does. Click it again to remove the override."
@@ -9108,8 +9097,7 @@ function EllesmereUI.AttachVisibilityChecklist(region, opts)
     -- one no map holds yet -- and never for a marker a real override still owns, which
     -- simply gets written back on its next apply. WriteSel's clear stays as the belt.
     if not EllesmereUI._prebuilding
-        and not (EllesmereUI.SpecOverrides_EditSessionActive
-            and EllesmereUI.SpecOverrides_EditSessionActive()) then
+        and not (EllesmereUI.SpecOverrides_EditSessionActive()) then
         local stores, healed = OvStores(), false
         for i = 1, #stores do
             local st = stores[i]
@@ -9226,8 +9214,7 @@ function EllesmereUI.AttachVisibilityChecklist(region, opts)
         -- getter is not guaranteed free (CDM's tracked buff bars CREATE their table on
         -- read), and inside a session such a write becomes a capture of its own.
         if OvSessionActive() and (k == "never" or k == "always" or k == "mouseover") then
-            local ov = store and EllesmereUI.VisOverrideValue
-                and EllesmereUI.VisOverrideValue(store)
+            local ov = store and EllesmereUI.VisOverrideValue(store)
             if ov then return (not neg) and (k == ov) end
         end
         if def.axis == "mode" then return sel[neg and def.hide or def.show] == true end
@@ -9252,15 +9239,13 @@ function EllesmereUI.AttachVisibilityChecklist(region, opts)
             local stores = OvStores()
             local store = stores[1]
             if not store then return end
-            local held = EllesmereUI.VisOverrideValue and EllesmereUI.VisOverrideValue(store)
+            local held = EllesmereUI.VisOverrideValue(store)
             if held == k then
                 -- Cleared on every store first, so the re-snapshot ClearStoreKey takes
                 -- at the end already sees the finished state and nothing diffs back into
                 -- a capture of its own.
                 for i = 1, #stores do stores[i].visibilityOverride = nil end
-                if EllesmereUI.SpecOverrides_ClearStoreKey then
-                    EllesmereUI.SpecOverrides_ClearStoreKey(stores, "visibilityOverride")
-                end
+                EllesmereUI.SpecOverrides_ClearStoreKey(stores, "visibilityOverride")
             else
                 for i = 1, #stores do stores[i].visibilityOverride = k end
             end
@@ -9398,8 +9383,7 @@ function EllesmereUI.AttachVisibilityChecklist(region, opts)
           -- instead of the shared selection it replaces.
           ovHeldFn = function()
               local _, store = SelRead()
-              return store and EllesmereUI.VisOverrideValue
-                  and EllesmereUI.VisOverrideValue(store) or nil
+              return store and EllesmereUI.VisOverrideValue(store) or nil
           end,
           -- The separator reads the match live: under Any the conditions are OR'd.
           separatorFn = function() return GetMatchAny() and " or " or ", " end,
@@ -9434,8 +9418,8 @@ function EllesmereUI.AttachVisibilityChecklist(region, opts)
             -- it into the shared scalar instead would replace a setting the override was
             -- only standing in front of. A value no override can hold falls through and
             -- edits the shared side, exactly as every other slot does under an override.
-            local ovIn = EllesmereUI.VisOverrideValue and EllesmereUI.VisOverrideValue(s)
-                and EllesmereUI.VisOverrideNormalize and EllesmereUI.VisOverrideNormalize(v)
+            local ovIn = EllesmereUI.VisOverrideValue(s)
+                and EllesmereUI.VisOverrideNormalize(v)
             if ovIn then
                 local stores = OvStores()
                 for i = 1, #stores do stores[i].visibilityOverride = ovIn end
@@ -9897,7 +9881,7 @@ function EllesmereUI.BuildUnlockPlaceholder(opts)
     f._brd = EllesmereUI.MakeBorder(f, ar, ag, ab, 0.6)
 
     -- White centered label matching unlock mode mover style
-    local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("extras"))
+    local fontPath = (EllesmereUI.GetFontPath("extras"))
         or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.TTF"
     local label = f:CreateFontString(nil, "OVERLAY")
     label:SetFont(fontPath, 10, "OUTLINE, SLUG")
@@ -9996,7 +9980,7 @@ function EllesmereUI.BuildLinkRow(parent, y, label, module, page, section, highl
     PP.Size(row, parent:GetWidth() - EllesmereUI.CONTENT_PAD * 2, ROW_H)
     PP.Point(row, "TOPLEFT", parent, "TOPLEFT", EllesmereUI.CONTENT_PAD, y)
     row._skipRowDivider = true
-    if EllesmereUI.RowBg then EllesmereUI.RowBg(row, parent) end
+    EllesmereUI.RowBg(row, parent)
 
     local lbl = EllesmereUI.MakeFont(row, 13, nil, 1, 1, 1)
     lbl:SetAlpha(0.9)

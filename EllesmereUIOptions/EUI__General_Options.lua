@@ -543,13 +543,11 @@ function EllesmereUI._BuildWhatsNewPage(pageName, parent, yOffset)
         end)
         row:SetScript("OnEnter", function(self)
             lbl:SetAlpha(0.85)
-            if EllesmereUI.ShowWidgetTooltip then
-                EllesmereUI.ShowWidgetTooltip(self, EllesmereUI.L("Show a pulsing dot on the Patch Notes button whenever EllesmereUI updates to a new version."))
-            end
+            EllesmereUI.ShowWidgetTooltip(self, EllesmereUI.L("Show a pulsing dot on the Patch Notes button whenever EllesmereUI updates to a new version."))
         end)
         row:SetScript("OnLeave", function()
             lbl:SetAlpha(0.5)
-            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+            EllesmereUI.HideWidgetTooltip()
         end)
     end
 
@@ -1057,7 +1055,7 @@ function EllesmereUI._BuildLegendsPage(pageName, parent, yOffset)
         thumb:SetHeight(40)
 
         local function UpdateThumb()
-            local maxScroll = EllesmereUI.SafeScrollRange and EllesmereUI.SafeScrollRange(sf) or 0
+            local maxScroll = EllesmereUI.SafeScrollRange(sf) or 0
             if maxScroll <= 0 then track:Hide(); return end
             track:Show()
             local trackH = track:GetHeight()
@@ -1077,7 +1075,7 @@ function EllesmereUI._BuildLegendsPage(pageName, parent, yOffset)
         smoother:Hide()
         smoother:SetScript("OnUpdate", function(_, elapsed)
             local cur = sf:GetVerticalScroll()
-            local maxScroll = EllesmereUI.SafeScrollRange and EllesmereUI.SafeScrollRange(sf) or 0
+            local maxScroll = EllesmereUI.SafeScrollRange(sf) or 0
             local scale = sf:GetEffectiveScale()
             maxScroll = math.floor(maxScroll * scale) / scale
             target = math.max(0, math.min(maxScroll, target))
@@ -1100,7 +1098,7 @@ function EllesmereUI._BuildLegendsPage(pageName, parent, yOffset)
             UpdateThumb()
         end)
         sf:SetScript("OnMouseWheel", function(self, delta)
-            local maxScroll = EllesmereUI.SafeScrollRange and EllesmereUI.SafeScrollRange(self) or 0
+            local maxScroll = EllesmereUI.SafeScrollRange(self) or 0
             if maxScroll <= 0 then return end
             local scale = self:GetEffectiveScale()
             maxScroll = math.floor(maxScroll * scale) / scale
@@ -4257,9 +4255,7 @@ initFrame:SetScript("OnEvent", function(self)
                 elseif v == "Huge (125%)"   then scale = 1.25
                 elseif v == "Giant (150%)"  then scale = 1.50
                 elseif v == "Massive (200%)" then scale = 2.00 end
-                if EllesmereUI.SetPanelScale then
-                    EllesmereUI:SetPanelScale(scale)
-                end
+                EllesmereUI:SetPanelScale(scale)
               end }
         );  y = y - h
         -- Cog with "Set UI Scale to 0.5333" toggle
@@ -4547,9 +4543,7 @@ initFrame:SetScript("OnEvent", function(self)
             "Fonts\\MORPHEUS.TTF",
             "Fonts\\skurri.ttf",
         }
-        if EllesmereUI.AppendSharedMediaFonts then
-            EllesmereUI.AppendSharedMediaFonts(fctFontValues, fctFontOrder)
-        end
+        EllesmereUI.AppendSharedMediaFonts(fctFontValues, fctFontOrder)
         _, h = W:DualRow(parent, y,
             { type="slider", text="Combat Text Size",
               min=0.5, max=2.5, step=0.1,
@@ -5276,7 +5270,7 @@ initFrame:SetScript("OnEvent", function(self)
             end
             for _, g in ipairs(_colorGates) do MakeColorGate(g.top, g.bot) end
             local function UpdateColorGate()
-                local locked = EllesmereUI.IsColorEditingLocked and EllesmereUI.IsColorEditingLocked()
+                local locked = EllesmereUI.IsColorEditingLocked()
                 local text
                 if locked then
                     local p = EllesmereUI.GetProfilesDB()
@@ -5545,10 +5539,8 @@ initFrame:SetScript("OnEvent", function(self)
                         local _, profiles = EllesmereUI.GetProfileList()
                         if profiles and profiles[assigned] then
                             local fontWillChange = EllesmereUI.ProfileChangesFont(profiles[assigned])
-                            local skinsWillChange = EllesmereUI.ProfileChangesWindowSkins
-                                and EllesmereUI.ProfileChangesWindowSkins(profiles[assigned])
-                            local styleWillChange = EllesmereUI.ProfileChangesStyle
-                                and EllesmereUI.ProfileChangesStyle(profiles[assigned])
+                            local skinsWillChange = EllesmereUI.ProfileChangesWindowSkins(profiles[assigned])
+                            local styleWillChange = EllesmereUI.ProfileChangesStyle(profiles[assigned])
                             EllesmereUI.SwitchProfile(assigned)
                             -- true = budgeted: manual apply (no spec change
                             -- in flight), watchdog-sliced module refresh.
@@ -6790,8 +6782,7 @@ initFrame:SetScript("OnEvent", function(self)
                         end
                         -- FULL ACCOUNT string: its own flow, routed BEFORE the normal import machinery sees the payload (no module selection,
                         -- include toggles, or store merging). Typed confirmation: it overwrites account-wide settings.
-                        if EllesmereUI.IsFullAccountPayload
-                           and EllesmereUI.IsFullAccountPayload(payload) then
+                        if EllesmereUI.IsFullAccountPayload(payload) then
                             pastePage:Hide()
                             EllesmereUI:ShowConfirmPopup({
                                 title = EllesmereUI.L("Import Full Account Data"),
@@ -6801,9 +6792,7 @@ initFrame:SetScript("OnEvent", function(self)
                                 confirmText = EllesmereUI.L("Import & Reload"),
                                 cancelText = EllesmereUI.L("Cancel"),
                                 onConfirm = function()
-                                    if EllesmereUI.ImportFullAccountData then
-                                        EllesmereUI.ImportFullAccountData(payload)
-                                    end
+                                    EllesmereUI.ImportFullAccountData(payload)
                                 end,
                             })
                             return
@@ -7156,10 +7145,8 @@ initFrame:SetScript("OnEvent", function(self)
                                 menu:Hide()
                                 local _, profs = EllesmereUI.GetProfileList()
                                 local fontWillChange = EllesmereUI.ProfileChangesFont(profs and profs[capName])
-                                local skinsWillChange = EllesmereUI.ProfileChangesWindowSkins
-                                    and EllesmereUI.ProfileChangesWindowSkins(profs and profs[capName])
-                                local styleWillChange = EllesmereUI.ProfileChangesStyle
-                                    and EllesmereUI.ProfileChangesStyle(profs and profs[capName])
+                                local skinsWillChange = EllesmereUI.ProfileChangesWindowSkins(profs and profs[capName])
+                                local styleWillChange = EllesmereUI.ProfileChangesStyle(profs and profs[capName])
                                 EllesmereUI.SwitchProfile(capName)
                                 ddLabel:SetText(EllesmereUI.GetActiveProfileName())
                                 -- true = budgeted: manual swap site,
@@ -7848,7 +7835,7 @@ initFrame:SetScript("OnEvent", function(self)
         EllesmereUI._ProfilesConsumeApiImport = function()
             local s = EllesmereUI._apiImportSession
             if not s or s.state == "done" then return end
-            if EllesmereUI._EnsureApiImportCloseHook then EllesmereUI._EnsureApiImportCloseHook() end
+            EllesmereUI._EnsureApiImportCloseHook()
             s.state = "active"
             if s.payload then
                 EllesmereUI._ProfilesApiProceed(s.payload)
@@ -7966,9 +7953,7 @@ initFrame:SetScript("OnEvent", function(self)
             EllesmereUI.InvalidateFontCache()
             EllesmereUI.ApplyColorsToOUF()
             -- Reset panel scale to 100%
-            if EllesmereUI.SetPanelScale then
-                EllesmereUI:SetPanelScale(1.0)
-            end
+            EllesmereUI:SetPanelScale(1.0)
             -- Reset right-click targeting to default (disabled = off)
             if EllesmereUIDB then
                 EllesmereUIDB.disableRightClickTarget = false
@@ -8002,9 +7987,7 @@ initFrame:SetScript("OnEvent", function(self)
             if EllesmereUI._applyRightClickTarget then
                 EllesmereUI._applyRightClickTarget()
             end
-            if EllesmereUI._applyHideBlizzardPartyFrame then
-                EllesmereUI._applyHideBlizzardPartyFrame()
-            end
+            EllesmereUI._applyHideBlizzardPartyFrame()
             -- One call for both: the FPS readout may be drawn by the Secondary
             -- Stats block, so the two owners have to re-evaluate together.
             if EllesmereUI._applyFPSDisplay then
@@ -8035,7 +8018,7 @@ initFrame:SetScript("OnEvent", function(self)
     -- Builds the centered mode toggle, returning the vertical space used. Plain local closure on purpose: no widget row, no capture config, no saved state.
     local function BuildOverridesModeToggle(parent, y)
         local EG = EllesmereUI.ELLESMERE_GREEN or { r = 0.05, g = 0.82, b = 0.62 }
-        local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath())
+        local fontPath = (EllesmereUI.GetFontPath())
             or "Fonts\\FRIZQT__.TTF"
         -- Wider than the Raid Frames pair (162): "Conditional Overrides" is a longer label than "Custom Buff Display" and must not clip.
         local BTN_W, BTN_H = 180, 31
@@ -8134,7 +8117,7 @@ initFrame:SetScript("OnEvent", function(self)
             if bbrd and bbrd.SetColor then bbrd:SetColor(EG.r, EG.g, EG.b, 0.5) end
         end)
         btn:SetScript("OnClick", function()
-            local str = EllesmereUI.ExportFullAccountData and EllesmereUI.ExportFullAccountData()
+            local str = EllesmereUI.ExportFullAccountData()
             if str then
                 EllesmereUI:ShowExportPopup(str)
             else

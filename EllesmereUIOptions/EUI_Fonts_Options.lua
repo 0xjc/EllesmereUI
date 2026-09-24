@@ -1140,7 +1140,7 @@ local function BuildFontCard(parent, y, W, tile)
             local glyphText = glyph:CreateFontString(nil, "OVERLAY")
             glyphText:SetPoint("CENTER")
             local addonKey = tile.folder and EllesmereUI._folderToAddonKey and EllesmereUI._folderToAddonKey[tile.folder]
-            local glyphPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath(addonKey))
+            local glyphPath = (EllesmereUI.GetFontPath(addonKey))
                 or "Fonts\\FRIZQT__.TTF"
             glyphText:SetFont(glyphPath, 15, "")
             glyphText:SetTextColor(1, 1, 1, enabled and 0.85 or 0.3)
@@ -1270,9 +1270,7 @@ function _G._EUI_BuildFontsPage(pageName, parent, yOffset)
                 font = EllesmereUI.MEDIA_PATH .. "fonts\\Expressway.TTF" }
             fontDropOrder[#fontDropOrder + 1] = EllesmereUI.EXPRESSWAY_FORCED_KEY
         end
-        if EllesmereUI.AppendExternalSharedMediaFonts then
-            EllesmereUI.AppendExternalSharedMediaFonts(fontDropValues, fontDropOrder)
-        end
+        EllesmereUI.AppendExternalSharedMediaFonts(fontDropValues, fontDropOrder)
     else
         -- Blizzard Default first: the client's own standard UI font. The
         -- glyph-restricted branch above skips it (its "System Default" entry
@@ -1293,9 +1291,7 @@ function _G._EUI_BuildFontsPage(pageName, parent, yOffset)
                 fontDropOrder[#fontDropOrder + 1] = name
             end
         end
-        if EllesmereUI.AppendSharedMediaFonts then
-            EllesmereUI.AppendSharedMediaFonts(fontDropValues, fontDropOrder, { keyByName = true })
-        end
+        EllesmereUI.AppendSharedMediaFonts(fontDropValues, fontDropOrder, { keyByName = true })
     end
 
     local outlineModeValues = {

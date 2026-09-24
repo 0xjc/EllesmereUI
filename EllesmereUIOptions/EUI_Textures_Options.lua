@@ -42,9 +42,7 @@ local function OwnBarCatalogue(key, includeExtras)
     local c = _ownCat[key]
     if not c then
         local tex, names, order = EllesmereUI.BuildBarTextureTables(includeExtras)
-        if EllesmereUI.AppendSharedMediaTextures then
-            EllesmereUI.AppendSharedMediaTextures(names, order, nil, tex)
-        end
+        EllesmereUI.AppendSharedMediaTextures(names, order, nil, tex)
         c = { lookup = tex, names = names, order = order }
         _ownCat[key] = c
     end
@@ -107,15 +105,13 @@ local function TileActionBars(parent, y, W, tile)
     local ns = NS(tile.folder)
     if not ns then return DisabledTile(parent, y, W, tile) end
     local EAB = ns.EAB
-    if EllesmereUI.AppendSharedMediaTextures then
-        EllesmereUI.AppendSharedMediaTextures(ns.dataBarTextureNames or {}, ns.dataBarTextureOrder or {}, nil, ns.dataBarTextures)
-    end
+    EllesmereUI.AppendSharedMediaTextures(ns.dataBarTextureNames or {}, ns.dataBarTextureOrder or {}, nil, ns.dataBarTextures)
     local lookup = ns.dataBarTextures or {}
     -- AB's own preview resolves sm: keys through ResolveTexturePath.
     local values, order = CopyBarDD(ns.dataBarTextureNames, ns.dataBarTextureOrder, lookup, false,
         function(key)
             if not key or key == "---" or key == "none" then return nil end
-            return EllesmereUI.ResolveTexturePath and EllesmereUI.ResolveTexturePath(lookup, key, nil)
+            return EllesmereUI.ResolveTexturePath(lookup, key, nil)
         end)
     local function barTexCfg(label, barKey)
         return { type = "dropdown", text = label, values = values, order = order,
@@ -147,9 +143,7 @@ local function TileNameplates(parent, y, W, tile)
     if not ns then return DisabledTile(parent, y, W, tile) end
     local function db() return ns.db and ns.db.profile end
     local DEF = ns.defaults or {}
-    if EllesmereUI.AppendSharedMediaTextures then
-        EllesmereUI.AppendSharedMediaTextures(ns.healthBarTextureNames or {}, ns.healthBarTextureOrder or {}, nil, ns.healthBarTextures)
-    end
+    EllesmereUI.AppendSharedMediaTextures(ns.healthBarTextureNames or {}, ns.healthBarTextureOrder or {}, nil, ns.healthBarTextures)
     local hbtValues, hbtOrder = CopyBarDD(ns.healthBarTextureNames, ns.healthBarTextureOrder, ns.healthBarTextures, false)
     -- Health + cast bar textures repaint live plates the way the module's own
     -- RefreshAllTextures does: full reapply plus the friendly-plate loop.
@@ -292,9 +286,7 @@ local function TileUnitFrames(parent, y, W, tile)
     local ns = NS(tile.folder)
     if not ns then return DisabledTile(parent, y, W, tile) end
     local function db() return ns.db and ns.db.profile end
-    if EllesmereUI.AppendSharedMediaTextures then
-        EllesmereUI.AppendSharedMediaTextures(ns.healthBarTextureNames or {}, ns.healthBarTextureOrder or {}, nil, ns.healthBarTextures)
-    end
+    EllesmereUI.AppendSharedMediaTextures(ns.healthBarTextureNames or {}, ns.healthBarTextureOrder or {}, nil, ns.healthBarTextures)
     -- UF's own dropdown copy drops the separator.
     local hbtValues, hbtOrder = CopyBarDD(ns.healthBarTextureNames, ns.healthBarTextureOrder, ns.healthBarTextures, true)
 
@@ -409,9 +401,7 @@ local function TileRaidFrames(parent, y, W, tile)
     local ns = NS(tile.folder)
     if not ns then return DisabledTile(parent, y, W, tile) end
     local function db() return ns.db and ns.db.profile end
-    if EllesmereUI.AppendSharedMediaTextures then
-        EllesmereUI.AppendSharedMediaTextures(ns.healthBarTextureNames or {}, ns.healthBarTextureOrder or {}, nil, ns.healthBarTextures)
-    end
+    EllesmereUI.AppendSharedMediaTextures(ns.healthBarTextureNames or {}, ns.healthBarTextureOrder or {}, nil, ns.healthBarTextures)
     -- RF's own copy keeps the separator in the order array.
     local hbtValues, hbtOrder = CopyBarDD(ns.healthBarTextureNames, ns.healthBarTextureOrder, ns.healthBarTextures, false)
     local function RFReload()
@@ -625,9 +615,7 @@ local function TileQoL(parent, y, W, tile)
     local mt = EllesmereUI._MovementBarTextures
     local maCfg
     if mt then
-        if EllesmereUI.AppendSharedMediaTextures then
-            EllesmereUI.AppendSharedMediaTextures(mt.names, mt.order, nil, mt.lookup)
-        end
+        EllesmereUI.AppendSharedMediaTextures(mt.names, mt.order, nil, mt.lookup)
         local values, order = CopyBarDD(mt.names, mt.order, mt.lookup, false)
         maCfg = { type = "dropdown", text = "Movement Alert Bar Texture", values = values, order = order,
             tooltip = "Used by the movement alert's Bar display mode.",
@@ -757,9 +745,7 @@ local function TileDamageMeters(parent, y, W, tile)
     local function db()
         return _G._EDM_DB and _G._EDM_DB.profile and _G._EDM_DB.profile.dm
     end
-    if EllesmereUI.AppendSharedMediaTextures then
-        EllesmereUI.AppendSharedMediaTextures(_G._EDM_BarTextureNames or {}, _G._EDM_BarTextureOrder or {}, nil, _G._EDM_BarTextures)
-    end
+    EllesmereUI.AppendSharedMediaTextures(_G._EDM_BarTextureNames or {}, _G._EDM_BarTextureOrder or {}, nil, _G._EDM_BarTextures)
     -- DM keeps the separator in its order arrays.
     local dmValues, dmOrder = CopyBarDD(_G._EDM_BarTextureNames, _G._EDM_BarTextureOrder, _G._EDM_BarTextures, false)
     -- "Match" variant used by the breakdown + spell history rows.
