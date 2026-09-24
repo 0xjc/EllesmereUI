@@ -90,10 +90,11 @@ EllesmereUI.FOREVER_MINIMAP_SIZE = MINIMAP_SIZE   -- the minimap's own first-act
 
 -- The Edit Mode layout carries a version in its name from v2 on ("EllesmereUI
 -- Forever v2"); the first shipped without one. A newer version replaces the
--- older layouts of ours and takes over as active, so a base layout change
--- lands without anyone deleting the old one by hand. Bump on every change.
+-- older layout of ours in its own slot, so characters on the old version move
+-- to the new one and a base layout change lands without anyone deleting the
+-- old one by hand. Bump on every change.
 local LAYOUT_NAME    = "EllesmereUI Forever"
-local LAYOUT_VERSION = 3
+local LAYOUT_VERSION = 4
 
 local function LayoutFullName()
     if LAYOUT_VERSION > 1 then return LAYOUT_NAME .. " v" .. LAYOUT_VERSION end
@@ -292,18 +293,14 @@ local function WriteEditModeLayout()
     layout.layoutType = Enum.EditModeLayoutType.Account
     layout.layoutName = fullName
 
+    -- Blizzard's other action bars keep the Modern preset's visibility: the
+    -- Action Bars module hides Blizzard's bars itself while it runs (bars 2+
+    -- start hidden in its own settings), and this layout outlives the addon,
+    -- so hiding them here would keep them hidden after EllesmereUI is removed.
     local AB = Enum.EditModeSystem.ActionBar
     local idx = Enum.EditModeActionBarSystemIndices or {}
     local main = FindSystem(layout, AB, idx.MainBar)
     if main then AnchorSystem(main, "BOTTOM", 0, BAR_BOTTOM) end
-    local visSetting = Enum.EditModeActionBarSetting and Enum.EditModeActionBarSetting.VisibleSetting
-    local hidden = Enum.ActionBarVisibleSetting and Enum.ActionBarVisibleSetting.Hidden
-    if visSetting ~= nil and hidden ~= nil then
-        for _, name in ipairs({ "Bar2", "Bar3", "RightBar1", "RightBar2", "ExtraBar1", "ExtraBar2", "ExtraBar3" }) do
-            local entry = idx[name] ~= nil and FindSystem(layout, AB, idx[name])
-            if entry then SetSetting(entry, visSetting, hidden) end
-        end
-    end
     local micro = Enum.EditModeSystem.MicroMenu and FindSystem(layout, Enum.EditModeSystem.MicroMenu, nil)
     if micro then AnchorSystem(micro, "BOTTOMLEFT", EDGE, GAP) end
     local bags = Enum.EditModeSystem.Bags and FindSystem(layout, Enum.EditModeSystem.Bags, nil)
@@ -340,24 +337,48 @@ local function WriteEditModeLayout()
         for _, l in ipairs(info.layouts) do mgr:ReconcileWithModern(l) end
     end
 
+    -- This character's layout before the list changes: it moves to ours only
+    -- from a Blizzard preset or an older version of ours; its own saved
+    -- layout stays its choice.
+    local wasActive = info.activeLayout or 0
+    local activeSaved = wasActive > presetCount and info.layouts[wasActive - presetCount] or nil
+    local takeOver = activeSaved == nil or IsOurLayout(activeSaved.layoutName)
+
     -- SaveLayouts takes the whole set the way the game keeps it: the presets
     -- first (read-only, carried for index alignment), then the saved layouts,
-    -- with activeLayout indexing that merged list. Ours goes in ahead of the
-    -- first character layout, with the account layouts.
+    -- with activeLayout indexing that merged list. Every character stores its
+    -- active layout as an index, so an older version of ours is REPLACED IN
+    -- PLACE: the indices keep naming the same layouts, and a character on the
+    -- old version lands on the new one. Any further old copy drops out. With
+    -- none, ours goes in ahead of the first character layout, with the
+    -- account layouts.
     local merged = presets
-    -- Older versions of ours drop out here; every other saved layout rides along.
+    local slot
     for _, l in ipairs(info.layouts) do
-        if not IsOurLayout(l.layoutName) then merged[#merged + 1] = l end
+        if not IsOurLayout(l.layoutName) then
+            merged[#merged + 1] = l
+        elseif not slot then
+            merged[#merged + 1] = layout
+            slot = #merged
+        end
     end
-    local slot = #merged + 1
-    for i = presetCount + 1, #merged do
-        if merged[i].layoutType == Enum.EditModeLayoutType.Character then slot = i; break end
+    if not slot then
+        slot = #merged + 1
+        for i = presetCount + 1, #merged do
+            if merged[i].layoutType == Enum.EditModeLayoutType.Character then slot = i; break end
+        end
+        table.insert(merged, slot, layout)
     end
-    table.insert(merged, slot, layout)
+    local active = slot
+    if not takeOver then
+        for i = presetCount + 1, #merged do
+            if merged[i] == activeSaved then active = i; break end
+        end
+    end
     info.layouts = merged
-    info.activeLayout = slot
+    info.activeLayout = active
     C_EditMode.SaveLayouts(info)
-    C_EditMode.SetActiveLayout(slot)
+    C_EditMode.SetActiveLayout(active)
     return true
 end
 

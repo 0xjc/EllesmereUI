@@ -5154,7 +5154,7 @@ initFrame:SetScript("OnEvent", function(self)
             cogTooltip = _visSrcIsEui and "Frame Source & Visibility" or "Frame Source",
             extraRows = _visSrcIsEui and {
                 { type = "toggle", label = "Show When Health Missing",
-                  tooltip = "Reveals the frame while this unit is below full health. At full health, your existing visibility rules apply. Never Show and Visibility Options such as Hide when Mounted take priority. While enabled, a frame hidden by its visibility setting can still be clicked.",
+                  tooltip = "Shows the frame while this unit is below full health; while enabled, a frame hidden by its visibility setting can still be clicked.",
                   disabled = function() return InCombatLockdown() end,
                   disabledTooltip = "Change health visibility out of combat",
                   get = function() return SVal("showWhenHealthMissing", false) == true end,
@@ -10282,6 +10282,14 @@ initFrame:SetScript("OnEvent", function(self)
               disabledValues=function(k)
                   if k == "blizzard" and EllesmereUI.IS_FOREVER then
                       return "This client has no Blizzard class resource bar to attach to the frame"
+                  end
+                  -- One owner for Blizzard's class resource frame: while Resource
+                  -- Bars' Blizzard Class Resource Art is on, Blizzard is greyed here.
+                  -- Only while not already chosen, so it can still be changed away.
+                  if k == "blizzard" and SValSupported("classPowerStyle", "none") ~= "blizzard" then
+                      if _G._ERB_BlizzArtWanted and _G._ERB_BlizzArtWanted() then
+                          return "This option can't be used while Blizzard Class Resource Art is enabled in Resource Bars."
+                      end
                   end
               end,
               getValue=function() return SValSupported("classPowerStyle", "none") end,

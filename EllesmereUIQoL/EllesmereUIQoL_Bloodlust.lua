@@ -107,7 +107,7 @@ local READY_DEFAULTS = {
     readySize    = 12,
     readyOffsetX = 0,
     readyOffsetY = 0,
-    desaturateSated = false,
+    desaturateSated = true,
 }
 
 local function RP(key)

@@ -684,13 +684,29 @@ local function BuildDropdownMenu(ddBtn, menuW, order, values, getValue, setValue
             item:SetPoint("TOPRIGHT", innerContainer, "TOPRIGHT", -1, -mH)
             item:SetFrameLevel(menu:GetFrameLevel() + 2)
             if _moBackground then
-                local bgPath = _moBackground(key)
+                -- Optional second return: a look table for layered swatches,
+                -- { base = {r,g,b} solid layer under the texture, tint = {r,g,b},
+                --   tile = true } so a row can mirror a compound fill.
+                local bgPath, bgLook = _moBackground(key)
                 if bgPath then
+                    if bgLook and bgLook.base then
+                        local b = bgLook.base
+                        local baseTex = item:CreateTexture(nil, "BACKGROUND", nil, 0)
+                        baseTex:SetAllPoints()
+                        baseTex:SetColorTexture(b[1], b[2], b[3], 1)
+                        baseTex:SetAlpha(0.45)
+                    end
+                    local tile = bgLook and bgLook.tile and "REPEAT" or nil
                     local bgTex = item:CreateTexture(nil, "BACKGROUND", nil, 1)
                     bgTex:SetAllPoints()
-                    bgTex:SetTexture(bgPath)
+                    bgTex:SetTexture(bgPath, tile, tile)
+                    if tile then bgTex:SetHorizTile(true); bgTex:SetVertTile(true) end
                     bgTex:SetAlpha(0.45)
-                    if _moBgVertexColor then
+                    if bgLook and bgLook.tint then
+                        -- Alpha rides the colour write (one alpha channel per texture).
+                        local t = bgLook.tint
+                        bgTex:SetVertexColor(t[1], t[2], t[3], 0.45)
+                    elseif _moBgVertexColor then
                         local vr, vg, vb = _moBgVertexColor()
                         if vr then bgTex:SetVertexColor(vr, vg, vb, 1) end
                     end
@@ -1585,7 +1601,7 @@ function EllesmereUI.BorderOffsetRowCfgs(spec)
         end
         return dx, dy
     end
-    local lo, hi = spec.min or -10, spec.max or 10
+    local lo, hi = spec.min or -25, spec.max or 25
     -- A value as the slider shows it (SnapStep: whole units, clamped).
     local function Unit(x) return math.max(lo, math.min(hi, math.floor(x + 0.5))) end
     local function Make(text, get, set, pick)
