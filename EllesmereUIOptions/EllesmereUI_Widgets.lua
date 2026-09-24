@@ -6832,6 +6832,7 @@ end  -- end deferred init
 --     includeGet/excludeGet  -> tri-state map { [spellID] = true|false }
 --     includePrompt/excludePrompt  (Add Spell ID popup messages)
 --     onChanged          (engine reapply, called after every edit)
+--     onAdd(id)          (optional; called on every Add Spell ID, before onChanged)
 --     showAll = { label, get, set }        (optional header toggle)
 --     copyFrom = { label, choices = { {key=,label=}, ... }, apply(key) }
 --                                          (optional header copy row)
@@ -7296,6 +7297,7 @@ function EllesmereUI.ShowTrackedAurasPopup(opts)
                         -- One list per spell: adding here removes it from the opposite list.
                         local other = otherFn()
                         if other then other[id] = nil end
+                        if opts.onAdd then opts.onAdd(id) end
                         list[id] = true
                         if opts.onChanged then opts.onChanged() end
                         if RefreshBoth then RefreshBoth() end
