@@ -2688,17 +2688,19 @@ do
 end
 
 -------------------------------------------------------------------------------
---  Fallback ghost overlays (unlock mode only): each element with a fallback link
---  gets a draggable ghost -- a 1:1 mover-overlay copy at 75% opacity with a
---  whitened tint, labeled "Fallback: <element>" -- sitting where the element
---  lands when the fallback engages. Dragging it writes the fallback's X/Y
---  offsets (relative to the side-snap point). Exists only while unlock mode is
---  open, only for elements that opted into a fallback.
+--  Ghost overlay set (unlock mode only), shared by fallback and override
+--  anchors: draggable 1:1 mover-overlay copies at 75% opacity sitting where
+--  the element lands while the link is engaged; dragging writes the link's
+--  X/Y offsets (relative to the side-snap point). opts: getLink(g) -> stored
+--  {target, side, offsetX, offsetY} or nil; init(g, ...) -> tint r,g,b and the
+--  dark-background mix r,g,b; label(g, fs); onSync(g) (optional, runs before
+--  placement); deselectOther = EllesmereUI key clearing the other set.
 -------------------------------------------------------------------------------
-do
-    local ghosts = {}  -- childKey -> ghost frame
+local function MakeGhostSet(opts)
+    local ghosts = {}
     local GHOST_ALPHA = 0.75
     local selectedGhost
+    local getLink = opts.getLink
 
     local function SetGhostSelected(g, on)
         if not g or not g._brd then return end
@@ -2718,12 +2720,12 @@ do
         g:Hide()
     end
 
-    -- Side-snap center for the child against the fallback target (frame bounds,
-    -- UIParent space) -- the offsets' zero point. Mirrors _TryFallbackAnchor's
-    -- runtime math (extent is inert in unlock).
-    local function GhostSnapBase(childKey, fb)
+    -- Side-snap center for the child against the link target (frame bounds,
+    -- UIParent space) -- the offsets' zero point. Mirrors _TryFallbackAnchor /
+    -- _TryOverrideAnchor runtime math (extent is inert in unlock).
+    local function GhostSnapBase(childKey, link)
         local childBar = GetBarFrame(childKey)
-        local tgt = GetBarFrame(fb.target)
+        local tgt = GetBarFrame(link.target)
         if not childBar or not tgt or not tgt:GetLeft() then return nil end
         local uiS = UIParent:GetEffectiveScale()
         local tS = tgt:GetEffectiveScale()
@@ -2736,7 +2738,7 @@ do
         local tCY = (tT + tB) / 2
         local cW = (childBar:GetWidth() or 50) * cS / uiS
         local cH = (childBar:GetHeight() or 50) * cS / uiS
-        local side = fb.side
+        local side = link.side
         if side == "LEFT" then
             return tL - cW / 2, tCY
         elseif side == "RIGHT" then
@@ -2756,14 +2758,12 @@ do
         if g._tempHidden then g:Hide(); return end
         if g._dragging then return end
         local childKey = g._childKey
-        local db = GetAnchorDB()
-        local info = db and db[childKey]
-        local fb = info and info.fallback
-        if not fb or not fb.target then HideGhost(g) return end
-        local cx, cy = GhostSnapBase(childKey, fb)
+        local link = getLink(g)
+        if not link then HideGhost(g) return end
+        local cx, cy = GhostSnapBase(childKey, link)
         if not cx then HideGhost(g) return end
-        cx = cx + (fb.offsetX or 0)
-        cy = cy + (fb.offsetY or 0)
+        cx = cx + (link.offsetX or 0)
+        cy = cy + (link.offsetY or 0)
         -- Size = the ELEMENT's live screen size, never the mover overlay's: hover
         -- expansion inflates the mover, and stored settings go stale if the
         -- element was resized this session. The live frame is always current.
@@ -2773,56 +2773,49 @@ do
             local es = eb:GetEffectiveScale() / UIParent:GetEffectiveScale()
             w = (eb:GetWidth() or 50) * es
             h = (eb:GetHeight() or 50) * es
+            if w > 0 and h > 0 then g:SetSize(w, h) end
         end
-        if w and h and w > 0 and h > 0 then g:SetSize(w, h) end
         -- Mirror the runtime growth-fixed-edge pin (UIParent-space dims = w,h)
         -- so the ghost previews exactly where the bar will land.
-        local gsx, gsy = EllesmereUI._FallbackGrowShift(childKey, fb.side, w or 0, h or 0)
+        local gsx, gsy = EllesmereUI._FallbackGrowShift(childKey, link.side, w or 0, h or 0)
         cx = cx + gsx
         cy = cy + gsy
         -- Run the exact runtime pipeline (child-local conversion + dim-aware
         -- pixel snap) so the ghost previews the landed position to the pixel.
-        local childBar = GetBarFrame(childKey)
-        if childBar then
+        if eb then
             local uiS = UIParent:GetEffectiveScale()
-            local cS = childBar:GetEffectiveScale()
+            local cS = eb:GetEffectiveScale()
             local acRatio = uiS / cS
             local bx = (cx - UIParent:GetWidth() / 2) * acRatio
             local by = (cy - UIParent:GetHeight() / 2) * acRatio
             local PPg = PP or (EllesmereUI and EllesmereUI.PP)
             if PPg and PPg.SnapCenterForDim then
-                bx = PPg.SnapCenterForDim(bx, childBar:GetWidth() or 0, cS)
-                by = PPg.SnapCenterForDim(by, childBar:GetHeight() or 0, cS)
+                bx = PPg.SnapCenterForDim(bx, eb:GetWidth() or 0, cS)
+                by = PPg.SnapCenterForDim(by, eb:GetHeight() or 0, cS)
             end
             cx = bx / acRatio + UIParent:GetWidth() / 2
             cy = by / acRatio + UIParent:GetHeight() / 2
         end
+        if opts.onSync then opts.onSync(g) end
         g:ClearAllPoints()
         g:SetPoint("CENTER", UIParent, "CENTER",
             cx - UIParent:GetWidth() / 2, cy - UIParent:GetHeight() / 2)
         g:Show()
     end
 
-    local function CreateGhost(childKey)
+    local function CreateGhost(...)
         local g = CreateFrame("Frame", nil, unlockFrame)
-        g._childKey = childKey
+        local wr, wg, wb, mr, mg, mb = opts.init(g, ...)
         g:SetFrameLevel(300)
         g:SetClampedToScreen(true)
         g:EnableMouse(true)
         g:SetAlpha(GHOST_ALPHA)
 
-        -- 10%-whitened mover look: dark background (when dark overlays are
-        -- on) and accent border, both lerped a tenth of the way to white.
-        local ar, ag, ab = 1, 1, 1
-        if EllesmereUI.GetAccentColor then ar, ag, ab = EllesmereUI.GetAccentColor() end
-        local wr = ar + (1 - ar) * 0.10
-        local wg = ag + (1 - ag) * 0.10
-        local wb = ab + (1 - ab) * 0.10
         g._wr, g._wg, g._wb = wr, wg, wb
         local bg = g:CreateTexture(nil, "BACKGROUND")
         bg:SetAllPoints()
         if darkOverlaysEnabled then
-            bg:SetColorTexture(0.075 + (1 - 0.075) * 0.10, 0.113 + (1 - 0.113) * 0.10, 0.141 + (1 - 0.141) * 0.10, 0.95)
+            bg:SetColorTexture(0.075 + (mr - 0.075) * 0.10, 0.113 + (mg - 0.113) * 0.10, 0.141 + (mb - 0.141) * 0.10, 0.95)
         else
             bg:SetColorTexture(wr, wg, wb, 0.10)
         end
@@ -2839,14 +2832,14 @@ do
         fs:SetWordWrap(false)
         fs:SetNonSpaceWrap(false)
         fs:SetPoint("CENTER", g, "CENTER")
-        fs:SetText(EllesmereUI.L("Fallback") .. ": " .. (GetBarLabel(childKey) or childKey))
+        opts.label(g, fs)
 
         g:SetScript("OnMouseDown", function(self, btn)
             if btn ~= "LeftButton" then return end
-            -- Selecting a ghost deselects any selected mover (and vice
-            -- versa) so exactly one thing answers the arrow keys.
+            -- One arrow-key target at a time across movers and BOTH ghost systems.
             if EllesmereUI._DeselectSelectedMover then EllesmereUI._DeselectSelectedMover() end
-            if EllesmereUI._DeselectOverrideGhosts then EllesmereUI._DeselectOverrideGhosts() end
+            local other = EllesmereUI[opts.deselectOther]
+            if other then other() end
             if selectedGhost and selectedGhost ~= self then
                 SetGhostSelected(selectedGhost, false)
             end
@@ -2854,7 +2847,7 @@ do
             SetGhostSelected(self, true)
             -- Immediate manual drag from the first held pixel: the native drag
             -- event only fires past a movement threshold, a huge dead zone for
-            -- the subtle adjustments fallbacks usually need.
+            -- the subtle adjustments these offsets usually need.
             local gl, gr, gt, gb = self:GetLeft(), self:GetRight(), self:GetTop(), self:GetBottom()
             if gl then
                 local uiS = UIParent:GetEffectiveScale()
@@ -2868,9 +2861,9 @@ do
             end
         end)
         g:SetScript("OnMouseUp", function(self, btn)
-            -- Shift+Right Click temporarily hides this fallback ghost for the
-            -- current unlock session (regular-mover gesture parity). Cleared on
-            -- the next unlock entry; purely visual, the stored link is untouched.
+            -- Shift+Right Click temporarily hides this ghost for the current
+            -- unlock session (regular-mover gesture parity). Cleared on the
+            -- next unlock entry; purely visual, the stored link is untouched.
             if btn == "RightButton" and IsShiftKeyDown() then
                 self._tempHidden = true
                 self._dragging = nil
@@ -2879,32 +2872,28 @@ do
             end
             if btn ~= "LeftButton" or not self._dragging then return end
             self._dragging = nil
-            local db = GetAnchorDB()
-            local info = db and db[self._childKey]
-            local fb = info and info.fallback
-            if not fb or not fb.target then HideGhost(self) return end
-            local cx, cy = GhostSnapBase(self._childKey, fb)
+            local link = getLink(self)
+            if not link then HideGhost(self) return end
+            local cx, cy = GhostSnapBase(self._childKey, link)
             local gl, gr, gt, gb = self:GetLeft(), self:GetRight(), self:GetTop(), self:GetBottom()
             if cx and gl then
                 -- Raw center delta: SyncGhost and the runtime apply both pixel-snap
-                -- the FINAL center (dim-aware), the same convention regular element
-                -- drags land on; snapping the offset would double-snap and drift.
+                -- the FINAL center (dim-aware); snapping the offset would
+                -- double-snap. Store against the growth-fixed edge (subtract the
+                -- shift apply/preview add); inert for center-growth children.
                 local gs = self:GetEffectiveScale() / UIParent:GetEffectiveScale()
-                -- Store the offset against the growth-fixed edge (subtract the shift
-                -- apply/preview add) so a resized bar keeps this edge; inert for
-                -- center-growth children.
                 local dw = (gr - gl) * gs
                 local dh = (gt - gb) * gs
-                local gsx, gsy = EllesmereUI._FallbackGrowShift(self._childKey, fb.side, dw, dh)
-                fb.offsetX = (gl + gr) * 0.5 * gs - cx - gsx
-                fb.offsetY = (gt + gb) * 0.5 * gs - cy - gsy
+                local gsx, gsy = EllesmereUI._FallbackGrowShift(self._childKey, link.side, dw, dh)
+                link.offsetX = (gl + gr) * 0.5 * gs - cx - gsx
+                link.offsetY = (gt + gb) * 0.5 * gs - cy - gsy
                 hasChanges = true
             end
             SyncGhost(self)
         end)
         -- Per frame: while held follow the cursor exactly (manual drag); otherwise
-        -- re-sync on a throttle so the ghost tracks a dragged fallback target.
-        -- Hidden ghosts cost nothing.
+        -- re-sync on a throttle so the ghost tracks a moved target or a resized
+        -- element. Hidden ghosts cost nothing.
         g:SetScript("OnUpdate", function(self, elapsed)
             if self._dragging then
                 local uiS = UIParent:GetEffectiveScale()
@@ -2925,13 +2914,15 @@ do
         return g
     end
 
-    function EllesmereUI._HideFallbackGhosts()
+    local set = { ghosts = ghosts, Hide = HideGhost, Sync = SyncGhost, Create = CreateGhost }
+
+    function set.HideAll()
         for _, g in pairs(ghosts) do HideGhost(g) end
     end
 
     -- Fade support for the unlock open animation: scales the resting ghost
     -- alpha by 0..1 so ghosts ride the same fade-in curve as the movers.
-    function EllesmereUI._SetFallbackGhostsAlpha(mult)
+    function set.SetAlpha(mult)
         for _, g in pairs(ghosts) do
             if g:IsShown() then
                 g:SetAlpha(GHOST_ALPHA * (mult or 1))
@@ -2939,7 +2930,7 @@ do
         end
     end
 
-    function EllesmereUI._DeselectFallbackGhosts()
+    function set.Deselect()
         if selectedGhost then
             SetGhostSelected(selectedGhost, false)
             selectedGhost = nil
@@ -2948,9 +2939,8 @@ do
 
     -- Clear per-session temp-hides (Shift+Right Click): unlock entry calls this
     -- alongside the mover/Blizz-overlay clears so every session starts with all
-    -- ghosts visible again. The ghosts table is a do-block local, hence the
-    -- namespaced helper.
-    function EllesmereUI._ClearFallbackGhostTempHides()
+    -- ghosts visible again.
+    function set.ClearTempHides()
         for _, g in pairs(ghosts) do g._tempHidden = nil end
     end
 
@@ -2958,19 +2948,55 @@ do
     -- anchored element: the exact delta is added to the stored offsets (never a
     -- live geometry read-back) and the shared preview/runtime pipeline pixel-snaps
     -- the landed center. Returns true when consumed.
-    function EllesmereUI._NudgeSelectedFallbackGhost(dx, dy)
+    function set.Nudge(dx, dy)
         local g = selectedGhost
         if not g or not g:IsShown() then return false end
-        local db = GetAnchorDB()
-        local info = db and db[g._childKey]
-        local fb = info and info.fallback
-        if not fb or not fb.target then return false end
-        fb.offsetX = (fb.offsetX or 0) + dx
-        fb.offsetY = (fb.offsetY or 0) + dy
+        local link = getLink(g)
+        if not link then return false end
+        link.offsetX = (link.offsetX or 0) + dx
+        link.offsetY = (link.offsetY or 0) + dy
         hasChanges = true
         SyncGhost(g)
         return true
     end
+
+    return set
+end
+
+-------------------------------------------------------------------------------
+--  Fallback ghosts: each element with a fallback link gets a ghost with a
+--  whitened accent tint, labeled "Fallback: <element>". Exists only while
+--  unlock mode is open, only for elements that opted into a fallback.
+-------------------------------------------------------------------------------
+do
+    local set = MakeGhostSet({
+        getLink = function(g)
+            local db = GetAnchorDB()
+            local info = db and db[g._childKey]
+            local fb = info and info.fallback
+            if fb and fb.target then return fb end
+            return nil
+        end,
+        init = function(g, childKey)
+            g._childKey = childKey
+            -- 10%-whitened mover look: dark background (when dark overlays
+            -- are on) and accent border, both lerped a tenth of the way to white.
+            local ar, ag, ab = 1, 1, 1
+            if EllesmereUI.GetAccentColor then ar, ag, ab = EllesmereUI.GetAccentColor() end
+            return ar + (1 - ar) * 0.10, ag + (1 - ag) * 0.10, ab + (1 - ab) * 0.10, 1, 1, 1
+        end,
+        label = function(g, fs)
+            fs:SetText(EllesmereUI.L("Fallback") .. ": " .. (GetBarLabel(g._childKey) or g._childKey))
+        end,
+        deselectOther = "_DeselectOverrideGhosts",
+    })
+    local ghosts = set.ghosts
+
+    EllesmereUI._HideFallbackGhosts = set.HideAll
+    EllesmereUI._SetFallbackGhostsAlpha = set.SetAlpha
+    EllesmereUI._DeselectFallbackGhosts = set.Deselect
+    EllesmereUI._ClearFallbackGhostTempHides = set.ClearTempHides
+    EllesmereUI._NudgeSelectedFallbackGhost = set.Nudge
 
     function EllesmereUI._RefreshFallbackGhosts()
         if not isUnlocked or not unlockFrame then
@@ -2980,7 +3006,7 @@ do
         local db = GetAnchorDB()
         for key, g in pairs(ghosts) do
             local info = db and db[key]
-            if not (info and info.fallback and info.fallback.target) then HideGhost(g) end
+            if not (info and info.fallback and info.fallback.target) then set.Hide(g) end
         end
         if not db then return end
         for childKey, info in pairs(db) do
@@ -2988,10 +3014,10 @@ do
             if fb and fb.target then
                 local g = ghosts[childKey]
                 if not g then
-                    g = CreateGhost(childKey)
+                    g = set.Create(childKey)
                     ghosts[childKey] = g
                 end
-                SyncGhost(g)
+                set.Sync(g)
             end
         end
     end
@@ -3337,36 +3363,14 @@ do
     end
 
     ---------------------------------------------------------------------------
-    --  Override anchor ghost overlays (unlock mode only): every stored entry
-    --  gets a draggable ghost -- a 1:1 mover-overlay copy at 75% opacity with
-    --  a gold tint, labeled "<element>: <group>" -- sitting where the element
-    --  lands while that group's override is engaged. Dragging it writes the
-    --  stored center; the real mover always edits the baseline.
+    --  Override anchor ghosts (MakeGhostSet): every stored entry gets a ghost
+    --  with a gold tint, labeled "<element>: <group>", sitting where the
+    --  element lands while that group's override is engaged. Dragging it
+    --  writes the stored offsets; the real mover always edits the baseline.
     ---------------------------------------------------------------------------
-    local ghosts = {}  -- childKey.."|"..gid -> ghost frame
-    local GHOST_ALPHA = 0.75
-    local selectedGhost
     -- Gold identity tint (matches the override gold-border language, and
     -- distinguishes these from the accent-tinted fallback ghosts).
     local OV_R, OV_G, OV_B = 0.95, 0.78, 0.25
-
-    local function SetGhostSelected(g, on)
-        if not g or not g._brd then return end
-        if on then
-            g._brd:SetColor(1, 1, 1, 0.9)
-        else
-            g._brd:SetColor(OV_R, OV_G, OV_B, 0.6)
-        end
-    end
-
-    local function HideGhost(g)
-        if selectedGhost == g then
-            SetGhostSelected(g, false)
-            selectedGhost = nil
-        end
-        g._dragging = nil
-        g:Hide()
-    end
 
     local function GhostPos(g)
         local store = Store()
@@ -3376,242 +3380,36 @@ do
         return ov
     end
 
-    -- Side-snap center for the child against the override target (frame
-    -- bounds, UIParent space) -- the offsets' zero point. Mirrors
-    -- _TryOverrideAnchor's runtime math (extent is inert in unlock).
-    local function OvSnapBase(childKey, ov)
-        local childBar = GetBarFrame(childKey)
-        local tgt = GetBarFrame(ov.target)
-        if not childBar or not tgt or not tgt:GetLeft() then return nil end
-        local uiS = UIParent:GetEffectiveScale()
-        local tS = tgt:GetEffectiveScale()
-        local cS = childBar:GetEffectiveScale()
-        local tL = (tgt:GetLeft() or 0) * tS / uiS
-        local tR = (tgt:GetRight() or 0) * tS / uiS
-        local tT = (tgt:GetTop() or 0) * tS / uiS
-        local tB = (tgt:GetBottom() or 0) * tS / uiS
-        local tCX = (tL + tR) / 2
-        local tCY = (tT + tB) / 2
-        local cW = (childBar:GetWidth() or 50) * cS / uiS
-        local cH = (childBar:GetHeight() or 50) * cS / uiS
-        local side = ov.side
-        if side == "LEFT" then
-            return tL - cW / 2, tCY
-        elseif side == "RIGHT" then
-            return tR + cW / 2, tCY
-        elseif side == "TOP" then
-            return tCX, tT + cH / 2
-        elseif side == "BOTTOM" then
-            return tCX, tB - cH / 2
-        end
-        return tCX, tCY
-    end
-
-    local function SyncGhost(g)
-        -- Temporarily hidden for this unlock session (Shift+Right Click, mover
-        -- gesture parity). Every refresh path funnels here, so the ghost stays
-        -- hidden until the next unlock entry clears the flag.
-        if g._tempHidden then g:Hide(); return end
-        if g._dragging then return end
-        local ov = GhostPos(g)
-        if not ov then HideGhost(g) return end
-        local cx, cy = OvSnapBase(g._childKey, ov)
-        if not cx then HideGhost(g) return end
-        cx = cx + (ov.offsetX or 0)
-        cy = cy + (ov.offsetY or 0)
-        -- Size = the ELEMENT's live screen size (mirrors the fallback ghosts).
-        local eb = GetBarFrame(g._childKey)
-        local w, h
-        if eb then
-            local es = eb:GetEffectiveScale() / UIParent:GetEffectiveScale()
-            w = (eb:GetWidth() or 50) * es
-            h = (eb:GetHeight() or 50) * es
-            if w > 0 and h > 0 then g:SetSize(w, h) end
-        end
-        -- Mirror the runtime growth-fixed-edge pin so the ghost previews
-        -- exactly where the bar will land.
-        local gsx, gsy = EllesmereUI._FallbackGrowShift(g._childKey, ov.side, w or 0, h or 0)
-        cx = cx + gsx
-        cy = cy + gsy
-        -- Run the exact runtime pipeline (child-local conversion + dim-aware
-        -- pixel snap) so the ghost previews the landed position to the pixel.
-        if eb then
-            local uiS = UIParent:GetEffectiveScale()
-            local cS = eb:GetEffectiveScale()
-            local acRatio = uiS / cS
-            local bx = (cx - UIParent:GetWidth() / 2) * acRatio
-            local by = (cy - UIParent:GetHeight() / 2) * acRatio
-            local PPg = PP or (EllesmereUI and EllesmereUI.PP)
-            if PPg and PPg.SnapCenterForDim then
-                bx = PPg.SnapCenterForDim(bx, eb:GetWidth() or 0, cS)
-                by = PPg.SnapCenterForDim(by, eb:GetHeight() or 0, cS)
-            end
-            cx = bx / acRatio + UIParent:GetWidth() / 2
-            cy = by / acRatio + UIParent:GetHeight() / 2
-        end
+    local set = MakeGhostSet({
+        getLink = GhostPos,
+        init = function(g, childKey, gid)
+            g._childKey = childKey
+            g._gid = gid
+            g:SetSize(120, 16)
+            return OV_R, OV_G, OV_B, OV_R, OV_G, OV_B
+        end,
+        label = function(g, fs)
+            g._lblFS = fs
+            g._lblName = GroupName(g._gid) or ""
+            fs:SetText((GetBarLabel(g._childKey) or g._childKey) .. ": " .. g._lblName)
+        end,
         -- Group renames refresh lazily here (throttled by the caller).
-        local gname = GroupName(g._gid)
-        if gname and gname ~= g._lblName and g._lblFS then
-            g._lblName = gname
-            g._lblFS:SetText((GetBarLabel(g._childKey) or g._childKey) .. ": " .. gname)
-        end
-        g:ClearAllPoints()
-        g:SetPoint("CENTER", UIParent, "CENTER",
-            cx - UIParent:GetWidth() / 2, cy - UIParent:GetHeight() / 2)
-        g:Show()
-    end
-
-    local function CreateGhost(childKey, gid)
-        local g = CreateFrame("Frame", nil, unlockFrame)
-        g._childKey = childKey
-        g._gid = gid
-        g:SetFrameLevel(300)
-        g:SetSize(120, 16)
-        g:SetClampedToScreen(true)
-        g:EnableMouse(true)
-        g:SetAlpha(GHOST_ALPHA)
-
-        local bg = g:CreateTexture(nil, "BACKGROUND")
-        bg:SetAllPoints()
-        if darkOverlaysEnabled then
-            bg:SetColorTexture(0.075 + (OV_R - 0.075) * 0.10, 0.113 + (OV_G - 0.113) * 0.10, 0.141 + (OV_B - 0.141) * 0.10, 0.95)
-        else
-            bg:SetColorTexture(OV_R, OV_G, OV_B, 0.10)
-        end
-        g._brd = EllesmereUI.MakeBorder(g, OV_R, OV_G, OV_B, 0.6)
-
-        local labelFrame = CreateFrame("Frame", nil, g)
-        labelFrame:SetAllPoints()
-        labelFrame:SetClipsChildren(true)
-        labelFrame:SetFrameLevel(g:GetFrameLevel() + 2)
-        local fs = labelFrame:CreateFontString(nil, "OVERLAY")
-        if EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, true) end
-        fs:SetFont(FONT_PATH, 10 + (UIParent:GetEffectiveScale() < 0.6 and 1 or 0), "")
-        fs:SetTextColor(1, 1, 1, 0.75)
-        fs:SetWordWrap(false)
-        fs:SetNonSpaceWrap(false)
-        fs:SetPoint("CENTER", g, "CENTER")
-        g._lblFS = fs
-        g._lblName = GroupName(gid) or ""
-        fs:SetText((GetBarLabel(childKey) or childKey) .. ": " .. g._lblName)
-
-        g:SetScript("OnMouseDown", function(self, btn)
-            if btn ~= "LeftButton" then return end
-            -- One arrow-key target at a time across movers and BOTH ghost systems.
-            if EllesmereUI._DeselectSelectedMover then EllesmereUI._DeselectSelectedMover() end
-            if EllesmereUI._DeselectFallbackGhosts then EllesmereUI._DeselectFallbackGhosts() end
-            if selectedGhost and selectedGhost ~= self then
-                SetGhostSelected(selectedGhost, false)
+        onSync = function(g)
+            local gname = GroupName(g._gid)
+            if gname and gname ~= g._lblName and g._lblFS then
+                g._lblName = gname
+                g._lblFS:SetText((GetBarLabel(g._childKey) or g._childKey) .. ": " .. gname)
             end
-            selectedGhost = self
-            SetGhostSelected(self, true)
-            -- Immediate manual drag from the first held pixel (mirrors the
-            -- fallback ghosts -- the native drag threshold is a dead zone).
-            local gl, gr, gt, gb = self:GetLeft(), self:GetRight(), self:GetTop(), self:GetBottom()
-            if gl then
-                local uiS = UIParent:GetEffectiveScale()
-                local mx, my = GetCursorPosition()
-                local gs = self:GetEffectiveScale() / uiS
-                self._dragging = true
-                self._dragCurX = mx / uiS
-                self._dragCurY = my / uiS
-                self._dragStartCX = (gl + gr) * 0.5 * gs
-                self._dragStartCY = (gt + gb) * 0.5 * gs
-            end
-        end)
-        g:SetScript("OnMouseUp", function(self, btn)
-            -- Shift+Right Click temporarily hides this override ghost for the
-            -- current unlock session (regular-mover gesture parity). Cleared on
-            -- the next unlock entry; purely visual, the stored link is untouched.
-            if btn == "RightButton" and IsShiftKeyDown() then
-                self._tempHidden = true
-                self._dragging = nil
-                HideGhost(self)
-                return
-            end
-            if btn ~= "LeftButton" or not self._dragging then return end
-            self._dragging = nil
-            local ov = GhostPos(self)
-            if not ov then HideGhost(self) return end
-            local cx, cy = OvSnapBase(self._childKey, ov)
-            local gl, gr, gt, gb = self:GetLeft(), self:GetRight(), self:GetTop(), self:GetBottom()
-            if cx and gl then
-                -- Raw center delta vs the snap base: SyncGhost and the runtime
-                -- apply both pixel-snap the FINAL center (dim-aware); snapping
-                -- the offset would double-snap. Store against the growth-fixed
-                -- edge (subtract the shift the apply/preview add).
-                local gs = self:GetEffectiveScale() / UIParent:GetEffectiveScale()
-                local dw = (gr - gl) * gs
-                local dh = (gt - gb) * gs
-                local gsx, gsy = EllesmereUI._FallbackGrowShift(self._childKey, ov.side, dw, dh)
-                ov.offsetX = (gl + gr) * 0.5 * gs - cx - gsx
-                ov.offsetY = (gt + gb) * 0.5 * gs - cy - gsy
-                hasChanges = true
-            end
-            SyncGhost(self)
-        end)
-        -- While held follow the cursor exactly; otherwise re-sync on a throttle
-        -- so the ghost tracks live element resizes. Hidden ghosts cost nothing.
-        g:SetScript("OnUpdate", function(self, elapsed)
-            if self._dragging then
-                local uiS = UIParent:GetEffectiveScale()
-                local mx, my = GetCursorPosition()
-                mx, my = mx / uiS, my / uiS
-                local ncx = self._dragStartCX + (mx - self._dragCurX)
-                local ncy = self._dragStartCY + (my - self._dragCurY)
-                self:ClearAllPoints()
-                self:SetPoint("CENTER", UIParent, "CENTER",
-                    ncx - UIParent:GetWidth() / 2, ncy - UIParent:GetHeight() / 2)
-                return
-            end
-            self._acc = (self._acc or 0) + elapsed
-            if self._acc < 0.25 then return end
-            self._acc = 0
-            SyncGhost(self)
-        end)
-        return g
-    end
+        end,
+        deselectOther = "_DeselectFallbackGhosts",
+    })
+    local ghosts = set.ghosts
 
-    function EllesmereUI._HideOverrideGhosts()
-        for _, g in pairs(ghosts) do HideGhost(g) end
-    end
-
-    function EllesmereUI._SetOverrideGhostsAlpha(mult)
-        for _, g in pairs(ghosts) do
-            if g:IsShown() then
-                g:SetAlpha(GHOST_ALPHA * (mult or 1))
-            end
-        end
-    end
-
-    function EllesmereUI._DeselectOverrideGhosts()
-        if selectedGhost then
-            SetGhostSelected(selectedGhost, false)
-            selectedGhost = nil
-        end
-    end
-
-    -- Clear per-session temp-hides (Shift+Right Click): unlock entry calls this
-    -- alongside the mover/Blizz-overlay clears so every session starts with all
-    -- ghosts visible again. The ghosts table is a do-block local, hence the
-    -- namespaced helper.
-    function EllesmereUI._ClearOverrideGhostTempHides()
-        for _, g in pairs(ghosts) do g._tempHidden = nil end
-    end
-
-    -- Arrow-key nudge for the selected ghost: the exact delta lands on the
-    -- stored offsets (never a live geometry read-back). Returns true when consumed.
-    function EllesmereUI._NudgeSelectedOverrideGhost(dx, dy)
-        local g = selectedGhost
-        if not g or not g:IsShown() then return false end
-        local ov = GhostPos(g)
-        if not ov then return false end
-        ov.offsetX = (ov.offsetX or 0) + dx
-        ov.offsetY = (ov.offsetY or 0) + dy
-        hasChanges = true
-        SyncGhost(g)
-        return true
-    end
+    EllesmereUI._HideOverrideGhosts = set.HideAll
+    EllesmereUI._SetOverrideGhostsAlpha = set.SetAlpha
+    EllesmereUI._DeselectOverrideGhosts = set.Deselect
+    EllesmereUI._ClearOverrideGhostTempHides = set.ClearTempHides
+    EllesmereUI._NudgeSelectedOverrideGhost = set.Nudge
 
     function EllesmereUI._RefreshOverrideGhosts()
         if not isUnlocked or not unlockFrame then
@@ -3634,7 +3432,7 @@ do
             end
         end
         for _, g in pairs(ghosts) do
-            if not GhostPos(g) then HideGhost(g) end
+            if not GhostPos(g) then set.Hide(g) end
         end
         if not store then return end
         for ck, ent in pairs(store) do
@@ -3642,10 +3440,10 @@ do
                 local gk = ck .. "|" .. tostring(gid)
                 local g = ghosts[gk]
                 if not g then
-                    g = CreateGhost(ck, gid)
+                    g = set.Create(ck, gid)
                     ghosts[gk] = g
                 end
-                SyncGhost(g)
+                set.Sync(g)
             end
         end
     end

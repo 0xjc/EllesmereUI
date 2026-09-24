@@ -211,6 +211,121 @@ end
 
 EllesmereUI.GetEnchantText  = EUI_GetEnchantText
 
+-- Shared with the inspect sheet (loads after this file) through ns.
+-- Slots that can have enchants in current expansion.
+local ENCHANT_SLOTS = {
+    [INVSLOT_HEAD] = true,
+    [INVSLOT_SHOULDER] = true,
+    [INVSLOT_BACK] = false,
+    [INVSLOT_CHEST] = true,
+    [INVSLOT_WRIST] = false,
+    [INVSLOT_LEGS] = true,
+    [INVSLOT_FEET] = true,
+    [INVSLOT_FINGER1] = true,
+    [INVSLOT_FINGER2] = true,
+    [INVSLOT_MAINHAND] = true,
+    -- INVSLOT_OFFHAND deliberately absent: whether it can be enchanted depends on
+    -- what's equipped there (weapon vs. shield/held item), checked dynamically below.
+}
+
+-- Enchant label parts for one slot: iconOnly keeps the |A:...|a atlas escapes
+-- (red icon when missing), tooltipText is the readable name. Only flags
+-- missing enchants at level 90+: leveling gear churn would fire it constantly.
+function ns.ParseEnchantLabel(enchantText, slotID, itemLink, unit)
+    local canHaveEnchant = ENCHANT_SLOTS[slotID]
+    if slotID == INVSLOT_OFFHAND and itemLink then
+        local _, _, _, _, _, classID = C_Item.GetItemInfoInstant(itemLink)
+        canHaveEnchant = (classID == Enum.ItemClass.Weapon)
+    end
+    local lvl = UnitLevel(unit)
+    local atEnchantLevel = lvl and not (issecretvalue and issecretvalue(lvl)) and lvl >= 90 or false
+    local isMissing  = atEnchantLevel and canHaveEnchant and itemLink and (enchantText == "" or not enchantText)
+    local hasEnchant = enchantText and enchantText ~= ""
+
+    local iconOnly, tooltipText
+    if isMissing then
+        -- Same hex atlas enchanted items show, tinted red (#e54949 =
+        -- 229, 73, 73 in the atlas-escape color fields).
+        iconOnly    = "|A:Professions-ChatIcon-Quality-Tier5:14:14:0:0:229:73:73|a"
+        tooltipText = "Enchant missing"
+    elseif hasEnchant then
+        -- Concatenate every |A:...|a atlas escape, drop everything else.
+        local icons = {}
+        for atlas in enchantText:gmatch("|A:[^|]+|a") do
+            icons[#icons + 1] = atlas
+        end
+        iconOnly    = table.concat(icons, "")
+        tooltipText = enchantText:gsub("|A:[^|]+|a", ""):gsub("^%s+", ""):gsub("%s+$", "")
+        -- Strip any "prefix - " (e.g. "Enchant Weapon - ") so the tooltip
+        -- shows just the enchant's readable name.
+        tooltipText = tooltipText:gsub("^.-%s*%-%s*", "")
+    end
+    return iconOnly, tooltipText, isMissing, hasEnchant
+end
+
+-- Mythic+ score color: highest threshold that the score meets wins.
+local MP_COLOR_BRACKETS = {
+    { 3850, "ff8000" }, { 3695, "f9753f" }, { 3575, "f16961" },
+    { 3455, "e75e7f" }, { 3335, "db529c" }, { 3215, "cc47b9" },
+    { 3095, "b83dd6" }, { 2965, "9c3eed" }, { 2845, "715be5" },
+    { 2725, "2c6dde" }, { 2565, "3b7fcd" }, { 2445, "5292b9" },
+    { 2325, "5ca6a4" }, { 2205, "5fba8d" }, { 2085, "5cce75" },
+    { 1965, "50e258" }, { 1845, "35f72d" }, { 1725, "3eff26" },
+    { 1600, "5eff43" }, { 1475, "74ff58" }, { 1350, "88ff6b" },
+    { 1225, "98ff7d" }, { 1100, "a8ff8d" }, { 975,  "b6ff9e" },
+    { 850,  "c3ffae" }, { 725,  "cfffbd" }, { 600,  "dbffcd" },
+    { 475,  "e7ffdd" }, { 350,  "f2ffec" }, { 225,  "fdfffc" },
+    { 200,  "ffffff" },
+}
+function ns.GetMPScoreHex(score)
+    for i = 1, #MP_COLOR_BRACKETS do
+        if score >= MP_COLOR_BRACKETS[i][1] then
+            return MP_COLOR_BRACKETS[i][2]
+        end
+    end
+    return "ffffff"
+end
+
+-- Sheet backdrop: modern_blizz atlas + 0.62 black overlay. The atlas covers the
+-- frame without distorting: native aspect 561x433, and on resize the tex coords
+-- are recomputed centered, cropping the overflow. Returns bg, overlay.
+function ns.SheetBackdrop(frame)
+    local BG_ASPECT = 561 / 433
+    local bg = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
+    bg:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\modern_blizz.png")
+    bg:SetAllPoints(frame)
+    bg:SetAlpha(1)
+    local overlay = frame:CreateTexture(nil, "BACKGROUND", nil, -7)
+    overlay:SetColorTexture(0, 0, 0, 0.62)
+    overlay:SetAllPoints(frame)
+
+    local BASE_L, BASE_R, BASE_T, BASE_B = 0.25, 1, 0, 0.75
+    local BASE_U = BASE_R - BASE_L  -- 0.75
+    local BASE_V = BASE_B - BASE_T  -- 0.75
+    local function UpdateBgTexCoords()
+        local fw, fh = frame:GetSize()
+        -- Secrecy test BEFORE the zero check: that check is itself a
+        -- comparison and throws on a secret size. Matches the engine.
+        if issecretvalue and (issecretvalue(fw) or issecretvalue(fh)) then return end
+        if fw == 0 or fh == 0 then return end
+        local frameAspect = fw / fh
+        if frameAspect > BG_ASPECT then
+            local visV = BASE_V * (BG_ASPECT / frameAspect)
+            local trimV = (BASE_V - visV) / 2
+            bg:SetTexCoord(BASE_L, BASE_R, BASE_T + trimV, BASE_B - trimV)
+        else
+            local visU = BASE_U * (frameAspect / BG_ASPECT)
+            local trimU = (BASE_U - visU) / 2
+            bg:SetTexCoord(BASE_L + trimU, BASE_R - trimU, BASE_T, BASE_B)
+        end
+    end
+    -- One script hook instead of three setter hooks; also fires for
+    -- anchor-driven resizes (same shape as WSkin.Shell).
+    frame:HookScript("OnSizeChanged", UpdateBgTexCoords)
+    UpdateBgTexCoords()
+    return bg, overlay
+end
+
 -- Empty-socket atlas map (key names come from GetItemStats return keys).
 local EUI_EMPTY_SOCKET_ATLAS = {
     EMPTY_SOCKET_META       = "socket-meta",
@@ -378,42 +493,9 @@ local function PreSkinCharacterSheet()
             region:SetAlpha(0)
         end
     end
-    -- Background covers the frame without distorting: native aspect 561x433, and
-    -- on resize the tex coords are recomputed centered, cropping the overflow.
-    local BG_ASPECT = 561 / 433
-    local bg = frame:CreateTexture(nil, "BACKGROUND", nil, -8)
-    bg:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\modern_blizz.png")
-    bg:SetAllPoints(frame)
+    local bg, bgOverlay = ns.SheetBackdrop(frame)
     GetFFD(frame).bg = bg
-    bg:SetAlpha(1)
-    GetFFD(frame).bgOverlay = frame:CreateTexture(nil, "BACKGROUND", nil, -7)
-    GetFFD(frame).bgOverlay:SetColorTexture(0, 0, 0, 0.62)
-    GetFFD(frame).bgOverlay:SetAllPoints(frame)
-
-    local BASE_L, BASE_R, BASE_T, BASE_B = 0.25, 1, 0, 0.75
-    local BASE_U = BASE_R - BASE_L  -- 0.75
-    local BASE_V = BASE_B - BASE_T  -- 0.75
-    local function UpdateBgTexCoords()
-        local fw, fh = frame:GetSize()
-        -- Secrecy test BEFORE the zero check: that check is itself a
-        -- comparison and throws on a secret size. Matches the engine.
-        if issecretvalue and (issecretvalue(fw) or issecretvalue(fh)) then return end
-        if fw == 0 or fh == 0 then return end
-        local frameAspect = fw / fh
-        if frameAspect > BG_ASPECT then
-            local visV = BASE_V * (BG_ASPECT / frameAspect)
-            local trimV = (BASE_V - visV) / 2
-            bg:SetTexCoord(BASE_L, BASE_R, BASE_T + trimV, BASE_B - trimV)
-        else
-            local visU = BASE_U * (frameAspect / BG_ASPECT)
-            local trimU = (BASE_U - visU) / 2
-            bg:SetTexCoord(BASE_L + trimU, BASE_R - trimU, BASE_T, BASE_B)
-        end
-    end
-    -- One script hook instead of three setter hooks; also fires for
-    -- anchor-driven resizes (same shape as WSkin.Shell).
-    frame:HookScript("OnSizeChanged", UpdateBgTexCoords)
-    UpdateBgTexCoords()
+    GetFFD(frame).bgOverlay = bgOverlay
     -- Standard window-reskin border (AdventureMap_TopBorder atlas), as on every skinned window.
     if ns.WSkin and ns.WSkin.AtlasBorder then ns.WSkin.AtlasBorder(frame) end
     -- Lets the Modern flat backdrop live-swap in for the atlas when the user picks Modern here.
@@ -775,32 +857,8 @@ local function SkinCharacterSheet()
     local FRAME_BG_R, FRAME_BG_G, FRAME_BG_B = 0.03, 0.045, 0.05
 
     local closeBtn = frame.CloseButton or _G.CharacterFrameCloseButton
-    if closeBtn and not ns.CharSheetStock() then
-        if closeBtn.SetNormalTexture then closeBtn:SetNormalTexture("") end
-        if closeBtn.SetPushedTexture then closeBtn:SetPushedTexture("") end
-        if closeBtn.SetHighlightTexture then closeBtn:SetHighlightTexture("") end
-        if closeBtn.SetDisabledTexture then closeBtn:SetDisabledTexture("") end
-
-        for i = 1, select("#", closeBtn:GetRegions()) do
-            local region = select(i, closeBtn:GetRegions())
-            if region and region:IsObjectType("Texture") and region ~= GetFFD(closeBtn).x then
-                region:SetAlpha(0)
-            end
-        end
-
-        local closeX = closeBtn:CreateTexture(nil, "OVERLAY")
-        closeX:SetAtlas("uitools-icon-close")
-        closeX:SetSize(14, 14)
-        closeX:SetPoint("CENTER", -2, 0)
-        closeX:SetVertexColor(1, 1, 1, 0.75)
-        GetFFD(closeBtn).x = closeX
-
-        closeBtn:HookScript("OnEnter", function()
-            if GetFFD(closeBtn).x then GetFFD(closeBtn).x:SetVertexColor(1, 1, 1, 1) end
-        end)
-        closeBtn:HookScript("OnLeave", function()
-            if GetFFD(closeBtn).x then GetFFD(closeBtn).x:SetVertexColor(1, 1, 1, 0.75) end
-        end)
+    if closeBtn and not ns.CharSheetStock() and ns.WSkin and ns.WSkin.CloseButton then
+        ns.WSkin.CloseButton(closeBtn)
     end
 
     local fontPath = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("blizzardSkin") or STANDARD_TEXT_FONT
@@ -1363,29 +1421,6 @@ local function SkinCharacterSheet()
     -- Alias for call sites that test the value FontString; the label hosts both parts.
     GetFFD(frame).mythicRatingValue = mythicRatingLabel
 
-    -- Color brackets: highest threshold that the score meets wins.
-    local MP_COLOR_BRACKETS = {
-        { 3850, "ff8000" }, { 3695, "f9753f" }, { 3575, "f16961" },
-        { 3455, "e75e7f" }, { 3335, "db529c" }, { 3215, "cc47b9" },
-        { 3095, "b83dd6" }, { 2965, "9c3eed" }, { 2845, "715be5" },
-        { 2725, "2c6dde" }, { 2565, "3b7fcd" }, { 2445, "5292b9" },
-        { 2325, "5ca6a4" }, { 2205, "5fba8d" }, { 2085, "5cce75" },
-        { 1965, "50e258" }, { 1845, "35f72d" }, { 1725, "3eff26" },
-        { 1600, "5eff43" }, { 1475, "74ff58" }, { 1350, "88ff6b" },
-        { 1225, "98ff7d" }, { 1100, "a8ff8d" }, { 975,  "b6ff9e" },
-        { 850,  "c3ffae" }, { 725,  "cfffbd" }, { 600,  "dbffcd" },
-        { 475,  "e7ffdd" }, { 350,  "f2ffec" }, { 225,  "fdfffc" },
-        { 200,  "ffffff" },
-    }
-    local function GetMPScoreHex(score)
-        for i = 1, #MP_COLOR_BRACKETS do
-            if score >= MP_COLOR_BRACKETS[i][1] then
-                return MP_COLOR_BRACKETS[i][2]
-            end
-        end
-        return "ffffff"
-    end
-
     -- Itemlevel display: sits just below the 3 tab buttons, inside the panel.
     local iLvlText = statsPanel:CreateFontString(nil, "OVERLAY")
     iLvlText:SetFont(fontPath, 18, "")
@@ -1623,7 +1658,7 @@ local function SkinCharacterSheet()
             local mythicRating = C_ChallengeMode.GetOverallDungeonScore()
             if mythicRating and mythicRating > 0 then
                 local score = math.floor(mythicRating)
-                local hex = GetMPScoreHex(score)
+                local hex = ns.GetMPScoreHex(score)
                 GetFFD(frame).mythicRatingLabel:SetText(L("M+ Score:") .. string.format(" |cff%s%d|r", hex, score))
                 GetFFD(frame).mythicRatingLabel:SetShown(isCharTab)
             else
@@ -4558,22 +4593,6 @@ local function SkinCharacterSheet()
     -- Cache item info (ID, level, upgrade track) to update when items change
     local itemCache = {}
 
-    -- Slots that can have enchants in current expansion
-    local ENCHANT_SLOTS = {
-        [INVSLOT_HEAD] = true,
-        [INVSLOT_SHOULDER] = true,
-        [INVSLOT_BACK] = false,
-        [INVSLOT_CHEST] = true,
-        [INVSLOT_WRIST] = false,
-        [INVSLOT_LEGS] = true,
-        [INVSLOT_FEET] = true,
-        [INVSLOT_FINGER1] = true,
-        [INVSLOT_FINGER2] = true,
-        [INVSLOT_MAINHAND] = true,
-        -- INVSLOT_OFFHAND deliberately absent: whether it can be enchanted depends on
-        -- what's equipped there (weapon vs. shield/held item), checked dynamically below.
-    }
-
     -- Update one slot's item level, enchant and upgrade-track labels.
     local function UpdateSlotInfo(slotName)
         local slot = _G[slotName]
@@ -4594,11 +4613,6 @@ local function SkinCharacterSheet()
         local upgradeTrackColor = { r = 1, g = 1, b = 1 }
         local itemQuality = nil
         local slotID = slot:GetID()
-        local canHaveEnchant = ENCHANT_SLOTS[slotID]
-        if slotID == INVSLOT_OFFHAND and itemLink then
-            local _, _, _, _, _, classID = GetItemInfoInstant(itemLink)
-            canHaveEnchant = (classID == Enum.ItemClass.Weapon)
-        end
 
         if itemLink then
             local _, _, quality, ilvl = GetItemInfo(itemLink)
@@ -4640,31 +4654,8 @@ local function SkinCharacterSheet()
         -- the readable text, and park the full original text behind a hover tooltip.
         if GetFFD(slot).enchantLabel then
             local showEnchants = (not EllesmereUIDB) or (EllesmereUIDB.showEnchants ~= false)
-            -- Only flag missing enchants at level 90+: leveling gear churn would
-            -- fire the red icon and pulse on every replacement.
-            local playerLvl = UnitLevel("player")
-            local atEnchantLevel = playerLvl and not (issecretvalue and issecretvalue(playerLvl)) and playerLvl >= 90 or false
-            local isMissing    = atEnchantLevel and canHaveEnchant and itemLink and (enchantText == "" or not enchantText)
-            local hasEnchant   = enchantText and enchantText ~= ""
-
-            local iconOnly, tooltipText
-            if isMissing then
-                -- Same hex atlas enchanted items show, tinted red (#e54949 =
-                -- 229, 73, 73 in the atlas-escape color fields).
-                iconOnly    = "|A:Professions-ChatIcon-Quality-Tier5:14:14:0:0:229:73:73|a"
-                tooltipText = "Enchant missing"
-            elseif hasEnchant then
-                -- Concatenate every |A:...|a atlas escape, drop everything else.
-                local icons = {}
-                for atlas in enchantText:gmatch("|A:[^|]+|a") do
-                    icons[#icons + 1] = atlas
-                end
-                iconOnly    = table.concat(icons, "")
-                tooltipText = enchantText:gsub("|A:[^|]+|a", ""):gsub("^%s+", ""):gsub("%s+$", "")
-                -- Strip any "prefix - " (e.g. "Enchant Weapon - ") so the tooltip
-                -- shows just the enchant's readable name.
-                tooltipText = tooltipText:gsub("^.-%s*%-%s*", "")
-            end
+            local iconOnly, tooltipText, isMissing, hasEnchant =
+                ns.ParseEnchantLabel(enchantText, slotID, itemLink, "player")
 
             -- "Show Enchant Names": render the readable name (item-level colored) instead of the
             -- icon. Missing-enchant warning always keeps its red icon; no-enchant falls back to icon.
