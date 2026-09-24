@@ -64,9 +64,9 @@ local function Readable(v)
     return v ~= nil and not (issecretvalue and issecretvalue(v))
 end
 
--- Blizzard's threat numbers are 100 per point of damage-equivalent threat.
+-- Forever returns threat in display units already (verified in game), not the
+-- x100 scale Classic's API uses, so it is shown as is.
 local function ShortThreat(v)
-    v = v / 100
     if v >= 1000000 then return string.format("%.1fm", v / 1000000) end
     if v >= 1000 then return string.format("%.1fk", v / 1000) end
     return tostring(math.floor(v + 0.5))
@@ -319,8 +319,8 @@ end
 local function SamplePreview()
     count = 0
     for i = #list, 1, -1 do list[i] = nil end
-    local samples = { { "player", 1000000, 100, true }, { "player", 820000, 82 }, { "player", 610000, 61 },
-        { "player", 340000, 34 } }
+    local samples = { { "player", 10000, 100, true }, { "player", 8200, 82 }, { "player", 6100, 61 },
+        { "player", 3400, 34 } }
     for i, s in ipairs(samples) do
         count = count + 1
         local e = entries[count] or {}
