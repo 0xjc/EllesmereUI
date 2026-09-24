@@ -2490,6 +2490,21 @@ initFrame:SetScript("OnEvent", function(self)
         combatInd:SetPoint("CENTER", portraitFrame or health, "CENTER", 0, 0)
         combatInd:Hide()
         pf._combatIndicator = combatInd
+        -- Faction indicator preview (player + target), on the same raised holder
+        local factionInd = combatIndHolder:CreateTexture(nil, "OVERLAY", nil, 6)
+        factionInd:Hide()
+        pf._factionIndicator = factionInd
+        -- Raid marker / leader / elite previews, each behind its row's eye toggle
+        -- (pf fields, not locals: this builder is long).
+        pf._pvRaid = combatIndHolder:CreateTexture(nil, "OVERLAY", nil, 6)
+        pf._pvRaid:SetTexture("Interface\\TargetingFrame\\UI-RaidTargetingIcons")
+        pf._pvRaid:Hide()
+        pf._pvLeader = combatIndHolder:CreateTexture(nil, "OVERLAY", nil, 6)
+        pf._pvLeader:SetTexture("Interface\\GroupFrame\\UI-Group-LeaderIcon")
+        pf._pvLeader:Hide()
+        pf._pvElite = combatIndHolder:CreateTexture(nil, "OVERLAY", nil, 6)
+        pf._pvElite:SetAtlas("nameplates-icon-elite-gold")
+        pf._pvElite:Hide()
         pf:SetSize(totalW, totalH)
 
         -- Blizzard Style: the stock look laid over the built mock at the end of
@@ -4665,6 +4680,107 @@ initFrame:SetScript("OnEvent", function(self)
                     combatInd:Hide()
                 end
             end
+            -- Faction indicator preview, behind its row's eye toggle: your own faction
+            -- on the player frame, the other faction on the target frame (what
+            -- Opposite Faction shows).
+            if factionInd then
+                local fMode = s.factionIndicatorMode or "off"
+                local fEye = EllesmereUI._ufPvEyes and EllesmereUI._ufPvEyes.faction
+                if (unitKey == "player" or unitKey == "target") and fMode ~= "off" and fEye then
+                    local mine = UnitFactionGroup("player")
+                    local fac = mine
+                    if unitKey == "target" then
+                        fac = (mine == "Horde") and "Alliance" or "Horde"
+                    end
+                    if fac ~= "Horde" and fac ~= "Alliance" then fac = "Horde" end
+                    local fSz = s.factionIndicatorSize or 18
+                    local fPos = s.factionIndicatorPosition or "topright"
+                    local fOx, fOy = s.factionIndicatorX or 0, s.factionIndicatorY or 0
+                    EllesmereUI.SetFactionArt(factionInd, s.factionIndicatorStyle or "pvp", fac)
+                    factionInd:SetSize(fSz, fSz)
+                    factionInd:ClearAllPoints()
+                    if fPos == "portrait" and portraitFrame and sp then
+                        factionInd:SetPoint("CENTER", portraitFrame, "CENTER", fOx, fOy)
+                    else
+                        local anchor =
+                            (fPos == "topleft"     and "TOPLEFT")     or
+                            (fPos == "bottomleft"  and "BOTTOMLEFT")  or
+                            (fPos == "bottomright" and "BOTTOMRIGHT") or
+                            "TOPRIGHT"
+                        factionInd:SetPoint(anchor, pf, anchor, fOx, fOy)
+                    end
+                    factionInd:Show()
+                else
+                    factionInd:Hide()
+                end
+            end
+            -- Raid marker / leader / elite previews, shown by their rows' eye toggles
+            -- (and only while the indicator itself is on). Placement mirrors the
+            -- live frames: raid marker centred on a frame corner, the other two on
+            -- a health-bar corner or the portrait.
+            do
+                local eyes = EllesmereUI._ufPvEyes or {}
+                local isPT = unitKey == "player" or unitKey == "target"
+                local function PlaceCorner(tex, pos, ox, oy)
+                    tex:ClearAllPoints()
+                    if pos == "portrait" and portraitFrame and sp then
+                        tex:SetPoint("CENTER", portraitFrame, "CENTER", ox, oy)
+                    else
+                        local anchor =
+                            (pos == "topright"    and "TOPRIGHT")    or
+                            (pos == "bottomleft"  and "BOTTOMLEFT")  or
+                            (pos == "bottomright" and "BOTTOMRIGHT") or
+                            "TOPLEFT"
+                        tex:SetPoint(anchor, health, anchor, ox, oy)
+                    end
+                end
+                local rt = pf._pvRaid
+                if rt then
+                    if isPT and eyes.raid and s.raidMarkerEnabled then
+                        local i = (eyes.raidIndex or 1) - 1
+                        local col, row = i % 4, math.floor(i / 4)
+                        rt:SetTexCoord(col / 4, (col + 1) / 4, row / 4, (row + 1) / 4)
+                        local rmSize = s.raidMarkerSize or 28
+                        local rmAlign = s.raidMarkerAlign or "right"
+                        local anchor = (rmAlign == "left") and "TOPLEFT"
+                            or (rmAlign == "center") and "TOP" or "TOPRIGHT"
+                        rt:SetSize(rmSize, rmSize)
+                        rt:ClearAllPoints()
+                        rt:SetPoint("CENTER", pf, anchor, s.raidMarkerX or 0, s.raidMarkerY or 0)
+                        rt:Show()
+                    else
+                        rt:Hide()
+                    end
+                end
+                local lt = pf._pvLeader
+                if lt then
+                    if isPT and eyes.leader and s.leaderIndicatorEnabled ~= false then
+                        local sz = s.leaderIndicatorSize or 16
+                        lt:SetSize(sz, sz)
+                        PlaceCorner(lt, s.leaderIndicatorPosition or "topleft",
+                            s.leaderIndicatorX or 0, s.leaderIndicatorY or 0)
+                        lt:Show()
+                    else
+                        lt:Hide()
+                    end
+                end
+                local et = pf._pvElite
+                if et then
+                    if unitKey == "target" and eyes.elite and s.eliteIndicatorEnabled == true then
+                        local sz = s.eliteIndicatorSize or 16
+                        et:SetSize(sz, sz)
+                        PlaceCorner(et, s.eliteIndicatorPosition or "topleft",
+                            s.eliteIndicatorX or 0, s.eliteIndicatorY or 0)
+                        et:Show()
+                    else
+                        et:Hide()
+                    end
+                end
+            end
+            -- Click overlays follow their badges (see the hit-overlay setup).
+            if pf._badgeOv then
+                for tex, ov in pairs(pf._badgeOv) do ov:SetShown(tex:IsShown()) end
+            end
             -- Sync disabled overlay AFTER pf is fully sized/positioned
             if not isEnabled then
                 SyncDisabledOverlay()
@@ -4803,6 +4919,14 @@ initFrame:SetScript("OnEvent", function(self)
         eliteIndicatorX        = { target=true },
         eliteIndicatorY        = { target=true },
         eliteIndicatorShowInInstances = { target=true },
+        factionIndicatorMode        = { player=true, target=true },
+        factionIndicatorStyle       = { player=true, target=true },
+        factionIndicatorPlayersOnly = { target=true },
+        factionIndicatorPvP         = { player=true, target=true },
+        factionIndicatorSize        = { player=true, target=true },
+        factionIndicatorPosition    = { player=true, target=true },
+        factionIndicatorX           = { player=true, target=true },
+        factionIndicatorY           = { player=true, target=true },
         buffAnchor           = { player=true, target=true, focus=true },
         buffGrowth           = { player=true, target=true, focus=true },
         maxBuffs             = { player=true, target=true, focus=true },
@@ -12732,6 +12856,43 @@ initFrame:SetScript("OnEvent", function(self)
         end
         end -- _showAbsorbsCombat
 
+        -- Preview eye for an indicator row, like the Combat Indicator's: toggles
+        -- EllesmereUI._ufPvEyes[key], which the preview reads. The raid marker
+        -- picks a random marker each time it is switched on. (A table field, not
+        -- a local: this builder is long.)
+        EllesmereUI._ufPvEyes = EllesmereUI._ufPvEyes or {}
+        EllesmereUI._ufAddPvEye = function(rgn, key, what)
+            if EllesmereUI._prebuilding or not rgn then return end
+            if selectedUnit ~= "player" and selectedUnit ~= "target" then return end
+            local eyes = EllesmereUI._ufPvEyes
+            local eyeBtn = CreateFrame("Button", nil, rgn)
+            eyeBtn:SetSize(26, 26)
+            eyeBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
+            eyeBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
+            eyeBtn:SetAlpha(0.4)
+            rgn._lastInline = eyeBtn
+            local eyeTex = eyeBtn:CreateTexture(nil, "OVERLAY")
+            eyeTex:SetAllPoints()
+            local function RefreshEye()
+                eyeTex:SetTexture(eyes[key] and EllesmereUI.EYE_INVISIBLE_ICON or EllesmereUI.EYE_VISIBLE_ICON)
+            end
+            RefreshEye()
+            eyeBtn:SetScript("OnClick", function()
+                eyes[key] = not eyes[key]
+                if key == "raid" and eyes[key] then eyes.raidIndex = math.random(1, 8) end
+                RefreshEye()
+                UpdatePreview()
+            end)
+            eyeBtn:SetScript("OnEnter", function(self)
+                self:SetAlpha(0.7)
+                EllesmereUI.ShowWidgetTooltip(self, (eyes[key] and "Hide " or "Show ") .. what .. " preview")
+            end)
+            eyeBtn:SetScript("OnLeave", function(self)
+                self:SetAlpha(0.4)
+                EllesmereUI.HideWidgetTooltip()
+            end)
+        end
+
         -- Row 4: Raid Marker toggle | Icon Size slider + inline directions cog (X/Y)
         local function raidMarkerOff()
             return SValSupported("raidMarkerEnabled", false) == false
@@ -12834,6 +12995,8 @@ initFrame:SetScript("OnEvent", function(self)
             })
         end
 
+        EllesmereUI._ufAddPvEye(sharedAddRow4._leftRegion, "raid", "raid marker")
+
         -- Row 5: Leader Indicator toggle | Leader Icon Size slider + inline directions cog (X/Y)
         -- Visible for player and target.
         local sharedAddRow5
@@ -12919,6 +13082,10 @@ initFrame:SetScript("OnEvent", function(self)
             end
         end
 
+        if sharedAddRow5 then
+            EllesmereUI._ufAddPvEye(sharedAddRow5._leftRegion, "leader", "leader indicator")
+        end
+
         -- Row 5b: Elite/Rare Indicator (+ Show-in-Instances cog) | Icon Size (+ X/Y
         -- cog). Target only (classification is a property of the unit being looked at);
         -- same controls as Leader Indicator above, badge atlases match nameplates.
@@ -12970,6 +13137,89 @@ initFrame:SetScript("OnEvent", function(self)
                     },
                 })
             end
+            EllesmereUI._ufAddPvEye(eliteRow._leftRegion, "elite", "elite/rare indicator")
+            parent._ufEliteRow = eliteRow
+        end
+
+        -- Row 5c: Faction Indicator (mode + filters cog) | Icon Size (+ position cog).
+        -- Player and target. On the player frame it is a PvP-flagged indicator
+        -- (PvP Flag defaults to Flagged Only there); Opposite Faction and Players
+        -- Only are target-only.
+        if selectedUnit == "player" or selectedUnit == "target" then
+            local isTarget = selectedUnit == "target"
+            local function factionIndOff()
+                return SValSupported("factionIndicatorMode", "off") == "off"
+            end
+            local modeValues, modeOrder
+            if isTarget then
+                modeValues = { off = "Off", always = "Always", opposite = "Opposite Faction" }
+                modeOrder = { "off", "always", "opposite" }
+            else
+                modeValues = { off = "Off", always = "On" }
+                modeOrder = { "off", "always" }
+            end
+            local factionRow
+            factionRow, h = W:DualRow(parent, y,
+                { type="dropdown", text="Faction Indicator", values=modeValues, order=modeOrder,
+                  getValue=function()
+                      local v = SValSupported("factionIndicatorMode", "off")
+                      if not isTarget and v == "opposite" then v = "always" end
+                      return v
+                  end,
+                  setValue=function(v)
+                      SSetSupported("factionIndicatorMode", v)
+                      EllesmereUI:RefreshPage()
+                  end },
+                { type="slider", text="Faction Icon Size", min=8, max=48, step=1,
+                  disabled=factionIndOff, disabledTooltip="Faction Indicator",
+                  getValue=function() return SValSupported("factionIndicatorSize", 18) end,
+                  setValue=function(v) SSetSupported("factionIndicatorSize", v) end });  y = y - h
+            SApplySupport(factionRow._leftRegion, "factionIndicatorMode")
+            SApplySupport(factionRow._rightRegion, "factionIndicatorSize")
+            if not EllesmereUI._prebuilding then
+                local pvpValues = { dim = "Dim Unflagged", only = "Flagged Only", ignore = "Ignore" }
+                local pvpOrder = { "dim", "only", "ignore" }
+                local pvpDefault = isTarget and "dim" or "only"
+                local rows = {
+                    { type="dropdown", label="PvP Flag", values=pvpValues, order=pvpOrder,
+                      get=function() return SValSupported("factionIndicatorPvP", pvpDefault) end,
+                      set=function(v) SSetSupported("factionIndicatorPvP", v) end },
+                }
+                if isTarget then
+                    rows[#rows + 1] = { type="toggle", label="Players Only",
+                      tooltip="Hide the badge on faction NPCs such as guards.",
+                      get=function() return SValSupported("factionIndicatorPlayersOnly", false) == true end,
+                      set=function(v) SSetSupported("factionIndicatorPlayersOnly", v) end }
+                end
+                EllesmereUI.BuildInlineCog(factionRow._leftRegion, { disabled = factionIndOff, disabledTooltip = "Faction Indicator",
+                    title = "Faction Indicator",
+                    rows = rows,
+                })
+            end
+            if not EllesmereUI._prebuilding then
+                local factionPosValues = { ["topleft"]="Top Left", ["topright"]="Top Right", ["bottomleft"]="Bottom Left", ["bottomright"]="Bottom Right", ["portrait"]="Portrait" }
+                local factionPosOrder = { "topleft", "topright", "bottomleft", "bottomright", "portrait" }
+                EllesmereUI.BuildInlineCog(factionRow._rightRegion, { disabled = factionIndOff, disabledTooltip = "Faction Indicator",
+                    title = "Faction Indicator Settings",
+                    rows = {
+                        { type="dropdown", label="Icon Style",
+                          values=EllesmereUI.FACTION_ART_LABELS, order=EllesmereUI.FACTION_ART_ORDER,
+                          get=function() return SValSupported("factionIndicatorStyle", "pvp") end,
+                          set=function(v) SSetSupported("factionIndicatorStyle", v) end },
+                        { type="dropdown", label="Position", values=factionPosValues, order=factionPosOrder,
+                          get=function() return SValSupported("factionIndicatorPosition", "topright") end,
+                          set=function(v) SSetSupported("factionIndicatorPosition", v) end },
+                        { type="slider", label="X Offset", min=-200, max=200, step=1,
+                          get=function() return SValSupported("factionIndicatorX", 0) end,
+                          set=function(v) SSetSupported("factionIndicatorX", v) end },
+                        { type="slider", label="Y Offset", min=-200, max=200, step=1,
+                          get=function() return SValSupported("factionIndicatorY", 0) end,
+                          set=function(v) SSetSupported("factionIndicatorY", v) end },
+                    },
+                })
+            end
+            EllesmereUI._ufAddPvEye(factionRow._leftRegion, "faction", "faction indicator")
+            parent._ufFactionRow = factionRow
         end
 
         -------------------------------------------------------------------
@@ -13004,6 +13254,13 @@ initFrame:SetScript("OnEvent", function(self)
             -- Blizzard Style level number -> Show Level (+ its cog).
             levelText    = { section = sharedBarsHeader,     target = parent._ufLevelRow, slotSide = "left" },
         }
+        -- Rows that exist only for some frames (Elite/Rare: target; Faction: player + target).
+        if selectedUnit == "target" and parent._ufEliteRow then
+            parent._sharedClickTargets.eliteIndicator = { section = sharedAddHeader, target = parent._ufEliteRow, slotSide = "left" }
+        end
+        if (selectedUnit == "player" or selectedUnit == "target") and parent._ufFactionRow then
+            parent._sharedClickTargets.factionIndicator = { section = sharedAddHeader, target = parent._ufFactionRow, slotSide = "left" }
+        end
 
         return y
     end  -- BuildSharedSettings
@@ -13215,6 +13472,21 @@ initFrame:SetScript("OnEvent", function(self)
                 pv._cpPipOv = CreateHitOverlay(pv._cpPipContainer, "classResource", false, baseLevel + 10)
             end
             if pv._combatIndicator and pv._combatIndicator:IsShown() then CreateHitOverlay(pv._combatIndicator, "combatIndicator", false, baseLevel + 20) end
+            -- Indicator badges (eye toggles): overlays made up front, shown and hidden
+            -- with their badge by the preview update, so a badge switched on later is
+            -- clickable straight away.
+            local targets = parent._sharedClickTargets or {}
+            pv._badgeOv = {}
+            for _, b in ipairs({
+                { pv._pvRaid, "raidMarker" }, { pv._pvLeader, "leaderIndicator" },
+                { pv._pvElite, "eliteIndicator" }, { pv._factionIndicator, "factionIndicator" },
+            }) do
+                if b[1] and targets[b[2]] then
+                    local ov = CreateHitOverlay(b[1], b[2], false, baseLevel + 20)
+                    ov:SetShown(b[1]:IsShown())
+                    pv._badgeOv[b[1]] = ov
+                end
+            end
             pv._textOverlays = textOverlays
         end
 

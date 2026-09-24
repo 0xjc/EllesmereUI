@@ -317,6 +317,13 @@ local defaults = {
     raidMarkerSize = 24,
     classificationSlot = "topleft",
     classificationShowInInstances = false,  -- Rare/Quest "Show In Instances" (slot cog): lifts the open-world-only gate in UpdateClassification + IsQuestMob
+    -- Faction badge (Horde/Alliance), a Core Positions slot element; rules in ns.NP_FactionBadge.
+    factionSlot = "none",
+    factionStyle = "pvp",  -- Icon Style: a key of EllesmereUI.FACTION_ART
+    classificationIncludeFaction = false,  -- "Rare/Quest + Faction": the badge shares the classification slot
+    factionOppositeOnly = false,
+    factionPlayersOnly = false,
+    factionPvP = "dim",  -- "dim" greys unflagged units, "only" hides them, "ignore" draws both alike
     rareEliteIconSize = 20,
     castBarHeight = 17,
     castBarOffsetY = 0,
@@ -1629,6 +1636,52 @@ local function GetRareEliteIconSize()
     return (p and p[pos .. "SlotSize"]) or defaults[pos .. "SlotSize"] or 20
 end
 ns.GetRareEliteIconSize = GetRareEliteIconSize
+-- Faction badge slot and size (same per-slot size as every Core Positions element).
+-- With "Rare/Quest + Faction" the badge rides the classification slot.
+function ns.NP_GetFactionSlot()
+    if p and p.classificationIncludeFaction then return GetClassificationSlot() end
+    return (p and p.factionSlot) or defaults.factionSlot
+end
+function ns.NP_GetFactionIconSize()
+    local pos = ns.NP_GetFactionSlot()
+    if pos == "none" then return 20 end
+    return (p and p[pos .. "SlotSize"]) or defaults[pos .. "SlotSize"] or 20
+end
+function ns.NP_GetFactionStyle()
+    return (p and p.factionStyle) or defaults.factionStyle
+end
+-- Which faction badge a unit gets: its faction ("Horde"/"Alliance", drawn with
+-- EllesmereUI.SetFactionArt in the Icon Style) and whether to dim it, or nil for none.
+-- Neutral units and unreadable (secret) values show nothing; an unreadable PvP flag
+-- counts as flagged, so nothing is hidden or greyed on a guess. Faction NPCs count
+-- unless Players Only is on. Art matches Blizzard's Forever target frame badge.
+function ns.NP_FactionBadge(unit)
+    local function val(k)
+        local v = p and p[k]
+        if v == nil then v = defaults[k] end
+        return v
+    end
+    if not unit or ns.NP_GetFactionSlot() == "none" then return nil end
+    if val("factionPlayersOnly") then
+        local isPlayer = UnitIsPlayer(unit)
+        if issecretvalue(isPlayer) or not isPlayer then return nil end
+    end
+    local fac = UnitFactionGroup(unit)
+    if issecretvalue(fac) or (fac ~= "Horde" and fac ~= "Alliance") then return nil end
+    if val("factionOppositeOnly") then
+        local mine = UnitFactionGroup("player")
+        if issecretvalue(mine) or mine == fac then return nil end
+    end
+    local dim = false
+    local pvpMode = val("factionPvP")
+    if pvpMode ~= "ignore" then
+        local pvp = UnitIsPVP(unit)
+        local unflagged = not issecretvalue(pvp) and not pvp
+        if unflagged and pvpMode == "only" then return nil end
+        dim = unflagged and pvpMode == "dim"
+    end
+    return fac, dim
+end
 local function GetNameYOffset()
     return (p and p.nameYOffset) or defaults.nameYOffset
 end
@@ -2111,6 +2164,9 @@ function ns.ApplySlotStrata(plate)
     if plate.classFrame then
         plate.classFrame:SetFrameStrata(StrataFor(GetClassificationSlot()))
     end
+    if plate.factionFrame then
+        plate.factionFrame:SetFrameStrata(StrataFor(ns.NP_GetFactionSlot()))
+    end
     local ds, bs, cs = GetAuraSlots()
     local dStr, bStr, cStr = StrataFor(ds), StrataFor(bs), StrataFor(cs)
     if plate.debuffs then
@@ -2407,6 +2463,7 @@ local auraSlotToDBKey = {
     ccSlot         = "ccSlot",
     classification = "classificationSlot",
     raidMarker     = "raidMarkerPos",
+    faction        = "factionSlot",
 }
 local function GetAuraSlotOffsets(slotKey)
     local dbKey = auraSlotToDBKey[slotKey]
@@ -2561,6 +2618,17 @@ PositionArrowsOutsideAuras = function(plate)
     elseif clSlot == "right" and plate.classFrame and plate.classFrame:IsShown() then
         local cxOff = select(1, GetAuraSlotOffsets("classification"))
         rightExtent = math.max(rightExtent, sideOff + rightPush + clSz + cxOff)
+    end
+    -- Account for the faction badge in side slots (its own, or Rare/Quest + Faction)
+    local fcSlot = ns.NP_GetFactionSlot()
+    if (fcSlot == "left" or fcSlot == "right") and plate.factionFrame and plate.factionFrame:IsShown() then
+        local fxOff = GetSlotOffsets(fcSlot)
+        local fcSz = ns.NP_GetFactionIconSize()
+        if fcSlot == "left" then
+            leftExtent = math.max(leftExtent, sideOff + leftPush + fcSz - fxOff)
+        else
+            rightExtent = math.max(rightExtent, sideOff + rightPush + fcSz + fxOff)
+        end
     end
     -- Restricted-tree rendering: inside the aspect-restricted nameplate subtree, SINGLE-POINT +
     -- SetSize regions render displaced from their anchor, while rects fully defined by anchors
@@ -3376,6 +3444,7 @@ local frameCache = CreateFramePool("Frame", UIParent, nil, nil, false, function(
     plate.classFrame:Hide()
     plate.class = plate.classFrame:CreateTexture(nil, "ARTWORK")
     plate.class:SetAllPoints()
+    -- The faction badge (plate.factionFrame) is built on first use by UpdateFaction.
     plate.cast = CreateFrame("StatusBar", nil, plate)
     -- Cast bar spans the health bar width; by default the icon hangs outside left, and with
     -- "Make Icon Part of the Bar" the bar shrinks to fit it. Must run after plate.health exists.
@@ -4072,6 +4141,8 @@ function ns.RefreshAllSettings()
     -- (override group, profile switch, import) flipped the checkbox while plates kept
     -- the old behaviour. Self-guarded, so an unchanged key costs nothing.
     if ns.ApplyOOCPlates then ns.ApplyOOCPlates() end
+    -- Friendly faction badges: re-arm for this profile's faction slot and redraw.
+    if ns.NP_RefreshFriendlyFaction then ns.NP_RefreshFriendlyFaction() end
 end
 
 -------------------------------------------------------------------------------
@@ -6912,6 +6983,7 @@ function NameplateFrame:SetUnit(unit, nameplate)
             end
             self:UpdateName()
             self:UpdateClassification()
+            self:UpdateFaction()
             self:UpdateRaidIcon()
             if p and p.nameRaidMarkerEnabled == true then self:RefreshNamePosition(true) end
             self:ApplyTarget()
@@ -6928,6 +7000,7 @@ function NameplateFrame:SetUnit(unit, nameplate)
 end
 function NameplateFrame:ClearUnit()
     self:UnregisterAllEvents()
+    self._factionEv = nil
 
     -- Classic WoW UI: blank the level in the border's plate. Plates are
     -- pooled, so a recycled one would otherwise carry the last unit's level
@@ -7039,6 +7112,7 @@ function NameplateFrame:ClearUnit()
     if self.nameRaidFrame then self.nameRaidFrame:Hide() end
     self.raidFrame:Hide()
     self.classFrame:Hide()
+    if self.factionFrame then self.factionFrame:Hide() end
     if self.classText then self.classText:Hide() end
     if self.focusLetter then self.focusLetter:Hide() end
     if self.leftArrow then self.leftArrow:Hide() end
@@ -7763,6 +7837,95 @@ function NameplateFrame:UpdateClassification()
     self.classFrame:Show()
     self:UpdateNameWidth()
 end
+-- "Rare/Quest + Faction": the faction badge's step-aside depends on whether the
+-- classification icon shows, and some passes (quest objective refreshes) redraw only
+-- the classification, so re-place the badge after every classification pass.
+NameplateFrame._UpdateClassificationBase = NameplateFrame.UpdateClassification
+function NameplateFrame:UpdateClassification()
+    self:_UpdateClassificationBase()
+    if p and p.classificationIncludeFaction then self:UpdateFaction() end
+end
+-- Faction badge (Horde/Alliance): a Core Positions slot element, placed exactly like
+-- the Rare/Quest indicator above. Which badge (if any) comes from ns.NP_FactionBadge,
+-- shared with the friendly plates.
+function NameplateFrame:UpdateFaction()
+    local slot = ns.NP_GetFactionSlot()
+    local unit = self.unit
+    -- Zero cost while the slot is None: no badge frame, no events.
+    if unit and slot ~= "none" then
+        -- PvP flag and faction changes (UNIT_FACTION / UNIT_FLAGS) repaint the badge.
+        if self._factionEv ~= unit then
+            self:RegisterUnitEvent("UNIT_FACTION", unit)
+            self:RegisterUnitEvent("UNIT_FLAGS", unit)
+            self._factionEv = unit
+        end
+        if not self.factionFrame then
+            -- Same indicator tier as the classification icon, one level below it, so
+            -- a stacked Rare/Quest + Faction pair draws Rare/Quest on top.
+            local f = CreateFrame("Frame", nil, self)
+            f:SetFrameStrata(ns.GetSlotRaiseStrata(slot) and "HIGH" or "MEDIUM")
+            f:SetFrameLevel(self.health:GetFrameLevel() + 2)
+            f:Hide()
+            self.faction = f:CreateTexture(nil, "ARTWORK")
+            self.faction:SetAllPoints()
+            self.factionFrame = f
+        end
+    elseif self._factionEv then
+        self:UnregisterEvent("UNIT_FACTION")
+        self:UnregisterEvent("UNIT_FLAGS")
+        self._factionEv = nil
+    end
+    local atlas, dim
+    if unit and slot ~= "none" then atlas, dim = ns.NP_FactionBadge(unit) end
+    if not atlas then
+        if self.factionFrame and self.factionFrame:IsShown() then
+            self.factionFrame:Hide()
+            self:UpdateNameWidth()
+        end
+        return
+    end
+    EllesmereUI.SetFactionArt(self.faction, ns.NP_GetFactionStyle(), atlas)
+    self.faction:SetDesaturated(dim)
+    self.faction:SetAlpha(dim and 0.6 or 1)
+    local cpPush = GetClassPowerTopPush(self)
+    local fxOff, fyOff = GetSlotOffsets(slot)
+    -- "Rare/Quest + Faction" with the classification icon showing too: the faction
+    -- badge stacks up behind it, overlapping by 40% (classification is a frame
+    -- level above, so it draws on top).
+    if p and p.classificationIncludeFaction and self.classFrame:IsShown() then
+        fyOff = fyOff + math.floor(GetRareEliteIconSize() * 0.6 + 0.5)
+    end
+    local sz = ns.NP_GetFactionIconSize()
+    PP.Size(self.factionFrame, sz, sz)
+    self.factionFrame:ClearAllPoints()
+    if slot == "top" then
+        PP.Point(self.factionFrame, "BOTTOM", self.health, "TOP",
+            fxOff, GetDebuffYOffset() + cpPush + fyOff)
+    elseif slot == "left" then
+        local iconRes, iconSide = ns.GetCastIconReserve(self)
+        local iconPush = (iconSide == "left") and iconRes or 0
+        PP.Point(self.factionFrame, "RIGHT", self.health, "LEFT",
+            -GetSideAuraXOffset() - iconPush + fxOff, fyOff)
+    elseif slot == "right" then
+        local iconRes, iconSide = ns.GetCastIconReserve(self)
+        local iconPush = (iconSide == "right") and iconRes or 0
+        PP.Point(self.factionFrame, "LEFT", self.health, "RIGHT",
+            GetSideAuraXOffset() + iconPush + fxOff, fyOff)
+    elseif slot == "topleft" then
+        PP.Point(self.factionFrame, "BOTTOMLEFT", self.health, "TOPLEFT", fxOff, 2 + cpPush + fyOff)
+    elseif slot == "topright" then
+        PP.Point(self.factionFrame, "BOTTOMRIGHT", self.health, "TOPRIGHT", fxOff, 2 + cpPush + fyOff)
+    elseif slot == "bottom" then
+        PP.Point(self.factionFrame, "TOP", self.cast, "BOTTOM", fxOff, -2 + fyOff)
+    end
+    local wasShown = self.factionFrame:IsShown()
+    self.factionFrame:Show()
+    if not wasShown then
+        self:UpdateNameWidth()
+        -- A side-slot badge pushes the target arrows out, like the classification icon.
+        if slot == "left" or slot == "right" then PositionArrowsOutsideAuras(self) end
+    end
+end
 function NameplateFrame:UpdateNameWidth()
     local barW = GetHealthBarWidth()
     -- Width % scales the computed (bar-derived) width; 100 = historical behaviour.
@@ -7780,6 +7943,12 @@ function NameplateFrame:UpdateNameWidth()
         local clSlot = GetClassificationSlot()
         if clSlot ~= "none" and self.classFrame:IsShown() then
             nameW = nameW - (GetRareEliteIconSize() + 4)
+        end
+        -- Stacked with the classification icon ("Rare/Quest + Faction") it takes
+        -- no extra width; alone it reserves its own.
+        local stacked = p and p.classificationIncludeFaction and self.classFrame:IsShown()
+        if self.factionFrame and self.factionFrame:IsShown() and not stacked then
+            nameW = nameW - (ns.NP_GetFactionIconSize() + 4)
         end
         PP.Width(self.name, math.max(nameW * pct / 100, 20))
     elseif nameSlot then
@@ -7819,6 +7988,7 @@ end
 function NameplateFrame:RefreshCastIconSideReserve()
     if not (GetShowCastIcon() and ns.GetCastIconFullSize()) then return end
     self:UpdateClassification()
+    self:UpdateFaction()
     self:UpdateRaidIcon()
     PositionArrowsOutsideAuras(self)
     -- Without this, a cast bar showing/hiding shoves an already container-hugging
@@ -7911,6 +8081,7 @@ function NameplateFrame:RefreshNamePosition(localOnly)
     end
     if localOnly then return end
     self:UpdateClassification()
+    self:UpdateFaction()
 end
 function NameplateFrame:UpdateRaidIcon()
     if not self.unit then return end
@@ -8953,6 +9124,14 @@ function NameplateFrame:UNIT_NAME_UPDATE()
 end
 function NameplateFrame:UNIT_THREAT_LIST_UPDATE()
     self:UpdateHealthColor()
+end
+-- Faction badge: faction and PvP flag changes. The tap-state repaint rides the
+-- shared UNIT_FACTION handler (factionFrame), not these.
+function NameplateFrame:UNIT_FACTION()
+    self:UpdateFaction()
+end
+function NameplateFrame:UNIT_FLAGS()
+    self:UpdateFaction()
 end
 function NameplateFrame:UNIT_SPELLCAST_START()
     self._castDirtyFull = true
