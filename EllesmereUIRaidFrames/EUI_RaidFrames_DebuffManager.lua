@@ -26,9 +26,6 @@
 -- at ns.db.profile.dmDebuff (shared raid/party/extra, absent = off = zero cost), all keys NEW/additive as a
 -- nondestructive view over the existing debuff display keys (size/spacing/cap/position); legacy debuffFilter is
 -- untouched and resumes control if the manager is disabled.
---
--- Also owns BUFF MANAGER effective-state accessors (base grid + custom indicators render together; legacy
--- bmDisplayMode never written, only shimmed).
 
 local _, ns = ...
 local EllesmereUI = _G.EllesmereUI
@@ -58,26 +55,6 @@ local function FlowDir(token)
     if token == "UP" then return FD.Up end
     if token == "DOWN" then return FD.Down end
     return FD.Right
-end
-
--------------------------------------------------------------------------------
--- Buff Manager effective-state accessors (coexistence shims). Legacy bmDisplayMode is read ONLY here as the
--- default for older profiles; new keys are written only by the options page. Base grid and custom indicators enable independently and render together.
--------------------------------------------------------------------------------
-function ns.BM_BaseActive()
-    local p = ns.db and ns.db.profile
-    if not p then return false end
-    local v = p.bmBaseEnabled
-    if v == nil then return p.bmDisplayMode == "simple" end
-    return v == true
-end
-
-function ns.BM_CustomActive()
-    local p = ns.db and ns.db.profile
-    if not p then return false end
-    local v = p.bmIndicatorsEnabled
-    if v == nil then return (p.bmDisplayMode or "custom") == "custom" end
-    return v == true
 end
 
 -------------------------------------------------------------------------------

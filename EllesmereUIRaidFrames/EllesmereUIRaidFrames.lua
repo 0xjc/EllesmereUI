@@ -8746,7 +8746,6 @@ local function GhostAuraCheck()
                     if d.rfcBmChain then
                         for _, cc in pairs(d.rfcBmChain) do cc:UpdateAllAuras() end
                     end
-                    if d.rfcBmSimple then d.rfcBmSimple:UpdateAllAuras() end
                     if d.dmTiles then
                         for _, c in pairs(d.dmTiles) do c:UpdateAllAuras() end
                     end

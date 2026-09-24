@@ -19,9 +19,7 @@
 -- bmSimple/bmDisplayMode, override-banked configs) are LEFT INTACT and
 -- ignored: profiles are shared with the 12.0 client through SavedVariables,
 -- so wiping them here would destroy the user's retail Buff Manager. Physical
--- deletion belongs to the at-launch cleanup pass. This file also overrides
--- the coexistence shims: under v2 the simple grid is retired (BM_BaseActive
--- false) and indicators are always the system (BM_CustomActive true).
+-- deletion belongs to the at-launch cleanup pass.
 
 local _, ns = ...
 local EllesmereUI = _G.EllesmereUI
@@ -893,47 +891,25 @@ function ns.BM2_SpecIndicators(frameKind)
 end
 
 -------------------------------------------------------------------------------
--- Activation flag. ACTIVE: v2 runs INSIDE the legacy page shell (storage
--- accessor swap + Assigned Filters section + modal Filter Editor). Set false
--- and the runtime adapter and page redirect go inert, the legacy Buff Manager
--- (page + storage + Base Icons coexistence) runs untouched, and the
--- coexistence shims stay owned by the Debuff Manager file.
--------------------------------------------------------------------------------
-ns.BM2_Enabled = true
-
--- Retirement overrides (simple grid off, indicators always on) apply only
--- while v2 is live: dormant v2 must not perturb the legacy coexistence.
-if ns.BM2_Enabled then
-    function ns.BM_BaseActive()
-        return false
-    end
-    function ns.BM_CustomActive()
-        return true
-    end
-end
-
--------------------------------------------------------------------------------
 -- Cross-module filter bridge (parent-published): the ONE-TIME filter copies
 -- between this library and Player Aura Bars ride it (both Filter Editors'
--- copy buttons). Absence of the table = this module (or v2) is off, and the
+-- copy buttons). Absence of the table = this module is off, and the
 -- other side's button hides, so consumers must read it lazily at call time.
 -- Mutators already Invalidate internally; Refresh repaints raid frames after
 -- a copy lands new spell content here.
 -------------------------------------------------------------------------------
-if ns.BM2_Enabled then
-    EllesmereUI._BM2FilterBridge = {
-        Filters        = function() return ns.BM2_Filters() end,
-        GetFilter      = function(id) return ns.BM2_GetFilter(id) end,
-        AddFilter      = function(name) return ns.BM2_AddFilter(name) end,
-        SetSpellState  = function(id, spellID, state) return ns.BM2_SetSpellState(id, spellID, state) end,
-        AddCustomSpell = function(id, spellID) return ns.BM2_AddCustomSpell(id, spellID) end,
-        PresetAlts     = function() return ns.BM2_PresetAlts end,
-        CuratedSpells  = function(presetKey) return presetKey and DEFAULT_FILTER_SPELLS[presetKey] or nil end,
-        Refresh        = function()
-            if ns.BM2_Invalidate then ns.BM2_Invalidate() end
-            if ns.ReloadFrames then ns.ReloadFrames() end
-        end,
-    }
-end
+EllesmereUI._BM2FilterBridge = {
+    Filters        = function() return ns.BM2_Filters() end,
+    GetFilter      = function(id) return ns.BM2_GetFilter(id) end,
+    AddFilter      = function(name) return ns.BM2_AddFilter(name) end,
+    SetSpellState  = function(id, spellID, state) return ns.BM2_SetSpellState(id, spellID, state) end,
+    AddCustomSpell = function(id, spellID) return ns.BM2_AddCustomSpell(id, spellID) end,
+    PresetAlts     = function() return ns.BM2_PresetAlts end,
+    CuratedSpells  = function(presetKey) return presetKey and DEFAULT_FILTER_SPELLS[presetKey] or nil end,
+    Refresh        = function()
+        if ns.BM2_Invalidate then ns.BM2_Invalidate() end
+        if ns.ReloadFrames then ns.ReloadFrames() end
+    end,
+}
 
 

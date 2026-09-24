@@ -431,9 +431,6 @@ ns.BM_INH_OFFSETS = {
     tanks = 3000000, dps = 3000000, healers = 3000000,
 }
 
--- Simple Setup: the active spec's FULL whitelist (every non-hidden spell) regardless of indicators; its own set so the grid and custom indicators never share tracking state.
-local simpleTrackedSpellIDs = {}
-
 -- Alternate aura spell IDs resolving to a primary tracked ID (Earth Shield applies 383648, indicators use 974; Ebon Might self-buff 395296 vs ally 395152). Resolved at scan time so saved indicators match with no migration.
 local PRIMARY_BY_ALT = {
     [383648] = 974,     -- Earth Shield
@@ -443,17 +440,10 @@ local PRIMARY_BY_ALT = {
 -- Active spec only: checking every spec of the class causes cross-spec bleed
 -- (Disc seeing Holy indicators) and cross-class collisions.
 local activeSpecKey_BM = nil
--- Borrow config for the active spec (Enh/Ele -> Resto, Prot/Ret -> Holy): limits tracking to the borrowed spells.
-local activeBorrow_BM = nil
 
 local function DetectActiveSpecKey()
     -- By spec ID (locale-independent); nil for non-tracked specs clears tracking.
     activeSpecKey_BM = CurrentSpecKey()
-    -- Borrow config limits the borrowed spec's indicators to castable spells.
-    activeBorrow_BM = nil
-    local specIdx = GetSpecialization and GetSpecialization()
-    local specID  = specIdx and GetSpecializationInfo and GetSpecializationInfo(specIdx)
-    if specID then activeBorrow_BM = BORROW_SPECS[specID] end
 end
 
 DetectActiveSpecKey()
@@ -632,7 +622,7 @@ local function GetSpecIndicators(db, specKey)
     -- (spell -> filter -> indicator), legacy-shaped plus a `filters` map, so
     -- the ENTIRE editor works on them unchanged through this one accessor.
     -- v2 keys by the CURRENT player spec (class:index); healer specKey ignored.
-    if ns.BM2_Enabled and ns.BM2_SpecInds then
+    if ns.BM2_SpecInds then
         -- Key routes: healer spec key = that set, "nonhealer" = shared bucket, nil = the active key.
         local inds = ns.BM2_SpecInds(specKey)
         if inds then return inds end
@@ -645,24 +635,9 @@ local function GetSpecIndicators(db, specKey)
     end
     return db.profile.bmIndicators[specKey]
 end
--- 12.1 aura containers read the indicator config to build slots.
-ns.BM_GetSpecIndicators = GetSpecIndicators
 ns.BM_PrimaryByAlt = PRIMARY_BY_ALT
 
--- Borrow specs only track castable spells; container slots do the same.
-function ns.BM_BorrowSpellFilter()
-    if activeBorrow_BM then return activeBorrow_BM.spells end
-    return nil
-end
-
--- "Show Own on All Specs" (Simple Setup > Buff Display) lifts the tracked-spec restriction for the SIMPLE grid only.
-local function SimpleShowOwnAllSpecs()
-    local p = ns.db and ns.db.profile
-    local bs = p and p.bmSimple
-    return (bs and bs.showOwnAllSpecs) == true
-end
-
--- First tracked spec of the player's class, nil for untracked classes; all-specs fallbacks (grid toggle, per-indicator flag) resolve through it.
+-- First tracked spec of the player's class, nil for untracked classes; the per-indicator all-specs fallback resolves through it.
 local function ClassFallbackSpecKey()
     local _, classToken = UnitClass("player")
     if classToken then
@@ -674,29 +649,15 @@ local function ClassFallbackSpecKey()
 end
 ns.BM_ClassFallbackSpecKey = ClassFallbackSpecKey
 
--- Spec key the SIMPLE grid tracks: the resolved spec, or with Show Own on All
--- Specs the class's first tracked spec.
-local function SimpleSpecKey()
-    if activeSpecKey_BM then return activeSpecKey_BM end
-    if not SimpleShowOwnAllSpecs() then return nil end
-    return ClassFallbackSpecKey()
-end
-ns.BM_SimpleSpecKey = SimpleSpecKey
-
--- Simple Setup whitelist for the container grid (rebuilt by RebuildLookup; read-only for consumers -- the engine copies candidate tables on set).
-function ns.BM_SimpleTrackedSpellIDs()
-    return simpleTrackedSpellIDs
-end
-
 local function CountSpecIndicators(db, specKey)
     local list = GetSpecIndicators(db, specKey)
     return #list
 end
 
 -------------------------------------------------------------------------------
---  Lookup rebuild: per-spec defaults, the active spec + borrow config, the
---  Simple Setup whitelist and the indicator id counter. Rebuilt whenever
---  indicators change (login, spec change, editor writes).
+--  Lookup rebuild: per-spec defaults, the active spec and the indicator id
+--  counter. Rebuilt whenever indicators change (login, spec change, editor
+--  writes).
 -------------------------------------------------------------------------------
 local function RebuildLookup(db)
     if not db or not db.profile then return end
@@ -707,31 +668,6 @@ local function RebuildLookup(db)
     end
 
     DetectActiveSpecKey()
-
-    -- Simple Setup whitelist: every non-hidden spell of the active spec (hidden =
-    -- alt IDs resolved via PRIMARY_BY_ALT), regardless of indicators. Borrow specs
-    -- show only borrowed spells; Show Own on All Specs lifts both (borrow -> source's full list, untracked -> class fallback).
-    wipe(simpleTrackedSpellIDs)
-    if activeBorrow_BM and not SimpleShowOwnAllSpecs() then
-        for sid in pairs(activeBorrow_BM.spells) do
-            simpleTrackedSpellIDs[sid] = true
-        end
-    else
-        local simpleKey = SimpleSpecKey()
-        local spec = simpleKey and SPEC_BY_KEY[simpleKey]
-        if spec then
-            for _, spell in ipairs(spec.spells) do
-                if not spell.hide then
-                    simpleTrackedSpellIDs[spell.id] = true
-                end
-            end
-        end
-    end
-    for alt, primary in pairs(PRIMARY_BY_ALT) do
-        if simpleTrackedSpellIDs[primary] then
-            simpleTrackedSpellIDs[alt] = true
-        end
-    end
 
     -- Sync nextIndicatorId to highest existing id
     for _, specData in pairs(db.profile.bmIndicators) do
@@ -751,7 +687,6 @@ ns.BM_RebuildLookup = RebuildLookup
 --  Pool sizes
 -------------------------------------------------------------------------------
 local ICON_POOL_SIZE = 8   -- max placed indicators visible per button
-local DD_SPELL_ICON_SIZE = 17  -- icon size in ability/own-only dropdown menus
 local BAR_POOL_SIZE  = 4
 
 -- Size + anchor a bar indicator to its unit's health bar; shared by live and
@@ -877,81 +812,6 @@ function ns.BM_ApplyEffectBorder(borderFrame, ind, r, g, b, a, w, h)
 end
 
 -------------------------------------------------------------------------------
---  Simple Setup grid anchoring (options preview)
--------------------------------------------------------------------------------
-
--- Grid anchor: each icon at an absolute offset from the anchor corner (not
--- chained) so multi-row layout is unambiguous; rows stack perpendicular to the
--- growth axis, away from the anchored edge.
-local function AnchorSimpleGrid(d, health, bs, iscale, visibleCount)
-    if not d.bmSimpleIcons or not health then return end
-    local pos    = bs.position or "topright"
-    local grow   = bs.growDirection or "LEFT"
-    local sz     = (bs.size or 22) * iscale
-    local spc    = (ns.PixelSnap or function(v) return v end)((bs.spacing or 1) * iscale)
-    local perRow = bs.iconsPerRow or 4
-    if perRow < 1 then perRow = 1 end
-    local ox     = (bs.offsetX or 0) * iscale
-    local oy     = (bs.offsetY or 0) * iscale
-    local step   = sz + spc
-
-    -- Icon corner anchored to the same corner of the health bar.
-    local corner = "TOPRIGHT"
-    if     pos == "topleft"     then corner = "TOPLEFT"
-    elseif pos == "top"         then corner = "TOP"
-    elseif pos == "topright"    then corner = "TOPRIGHT"
-    elseif pos == "left"        then corner = "LEFT"
-    elseif pos == "center"      then corner = "CENTER"
-    elseif pos == "right"       then corner = "RIGHT"
-    elseif pos == "bottomleft"  then corner = "BOTTOMLEFT"
-    elseif pos == "bottom"      then corner = "BOTTOM"
-    elseif pos == "bottomright" then corner = "BOTTOMRIGHT"
-    end
-
-    -- Growth vector (per column, +x right/+y up); CENTER grows horizontally like RIGHT but centers each row on the anchor.
-    local horizontal = (grow ~= "UP" and grow ~= "DOWN")
-    local gvx, gvy = 0, 0
-    if     grow == "LEFT" then gvx = -1
-    elseif grow == "UP"   then gvy = 1
-    elseif grow == "DOWN" then gvy = -1
-    else                       gvx = 1   -- RIGHT or CENTER
-    end
-
-    -- Row-stack vector (perpendicular), pointing away from the anchored edge.
-    local svx, svy = 0, 0
-    if horizontal then
-        if pos == "bottomleft" or pos == "bottom" or pos == "bottomright" then svy = 1 else svy = -1 end
-    else
-        if pos == "topright" or pos == "right" or pos == "bottomright" then svx = -1 else svx = 1 end
-    end
-
-    local total = visibleCount or #d.bmSimpleIcons
-    for i, icon in ipairs(d.bmSimpleIcons) do
-        icon:ClearAllPoints()
-        local idx0 = i - 1
-        -- perRow == 1 is a single line ALONG the growth direction (no wrapping, so Growth Direction stays meaningful); otherwise wrap into rows.
-        local row, col
-        if perRow <= 1 then
-            row, col = 0, idx0
-        else
-            row = floor(idx0 / perRow)
-            col = idx0 % perRow
-        end
-        local centerOff = 0
-        if grow == "CENTER" then
-            local rowCount = (perRow <= 1) and total or min(perRow, max(0, total - row * perRow))
-            if rowCount > 0 then centerOff = -((rowCount - 1) * step) / 2 end
-        end
-        local along  = col * step
-        local across = row * step
-        local fx = ox + gvx * along + svx * across + centerOff
-        local fy = oy + gvy * along + svy * across
-        icon:SetPoint(corner, health, corner, fx, fy)
-    end
-end
-ns.BM_AnchorSimpleGrid = AnchorSimpleGrid
-
--------------------------------------------------------------------------------
 --  Preview indicator creation
 -------------------------------------------------------------------------------
 -- Forward-declare so preview click handler can set it (defined further down)
@@ -980,41 +840,32 @@ end
 local function BM_FindIndicatorById(indId)
     local specKey = ns._bmSelectedSpecKey
     -- v2: resolve against the REAL store (legacy is stale/absent, preview ids come from v2 copies) -- selection must hit storage so edits stick.
-    if ns.BM2_Enabled and ns.BM2_SpecInds then
-        local inds = ns.BM2_SpecInds(specKey)
-        if inds then
-            for _, ind in ipairs(inds) do
-                if ind.id == indId then return ind end
-            end
+    local inds = ns.BM2_SpecInds(specKey)
+    if inds then
+        for _, ind in ipairs(inds) do
+            if ind.id == indId then return ind end
         end
-        -- Inherited copies carry their group's display offset: undo it and
-        -- resolve in the owning group's store. Group-bucket ids always start
-        -- at the 1000001 base (seeded buckets; legacy small ids exist only
-        -- in healer-key OWN buckets), so a floor keeps a wrong-offset probe
-        -- from landing in another bucket's small-id band.
-        local groups = ns.BM_InheritedGroupsFor and ns.BM_InheritedGroupsFor(specKey)
-        if groups then
-            for gi = 1, #groups do
-                local gkey = groups[gi]
-                local off = ns.BM_INH_OFFSETS[gkey] or 0
-                local rawId = indId - off
-                if rawId >= 1000000 and rawId ~= indId then
-                    local ginds = ns.BM2_SpecInds(gkey)
-                    if ginds then
-                        for _, ind in ipairs(ginds) do
-                            if ind.id == rawId then return ind, gkey end
-                        end
+    end
+    -- Inherited copies carry their group's display offset: undo it and
+    -- resolve in the owning group's store. Group-bucket ids always start
+    -- at the 1000001 base (seeded buckets; legacy small ids exist only
+    -- in healer-key OWN buckets), so a floor keeps a wrong-offset probe
+    -- from landing in another bucket's small-id band.
+    local groups = ns.BM_InheritedGroupsFor and ns.BM_InheritedGroupsFor(specKey)
+    if groups then
+        for gi = 1, #groups do
+            local gkey = groups[gi]
+            local off = ns.BM_INH_OFFSETS[gkey] or 0
+            local rawId = indId - off
+            if rawId >= 1000000 and rawId ~= indId then
+                local ginds = ns.BM2_SpecInds(gkey)
+                if ginds then
+                    for _, ind in ipairs(ginds) do
+                        if ind.id == rawId then return ind, gkey end
                     end
                 end
             end
         end
-        return nil
-    end
-    if not specKey or not ns.db or not ns.db.profile then return nil end
-    local specData = ns.db.profile.bmIndicators and ns.db.profile.bmIndicators[specKey]
-    if not specData then return nil end
-    for _, ind in ipairs(specData) do
-        if ind.id == indId then return ind end
     end
     return nil
 end
@@ -1218,8 +1069,6 @@ function ns.BM_ApplyPreviewIndicators(f, index, s)
 
     local db = ns.db
     if not db or not db.profile then return end
-    -- v2 sources from the bm2 store below; only legacy needs that table.
-    if not ns.BM2_Enabled and not db.profile.bmIndicators then return end
     local health = ns.RF_AnchorHost and ns.RF_AnchorHost(f._health, s) or f._health
     if not health then return end
     local PP = EllesmereUI.PanelPP or EllesmereUI.PP
@@ -1231,10 +1080,9 @@ function ns.BM_ApplyPreviewIndicators(f, index, s)
     local bPoolIdx = 0
 
     local activeSpecKey = ns._bmSelectedSpecKey
-    local specList = activeSpecKey and db.profile.bmIndicators
-        and db.profile.bmIndicators[activeSpecKey]
-    -- v2: preview the SELECTED v2 bucket with RESOLVED spell unions (legacy read above would show stale pre-v2 data or nothing).
-    if ns.BM2_Enabled and ns.BM2_SpecInds then
+    local specList
+    -- Preview the SELECTED v2 bucket with RESOLVED spell unions.
+    do
         -- Edited bucket's class: OWN-ONLY entries preview only this class's
         -- spells (a Holy Paladin editing Core Healing Buffs must not see Druid
         -- HoTs -- those can never be their own casts). Untagged/custom ids and
@@ -1380,7 +1228,7 @@ function ns.BM_ApplyPreviewIndicators(f, index, s)
     end
     -- Anchor To continuation state: root id -> banked cursor/anchor, consumed by member indicators ordered right after their root.
     local pvChain = {}
-    for _, specData in pairs(specList and { specList } or db.profile.bmIndicators or {}) do
+    for _, specData in pairs({ specList }) do
         if type(specData) == "table" then
             for _, ind in ipairs(specData) do
                 if ind.enabled and ind.spells and #ind.spells > 0 then
@@ -1432,10 +1280,8 @@ function ns.BM_ApplyPreviewIndicators(f, index, s)
                                 end
                                 BM_PlaceBar(bar, health, ind, iscale)
                                 -- v2 only: non-selected groups dim like icons (legacy preview never dimmed bars).
-                                if ns.BM2_Enabled then
-                                    local barSel = ns._bmSelectedIndId and ind.id == ns._bmSelectedIndId
-                                    bar:SetAlpha((barSel or ns._bmAllIndicatorsVisible) and 1 or 0.5)
-                                end
+                                local barSel = ns._bmSelectedIndId and ind.id == ns._bmSelectedIndId
+                                bar:SetAlpha((barSel or ns._bmAllIndicatorsVisible) and 1 or 0.5)
                                 bar._bmIndId = ind.id
                                 bar:Show()
                             end
@@ -1669,7 +1515,6 @@ local function SelectedBucketClass()
     return nil
 end
 -- selectedIndicator: forward-declared near preview hover/click handlers
-local selectedSpells = {}      -- temp table for creation spell selection
 local selectedType = "icon"
 
 local function AutoDetectSpec()
@@ -1691,12 +1536,10 @@ local function AutoDetectSpec()
 end
 
 -------------------------------------------------------------------------------
---  Simple Setup preview: self-contained health-bar replica + live simple-grid
---  preview. Mirrors the custom preview's health bar 1:1 but has NO spec picker/
---  indicator pools; fully separate so the two preview systems never interact.
---  Returns pvFrame, sectionH, RefreshFn. noGrid (optional): health-bar replica
---  only (no grid icons, no-op refresh) -- Debuff Manager draws its own content.
-function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, noGrid)
+--  Health-bar replica preview (Debuff Manager draws its own content on it).
+--  Mirrors the custom preview's health bar 1:1 but has NO spec picker/
+--  indicator pools. Returns pvFrame, sectionH.
+function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY)
     local PV_SCALE = 1.5
     local rawW = s.frameWidth or 72
     local rawH = s.frameHeight or 46
@@ -1955,123 +1798,7 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, noGrid
 
     pvFrame._health = health
 
-    -- Replica-only mode: the caller renders its own preview content.
-    if noGrid then
-        return pvFrame, sectionH, function() end
-    end
-
-    -- Example buff icons for the simple grid preview (active spec's whitelist; falls back to the first healer spec so the preview is never empty).
-    local exampleIcons = {}
-    local previewSpecKey = activeSpecKey_BM or (HEALER_SPECS[1] and HEALER_SPECS[1].key)
-    local spec = previewSpecKey and SPEC_BY_KEY[previewSpecKey]
-    if spec then
-        for _, spell in ipairs(spec.spells) do
-            if not spell.hide then
-                exampleIcons[#exampleIcons + 1] = GetSpellIcon(spell.id)
-            end
-        end
-    end
-
-    -- Preview grid pool (isolated; created on this preview frame only).
-    local previewIcons = {}
-    local fakeD = { bmSimpleIcons = previewIcons }
-    local function RefreshSimplePreview()
-        local bs = s.bmSimple or {}
-        local showBuffs = bs.showBuffs ~= false
-        local maxB = bs.maxBuffs or 10
-        local sz = bs.size or 22
-        local count = (showBuffs and #exampleIcons > 0) and min(maxB, #exampleIcons) or 0
-        for i = 1, count do
-            local icon = previewIcons[i]
-            if not icon then
-                icon = CreateFrame("Frame", nil, health)
-                icon:SetFrameLevel(health:GetFrameLevel() + 6)
-                local tex = icon:CreateTexture(nil, "ARTWORK")
-                tex:SetAllPoints(); tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-                icon._tex = tex
-                local cd = CreateFrame("Cooldown", nil, icon, "CooldownFrameTemplate")
-                cd:SetAllPoints(); cd:SetDrawEdge(false); cd:SetReverse(true)
-                cd:SetSwipeColor(0, 0, 0, 0.6); cd:SetHideCountdownNumbers(true)
-                cd:Hide()
-                icon._cooldown = cd
-                if PP then
-                    local b = CreateFrame("Frame", nil, icon)
-                    b:SetAllPoints(); b:SetFrameLevel(icon:GetFrameLevel() + 1)
-                    PP.CreateBorder(b, 0, 0, 0, 1, 1)
-                    icon._borderFrame = b
-                end
-                -- Carrier above the swipe/border so the stack count shows.
-                local textCarrier = CreateFrame("Frame", nil, icon)
-                textCarrier:SetAllPoints()
-                textCarrier:SetFrameLevel(icon:GetFrameLevel() + 5)
-                local countFS = textCarrier:CreateFontString(nil, "OVERLAY")
-                countFS:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -1, 1)
-                icon._count = countFS
-                previewIcons[i] = icon
-            end
-            icon:SetSize(sz, sz)
-            icon._tex:SetTexture(exampleIcons[i] or 136243)
-            local _z = bs.iconZoom or 0.08
-            icon._tex:SetTexCoord(_z, 1 - _z, _z, 1 - _z)
-            if icon._borderFrame and PP then
-                local bdrSz = bs.borderSize or 1
-                local bc = bs.borderColor or { r=0, g=0, b=0 }
-                if bdrSz > 0 then
-                    PP.UpdateBorder(icon._borderFrame, bdrSz, bc.r, bc.g, bc.b, 1)
-                    icon._borderFrame:Show()
-                else
-                    icon._borderFrame:Hide()
-                end
-            end
-            -- Duration swipe + text preview (faked duration so those controls show).
-            local cd = icon._cooldown
-            if cd then
-                local wantSwipe = bs.showSwipe ~= false
-                local wantDurText = bs.showDurText
-                if wantSwipe or wantDurText then
-                    cd:SetCooldown(GetTime(), 24)
-                    cd:SetDrawSwipe(wantSwipe)
-                    cd:SetHideCountdownNumbers(not wantDurText)
-                    cd:Show()
-                    if wantDurText then
-                        local cdText = cd.GetCountdownFontString and cd:GetCountdownFontString()
-                        if cdText then
-                            local dtc = bs.durTextColor or { r=1, g=1, b=1 }
-                            EllesmereUI.ApplyIconTextFont(cdText, fontPath, bs.durTextSize or 8, "raidFrames")
-                            cdText:SetTextColor(dtc.r, dtc.g, dtc.b)
-                            cdText:ClearAllPoints()
-                            cdText:SetPoint("CENTER", icon, "CENTER", bs.durTextOffsetX or 0, bs.durTextOffsetY or 0)
-                        end
-                    end
-                else
-                    cd:Hide()
-                end
-            end
-            -- Fake stack count so the color/size/offset controls have a preview.
-            if icon._count then
-                if bs.showStacks then
-                    local sc = bs.stacksTextColor or { r = 1, g = 1, b = 1 }
-                    EllesmereUI.ApplyIconTextFont(icon._count, fontPath, bs.stacksTextSize or 8, "raidFrames")
-                    icon._count:SetTextColor(sc.r, sc.g, sc.b)
-                    icon._count:ClearAllPoints()
-                    icon._count:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT",
-                        bs.stacksOffsetX or -1, bs.stacksOffsetY or 2)
-                    icon._count:SetText("3")
-                else
-                    icon._count:SetText("")
-                end
-            end
-            icon:Show()
-        end
-        for i = count + 1, #previewIcons do
-            if previewIcons[i]._cooldown then previewIcons[i]._cooldown:Hide() end
-            previewIcons[i]:Hide()
-        end
-        ns.BM_AnchorSimpleGrid(fakeD, ns.RF_AnchorHost(health, s), bs, 1, count)
-    end
-    RefreshSimplePreview()
-
-    return pvFrame, sectionH, RefreshSimplePreview
+    return pvFrame, sectionH
 end
 
 function ns.BM_BuildPage(pageName, parent, yOffset)
@@ -2106,32 +1833,13 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
         EllesmereUI:RefreshPage(true)
     end
 
-    -- Inline cog on Own Only: per-indicator Show Own on All Specs (keeps rendering the player's own casts on every spec of the class, bypassing the borrow restriction).
-    local function AttachOwnAllSpecsCog(rgn, ind)
-        -- v2 retires the spec-borrow restriction: an inert cog would mislead.
-        if ns.BM2_Enabled then return end
-        EllesmereUI.BuildInlineCog(rgn, {
-            anchorTo = rgn._control,
-            title = "Own Only",
-            rows = {
-                { type = "toggle", label = "Show Own on All Specs",
-                  tooltip = "Show this indicator's buffs on every spec of your class, not only this spec.",
-                  get = function() return ind.showOwnAllSpecs == true end,
-                  set = function(v)
-                      ind.showOwnAllSpecs = v and true or false
-                      ReloadAndUpdate()
-                  end },
-            },
-        })
-    end
-
     local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
     local _, h
     local PAD = 20  -- consistent left/right padding for creation bar + settings
     local s = db.profile
 
     -- Current spec's indicators for the sidebar. v2: editing dropdown stays functional (healer specs + shared Non-Healer bucket); defaults to current spec on first page open each session.
-    if ns.BM2_Enabled and ns.BM2_SpecKey and not ns._bm2SpecInited then
+    if ns.BM2_SpecKey and not ns._bm2SpecInited then
         ns._bm2SpecInited = true
         local landKey = ns.BM2_SpecKey()
         -- Non-healers land on their CONCRETE "spec<ID>" view, not the shared
@@ -2151,7 +1859,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
     -- Group buckets this view INHERITS from (concrete spec views only):
     -- their indicators lead the sidebar as read-only tiles with a per-spec
     -- enable. nil on group-bucket views.
-    local inheritedGroups = ns.BM2_Enabled and ns.BM_InheritedGroupsFor
+    local inheritedGroups = ns.BM_InheritedGroupsFor
         and ns.BM_InheritedGroupsFor(selectedSpecKey) or nil
 
     -- Inherited-tile selection (ns._bm2InhSel = { group, id }): resolve it
@@ -2159,7 +1867,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
     -- inherits that group or the indicator is gone. While valid it OWNS the
     -- left pane (read-only), so the indicator selection clears.
     local inhSelInd = nil
-    if ns.BM2_Enabled and ns._bm2InhSel then
+    if ns._bm2InhSel then
         local isel = ns._bm2InhSel
         for gi = 1, #(inheritedGroups or {}) do
             if inheritedGroups[gi] == isel.group then
@@ -2173,19 +1881,8 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
     end
     if inhSelInd then selectedIndicator = nil end
 
-    -- The Base Icons tile is a selectable sidebar entry: while selected no indicator
-    -- is highlighted and the left pane shows the base (simple-grid) settings; defaults to Base when the spec has no indicators yet.
-    if ns.BM2_Enabled then
-        -- v2: no Base Icons (simple grid retired); seeded groups are tiles.
-        ns._bmBaseSel = false
-    elseif ns._bmBaseSel == nil then
-        ns._bmBaseSel = (#specIndicators == 0)
-    end
-
     -- Validate selected indicator
-    if ns._bmBaseSel then
-        selectedIndicator = nil
-    elseif not inhSelInd then
+    if not inhSelInd then
         if not selectedIndicator and #specIndicators > 0 then
             selectedIndicator = specIndicators[1]
         end
@@ -2219,42 +1916,40 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
         for k, v in pairs(SPEC_DD_VALUES) do values[k] = EllesmereUI.L(v) end
         local order = SPEC_DD_ORDER
         local icons, classes
-        if ns.BM2_Enabled then
-            icons, classes = {}, {}
-            order = {}
-            for i = 1, #ns.BM_GROUP_BUCKETS do
-                local g = ns.BM_GROUP_BUCKETS[i]
-                values[g.key] = EllesmereUI.L(g.name)
-                order[#order + 1] = g.key
-                icons[g.key] = g.icon
-            end
-            order[#order + 1] = "---a"
-            local inHealerList = {}
-            for i = 1, #SPEC_DD_ORDER do
-                local key = SPEC_DD_ORDER[i]
-                order[#order + 1] = key
-                local hs = SPEC_BY_KEY[key]
-                if hs and hs.specID then
-                    inHealerList[hs.specID] = true
-                    if GetSpecializationInfoByID then
-                        local _, _, _, sIcon = GetSpecializationInfoByID(hs.specID)
-                        icons[key] = sIcon
-                    end
+        icons, classes = {}, {}
+        order = {}
+        for i = 1, #ns.BM_GROUP_BUCKETS do
+            local g = ns.BM_GROUP_BUCKETS[i]
+            values[g.key] = EllesmereUI.L(g.name)
+            order[#order + 1] = g.key
+            icons[g.key] = g.icon
+        end
+        order[#order + 1] = "---a"
+        local inHealerList = {}
+        for i = 1, #SPEC_DD_ORDER do
+            local key = SPEC_DD_ORDER[i]
+            order[#order + 1] = key
+            local hs = SPEC_BY_KEY[key]
+            if hs and hs.specID then
+                inHealerList[hs.specID] = true
+                if GetSpecializationInfoByID then
+                    local _, _, _, sIcon = GetSpecializationInfoByID(hs.specID)
+                    icons[key] = sIcon
                 end
             end
-            order[#order + 1] = "---b"
-            for classID = 1, (GetNumClasses and GetNumClasses() or 0) do
-                local className, classFile = GetClassInfo(classID)
-                local numSpecs = GetNumSpecializationsForClassID and GetNumSpecializationsForClassID(classID) or 0
-                for si = 1, numSpecs do
-                    local specID, specName, _, sIcon = GetSpecializationInfoForClassID(classID, si)
-                    if specID and not inHealerList[specID] then
-                        local key = "spec" .. specID
-                        values[key] = (specName or "") .. " " .. (className or "")
-                        order[#order + 1] = key
-                        icons[key] = sIcon
-                        classes[key] = classFile
-                    end
+        end
+        order[#order + 1] = "---b"
+        for classID = 1, (GetNumClasses and GetNumClasses() or 0) do
+            local className, classFile = GetClassInfo(classID)
+            local numSpecs = GetNumSpecializationsForClassID and GetNumSpecializationsForClassID(classID) or 0
+            for si = 1, numSpecs do
+                local specID, specName, _, sIcon = GetSpecializationInfoForClassID(classID, si)
+                if specID and not inHealerList[specID] then
+                    local key = "spec" .. specID
+                    values[key] = (specName or "") .. " " .. (className or "")
+                    order[#order + 1] = key
+                    icons[key] = sIcon
+                    classes[key] = classFile
                 end
             end
         end
@@ -2498,17 +2193,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
     local TILE_H = 66
     local ICON_SZ = 36
     local tileY = 0
-    -- Pinned, undeletable Base Icons tile leads the sidebar (not in v2).
-    if not ns.BM2_Enabled and ns.BMP_BuildBaseTile then
-        tileY = tileY - ns.BMP_BuildBaseTile(sidebarFrame, sidebarW, tileY, {
-            fontPath = fontPath,
-            selected = ns._bmBaseSel and true or false,
-            onSelect = function()
-                ns._bmBaseSel = true
-                EllesmereUI:RefreshPage(true)
-            end,
-        })
-    end
 
     -------------------------------------------------------------------
     --  INHERITED group indicators lead concrete spec views: read-only
@@ -2516,7 +2200,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
     --  blue group-name subtitle; the pill toggles ONLY the per-spec
     --  disable (BM2_SetInhDisabled) -- other specs are never affected.
     -------------------------------------------------------------------
-    if ns.BM2_Enabled and inheritedGroups then
+    if inheritedGroups then
         local IR, IG, IB = 0.55, 0.72, 1  -- inherited accent (soft blue)
         for gi = 1, #inheritedGroups do
             local gkey = inheritedGroups[gi]
@@ -2639,7 +2323,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                 end)
 
                 tile:SetScript("OnClick", function()
-                    ns._bmBaseSel = false
                     selectedIndicator = nil
                     ns._bm2InhSel = { group = gkey, id = gind.id }
                     EllesmereUI:RefreshPage(true)
@@ -2698,7 +2381,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
 
         -- v2: tiles render the RESOLVED spell union (assigned filters + direct spells) -- the raw list is empty for filter-driven groups.
         local tileSpells = ind.spells
-        if ns.BM2_Enabled and ns.BM2_ResolveSpells then
+        if ns.BM2_ResolveSpells then
             tileSpells = ns.BM2_ResolveSpells(ind)
         end
 
@@ -2707,7 +2390,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
         iconTex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
         if tileSpells and #tileSpells > 0 then
             -- v2: prefer a spell the EDITED bucket's spec/class actually uses as the tile's face (known spell > class-tagged > all-class).
-            local faceId = (ns.BM2_Enabled and ns.BM2_PreferredSpell
+            local faceId = (ns.BM2_PreferredSpell
                 and ns.BM2_PreferredSpell(ind, SelectedBucketClass())) or tileSpells[1]
             iconTex:SetTexture(GetSpellIcon(faceId))
         else
@@ -2731,7 +2414,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
         titleFS:SetJustifyH("LEFT")
         titleFS:SetWordWrap(false)
         -- v2: named indicators (the seeded filter groups) show their name.
-        if ns.BM2_Enabled and ind.name then
+        if ind.name then
             titleFS:SetText(EllesmereUI.L(ind.name))
         else
             titleFS:SetText(EllesmereUI.L(typeName))
@@ -2856,48 +2539,46 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
         -- inline button, delete-icon size). Only under v2, which is what
         -- renders ind.name in the tile title; the name is display-only, so a
         -- rename never touches spells/signature -- page refresh suffices.
-        if ns.BM2_Enabled then
-            local editBtn = CreateFrame("Button", nil, tile)
-            editBtn:SetSize(16, 16)
-            editBtn:SetPoint("RIGHT", delBtn, "LEFT", -4, 0)
-            editBtn:SetFrameLevel(tile:GetFrameLevel() + 2)
-            local editTex = editBtn:CreateTexture(nil, "OVERLAY")
-            editTex:SetAllPoints()
-            if editTex.SetSnapToPixelGrid then editTex:SetSnapToPixelGrid(false); editTex:SetTexelSnappingBias(0) end
-            editTex:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-edit.png")
-            editBtn:SetAlpha(0.5)
-            editBtn:SetScript("OnEnter", function(self)
-                self:SetAlpha(0.9)
-                EllesmereUI.ShowWidgetTooltip(self, EllesmereUI.L("Rename Indicator"))
-            end)
-            editBtn:SetScript("OnLeave", function(self)
-                self:SetAlpha(0.5)
-                EllesmereUI.HideWidgetTooltip()
-            end)
-            editBtn:SetScript("OnClick", function()
-                local cur = ind.name or typeName
-                EllesmereUI:ShowInputPopup({
-                    title = EllesmereUI.L("Rename Indicator"),
-                    message = EllesmereUI.L("Enter a new name for this indicator:"),
-                    placeholder = cur,
-                    confirmText = EllesmereUI.L("Rename"),
-                    cancelText = EllesmereUI.L("Cancel"),
-                    onConfirm = function(text)
-                        text = text and text:gsub("^%s+", ""):gsub("%s+$", "") or ""
-                        -- Empty reverts to the type-name default.
-                        ind.name = (text ~= "") and text or nil
-                        EllesmereUI:RefreshPage(true)
-                    end,
-                })
-            end)
-        end
+        local editBtn = CreateFrame("Button", nil, tile)
+        editBtn:SetSize(16, 16)
+        editBtn:SetPoint("RIGHT", delBtn, "LEFT", -4, 0)
+        editBtn:SetFrameLevel(tile:GetFrameLevel() + 2)
+        local editTex = editBtn:CreateTexture(nil, "OVERLAY")
+        editTex:SetAllPoints()
+        if editTex.SetSnapToPixelGrid then editTex:SetSnapToPixelGrid(false); editTex:SetTexelSnappingBias(0) end
+        editTex:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-edit.png")
+        editBtn:SetAlpha(0.5)
+        editBtn:SetScript("OnEnter", function(self)
+            self:SetAlpha(0.9)
+            EllesmereUI.ShowWidgetTooltip(self, EllesmereUI.L("Rename Indicator"))
+        end)
+        editBtn:SetScript("OnLeave", function(self)
+            self:SetAlpha(0.5)
+            EllesmereUI.HideWidgetTooltip()
+        end)
+        editBtn:SetScript("OnClick", function()
+            local cur = ind.name or typeName
+            EllesmereUI:ShowInputPopup({
+                title = EllesmereUI.L("Rename Indicator"),
+                message = EllesmereUI.L("Enter a new name for this indicator:"),
+                placeholder = cur,
+                confirmText = EllesmereUI.L("Rename"),
+                cancelText = EllesmereUI.L("Cancel"),
+                onConfirm = function(text)
+                    text = text and text:gsub("^%s+", ""):gsub("%s+$", "") or ""
+                    -- Empty reverts to the type-name default.
+                    ind.name = (text ~= "") and text or nil
+                    EllesmereUI:RefreshPage(true)
+                end,
+            })
+        end)
 
         -- Right-click: "Add To" context menu -- copies this indicator into
         -- another editing-spec bucket (full clone, fresh id; source stays).
         tile:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         tile:SetScript("OnClick", function(self, btn)
             if btn == "RightButton" then
-                if not (ns.BM2_Enabled and EllesmereUI.ShowPickMenu) then return end
+                if not EllesmereUI.ShowPickMenu then return end
                 EllesmereUI.ShowPickMenu(tile, {
                     title = EllesmereUI.L("Add To"),
                     fontPath = fontPath,
@@ -2917,7 +2598,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                 })
                 return
             end
-            ns._bmBaseSel = false
             ns._bm2InhSel = nil
             selectedIndicator = ind
             EllesmereUI:RefreshPage(true)
@@ -3028,10 +2708,9 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                 popup:SetFrameLevel(200)
                 local LBL_GAP = 4   -- label to dropdown
                 local DD_GAP = 11  -- dropdown to next label/button
-                -- v2 adds a third label+dropdown pair (Filters + Extra Spells replace the legacy Abilities picker).
-                local popupPairs = ns.BM2_Enabled and 3 or 2
+                -- Three label+dropdown pairs: Indicator, Filters, Extra Spells.
                 popup:SetSize(POPUP_W, POPUP_PAD
-                    + popupPairs * (LABEL_H + LBL_GAP + ROW_H + DD_GAP)
+                    + 3 * (LABEL_H + LBL_GAP + ROW_H + DD_GAP)
                     + ROW_H + POPUP_PAD)
                 popup:EnableMouse(true)
                 popup:SetClampedToScreen(true)
@@ -3045,8 +2724,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                 popup:SetScript("OnShow", function(p)
                     p:SetScript("OnUpdate", function(m)
                         if not self:IsMouseOver() and not m:IsMouseOver() then
-                            local spDD = m._spellDD
-                            if spDD and spDD._ddMenu and spDD._ddMenu:IsShown() and spDD._ddMenu:IsMouseOver() then return end
                             local indDD2 = m._indDD
                             if indDD2 and indDD2._ddMenu and indDD2._ddMenu:IsShown() and indDD2._ddMenu:IsMouseOver() then return end
                             local fltDD2 = m._fltDD
@@ -3067,269 +2744,25 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                 popup:SetScript("OnHide", function(p)
                     p:SetScript("OnUpdate", nil)
                     -- Clear spell selections so reopening starts fresh
-                    wipe(selectedSpells)
                     if p._v2Filters then wipe(p._v2Filters) end
                     if p._v2NegFilters then wipe(p._v2NegFilters) end
                     if p._v2Extras then wipe(p._v2Extras) end
-                    -- Refresh the abilities dropdown label + checkboxes
-                    if p._spellDDRefresh then p._spellDDRefresh() end
                 end)
 
                 local py = -POPUP_PAD
                 local ddW = POPUP_W - POPUP_PAD * 2
 
-                if ns.BM2_Enabled then
-                    -- v2 creation flow: Indicator type, then the SAME Filters and
-                    -- Extra Spells dropdowns as Assigned Buffs; picks apply to the new indicator on Create.
-                    popup._v2Filters = {}
-                    popup._v2NegFilters = {}
-                    popup._v2Extras = {}
+                -- v2 creation flow: Indicator type, then the SAME Filters and
+                -- Extra Spells dropdowns as Assigned Buffs; picks apply to the new indicator on Create.
+                popup._v2Filters = {}
+                popup._v2NegFilters = {}
+                popup._v2Extras = {}
 
-                    local indLbl2 = popup:CreateFontString(nil, "OVERLAY")
-                    indLbl2:SetFont(fontPath, 11, "")
-                    indLbl2:SetPoint("TOPLEFT", popup, "TOPLEFT", POPUP_PAD, py)
-                    indLbl2:SetText(EllesmereUI.L("Indicator"))
-                    indLbl2:SetTextColor(1, 1, 1, 0.6)
-                    py = py - LABEL_H - LBL_GAP
-
-                    local indDD = EllesmereUI.BuildDropdownControl(
-                        popup, ddW, popup:GetFrameLevel() + 2,
-                        INDICATOR_TYPE_VALUES, INDICATOR_TYPE_ORDER,
-                        function() return selectedType end,
-                        function(v) selectedType = v end)
-                    indDD:SetPoint("TOPLEFT", popup, "TOPLEFT", POPUP_PAD, py)
-                    popup._indDD = indDD
-                    py = py - ROW_H - DD_GAP
-
-                    local fltLbl = popup:CreateFontString(nil, "OVERLAY")
-                    fltLbl:SetFont(fontPath, 11, "")
-                    fltLbl:SetPoint("TOPLEFT", popup, "TOPLEFT", POPUP_PAD, py)
-                    fltLbl:SetText(EllesmereUI.L("Filters"))
-                    fltLbl:SetTextColor(1, 1, 1, 0.6)
-                    py = py - LABEL_H - LBL_GAP
-                    local fltDDY = py
-                    py = py - ROW_H - DD_GAP
-
-                    local exLbl = popup:CreateFontString(nil, "OVERLAY")
-                    exLbl:SetFont(fontPath, 11, "")
-                    exLbl:SetPoint("TOPLEFT", popup, "TOPLEFT", POPUP_PAD, py)
-                    exLbl:SetText(EllesmereUI.L("Extra Spells"))
-                    exLbl:SetTextColor(1, 1, 1, 0.6)
-                    py = py - LABEL_H - LBL_GAP
-                    local exDDY = py
-                    py = py - ROW_H - DD_GAP
-
-                    -- Rebuilt per open (filter list / Selected grouping go stale); pending picks survive rebuilds, wiped on hide.
-                    local function BuildV2DDs()
-                        if popup._fltDD then popup._fltDD:Hide(); popup._fltDD:SetParent(nil) end
-                        if popup._exDD then popup._exDD:Hide(); popup._exDD:SetParent(nil) end
-                        popup._fltDD, popup._exDD = nil, nil
-
-                        -- Dynamic items: fresh per menu open (adds/renames live).
-                        -- Two-lane rows: Show picks (popup._v2Filters) and Hide picks
-                        -- (popup._v2NegFilters), applied to the new indicator on Create.
-                        local function FItems()
-                            local filters = (ns.BM2_Filters and ns.BM2_Filters()) or {}
-                            local fItems = {
-                                { isTopAction = true, label = "Edit Filters", onClick = function()
-                                    if ns.BMP_ShowFilterEditor then ns.BMP_ShowFilterEditor() end
-                                end },
-                                { isHeader = true, label = "Show", rightLabel = "Hide" },
-                            }
-                            for i = 1, #filters do
-                                fItems[#fItems + 1] = { key = filters[i].id, label = filters[i].name, dual = true }
-                            end
-                            return fItems
-                        end
-                        local fltDD = EllesmereUI.BuildVisOptsCBDropdown(
-                            popup, ddW, popup:GetFrameLevel() + 2,
-                            FItems,
-                            function(k, neg)
-                                if neg then return popup._v2NegFilters[k] and true or false end
-                                return popup._v2Filters[k] and true or false
-                            end,
-                            function(k, v, neg)
-                                if neg then
-                                    popup._v2NegFilters[k] = v and true or nil
-                                    if v then popup._v2Filters[k] = nil end
-                                else
-                                    popup._v2Filters[k] = v and true or nil
-                                    if v then popup._v2NegFilters[k] = nil end
-                                end
-                            end,
-                            nil, 12)
-                        fltDD:SetSize(ddW, ROW_H)
-                        fltDD:SetPoint("TOPLEFT", popup, "TOPLEFT", POPUP_PAD, fltDDY)
-                        popup._fltDD = fltDD
-
-                        local function SpellEntry(id)
-                            -- Curated name first (distinguishes variants the client
-                            -- API can't, e.g. two spell IDs both named "Sense Power"
-                            -- by Blizzard); SPELL_NAME_BY_ID already falls back to
-                            -- the live API internally when no curated name exists.
-                            local name = SPELL_NAME_BY_ID[id]
-                            local label = name or ("Spell " .. tostring(id))
-                            -- Truncated rows still need to be told apart on hover.
-                            return { key = id, label = label, tooltip = label,
-                                icon = C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(id) }
-                        end
-                        -- Dynamic items: fresh per menu open. Spells already supplied by
-                        -- CHECKED filters are excluded from Presets (redundant as extras); picked extras always show under Selected.
-                        local function ByLabel(a, b) return a.label < b.label end
-                        local function EItems()
-                            local covered = {}
-                            if ns.BM2_GetFilter then
-                                for fid in pairs(popup._v2Filters) do
-                                    local f = ns.BM2_GetFilter(fid)
-                                    if f then
-                                        for id, on in pairs(f.spells) do
-                                            if on then covered[id] = true end
-                                        end
-                                    end
-                                end
-                            end
-                            local universe = (ns.BM2_AllPresetSpells and ns.BM2_AllPresetSpells()) or {}
-                            local selList, rest = {}, {}
-                            local seen = {}
-                            for id in pairs(popup._v2Extras) do
-                                seen[id] = true
-                                selList[#selList + 1] = SpellEntry(id)
-                            end
-                            for i = 1, #universe do
-                                local id = universe[i]
-                                if not seen[id] and not covered[id] then rest[#rest + 1] = SpellEntry(id) end
-                            end
-                            table.sort(selList, ByLabel)
-                            table.sort(rest, ByLabel)
-                            local eItems = {
-                                { isTopAction = true, label = "Custom Spell ID", onClick = function()
-                                    EllesmereUI:ShowInputPopup({
-                                        title = EllesmereUI.L("Add Spell ID"),
-                                        message = EllesmereUI.L("Enter the spell ID to track on this indicator."),
-                                        confirmText = EllesmereUI.L("Add"),
-                                        cancelText = EllesmereUI.L("Cancel"),
-                                        onConfirm = function(text)
-                                            local id = tonumber(text or "")
-                                            if id and id > 0 and not popup._v2Extras[id] then
-                                                popup._v2Extras[id] = true
-                                            end
-                                        end,
-                                    })
-                                end },
-                            }
-                            if #selList > 0 then
-                                eItems[#eItems + 1] = { isHeader = true, label = "Selected" }
-                                for i = 1, #selList do eItems[#eItems + 1] = selList[i] end
-                            end
-                            eItems[#eItems + 1] = { isHeader = true, label = "Presets" }
-                            for i = 1, #rest do eItems[#eItems + 1] = rest[i] end
-                            return eItems
-                        end
-                        local exDD = EllesmereUI.BuildVisOptsCBDropdown(
-                            popup, ddW, popup:GetFrameLevel() + 2,
-                            EItems,
-                            function(k) return popup._v2Extras[k] and true or false end,
-                            function(k, v) popup._v2Extras[k] = v and true or nil end,
-                            nil, 10, true)
-                        exDD:SetSize(ddW, ROW_H)
-                        exDD:SetPoint("TOPLEFT", popup, "TOPLEFT", POPUP_PAD, exDDY)
-                        popup._exDD = exDD
-                    end
-                    BuildV2DDs()
-                    popup._rebuildSpells = BuildV2DDs
-                else
-
-                -- Abilities label + CB dropdown
-                local abLbl = popup:CreateFontString(nil, "OVERLAY")
-                abLbl:SetFont(fontPath, 11, "")
-                abLbl:SetPoint("TOPLEFT", popup, "TOPLEFT", POPUP_PAD, py)
-                abLbl:SetText(EllesmereUI.L("Abilities"))
-                abLbl:SetTextColor(1, 1, 1, 0.6)
-                py = py - LABEL_H - LBL_GAP
-
-                -- Build spell items for the selected spec
-                local function RebuildSpellItems()
-                    local items = {}
-                    if selectedSpecKey then
-                        local spec = SPEC_BY_KEY[selectedSpecKey]
-                        if spec then
-                            for _, spell in ipairs(spec.spells) do
-                                if not spell.hide then
-                                    items[#items + 1] = { key = tostring(spell.id), label = SPELL_NAME_BY_ID[spell.id] or spell.name, icon = GetSpellIcon(spell.id), iconSize = DD_SPELL_ICON_SIZE }
-                                end
-                            end
-                            table.sort(items, function(a, b) return a.label < b.label end)
-                            local function AllSel()
-                                for _, item in ipairs(items) do
-                                    if not item.isAction and not selectedSpells[item.key] then return false end
-                                end
-                                return true
-                            end
-                            tinsert(items, 1, {
-                                key = "__all", isAction = true,
-                                labelFn = function() return AllSel() and "None" or "All" end,
-                            })
-                        end
-                    end
-                    return items
-                end
-
-                local spellDDY = py  -- save Y for rebuild
-                local mFS = popup:CreateFontString(nil, "OVERLAY")
-                mFS:SetFont(fontPath, 13, "")
-                mFS:Hide()
-
-                local function BuildSpellDD()
-                    -- Destroy previous
-                    if popup._spellDD then popup._spellDD:Hide(); popup._spellDD:SetParent(nil) end
-                    popup._spellDD = nil
-                    popup._spellDDRefresh = nil
-                    wipe(selectedSpells)
-
-                    local spellItems = RebuildSpellItems()
-                    local maxTW = 0
-                    for _, item in ipairs(spellItems) do
-                        mFS:SetText(item.labelFn and item.labelFn() or item.label)
-                        local tw = mFS:GetStringWidth()
-                        if tw > maxTW then maxTW = tw end
-                    end
-                    local menuW = max(ddW, maxTW + 60)
-
-                    if #spellItems > 0 then
-                        local spellDD, spellDDRefresh = EllesmereUI.BuildVisOptsCBDropdown(
-                            popup, menuW, popup:GetFrameLevel() + 2,
-                            spellItems,
-                            function(k) return selectedSpells[k] or false end,
-                            function(k, v)
-                                if k == "__all" then
-                                    local allOn = true
-                                    for _, item in ipairs(spellItems) do
-                                        if not item.isAction and not selectedSpells[item.key] then allOn = false; break end
-                                    end
-                                    for _, item in ipairs(spellItems) do
-                                        if not item.isAction then selectedSpells[item.key] = not allOn or nil end
-                                    end
-                                else
-                                    selectedSpells[k] = v or nil
-                                end
-                            end,
-                            nil, nil, nil, true)  -- closeButton = "Okay"
-                        spellDD:SetSize(ddW, ROW_H)
-                        spellDD:SetPoint("TOPLEFT", popup, "TOPLEFT", POPUP_PAD, spellDDY)
-                        popup._spellDD = spellDD
-                        popup._spellDDRefresh = spellDDRefresh
-                    end
-                end
-                BuildSpellDD()
-                popup._rebuildSpells = BuildSpellDD
-                py = py - ROW_H - DD_GAP
-
-                -- Indicator label + dropdown
-                local indLbl = popup:CreateFontString(nil, "OVERLAY")
-                indLbl:SetFont(fontPath, 11, "")
-                indLbl:SetPoint("TOPLEFT", popup, "TOPLEFT", POPUP_PAD, py)
-                indLbl:SetText(EllesmereUI.L("Indicator"))
-                indLbl:SetTextColor(1, 1, 1, 0.6)
+                local indLbl2 = popup:CreateFontString(nil, "OVERLAY")
+                indLbl2:SetFont(fontPath, 11, "")
+                indLbl2:SetPoint("TOPLEFT", popup, "TOPLEFT", POPUP_PAD, py)
+                indLbl2:SetText(EllesmereUI.L("Indicator"))
+                indLbl2:SetTextColor(1, 1, 1, 0.6)
                 py = py - LABEL_H - LBL_GAP
 
                 local indDD = EllesmereUI.BuildDropdownControl(
@@ -3341,7 +2774,142 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                 popup._indDD = indDD
                 py = py - ROW_H - DD_GAP
 
-                end -- v2 vs legacy creation rows
+                local fltLbl = popup:CreateFontString(nil, "OVERLAY")
+                fltLbl:SetFont(fontPath, 11, "")
+                fltLbl:SetPoint("TOPLEFT", popup, "TOPLEFT", POPUP_PAD, py)
+                fltLbl:SetText(EllesmereUI.L("Filters"))
+                fltLbl:SetTextColor(1, 1, 1, 0.6)
+                py = py - LABEL_H - LBL_GAP
+                local fltDDY = py
+                py = py - ROW_H - DD_GAP
+
+                local exLbl = popup:CreateFontString(nil, "OVERLAY")
+                exLbl:SetFont(fontPath, 11, "")
+                exLbl:SetPoint("TOPLEFT", popup, "TOPLEFT", POPUP_PAD, py)
+                exLbl:SetText(EllesmereUI.L("Extra Spells"))
+                exLbl:SetTextColor(1, 1, 1, 0.6)
+                py = py - LABEL_H - LBL_GAP
+                local exDDY = py
+                py = py - ROW_H - DD_GAP
+
+                -- Rebuilt per open (filter list / Selected grouping go stale); pending picks survive rebuilds, wiped on hide.
+                local function BuildV2DDs()
+                    if popup._fltDD then popup._fltDD:Hide(); popup._fltDD:SetParent(nil) end
+                    if popup._exDD then popup._exDD:Hide(); popup._exDD:SetParent(nil) end
+                    popup._fltDD, popup._exDD = nil, nil
+
+                    -- Dynamic items: fresh per menu open (adds/renames live).
+                    -- Two-lane rows: Show picks (popup._v2Filters) and Hide picks
+                    -- (popup._v2NegFilters), applied to the new indicator on Create.
+                    local function FItems()
+                        local filters = (ns.BM2_Filters and ns.BM2_Filters()) or {}
+                        local fItems = {
+                            { isTopAction = true, label = "Edit Filters", onClick = function()
+                                if ns.BMP_ShowFilterEditor then ns.BMP_ShowFilterEditor() end
+                            end },
+                            { isHeader = true, label = "Show", rightLabel = "Hide" },
+                        }
+                        for i = 1, #filters do
+                            fItems[#fItems + 1] = { key = filters[i].id, label = filters[i].name, dual = true }
+                        end
+                        return fItems
+                    end
+                    local fltDD = EllesmereUI.BuildVisOptsCBDropdown(
+                        popup, ddW, popup:GetFrameLevel() + 2,
+                        FItems,
+                        function(k, neg)
+                            if neg then return popup._v2NegFilters[k] and true or false end
+                            return popup._v2Filters[k] and true or false
+                        end,
+                        function(k, v, neg)
+                            if neg then
+                                popup._v2NegFilters[k] = v and true or nil
+                                if v then popup._v2Filters[k] = nil end
+                            else
+                                popup._v2Filters[k] = v and true or nil
+                                if v then popup._v2NegFilters[k] = nil end
+                            end
+                        end,
+                        nil, 12)
+                    fltDD:SetSize(ddW, ROW_H)
+                    fltDD:SetPoint("TOPLEFT", popup, "TOPLEFT", POPUP_PAD, fltDDY)
+                    popup._fltDD = fltDD
+
+                    local function SpellEntry(id)
+                        -- Curated name first (distinguishes variants the client
+                        -- API can't, e.g. two spell IDs both named "Sense Power"
+                        -- by Blizzard); SPELL_NAME_BY_ID already falls back to
+                        -- the live API internally when no curated name exists.
+                        local name = SPELL_NAME_BY_ID[id]
+                        local label = name or ("Spell " .. tostring(id))
+                        -- Truncated rows still need to be told apart on hover.
+                        return { key = id, label = label, tooltip = label,
+                            icon = C_Spell and C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(id) }
+                    end
+                    -- Dynamic items: fresh per menu open. Spells already supplied by
+                    -- CHECKED filters are excluded from Presets (redundant as extras); picked extras always show under Selected.
+                    local function ByLabel(a, b) return a.label < b.label end
+                    local function EItems()
+                        local covered = {}
+                        if ns.BM2_GetFilter then
+                            for fid in pairs(popup._v2Filters) do
+                                local f = ns.BM2_GetFilter(fid)
+                                if f then
+                                    for id, on in pairs(f.spells) do
+                                        if on then covered[id] = true end
+                                    end
+                                end
+                            end
+                        end
+                        local universe = (ns.BM2_AllPresetSpells and ns.BM2_AllPresetSpells()) or {}
+                        local selList, rest = {}, {}
+                        local seen = {}
+                        for id in pairs(popup._v2Extras) do
+                            seen[id] = true
+                            selList[#selList + 1] = SpellEntry(id)
+                        end
+                        for i = 1, #universe do
+                            local id = universe[i]
+                            if not seen[id] and not covered[id] then rest[#rest + 1] = SpellEntry(id) end
+                        end
+                        table.sort(selList, ByLabel)
+                        table.sort(rest, ByLabel)
+                        local eItems = {
+                            { isTopAction = true, label = "Custom Spell ID", onClick = function()
+                                EllesmereUI:ShowInputPopup({
+                                    title = EllesmereUI.L("Add Spell ID"),
+                                    message = EllesmereUI.L("Enter the spell ID to track on this indicator."),
+                                    confirmText = EllesmereUI.L("Add"),
+                                    cancelText = EllesmereUI.L("Cancel"),
+                                    onConfirm = function(text)
+                                        local id = tonumber(text or "")
+                                        if id and id > 0 and not popup._v2Extras[id] then
+                                            popup._v2Extras[id] = true
+                                        end
+                                    end,
+                                })
+                            end },
+                        }
+                        if #selList > 0 then
+                            eItems[#eItems + 1] = { isHeader = true, label = "Selected" }
+                            for i = 1, #selList do eItems[#eItems + 1] = selList[i] end
+                        end
+                        eItems[#eItems + 1] = { isHeader = true, label = "Presets" }
+                        for i = 1, #rest do eItems[#eItems + 1] = rest[i] end
+                        return eItems
+                    end
+                    local exDD = EllesmereUI.BuildVisOptsCBDropdown(
+                        popup, ddW, popup:GetFrameLevel() + 2,
+                        EItems,
+                        function(k) return popup._v2Extras[k] and true or false end,
+                        function(k, v) popup._v2Extras[k] = v and true or nil end,
+                        nil, 10, true)
+                    exDD:SetSize(ddW, ROW_H)
+                    exDD:SetPoint("TOPLEFT", popup, "TOPLEFT", POPUP_PAD, exDDY)
+                    popup._exDD = exDD
+                end
+                BuildV2DDs()
+                popup._rebuildSpells = BuildV2DDs
 
                 -- Create button
                 local cBtn = CreateFrame("Button", nil, popup)
@@ -3363,64 +2931,29 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                     if CountSpecIndicators(db, selectedSpecKey) >= MAX_PER_SPEC then return end
                     -- v2: create through the v2 store (correct id namespace, edited bucket),
                     -- then assign picked filters/extra spells as Assigned Buffs does (incl. presets' own-only default).
-                    if ns.BM2_Enabled and ns.BM2_AddIndicator then
-                        local newInd = ns.BM2_AddIndicator(selectedType, selectedSpecKey)
-                        if newInd then
-                            for fid in pairs(popup._v2Filters or {}) do
-                                newInd.filters[fid] = true
-                            end
-                            if popup._v2NegFilters and next(popup._v2NegFilters) then
-                                newInd.negFilters = {}
-                                for fid in pairs(popup._v2NegFilters) do
-                                    newInd.negFilters[fid] = true
-                                end
-                            end
-                            local exList = {}
-                            for sid in pairs(popup._v2Extras or {}) do
-                                exList[#exList + 1] = sid
-                            end
-                            table.sort(exList)
-                            for i = 1, #exList do
-                                newInd.spells[#newInd.spells + 1] = exList[i]
-                            end
-                            selectedIndicator = newInd
+                    local newInd = ns.BM2_AddIndicator(selectedType, selectedSpecKey)
+                    if newInd then
+                        for fid in pairs(popup._v2Filters or {}) do
+                            newInd.filters[fid] = true
                         end
-                        ns._bmBaseSel = false
-                        ns._bm2InhSel = nil
-                        if db and db.profile then db.profile.bmIndicatorsEnabled = true end
-                        RebuildLookup(db)
-                        if ns.ReloadFrames then ns.ReloadFrames() end
-                        popup:Hide()
-                        EllesmereUI:RefreshPage(true)
-                        return
-                    end
-                    local spells = {}
-                    for k, v in pairs(selectedSpells) do
-                        if v then tinsert(spells, tonumber(k)) end
-                    end
-                    if #spells == 0 then return end
-                    local tInfo = INDICATOR_TYPE_MAP[selectedType]
-                    local lastCreated
-                    if tInfo and tInfo.singleSpell and #spells > 1 then
-                        local list = GetSpecIndicators(db, selectedSpecKey)
-                        for _, sid in ipairs(spells) do
-                            if #list < MAX_PER_SPEC then
-                                local newInd = NewIndicator(selectedType, { sid })
-                                tinsert(list, newInd)
-                                lastCreated = newInd
+                        if popup._v2NegFilters and next(popup._v2NegFilters) then
+                            newInd.negFilters = {}
+                            for fid in pairs(popup._v2NegFilters) do
+                                newInd.negFilters[fid] = true
                             end
                         end
-                    else
-                        local list = GetSpecIndicators(db, selectedSpecKey)
-                        local newInd = NewIndicator(selectedType, spells)
-                        tinsert(list, newInd)
-                        lastCreated = newInd
+                        local exList = {}
+                        for sid in pairs(popup._v2Extras or {}) do
+                            exList[#exList + 1] = sid
+                        end
+                        table.sort(exList)
+                        for i = 1, #exList do
+                            newInd.spells[#newInd.spells + 1] = exList[i]
+                        end
+                        selectedIndicator = newInd
                     end
-                    if lastCreated then selectedIndicator = lastCreated end
-                    -- Creating adopts the explicit indicators-enabled key and selects the new tile over the Base Icons tile.
-                        ns._bmBaseSel = false
-                        if db and db.profile then db.profile.bmIndicatorsEnabled = true end
-                    wipe(selectedSpells)
+                    ns._bm2InhSel = nil
+                    if db and db.profile then db.profile.bmIndicatorsEnabled = true end
                     RebuildLookup(db)
                     if ns.ReloadFrames then ns.ReloadFrames() end
                     popup:Hide()
@@ -3444,12 +2977,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
     -------------------------------------------------------------------
     --  LEFT COLUMN (72%): Fixed top area + scrollable settings below
     -------------------------------------------------------------------
-    -- While the Base Icons tile is selected the left column shows the base
-    -- (simple-grid) detail pane instead of the indicator editor; below is untouched for indicator tiles.
-    if ns._bmBaseSel and ns.BMP_BuildBaseDetail then
-        ns._bmPreviewFrame = nil
-        ns.BMP_BuildBaseDetail(root, leftW, visibleH, s, fontPath, PP)
-    else
     -- Fixed top container (creation row + preview + title)
     local leftFixed = CreateFrame("Frame", nil, root)
     leftFixed:SetSize(leftW, 10)  -- height set after content
@@ -3553,14 +3080,12 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
         specDDValues._menuOpts = {
             maxHeight = 300,
             icon = function(key)
-                if ns.BM2_Enabled then
-                    -- Standard spec icons; group buckets wear their roster
-                    -- icon.
-                    local g = ns.BM_GROUP_BUCKET_INFO and ns.BM_GROUP_BUCKET_INFO[key]
-                    if g then return g.icon end
-                    local ic = specDDIcons and specDDIcons[key]
-                    if ic then return ic end
-                end
+                -- Standard spec icons; group buckets wear their roster
+                -- icon.
+                local g = ns.BM_GROUP_BUCKET_INFO and ns.BM_GROUP_BUCKET_INFO[key]
+                if g then return g.icon end
+                local ic = specDDIcons and specDDIcons[key]
+                if ic then return ic end
                 local ct = SPEC_CLASS_MAP[key]
                 local coords = ct and CLASS_SPRITE_COORDS[ct]
                 if coords then
@@ -3578,7 +3103,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                 selectedSpecKey = v
                 selectedIndicator = nil
                 ns._bm2InhSel = nil
-                wipe(selectedSpells)
                 EllesmereUI:RefreshPage(true)
             end)
         specDD:SetPoint("TOP", specLabel, "BOTTOM", 0, -7)
@@ -4062,7 +3586,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
     leftFrame._showRowDivider = true
     local sy = 0  -- Y within settings scroll child
 
-    if ns.BM2_Enabled and inhSelInd then
+    if inhSelInd then
         -------------------------------------------------------------------
         --  Read-only pane for an INHERITED group indicator: explains where
         --  it lives, links to the owning group, and points at the tile
@@ -4123,7 +3647,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
 
         -- v2: Assigned Filters section leads the settings (built by the manager-pages
         -- file; returns the new y cursor); the rest of the legacy per-type settings apply to the same v2 indicator table.
-        if ns.BM2_Enabled and ns.BMP_BuildAssignedFilters then
+        if ns.BMP_BuildAssignedFilters then
             sy = ns.BMP_BuildAssignedFilters(leftFrame, sy, ind, fontPath)
         end
 
@@ -4138,7 +3662,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
         settingsTitle:SetText(EllesmereUI.L(typeName .. " Indicator"))
 
         -- v2: named filter-driven groups head their settings with the group name; spell-driven indicators keep the legacy name list.
-        if ns.BM2_Enabled and ind.name then
+        if ind.name then
             spellsTitle:SetText("(" .. EllesmereUI.L(ind.name) .. ")")
         else
             local spellNames = {}
@@ -4162,13 +3686,12 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
 
         -- Own Only is per-INDICATOR (no per-source dropdown).
         local function BuildOwnOnlyRow()
-            local ownRow = SettingsRow(
+            SettingsRow(
                 { type="toggle", text="Own Only",
                   tooltip="Only show buffs cast by you.",
                   getValue=function() return ind.ownOnly == true end,
                   setValue=function(v) ind.ownOnly = v and true or false; ReloadAndUpdate() end },
                 { type="label", text="" })
-            AttachOwnAllSpecsCog(ownRow._leftRegion, ind)
         end
 
         -- Auto-default growth direction based on position
@@ -4235,73 +3758,14 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
 
         end
 
-        -- Abilities CB dropdown builder (shared by icon/square, used in row 1)
-        local abItems = {}
-        if not (typeInfo and typeInfo.singleSpell) and selectedSpecKey then
-            local spec = SPEC_BY_KEY[selectedSpecKey]
-            if spec then
-                for _, spell in ipairs(spec.spells) do
-                    if not spell.hide then
-                        abItems[#abItems + 1] = {
-                            key = tostring(spell.id),
-                            label = SPELL_NAME_BY_ID[spell.id] or spell.name,
-                            icon = GetSpellIcon(spell.id), iconSize = DD_SPELL_ICON_SIZE,
-                        }
-                    end
-                end
-                table.sort(abItems, function(a, b) return a.label < b.label end)
-                -- All/None action at top
-                local function AbAllSelected()
-                    if not ind.spells then return false end
-                    for _, item in ipairs(abItems) do
-                        if not item.isAction then
-                            local sid = tonumber(item.key)
-                            local found = false
-                            for _, id in ipairs(ind.spells) do
-                                if id == sid then found = true; break end
-                            end
-                            if not found then return false end
-                        end
-                    end
-                    return true
-                end
-                tinsert(abItems, 1, {
-                    key = "__all", isAction = true,
-                    labelFn = function() return AbAllSelected() and "None" or "All" end,
-                })
-            end
-        end
-
-        -- Measure longest spell name for dynamic dropdown widths
-        local abMenuW = 170  -- fallback
-        if #abItems > 0 then
-            local measureFS = leftFrame:CreateFontString(nil, "OVERLAY")
-            measureFS:SetFont(fontPath, 13, "")
-            local maxTW = 0
-            for _, item in ipairs(abItems) do
-                measureFS:SetText(item.labelFn and item.labelFn() or item.label)
-                local tw = measureFS:GetStringWidth()
-                if tw > maxTW then maxTW = tw end
-            end
-            measureFS:Hide()
-            abMenuW = max(170, maxTW + 60)
-        end
-
         if indType == "icon" or indType == "square" then
             -----------------------------------------------------------
             --  CORE
             -----------------------------------------------------------
             _, h = W:SectionHeader(leftFrame, "CORE", sy); sy = sy - h
 
-            -- v2 retires the Abilities picker here (assignment lives in
-            -- ASSIGNED BUFFS): rows are Position | Growth Direction, then Own
-            -- Only. Legacy stays Abilities | Own Only, then Position | Growth.
-            local abCfg = #abItems > 0 and
-                { type="dropdown", text="Abilities",
-                  values={ __placeholder = "All Spells" }, order={ "__placeholder" },
-                  getValue=function() return "__placeholder" end,
-                  setValue=function() end }
-                or { type="label", text="" }
+            -- Assignment lives in ASSIGNED BUFFS: rows are Position | Growth
+            -- Direction, then Own Only.
             -- Own Only is per-INDICATOR (no per-source dropdown).
             local ownCfg =
                 { type="toggle", text="Own Only",
@@ -4316,65 +3780,63 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                 posValues[k] = POSITION_VALUES[k]
             end
             local anchorVals = {}
-            if ns.BM2_Enabled then
-                local list = GetSpecIndicators(db, selectedSpecKey) or {}
-                local byId = {}
-                for i = 1, #list do
-                    if list[i].id ~= nil then byId[list[i].id] = list[i] end
+            local list = GetSpecIndicators(db, selectedSpecKey) or {}
+            local byId = {}
+            for i = 1, #list do
+                if list[i].id ~= nil then byId[list[i].id] = list[i] end
+            end
+            -- Following the candidate's own anchor links must never reach back to this indicator (no cycles).
+            local function WouldCycle(target)
+                local seen, cur = {}, target
+                while cur do
+                    if cur == ind or seen[cur] then return true end
+                    seen[cur] = true
+                    cur = cur.anchorTo and byId[cur.anchorTo] or nil
                 end
-                -- Following the candidate's own anchor links must never reach back to this indicator (no cycles).
-                local function WouldCycle(target)
-                    local seen, cur = {}, target
-                    while cur do
-                        if cur == ind or seen[cur] then return true end
-                        seen[cur] = true
-                        cur = cur.anchorTo and byId[cur.anchorTo] or nil
+                return false
+            end
+            local ao = {}
+            for i = 1, #list do
+                local t = list[i]
+                if t ~= ind and t.id ~= nil and t.enabled
+                    and (t.type or "icon") == (indType or "icon")
+                    and not WouldCycle(t) then
+                    local key = "@" .. t.id
+                    local label = (t.name and t.name ~= "" and t.name) or nil
+                    if not label then
+                        local sid = ns.BM2_PreferredSpell and ns.BM2_PreferredSpell(t, SelectedBucketClass())
+                        local nm = sid and C_Spell and C_Spell.GetSpellName
+                            and C_Spell.GetSpellName(sid)
+                        label = nm or ("Indicator " .. t.id)
                     end
-                    return false
+                    anchorVals[key] = label
+                    ao[#ao + 1] = key
                 end
-                local ao = {}
-                for i = 1, #list do
-                    local t = list[i]
-                    if t ~= ind and t.id ~= nil and t.enabled
-                        and (t.type or "icon") == (indType or "icon")
-                        and not WouldCycle(t) then
-                        local key = "@" .. t.id
-                        local label = (t.name and t.name ~= "" and t.name) or nil
-                        if not label then
-                            local sid = ns.BM2_PreferredSpell and ns.BM2_PreferredSpell(t, SelectedBucketClass())
-                            local nm = sid and C_Spell and C_Spell.GetSpellName
-                                and C_Spell.GetSpellName(sid)
-                            label = nm or ("Indicator " .. t.id)
+            end
+            if #ao > 0 then
+                -- Subnav children report through onSelect (they never
+                -- reach the dropdown's setValue); route both paths into
+                -- the shared setter below. "Anchor To" leads the list.
+                posValues["__anchor"] = { text = "Anchor To", subnav = {
+                    values = anchorVals, order = ao,
+                    onSelect = function(childKey)
+                        local tid = type(childKey) == "string"
+                            and string.match(childKey, "^@(%d+)$")
+                        if tid then
+                            ind.anchorTo = tonumber(tid)
+                            ReloadAndUpdate()
+                            EllesmereUI:RefreshPage()
                         end
-                        anchorVals[key] = label
-                        ao[#ao + 1] = key
-                    end
-                end
-                if #ao > 0 then
-                    -- Subnav children report through onSelect (they never
-                    -- reach the dropdown's setValue); route both paths into
-                    -- the shared setter below. "Anchor To" leads the list.
-                    posValues["__anchor"] = { text = "Anchor To", subnav = {
-                        values = anchorVals, order = ao,
-                        onSelect = function(childKey)
-                            local tid = type(childKey) == "string"
-                                and string.match(childKey, "^@(%d+)$")
-                            if tid then
-                                ind.anchorTo = tonumber(tid)
-                                ReloadAndUpdate()
-                                EllesmereUI:RefreshPage()
-                            end
-                        end,
-                        icon = function(key)
-                            local id = tonumber(string.match(key, "^@(%d+)$"))
-                            local t = id and byId[id]
-                            local sid = t and ns.BM2_PreferredSpell and ns.BM2_PreferredSpell(t, SelectedBucketClass())
-                            return sid and C_Spell and C_Spell.GetSpellTexture
-                                and C_Spell.GetSpellTexture(sid) or nil
-                        end,
-                    } }
-                    tinsert(posOrder, 1, "__anchor")
-                end
+                    end,
+                    icon = function(key)
+                        local id = tonumber(string.match(key, "^@(%d+)$"))
+                        local t = id and byId[id]
+                        local sid = t and ns.BM2_PreferredSpell and ns.BM2_PreferredSpell(t, SelectedBucketClass())
+                        return sid and C_Spell and C_Spell.GetSpellTexture
+                            and C_Spell.GetSpellTexture(sid) or nil
+                    end,
+                } }
+                tinsert(posOrder, 1, "__anchor")
             end
             local Anchored = function() return ind.anchorTo ~= nil end
             local posCfg =
@@ -4414,19 +3876,9 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                           ReloadAndUpdate()
                       end }
             local row1, posRow, perRgn
-            if ns.BM2_Enabled then
-                posRow = SettingsRow(posCfg, growCfg)
-                row1 = SettingsRow(ownCfg, perRowCfg or { type="label", text="" })
-                if perRowCfg then perRgn = row1._rightRegion end
-            else
-                row1 = SettingsRow(abCfg, ownCfg)
-                posRow = SettingsRow(posCfg, growCfg)
-                if perRowCfg then
-                    -- Legacy has no blank slot: the grid slider takes an odd row.
-                    local gridRow = SettingsRow(perRowCfg, { type="label", text="" })
-                    perRgn = gridRow._leftRegion
-                end
-            end
+            posRow = SettingsRow(posCfg, growCfg)
+            row1 = SettingsRow(ownCfg, perRowCfg or { type="label", text="" })
+            if perRowCfg then perRgn = row1._rightRegion end
             if perRgn then
                 EllesmereUI.BuildInlineCog(perRgn, {
                     tip = "Max Icons",
@@ -4441,83 +3893,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                     },
                 })
             end
-            local ownRgn = ns.BM2_Enabled and row1._leftRegion or row1._rightRegion
-            -- Mount the abilities CB dropdown (legacy only; v2 has no control)
-            if not ns.BM2_Enabled and #abItems > 0 then
-                local rgn = row1._leftRegion
-                if rgn._control then rgn._control:Hide() end
-                local cbDD = EllesmereUI.BuildVisOptsCBDropdown(
-                    rgn, abMenuW, rgn:GetFrameLevel() + 2,
-                    abItems,
-                    function(k)
-                        local sid = tonumber(k)
-                        if ind.spells then
-                            for _, id in ipairs(ind.spells) do
-                                if id == sid then return true end
-                            end
-                        end
-                        return false
-                    end,
-                    function(k, v)
-                        if not ind.spells then ind.spells = {} end
-                        if k == "__all" then
-                            local allOn = true
-                            for _, item in ipairs(abItems) do
-                                if not item.isAction then
-                                    local sid = tonumber(item.key)
-                                    local found = false
-                                    for _, id in ipairs(ind.spells) do
-                                        if id == sid then found = true; break end
-                                    end
-                                    if not found then allOn = false; break end
-                                end
-                            end
-                            if allOn then
-                                wipe(ind.spells)
-                            else
-                                for _, item in ipairs(abItems) do
-                                    if not item.isAction then
-                                        local sid = tonumber(item.key)
-                                        local found = false
-                                        for _, id in ipairs(ind.spells) do
-                                            if id == sid then found = true; break end
-                                        end
-                                        if not found then tinsert(ind.spells, sid) end
-                                    end
-                                end
-                            end
-                        else
-                            local sid = tonumber(k)
-                            if v then
-                                local found = false
-                                for _, id in ipairs(ind.spells) do
-                                    if id == sid then found = true; break end
-                                end
-                                if not found then tinsert(ind.spells, sid) end
-                            else
-                                for i = #ind.spells, 1, -1 do
-                                    if ind.spells[i] == sid then tremove(ind.spells, i) end
-                                end
-                            end
-                        end
-                        RebuildLookup(db)
-                        if ns.ReloadFrames then ns.ReloadFrames() end
-                        local names = {}
-                        for _, id in ipairs(ind.spells) do
-                            names[#names + 1] = SPELL_NAME_BY_ID[id] or tostring(id)
-                        end
-                        spellsTitle:SetText(#names > 0 and ("(" .. table.concat(names, ", ") .. ")") or EllesmereUI.L("(no spells)"))
-                        local pv = ns._bmPreviewFrame
-                        if pv and pv._health and ns.BM_ApplyPreviewIndicators then
-                            ns.BM_ApplyPreviewIndicators(pv, 1, db.profile)
-                        end
-                    end)
-                PP.Point(cbDD, "RIGHT", rgn, "RIGHT", -20, 0)
-                rgn._control = cbDD
-                rgn._lastInline = nil
-            end
-            -- Own Only rides the plain toggle; legacy all-specs cog still attaches beside it.
-            AttachOwnAllSpecsCog(ownRgn, ind)
 
             -- Cog for position offset X/Y (rides the Position slot, LEFT in both modes)
             do
@@ -4774,83 +4149,81 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
             -- Display-level Icon Glow (v2): permanent, every visible icon of the
             -- group glows while shown. No Max Duration setting by design: the
             -- engine offers no baseline/cap on its duration bindings.
-            if ns.BM2_Enabled then
-                local GLOW_VALUES = { [0] = "None" }
-                local GLOW_ORDER = { 0 }
-                local Styles = EllesmereUI.Glows and EllesmereUI.Glows.STYLES
-                if Styles then
-                    for i, entry in ipairs(Styles) do
-                        -- Auto-Cast Shine and Shape Glow excluded: they live on the forbidden
-                        -- slot-button subtree with no C-side equivalent to render there (stale saved picks fall back to Modern WoW Glow).
-                        if not (entry.shapeGlow or entry.autocast) then
-                            GLOW_VALUES[i] = entry.name
-                            GLOW_ORDER[#GLOW_ORDER + 1] = i
-                        end
+            local GLOW_VALUES = { [0] = "None" }
+            local GLOW_ORDER = { 0 }
+            local Styles = EllesmereUI.Glows and EllesmereUI.Glows.STYLES
+            if Styles then
+                for i, entry in ipairs(Styles) do
+                    -- Auto-Cast Shine and Shape Glow excluded: they live on the forbidden
+                    -- slot-button subtree with no C-side equivalent to render there (stale saved picks fall back to Modern WoW Glow).
+                    if not (entry.shapeGlow or entry.autocast) then
+                        GLOW_VALUES[i] = entry.name
+                        GLOW_ORDER[#GLOW_ORDER + 1] = i
                     end
                 end
-                local mdRow = SettingsRow(
-                    { type="dropdown", text="Icon Glow",
-                      values=GLOW_VALUES, order=GLOW_ORDER,
-                      getValue=function() return ind.displayGlowType or 0 end,
-                      setValue=function(v) ind.displayGlowType = v; ReloadAndUpdate(); EllesmereUI:RefreshPage() end },
-                    { type="label", text="" })
-                -- Inline class + custom color swatches, left of the dropdown.
-                local PPl = EllesmereUI.PanelPP or EllesmereUI.PP
-                local rightRgn = mdRow._leftRegion
-                local ctrl = rightRgn._control
-
-                local classSwatch, updateClassSwatch = EllesmereUI.BuildColorSwatch(
-                    rightRgn, mdRow:GetFrameLevel() + 3,
-                    function()
-                        local _, classFile = UnitClass("player")
-                        local cc = classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
-                        if cc then return cc.r, cc.g, cc.b end
-                        return 1, 0.82, 0
-                    end,
-                    function() end,
-                    false, 20)
-                PPl.Point(classSwatch, "RIGHT", ctrl, "LEFT", -8, 0)
-                classSwatch:SetScript("OnClick", function()
-                    ind.displayGlowClassColor = true; ReloadAndUpdate(); EllesmereUI:RefreshPage()
-                end)
-                classSwatch:SetScript("OnEnter", function()
-                    EllesmereUI.ShowWidgetTooltip(classSwatch, "Class Colored")
-                end)
-                classSwatch:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-
-                local glowSwatch, updateGlowSwatch = EllesmereUI.BuildColorSwatch(
-                    rightRgn, mdRow:GetFrameLevel() + 3,
-                    function() return ind.displayGlowR or 1.0, ind.displayGlowG or 0.776, ind.displayGlowB or 0.376 end,
-                    function(r, g, b)
-                        ind.displayGlowR, ind.displayGlowG, ind.displayGlowB = r, g, b
-                        ReloadAndUpdate()
-                    end,
-                    false, 20)
-                PPl.Point(glowSwatch, "RIGHT", classSwatch, "LEFT", -8, 0)
-                glowSwatch:SetScript("OnEnter", function()
-                    EllesmereUI.ShowWidgetTooltip(glowSwatch, "Custom Colored")
-                end)
-                glowSwatch:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-                -- Click the dimmed custom swatch to switch back from class color.
-                local origGlowClick = glowSwatch:GetScript("OnClick")
-                glowSwatch:SetScript("OnClick", function(self, ...)
-                    if ind.displayGlowClassColor then
-                        ind.displayGlowClassColor = false; ReloadAndUpdate(); EllesmereUI:RefreshPage()
-                        return
-                    end
-                    if (ind.displayGlowType or 0) == 0 then return end
-                    if origGlowClick then origGlowClick(self, ...) end
-                end)
-
-                local function UpdateDispGlowState()
-                    local noGlow = (ind.displayGlowType or 0) == 0
-                    local isClassColored = ind.displayGlowClassColor
-                    glowSwatch:SetAlpha((isClassColored or noGlow) and 0.3 or 1)
-                    classSwatch:SetAlpha((isClassColored and not noGlow) and 1 or 0.3)
-                end
-                EllesmereUI.RegisterWidgetRefresh(function() updateGlowSwatch(); updateClassSwatch(); UpdateDispGlowState() end)
-                UpdateDispGlowState()
             end
+            local mdRow = SettingsRow(
+                { type="dropdown", text="Icon Glow",
+                  values=GLOW_VALUES, order=GLOW_ORDER,
+                  getValue=function() return ind.displayGlowType or 0 end,
+                  setValue=function(v) ind.displayGlowType = v; ReloadAndUpdate(); EllesmereUI:RefreshPage() end },
+                { type="label", text="" })
+            -- Inline class + custom color swatches, left of the dropdown.
+            local PPl = EllesmereUI.PanelPP or EllesmereUI.PP
+            local rightRgn = mdRow._leftRegion
+            local ctrl = rightRgn._control
+
+            local classSwatch, updateClassSwatch = EllesmereUI.BuildColorSwatch(
+                rightRgn, mdRow:GetFrameLevel() + 3,
+                function()
+                    local _, classFile = UnitClass("player")
+                    local cc = classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
+                    if cc then return cc.r, cc.g, cc.b end
+                    return 1, 0.82, 0
+                end,
+                function() end,
+                false, 20)
+            PPl.Point(classSwatch, "RIGHT", ctrl, "LEFT", -8, 0)
+            classSwatch:SetScript("OnClick", function()
+                ind.displayGlowClassColor = true; ReloadAndUpdate(); EllesmereUI:RefreshPage()
+            end)
+            classSwatch:SetScript("OnEnter", function()
+                EllesmereUI.ShowWidgetTooltip(classSwatch, "Class Colored")
+            end)
+            classSwatch:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
+
+            local glowSwatch, updateGlowSwatch = EllesmereUI.BuildColorSwatch(
+                rightRgn, mdRow:GetFrameLevel() + 3,
+                function() return ind.displayGlowR or 1.0, ind.displayGlowG or 0.776, ind.displayGlowB or 0.376 end,
+                function(r, g, b)
+                    ind.displayGlowR, ind.displayGlowG, ind.displayGlowB = r, g, b
+                    ReloadAndUpdate()
+                end,
+                false, 20)
+            PPl.Point(glowSwatch, "RIGHT", classSwatch, "LEFT", -8, 0)
+            glowSwatch:SetScript("OnEnter", function()
+                EllesmereUI.ShowWidgetTooltip(glowSwatch, "Custom Colored")
+            end)
+            glowSwatch:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
+            -- Click the dimmed custom swatch to switch back from class color.
+            local origGlowClick = glowSwatch:GetScript("OnClick")
+            glowSwatch:SetScript("OnClick", function(self, ...)
+                if ind.displayGlowClassColor then
+                    ind.displayGlowClassColor = false; ReloadAndUpdate(); EllesmereUI:RefreshPage()
+                    return
+                end
+                if (ind.displayGlowType or 0) == 0 then return end
+                if origGlowClick then origGlowClick(self, ...) end
+            end)
+
+            local function UpdateDispGlowState()
+                local noGlow = (ind.displayGlowType or 0) == 0
+                local isClassColored = ind.displayGlowClassColor
+                glowSwatch:SetAlpha((isClassColored or noGlow) and 0.3 or 1)
+                classSwatch:SetAlpha((isClassColored and not noGlow) and 1 or 0.3)
+            end
+            EllesmereUI.RegisterWidgetRefresh(function() updateGlowSwatch(); updateClassSwatch(); UpdateDispGlowState() end)
+            UpdateDispGlowState()
 
             -- THRESHOLD section (Enable, seconds, color, opacity)
             BuildThresholdRow()
@@ -4863,7 +4236,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                 -----------------------------------------------------------
                 _, h = W:SectionHeader(leftFrame, "CORE", sy); sy = sy - h
 
-                local oriRow = SettingsRow(
+                SettingsRow(
                     { type="dropdown", text="Orientation", values=ORIENT_VALUES, order=ORIENT_ORDER,
                       getValue=function() return ind.orientation or "HORIZONTAL" end,
                       -- RefreshPage(true) = full rebuild so the Width/Height + Full
@@ -4873,8 +4246,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                       tooltip="Only show buffs cast by you.",
                       getValue=function() return ind.ownOnly == true end,
                       setValue=function(v) ind.ownOnly = v and true or false; ReloadAndUpdate() end })
-                -- Own Only rides the plain toggle; legacy all-specs cog still attaches beside it.
-                AttachOwnAllSpecsCog(oriRow._rightRegion, ind)
 
                 local posRow = SettingsRow(
                     { type="dropdown", text="Position", values=POSITION_VALUES, order=POSITION_ORDER,
@@ -5019,7 +4390,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                 -----------------------------------------------------------
                 _, h = W:SectionHeader(leftFrame, "CORE", sy); sy = sy - h
 
-                local swRow = SettingsRow(
+                SettingsRow(
                     { type="dropdown", text="Show When", values=SHOW_WHEN_VALUES_EFFECT, order=SHOW_WHEN_ORDER_EFFECT,
                       tooltip=SHOW_WHEN_EFFECT_TIP,
                       getValue=function() return "present" end,
@@ -5028,8 +4399,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                       tooltip="Only show buffs cast by you.",
                       getValue=function() return ind.ownOnly == true end,
                       setValue=function(v) ind.ownOnly = v and true or false; ReloadAndUpdate() end })
-                -- Own Only rides the plain toggle; legacy all-specs cog still attaches beside it.
-                AttachOwnAllSpecsCog(swRow._rightRegion, ind)
 
                 -----------------------------------------------------------
                 --  FRAME BORDER: DISPLAY
@@ -5132,7 +4501,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                 -----------------------------------------------------------
                 _, h = W:SectionHeader(leftFrame, "CORE", sy); sy = sy - h
 
-                local hcSwRow = SettingsRow(
+                SettingsRow(
                     { type="dropdown", text="Show When", values=SHOW_WHEN_VALUES_EFFECT, order=SHOW_WHEN_ORDER_EFFECT,
                       tooltip=SHOW_WHEN_EFFECT_TIP,
                       getValue=function() return "present" end,
@@ -5141,8 +4510,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                       tooltip="Only show buffs cast by you.",
                       getValue=function() return ind.ownOnly == true end,
                       setValue=function(v) ind.ownOnly = v and true or false; ReloadAndUpdate() end })
-                -- Own Only rides the plain toggle; legacy all-specs cog still attaches beside it.
-                AttachOwnAllSpecsCog(hcSwRow._rightRegion, ind)
 
                 -----------------------------------------------------------
                 --  HEALTH BAR COLOR: DISPLAY
@@ -5170,7 +4537,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                 -----------------------------------------------------------
                 _, h = W:SectionHeader(leftFrame, "CORE", sy); sy = sy - h
 
-                local faSwRow = SettingsRow(
+                SettingsRow(
                     { type="dropdown", text="Show When", values=SHOW_WHEN_VALUES, order=SHOW_WHEN_ORDER,
                       getValue=function() return ind.showWhen or "present" end,
                       setValue=function(v) ind.showWhen = v; ReloadAndUpdate() end },
@@ -5178,8 +4545,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                       tooltip="Only show buffs cast by you.",
                       getValue=function() return ind.ownOnly == true end,
                       setValue=function(v) ind.ownOnly = v and true or false; ReloadAndUpdate() end })
-                -- Own Only rides the plain toggle; legacy all-specs cog still attaches beside it.
-                AttachOwnAllSpecsCog(faSwRow._rightRegion, ind)
 
                 -----------------------------------------------------------
                 --  FRAME ALPHA: DISPLAY
@@ -5207,8 +4572,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
     -- Size the settings scroll child to its built content + sync the scrollbar.
     settingsChild:SetHeight(max(viewportH, math.abs(sy) + 12))
     UpdateThumb()
-
-    end -- Base Icons detail vs legacy left column
 
     -- Size the sidebar scroll child to its content (tiles + Add New button)
     local sidebarContentH = max(10, math.abs(tileY))
