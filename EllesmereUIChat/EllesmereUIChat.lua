@@ -1248,13 +1248,14 @@ function ECHAT.SeatStockBackground(cf)
 end
 
 -- State sync for what the panels lost by no longer being chat frame children,
--- plus ScrollToBottomButton, hidden by alpha: Blizzard fades it back in on
--- hover (UIFrameFadeIn drives only its alpha) and re-levels chat frames on
--- dock passes. ButtonFrame is emptied of its own art in SkinChatFrame instead
--- (its alpha fade has nothing left to draw), so it needs no re-assert here.
--- Runs from the interaction follower and the deferred event passes. The
--- stack-hidden gate keeps the shown-follow from re-showing panels the
--- full-hide put away.
+-- plus two Blizzard buttons hidden by alpha: Blizzard fades ButtonFrame /
+-- ScrollToBottomButton back in on hover (UIFrameFadeIn drives only their
+-- alpha) and re-levels chat frames on dock passes. ButtonFrame's minimize
+-- button keeps its own art and inherits its alpha, so DOCKED ONLY below:
+-- undocked, Blizzard's own hover fade owns that alpha and this would fight
+-- it every pass. Runs from the interaction follower and the deferred event
+-- passes. The stack-hidden gate keeps the shown-follow from re-showing
+-- panels the full-hide put away.
 function ECHAT.SyncChatFrameState()
     if ECHAT.SuppressChatEditModeSelection then ECHAT.SuppressChatEditModeSelection() end
     EnsureChatClampInsets()
@@ -1324,9 +1325,13 @@ function ECHAT.SyncChatFrameState()
         if cf then
             local shown = cf:IsShown()
             if shown then
-                -- GetAlpha reads secret on chat-roleset widgets in lockdown;
-                -- a secret skips the compare and re-asserts.
-                local bf = _G["ChatFrame" .. i .. "ButtonFrame"]
+                -- Docked only: undocked, Blizzard's own hover fade owns this
+                -- alpha (0.2 idle, 1 on hover), and re-asserting here would
+                -- fight it every pass -- the minimize button, its child, kept
+                -- flickering with that fight even after btnFrame's own art was
+                -- emptied. GetAlpha reads secret on chat-roleset widgets in
+                -- lockdown; a secret skips the compare and re-asserts.
+                local bf = cf.isDocked and _G["ChatFrame" .. i .. "ButtonFrame"]
                 local bfA = bf and bf:GetAlpha()
                 if bfA and ((issecretvalue and issecretvalue(bfA)) or bfA ~= 0) then bf:SetAlpha(0) end
                 local sb = cf.ScrollToBottomButton
