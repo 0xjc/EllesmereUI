@@ -3002,6 +3002,7 @@ function WidgetFactory:DualRow(parent, yOffset, leftCfg, rightCfg)
         label:SetMaxLines(1)
         label:SetText(EllesmereUI.L(cfg.text or ""))
         region._label = label
+        region._cfg = cfg
         region._labelHasHit = (cfg.tooltip or cfg.disabledTooltip) and true or false
 
         -- Label tooltip. For dropdowns the hitFrame is created after the dropdown button so it can check whether the menu is open.
@@ -3442,6 +3443,7 @@ function WidgetFactory:TripleRow(parent, yOffset, leftCfg, midCfg, rightCfg, spl
         label:SetMaxLines(1)
         label:SetText(EllesmereUI.L(cfg.text or ""))
         region._label = label
+        region._cfg = cfg
         region._labelHasHit = (cfg.tooltip or cfg.disabledTooltip) and true or false
 
         if (cfg.tooltip or cfg.disabledTooltip) and t ~= "dropdown" then
@@ -5146,9 +5148,11 @@ local function BuildCogPopup(opts)
 
         pf:SetScript("OnHide", function(self)
             self:SetScript("OnUpdate", nil)
+            local owner = popupOwner
+            popupOwner = nil; pf._owner = nil
             -- Dim the anchor back to cog idle alpha; skipped via noOwnerDim when the anchor isn't a cog (e.g. a preview icon) and must not fade.
-            if popupOwner and not opts.noOwnerDim then popupOwner:SetAlpha(0.4) end
-            popupOwner = nil
+            if owner and owner._euiCogState then owner._euiCogState()
+            elseif owner and not opts.noOwnerDim then owner:SetAlpha(0.4) end
         end)
 
         -- Close when the main EllesmereUI frame hides
@@ -5169,7 +5173,9 @@ local function BuildCogPopup(opts)
         if popupOwner == anchorBtn and popupFrame:IsShown() then
             popupFrame:Hide(); return
         end
-        popupOwner = anchorBtn
+        local prevOwner = popupOwner
+        popupOwner = anchorBtn; popupFrame._owner = anchorBtn
+        if prevOwner and prevOwner ~= anchorBtn and prevOwner._euiCogState then prevOwner._euiCogState() end
 
         -- Refresh all widget visuals from get functions
         popupFrame._refresh()
@@ -5188,6 +5194,7 @@ local function BuildCogPopup(opts)
             self:SetPoint("TOP", anchorBtn, "BOTTOM", 0, -5 + (8 * (1 - t)))
             if t >= 1 then self:SetScript("OnUpdate", self._clickOutside) end
         end)
+        if anchorBtn._euiCogState then anchorBtn._euiCogState() end
     end })
 
     return popupFrame, showFn
@@ -6233,6 +6240,64 @@ local function BuildInlineToggle(opts)
     return toggle
 end
 
+-- Inline cog button on a DualRow half-region, left of its control (or of the last inline item). Returns cogBtn, showFn; nil during the search prebuild.
+-- opts: BuildCogPopup's own opts (title, rows, captureRegion, minWidth, ...) or show(btn) + optional isOpen(btn) for a custom popup; icon, size (26), gap (8), anchorTo,
+--   chain (default true: anchors to and becomes region._lastInline), tip, disabled + disabledTooltip/rawTooltip/requireState (as ResolveDisabledTip; default: the host control's).
+-- Alpha: 0.15 disabled, 0.4 idle, 0.7 hovered or while its popup is open. Disabled blocks the click and shows the requirement tooltip.
+local function BuildInlineCog(rgn, opts)
+    if EllesmereUI._prebuilding then return end
+    -- A disabled cog with no tooltip of its own explains itself with its host control's requirement.
+    local tipSrc = (opts.disabled and not opts.disabledTooltip) and rgn._cfg or opts
+    if opts.disabled and not (tipSrc and tipSrc.disabledTooltip) and EllesmereUI.IsDevModeActive and EllesmereUI.IsDevModeActive() then
+        error("BuildInlineCog: disabled needs a disabledTooltip", 2)
+    end
+    local show = opts.show or select(2, BuildCogPopup(opts))
+    local size = opts.size or 26
+    local btn = CreateFrame("Button", nil, rgn)
+    btn:SetSize(size, size)
+    PP.Point(btn, "RIGHT", opts.anchorTo or (opts.chain ~= false and rgn._lastInline) or rgn._control or rgn, "LEFT", -(opts.gap or 8), 0)
+    if opts.chain ~= false then rgn._lastInline = btn end
+    btn:SetFrameLevel(rgn:GetFrameLevel() + 5)
+    local tex = btn:CreateTexture(nil, "OVERLAY")
+    tex:SetAllPoints()
+    tex:SetTexture(opts.icon or EllesmereUI.COGS_ICON)
+    btn._icon = tex
+
+    local block
+    if opts.disabled then
+        block = CreateFrame("Frame", nil, btn)
+        block:SetAllPoints()
+        block:SetFrameLevel(btn:GetFrameLevel() + 10)
+        block:EnableMouse(true)
+        block:SetScript("OnEnter", function()
+            local tip = tipSrc and ResolveDisabledTip(tipSrc)
+            if tip then ShowWidgetTooltip(btn, tip) end
+        end)
+        block:SetScript("OnLeave", function() HideWidgetTooltip() end)
+    end
+    local function State()
+        local off = opts.disabled and opts.disabled()
+        local pf = type(show) == "table" and show._popupFrame
+        local open = (opts.isOpen and opts.isOpen(btn)) or (pf and pf:IsShown() and pf._owner == btn)
+        btn:SetAlpha(off and 0.15 or ((open or btn:IsMouseOver()) and 0.7 or 0.4))
+        if block then block:SetShown(off and true or false) end
+    end
+    btn._euiCogState = State
+
+    btn:SetScript("OnEnter", function(self)
+        State()
+        if opts.tip then ShowWidgetTooltip(self, opts.tip) end
+    end)
+    btn:SetScript("OnLeave", function()
+        State()
+        if opts.tip then HideWidgetTooltip() end
+    end)
+    btn:SetScript("OnClick", function(self) show(self) end)
+    State()
+    if opts.disabled then RegisterWidgetRefresh(State) end
+    return btn, show
+end
+
 -------------------------------------------------------------------------------
 --  Less-Common Settings Expander
 --  Centralized collapse link for rarely-customized option rows. Page builders wrap those rows in:
@@ -6471,6 +6536,7 @@ EllesmereUI.BuildColorSwatch    = BuildColorSwatch
 EllesmereUI.BuildTrioColorSwatch = BuildTrioColorSwatch
 EllesmereUI.BuildToggleControl   = BuildToggleControl
 EllesmereUI.BuildInlineToggle    = BuildInlineToggle
+EllesmereUI.BuildInlineCog       = BuildInlineCog
 EllesmereUI.BuildCheckboxControl = BuildCheckboxControl
 EllesmereUI.BuildCogPopup       = BuildCogPopup
 EllesmereUI.BuildSyncIcon       = BuildSyncIcon
@@ -6641,7 +6707,6 @@ end
 --    parent      = parent frame
 --    getData     = function() -> settings table with anchorTo, anchorPosition, anchorOffsetX, anchorOffsetY
 --    onApply     = function() -> rebuild/refresh after value change
---    makeCogBtn  = function(rgn, showFn, anchorTo, iconPath) -> local cog builder
 --    disabledFn  = (optional) function() -> true when the whole row is disabled
 --    disabledTip = (optional) tooltip string for disabled state
 --  Returns: row, height (same as W:DualRow)
@@ -6651,7 +6716,6 @@ local function BuildCursorAnchorRow(opts)
     local parent     = opts.parent
     local getData    = opts.getData
     local onApply    = opts.onApply
-    local makeCogBtn = opts.makeCogBtn
 
     local row, h = W:DualRow(parent, opts.y,
         { type = "toggle", text = "Anchor to Cursor",
@@ -6712,21 +6776,17 @@ local function BuildCursorAnchorRow(opts)
     end
 
     -- Inline cog: X + Y offsets
-    do
-        local rightRgn = row._rightRegion
-        local _, cogShow = BuildCogPopup({
-            title = "Cursor Offset",
-            rows = {
-                { type = "slider", label = "X Offset", min = -125, max = 125, step = 1,
-                  get = function() return getData().anchorOffsetX or 0 end,
-                  set = function(v) getData().anchorOffsetX = v; onApply() end },
-                { type = "slider", label = "Y Offset", min = -125, max = 125, step = 1,
-                  get = function() return getData().anchorOffsetY or 0 end,
-                  set = function(v) getData().anchorOffsetY = v; onApply() end },
-            },
-        })
-        makeCogBtn(rightRgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
-    end
+    BuildInlineCog(row._rightRegion, {
+        title = "Cursor Offset", icon = EllesmereUI.DIRECTIONS_ICON,
+        rows = {
+            { type = "slider", label = "X Offset", min = -125, max = 125, step = 1,
+              get = function() return getData().anchorOffsetX or 0 end,
+              set = function(v) getData().anchorOffsetX = v; onApply() end },
+            { type = "slider", label = "Y Offset", min = -125, max = 125, step = 1,
+              get = function() return getData().anchorOffsetY or 0 end,
+              set = function(v) getData().anchorOffsetY = v; onApply() end },
+        },
+    })
 
     return row, h
 end

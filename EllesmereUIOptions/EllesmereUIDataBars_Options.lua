@@ -1626,25 +1626,6 @@ initFrame:SetScript("OnEvent", function(self)
             ns.ApplyBar(barId)
         end
 
-        -- Standard inline cog button (house pattern): sits left of the row's
-        -- control, opens a BuildCogPopup with extra rows.
-        local function MakeCogBtn(rgn, showFn, anchorTo, iconPath)
-            local anchor = anchorTo or (rgn and (rgn._lastInline or rgn._control)) or rgn
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", anchor, "LEFT", -8, 0)
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints()
-            cogTex:SetTexture(iconPath or EllesmereUI.RESIZE_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) showFn(self) end)
-            if rgn then rgn._lastInline = cogBtn end
-            return cogBtn
-        end
-
         -- Sizing mode: centered segmented two-button toggle (same recipe as
         -- the Buff Manager's Simple/Custom switch), in its OWN space between
         -- the preview header and BAR SETTINGS with 15px above and below.
@@ -1732,7 +1713,7 @@ initFrame:SetScript("OnEvent", function(self)
         -- is a set-once setting that should not cost a row.
         do
             local leftRgn = visRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(leftRgn, { icon = EllesmereUI.COGS_ICON,
                 title = "Bar Layer",
                 rows = {
                     { type = "dropdown", label = "Bar Strata",
@@ -1751,7 +1732,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            MakeCogBtn(leftRgn, cogShow, nil, EllesmereUI.COGS_ICON)
         end
 
         -- Orientation | Theme (inline cog = EllesmereUI Backdrop Dim)
@@ -1798,43 +1778,24 @@ initFrame:SetScript("OnEvent", function(self)
                   ns.ApplyTheme(barId)
                   HardRefresh()
               end });  y = y - h
-        do
-            local rgn = themeRow._rightRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
-                title = "EllesmereUI Background",
-                rows = {
-                    { type = "slider", label = "Backdrop Dim", min = 0, max = 100, step = 1,
-                      get = function()
-                          local a = theme.euiAlpha
-                          if a == nil then a = 0.5 end
-                          return floor(a * 100 + 0.5)
-                      end,
-                      set = function(v)
-                          theme.euiAlpha = v / 100
-                          ns.ApplyTheme(barId)
-                          RefreshPreviewTheme()
-                      end },
-                },
-            })
-            local cog = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.COGS_ICON)
-            if theme.style ~= "eui" then
-                -- Disabled state (house pattern): dimmed cog + blocking
-                -- overlay with the requirement tooltip. Theme changes
-                -- HardRefresh, so this re-evaluates on switch.
-                cog:SetAlpha(0.15)
-                cog:SetScript("OnEnter", nil)
-                cog:SetScript("OnLeave", nil)
-                cog:SetScript("OnClick", nil)
-                local blk = CreateFrame("Frame", nil, cog)
-                blk:SetAllPoints()
-                blk:SetFrameLevel(cog:GetFrameLevel() + 5)
-                blk:EnableMouse(true)
-                blk:SetScript("OnEnter", function()
-                    EllesmereUI.ShowWidgetTooltip(cog, EllesmereUI.DisabledTooltip("the EllesmereUI theme"))
-                end)
-                blk:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            end
-        end
+        EllesmereUI.BuildInlineCog(themeRow._rightRegion, {
+            title = "EllesmereUI Background",
+            disabled = function() return theme.style ~= "eui" end,
+            disabledTooltip = "the EllesmereUI theme",
+            rows = {
+                { type = "slider", label = "Backdrop Dim", min = 0, max = 100, step = 1,
+                  get = function()
+                      local a = theme.euiAlpha
+                      if a == nil then a = 0.5 end
+                      return floor(a * 100 + 0.5)
+                  end,
+                  set = function(v)
+                      theme.euiAlpha = v / 100
+                      ns.ApplyTheme(barId)
+                      RefreshPreviewTheme()
+                  end },
+            },
+        })
 
         -- Bar Texture: 1:1 with the Unit Frames picker -- same built-in texture set
         -- plus SharedMedia statusbars appended live on every build (late-registered
@@ -2203,7 +2164,7 @@ initFrame:SetScript("OnEvent", function(self)
                 do
                     -- Text Position cog: offsets the TEXT only (factories
                     -- inject these into every text anchor; icons stay put).
-                    local _, cogShow = EllesmereUI.BuildCogPopup({
+                    EllesmereUI.BuildInlineCog(alignRow._leftRegion, { icon = EllesmereUI.DIRECTIONS_ICON,
                         title = "Text Position",
                         rows = {
                             { type = "slider", label = "X Offset", min = -50, max = 50, step = 1,
@@ -2228,11 +2189,10 @@ initFrame:SetScript("OnEvent", function(self)
                               end },
                         },
                     })
-                    MakeCogBtn(alignRow._leftRegion, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
 
                     -- Content Position cog (next to Content Scale): offsets
                     -- the WHOLE block content group, text included.
-                    local _, cogShowAll = EllesmereUI.BuildCogPopup({
+                    EllesmereUI.BuildInlineCog(alignRow._rightRegion, { icon = EllesmereUI.DIRECTIONS_ICON,
                         title = "Content Position",
                         rows = {
                             { type = "slider", label = "X Offset", min = -50, max = 50, step = 1,
@@ -2251,7 +2211,6 @@ initFrame:SetScript("OnEvent", function(self)
                               set = function(v) b.yOff = v; Apply() end },
                         },
                     })
-                    MakeCogBtn(alignRow._rightRegion, cogShowAll, nil, EllesmereUI.DIRECTIONS_ICON)
                 end
             end
 

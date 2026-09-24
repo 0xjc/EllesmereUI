@@ -73,31 +73,6 @@ function ns.RF_BuildPartyPortrait(parent, y, W, PSSet)
             if rl then for i = 1, #rl do rl[i]() end end
         end)
     end
-    -- Inline cog (off-state dimmed, with the requirement as its tooltip).
-    local function Cog(rgn, title, rows, icon, onFn, offTip)
-        if EllesmereUI._prebuilding then return end
-        local _, show = EllesmereUI.BuildCogPopup({ title = title, rows = rows })
-        local b = CreateFrame("Button", nil, rgn)
-        b:SetSize(26, 26)
-        b:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-        rgn._lastInline = b
-        b:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        local t = b:CreateTexture(nil, "OVERLAY")
-        t:SetAllPoints()
-        t:SetTexture(icon or EllesmereUI.COGS_ICON)
-        local function State()
-            if not onFn or onFn() then b:SetAlpha(0.4); b:Enable()
-            else b:SetAlpha(0.15); b:Disable() end
-        end
-        b:SetScript("OnEnter", function(self)
-            if not onFn or onFn() then self:SetAlpha(0.7)
-            else EllesmereUI.ShowWidgetTooltip(self, EllesmereUI.DisabledTooltip(offTip)) end
-        end)
-        b:SetScript("OnLeave", function() State(); EllesmereUI.HideWidgetTooltip() end)
-        b:SetScript("OnClick", function(self) show(self) end)
-        State()
-        if onFn then EllesmereUI.RegisterWidgetRefresh(State) end
-    end
     local function IsInside(side)
         return side == "insideleft" or side == "insideright" or side == "insidecenter"
     end
@@ -235,24 +210,24 @@ function ns.RF_BuildPartyPortrait(parent, y, W, PSSet)
               PtSet("partyPortraitSide", v)
               EllesmereUI:RefreshPage()
           end });  y = y - h
-    Cog(sizePosRow._leftRegion, "Portrait Zoom", {
+    EllesmereUI.BuildInlineCog(sizePosRow._leftRegion, { title = "Portrait Zoom", rows = {
         { type="slider", label="2D Zoom", min=50, max=100, step=1,
           get=function() return PV("partyPortraitArtScale", 100) end,
           set=function(v) PtSet("partyPortraitArtScale", v) end },
         { type="slider", label="3D Zoom", min=100, max=300, step=1,
           get=function() return PV("partyPortrait3dZoom", 100) end,
           set=function(v) PtSet("partyPortrait3dZoom", v) end },
-    })
-    Cog(sizePosRow._rightRegion, "Portrait Position Offsets", {
+    } })
+    EllesmereUI.BuildInlineCog(sizePosRow._rightRegion, { title = "Portrait Position Offsets", rows = {
         { type="slider", label="X Offset", min=-100, max=100, step=1,
           get=function() return PV("partyPortraitX", 0) end,
           set=function(v) PtSet("partyPortraitX", v) end },
         { type="slider", label="Y Offset", min=-100, max=100, step=1,
           get=function() return PV("partyPortraitY", 0) end,
           set=function(v) PtSet("partyPortraitY", v) end },
-    }, EllesmereUI.DIRECTIONS_ICON,
-    function() return PV("partyPortraitStyle", "none") == "detached" end,
-    "This option requires Portrait Mode to be set to Detached.")
+    }, icon = EllesmereUI.DIRECTIONS_ICON,
+    disabled = function() return PV("partyPortraitStyle", "none") ~= "detached" end,
+    disabledTooltip = "This option requires Portrait Mode to be set to Detached." })
 
     if PV("partyPortraitStyle", "none") ~= "detached" then return y end
 
@@ -306,14 +281,14 @@ function ns.RF_BuildPartyPortrait(parent, y, W, PSSet)
                   return PV("partyPortraitBorderClassColor", true) and 1 or 0.3
               end },
           } });  y = y - h
-    Cog(shapeRow._rightRegion, "Shape Border Settings", {
+    EllesmereUI.BuildInlineCog(shapeRow._rightRegion, { title = "Shape Border Settings", rows = {
         { type="slider", label="Size", min=1, max=7, step=1,
           get=function() return PV("partyPortraitBorderSize", 7) end,
           set=function(v) PtSet("partyPortraitBorderSize", v) end },
         { type="slider", label="Opacity", min=0, max=100, step=1,
           get=function() return PV("partyPortraitBorderOpacity", 100) end,
           set=function(v) PtSet("partyPortraitBorderOpacity", v) end },
-    })
+    } })
     return y
 end
 
@@ -1281,7 +1256,7 @@ initFrame:SetScript("OnEvent", function(self)
         -- Vertical Fill cog lives in the Health Bar party-sync section, so an unsynced party tab keeps its own value.
         if not EllesmereUI._prebuilding then
             local lrgn = texRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(lrgn, {
                 title = "Health Bar Fill",
                 rows = {
                     ns.RF_PartyKitGate({ type="toggle", label="Vertical Fill",
@@ -1291,18 +1266,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("healthVerticalFill", v); EllesmereUI:RefreshPage() end }),
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, lrgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", lrgn._lastInline or lrgn._control, "LEFT", -8, 0)
-            lrgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(lrgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints()
-            cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(s) s:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(s) s:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(s) cogShow(s) end)
         end
         y = y - h
 
@@ -1658,7 +1621,7 @@ initFrame:SetScript("OnEvent", function(self)
                 return true
             end
             SyncAbsorbEdgeLabels()
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            local _, cogShow = EllesmereUI.BuildInlineCog(rgn, {
                 title = "Absorb Rendering",
                 rows = {
                     { type="dropdown", label="Placement",
@@ -1704,18 +1667,6 @@ initFrame:SetScript("OnEvent", function(self)
                     end
                 end
             end)
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints()
-            cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
 
         local function CurAbsorbBarPos()
@@ -1741,7 +1692,14 @@ initFrame:SetScript("OnEvent", function(self)
               setValue=function(v) SSet("absorbBarHeight", v) end });  y = y - h
         if not EllesmereUI._prebuilding then
             local rgn = absorbBarRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                -- Vertical Grow, its only setting, has no effect off the vertical positions.
+                disabled = function()
+                    local p = CurAbsorbBarPos()
+                    return p ~= "rightVertical" and p ~= "leftVertical"
+                end,
+                disabledTooltip = "Only affects the vertical (Right/Left Edge) positions",
+                rawTooltip = true,
                 title = "Absorb Bar Rendering",
                 rows = {
                     { type="dropdown", label="Vertical Grow",
@@ -1757,24 +1715,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("absorbBarGrowDir", v) end },
                 },
             })
-            -- Grey + block the cog off the vertical positions: its only setting, Vertical Grow, has no effect there.
-            local function cogOff()
-                local p = CurAbsorbBarPos()
-                return p ~= "rightVertical" and p ~= "leftVertical"
-            end
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(cogOff() and 0.15 or 0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints()
-            cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) if not cogOff() then self:SetAlpha(0.7) end end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(cogOff() and 0.15 or 0.4) end)
-            cogBtn:SetScript("OnClick", function(self) if not cogOff() then cogShow(self) end end)
-            EllesmereUI.RegisterWidgetRefresh(function() cogBtn:SetAlpha(cogOff() and 0.15 or 0.4) end)
         end
         -- The size slider reads as width for the vertical positions; retitle live.
         do
@@ -1874,7 +1814,7 @@ initFrame:SetScript("OnEvent", function(self)
                 return true
             end
             SyncHealAbsorbEdgeLabels()
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            local _, cogShow = EllesmereUI.BuildInlineCog(rgn, {
                 title = "Heal Absorb Rendering",
                 rows = {
                     { type="dropdown", label="Placement",
@@ -1899,18 +1839,6 @@ initFrame:SetScript("OnEvent", function(self)
                     end
                 end
             end)
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints()
-            cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
 
         do
@@ -1952,7 +1880,14 @@ initFrame:SetScript("OnEvent", function(self)
             end
             if not EllesmereUI._prebuilding then
                 local rgn = healAbsorbBarRow._leftRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(rgn, {
+                    -- Vertical Grow is inert off the vertical positions.
+                    disabled = function()
+                        local p = CurHealAbsorbBarPos()
+                        return p ~= "rightVertical" and p ~= "leftVertical"
+                    end,
+                    disabledTooltip = "Only affects the vertical (Right/Left Edge) positions",
+                    rawTooltip = true,
                     title = "Heal Absorb Bar Rendering",
                     rows = {
                         { type="dropdown", label="Vertical Grow",
@@ -1968,24 +1903,6 @@ initFrame:SetScript("OnEvent", function(self)
                           set=function(v) SSet("healAbsorbBarGrowDir", v) end },
                     },
                 })
-                -- Grey + block off the vertical positions: Vertical Grow is inert.
-                local function cogOff()
-                    local p = CurHealAbsorbBarPos()
-                    return p ~= "rightVertical" and p ~= "leftVertical"
-                end
-                local cogBtn = CreateFrame("Button", nil, rgn)
-                cogBtn:SetSize(26, 26)
-                cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                rgn._lastInline = cogBtn
-                cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                cogBtn:SetAlpha(cogOff() and 0.15 or 0.4)
-                local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                cogTex:SetAllPoints()
-                cogTex:SetTexture(EllesmereUI.COGS_ICON)
-                cogBtn:SetScript("OnEnter", function(self) if not cogOff() then self:SetAlpha(0.7) end end)
-                cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(cogOff() and 0.15 or 0.4) end)
-                cogBtn:SetScript("OnClick", function(self) if not cogOff() then cogShow(self) end end)
-                EllesmereUI.RegisterWidgetRefresh(function() cogBtn:SetAlpha(cogOff() and 0.15 or 0.4) end)
             end
             -- The size slider reads as width for the vertical positions; retitle live.
             do
@@ -2047,7 +1964,7 @@ initFrame:SetScript("OnEvent", function(self)
             -- Cog carries backing opacity only; placement is fixed right-side.
             if not EllesmereUI._prebuilding then
                 local rgn = maxHealthRow._leftRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(rgn, {
                     title = "Max Health Rendering",
                     rows = {
                         { type="slider", label="Backing Opacity", min=0, max=100, step=1,
@@ -2055,18 +1972,6 @@ initFrame:SetScript("OnEvent", function(self)
                           set=function(v) SSet("maxHealthBgOpacity", v) end },
                     },
                 })
-                local cogBtn = CreateFrame("Button", nil, rgn)
-                cogBtn:SetSize(26, 26)
-                cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                rgn._lastInline = cogBtn
-                cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                cogBtn:SetAlpha(0.4)
-                local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                cogTex:SetAllPoints()
-                cogTex:SetTexture(EllesmereUI.COGS_ICON)
-                cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-                cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-                cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
             end
         end
 
@@ -2241,7 +2146,8 @@ initFrame:SetScript("OnEvent", function(self)
             -- Cog: uniform icon anchoring. Greyed + blocked while no role shows a power bar (nothing to ignore then).
             do
                 local rgn = row._rightRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(rgn, {
+                    disabled = IsPowerOff, disabledTooltip = "Show Power Bar For",
                     title = "Power Height",
                     rows = {
                         { type="toggle", label="Icons Ignore Power Bar",
@@ -2254,18 +2160,6 @@ initFrame:SetScript("OnEvent", function(self)
                           set=function(v) SSet("extendHealthBehindPower", v) end },
                     },
                 })
-                local cogBtn = CreateFrame("Button", nil, rgn)
-                cogBtn:SetSize(26, 26)
-                cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                rgn._lastInline = cogBtn
-                cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                cogBtn:SetAlpha(IsPowerOff() and 0.15 or 0.4)
-                local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-                cogBtn:SetScript("OnEnter", function(self) if not IsPowerOff() then self:SetAlpha(0.7) end end)
-                cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(IsPowerOff() and 0.15 or 0.4) end)
-                cogBtn:SetScript("OnClick", function(self) if not IsPowerOff() then cogShow(self) end end)
-                EllesmereUI.RegisterWidgetRefresh(function() cogBtn:SetAlpha(IsPowerOff() and 0.15 or 0.4) end)
             end
             if not EllesmereUI._prebuilding then
                 local rgn = row._leftRegion
@@ -2477,7 +2371,7 @@ initFrame:SetScript("OnEvent", function(self)
         -- Name char cap + text stacking cog, on the Name Size slider.
         do
             local rgn = row._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
                 title = "Name Text",
                 rows = {
                     { type="slider", label="Max Characters (0=off)", min=0, max=30, step=1,
@@ -2489,17 +2383,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("nameTextAboveIcons", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(s) s:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(s) s:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(s) cogShow(s) end)
         end
 
         -- Party Frames kit: the name has the stock spot (its offsets stay on
@@ -2523,7 +2406,8 @@ initFrame:SetScript("OnEvent", function(self)
                   function(v) SSet("healthTextMode", v) end) });  y = y - h
         do
             local rgn = row._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                icon = EllesmereUI.DIRECTIONS_ICON,
                 title = "Name Offset",
                 rows = {
                     { type="slider", label="Offset X", min=-50, max=50, step=1,
@@ -2534,17 +2418,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("nameOffsetY", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-            cogBtn:SetScript("OnEnter", function(s) s:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(s) s:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(s) cogShow(s) end)
         end
         -- Health Text color swatches (custom/class/accent), mirroring the Name Color triple. Custom is added FIRST so the _lastInline chain places it next to the dropdown, matching Name Color.
         if not EllesmereUI._prebuilding then
@@ -2616,7 +2489,8 @@ initFrame:SetScript("OnEvent", function(self)
               setValue=function(v) SSet("healthTextSize", v) end });  y = y - h
         do
             local rgn = row._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                icon = EllesmereUI.DIRECTIONS_ICON,
                 title = "Health Text Offset",
                 rows = {
                     { type="slider", label="Offset X", min=-50, max=50, step=1,
@@ -2627,17 +2501,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("healthTextOffsetY", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-            cogBtn:SetScript("OnEnter", function(s) s:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(s) s:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(s) cogShow(s) end)
         end
         end   -- close Health Text dependent-row gate
 
@@ -2715,7 +2578,10 @@ initFrame:SetScript("OnEvent", function(self)
         -- Offset cog on the Heal Absorb Text Position region.
         do
             local rgn = row._rightRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                icon = EllesmereUI.DIRECTIONS_ICON,
+                disabled = function() return SVal("healAbsorbTextMode", "none") == "none" end,
+                disabledTooltip = "Heal Absorb Text",
                 title = "Heal Absorb Text Offset",
                 rows = {
                     { type="slider", label="Offset X", min=-50, max=50, step=1,
@@ -2726,20 +2592,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("healAbsorbTextOffsetY", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            local haOff = SVal("healAbsorbTextMode", "none") == "none"
-            cogBtn:SetAlpha(haOff and 0.15 or 0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-            cogBtn:SetScript("OnEnter", function(s) s:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(s)
-                s:SetAlpha(SVal("healAbsorbTextMode", "none") == "none" and 0.15 or 0.4)
-            end)
-            cogBtn:SetScript("OnClick", function(s) cogShow(s) end)
         end
         -- Row 5: Heal Absorb Text Size | (blank odd last slot). Hidden entirely
         -- while Heal Absorb Text is None.
@@ -2892,7 +2744,7 @@ initFrame:SetScript("OnEvent", function(self)
         end
         do
             local rgn = row._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
                 title = "Role Icons",
                 rows = {
                     { type="toggle", label="Hide In Combat",
@@ -2905,18 +2757,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("roleIconBehindBorder", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints()
-            cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
         local rolePositionValues = {
             topleft     = "Top Left",
@@ -2946,7 +2786,8 @@ initFrame:SetScript("OnEvent", function(self)
               setValue=function(v) SSet("roleIconSize", v) end });  y = y - h
         if not EllesmereUI._prebuilding then
             local rgn = roleRow2._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                icon = EllesmereUI.DIRECTIONS_ICON,
                 title = "Role Icon Offset",
                 rows = {
                     { type="slider", label="Offset X", min=-50, max=50, step=1,
@@ -2957,17 +2798,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("roleIconOffsetY", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
 
         local markerPositionValues = {
@@ -3006,7 +2836,8 @@ initFrame:SetScript("OnEvent", function(self)
 
         do
             local rgn = row._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                icon = EllesmereUI.DIRECTIONS_ICON,
                 title = "Marker Offset",
                 rows = {
                     { type="slider", label="Offset X", min=-50, max=50, step=1,
@@ -3017,17 +2848,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("raidMarkerOffsetY", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
 
         -- Rows below Marker Position are the less-common indicators. The RAID tab collapses them behind the shared session expander (BuildLessCommonExpander in EllesmereUI_Widgets.lua, honors the global Auto Expand Less Common Settings toggle); the party tab always shows them.
@@ -3061,7 +2881,8 @@ initFrame:SetScript("OnEvent", function(self)
               setValue=function(v) SSet("readyCheckSize", v) end });  y = y - h
         if not EllesmereUI._prebuilding then
             local rgn = rcRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                icon = EllesmereUI.DIRECTIONS_ICON,
                 title = "Ready Check / Summon / Rez",
                 rows = {
                     { type="toggle", label="Show Ready Check",
@@ -3081,17 +2902,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("readyCheckOffsetY", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
 
         local statusTextPositionValues = {
@@ -3117,7 +2927,7 @@ initFrame:SetScript("OnEvent", function(self)
               setValue=function(v) SSet("statusTextSize", v) end });  y = y - h
         if not EllesmereUI._prebuilding then
             local rgn = stRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
                 title = "Status Text",
                 rows = {
                     { type="toggle", label="Show AFK",
@@ -3131,17 +2941,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("statusTextOffsetY", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
         if not EllesmereUI._prebuilding then
             local rgn = stRow._rightRegion
@@ -3204,7 +3003,8 @@ initFrame:SetScript("OnEvent", function(self)
               setValue=function(v) SSet("leaderIconSize", v) end });  y = y - h
         do
             local rgn = row._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                icon = EllesmereUI.DIRECTIONS_ICON,
                 title = "Leader Icon",
                 rows = {
                     { type="toggle", label="Show In Combat",
@@ -3219,17 +3019,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("leaderIconOffsetY", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
 
         -- Combat Icon Position ("None" disables) | Combat Icon Size; shows on members currently in combat. Style/color/offset live in the inline cog.
@@ -3281,7 +3070,7 @@ initFrame:SetScript("OnEvent", function(self)
               setValue=function(v) SSet("combatIndicatorSize", v) end });  y = y - h
         if not EllesmereUI._prebuilding then
             local rgn = ciRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
                 title = "Combat Icon",
                 rows = {
                     { type="dropdown", label="Style", values=combatStyleValues, order=combatStyleOrder,
@@ -3304,17 +3093,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("combatIndicatorOffsetY", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
         if not EllesmereUI._prebuilding then
             local rgn = ciRow._rightRegion
@@ -3361,7 +3139,8 @@ initFrame:SetScript("OnEvent", function(self)
             end
             if not EllesmereUI._prebuilding then
                 local rgn = gnRow._leftRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(rgn, {
+                    icon = EllesmereUI.DIRECTIONS_ICON,
                     title = "Group Number Offset",
                     rows = {
                         { type="slider", label="Offset X", min=-50, max=50, step=1,
@@ -3372,17 +3151,6 @@ initFrame:SetScript("OnEvent", function(self)
                           set=function(v) SSet("groupNumberOffsetY", v) end },
                     },
                 })
-                local cogBtn = CreateFrame("Button", nil, rgn)
-                cogBtn:SetSize(26, 26)
-                cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                rgn._lastInline = cogBtn
-                cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                cogBtn:SetAlpha(0.4)
-                local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-                cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-                cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-                cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
             end
         end
 
@@ -3426,7 +3194,8 @@ initFrame:SetScript("OnEvent", function(self)
               setValue=function(v) SSet("pingMarkerSize", v) end });  y = y - h
         if not EllesmereUI._prebuilding then
             local rgn = pingRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                icon = EllesmereUI.DIRECTIONS_ICON,
                 title = "Ping Marker Offset",
                 rows = {
                     { type="slider", label="Offset X", min=-50, max=50, step=1,
@@ -3437,17 +3206,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("pingMarkerOffsetY", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
         end   -- close the less-common-indicators collapse wrapper
         -- While expanded the shared link re-renders here in its "Hide ..." form; no-op while collapsed or in party ctx.
@@ -3579,7 +3337,10 @@ initFrame:SetScript("OnEvent", function(self)
               end });  y = y - h
         do
             local rgn = row._rightRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                icon = EllesmereUI.RESIZE_ICON,
+                disabled = function() return not SVal("showDispelIcons", false) end,
+                disabledTooltip = "This option requires a Type Icon Position other than None",
                 title = "Dispel Icon",
                 rows = {
                     { type="slider", label="Icon Size", min=8, max=48, step=1,
@@ -3593,22 +3354,11 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("dispelIconOffsetY", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(SVal("showDispelIcons", false) and 0.4 or 0.15)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.RESIZE_ICON)
-            cogBtn:SetScript("OnEnter", function(self) if SVal("showDispelIcons", false) then self:SetAlpha(0.7) end end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(SVal("showDispelIcons", false) and 0.4 or 0.15) end)
-            cogBtn:SetScript("OnClick", function(self) if SVal("showDispelIcons", false) then cogShow(self) end end)
         end
         -- Cog on the Dispel Border slider: thickness in physical pixels of the engine-tinted dispel ring on dispellable debuff ICONS.
         if not EllesmereUI._prebuilding then
             local rgn = row._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
                 title = "Dispel Border",
                 rows = {
                     { type="slider", label="Debuff Icon Border", min=-1, max=4, step=1,
@@ -3617,17 +3367,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("dispelIconBorderSize", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
 
         -- Dispel Colors: five always-active swatches, one per type. Unlike Name Color (a mode picker) each is independently editable, so no onClick/refreshAlpha -- the default click opens the picker.
@@ -3707,7 +3446,8 @@ initFrame:SetScript("OnEvent", function(self)
         end
         do
             local rgn = tnbRow2._rightRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                icon = EllesmereUI.DIRECTIONS_ICON,
                 title = "Text Offset",
                 rows = {
                     { type="slider", label="Offset X", min=-50, max=50, step=1,
@@ -3718,17 +3458,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("topNameBarTextOffsetY", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
 
         -- Align dropdown plus a custom/class swatch pair that doubles as the color-mode selector (as with Health Text). Defaults to class.
@@ -3840,7 +3569,8 @@ initFrame:SetScript("OnEvent", function(self)
             -- like every row below the dropdown.
             if not EllesmereUI._prebuilding then
                 local rgn = row._leftRegion
-                local _, fbCogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(rgn, {
+                    disabled = function() return not FBEnabled() end, disabledTooltip = FB_DISABLED_TIP,
                     title = "Friendly Boss Group",
                     rows = {
                         { type="toggle", label="Show in Dungeons",
@@ -3853,19 +3583,6 @@ initFrame:SetScript("OnEvent", function(self)
                           end },
                     },
                 })
-                local cogBtn = CreateFrame("Button", nil, rgn)
-                cogBtn:SetSize(26, 26)
-                cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                rgn._lastInline = cogBtn
-                cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                cogBtn:SetAlpha(FBEnabled() and 0.4 or 0.15)
-                local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                cogTex:SetAllPoints()
-                cogTex:SetTexture(EllesmereUI.COGS_ICON)
-                cogBtn:SetScript("OnEnter", function(self) if FBEnabled() then self:SetAlpha(0.7) end end)
-                cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(FBEnabled() and 0.4 or 0.15) end)
-                cogBtn:SetScript("OnClick", function(self) if FBEnabled() then fbCogShow(self) end end)
-                EllesmereUI.RegisterWidgetRefresh(function() cogBtn:SetAlpha(FBEnabled() and 0.4 or 0.15) end)
             end
             if FBEnabled() then
             -- Free Move Position: label left, Move Frames button right (Free Move only). Right slot: Boss Health Color.
@@ -3889,8 +3606,10 @@ initFrame:SetScript("OnEvent", function(self)
                 lbl:SetPoint("CENTER", btn, "CENTER", 0, 0)
                 lbl:SetText(EllesmereUI.L("Move Frames"))
 
-                -- Created before UpdateMoveBtn so that closure captures cogBtn.
-                local _, fmCogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(row, {
+                    anchorTo = btn, chain = false,
+                    disabled = function() return not (FBEnabled() and FBSet().position == "free") end,
+                    disabledTooltip = "This option requires Position to be set to Free Move",
                     title = "Free Move Options",
                     rows = {
                         { type="toggle", label="Horizontal Frames",
@@ -3906,18 +3625,6 @@ initFrame:SetScript("OnEvent", function(self)
                           end },
                     },
                 })
-                local cogBtn = CreateFrame("Button", nil, row)
-                cogBtn:SetSize(26, 26)
-                cogBtn:SetPoint("RIGHT", btn, "LEFT", -8, 0)
-                cogBtn:SetFrameLevel(row:GetFrameLevel() + 5)
-                local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                cogTex:SetAllPoints()
-                cogTex:SetTexture(EllesmereUI.COGS_ICON)
-                cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-                cogBtn:SetScript("OnLeave", function(self)
-                    self:SetAlpha(FBSet().position == "free" and 0.4 or 0.15)
-                end)
-                cogBtn:SetScript("OnClick", function(self) fmCogShow(self) end)
 
                 -- Capture the region NOW: the shared `row` local is reused by later rows, so closures must not read it at refresh time.
                 local fmRegion = row._leftRegion
@@ -3929,9 +3636,6 @@ initFrame:SetScript("OnEvent", function(self)
                     local active = ns.FB_IsMoverShown and ns.FB_IsMoverShown()
                     lbl:SetText(active and EllesmereUI.L("Stop Moving") or EllesmereUI.L("Move Frames"))
                     btn:SetAlpha(MoveAllowed() and 1 or 0.35)
-                    local freeOn = FBEnabled() and FBSet().position == "free"
-                    cogBtn:SetAlpha(freeOn and 0.4 or 0.15)
-                    cogBtn:EnableMouse(freeOn)
                     -- Plain-label slots have no native disabled handling.
                     if fmRegion._label then
                         fmRegion._label:SetAlpha(FBEnabled() and 1 or 0.3)
@@ -4056,7 +3760,7 @@ initFrame:SetScript("OnEvent", function(self)
             -- Inline cog on Show Tanks: tank auto-include options.
             if not EllesmereUI._prebuilding then
                 local rgn = row._rightRegion
-                local _, xfCogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(rgn, {
                     title = "Show Tanks Options",
                     rows = {
                         { type="toggle", label="Exclude Myself",
@@ -4068,18 +3772,6 @@ initFrame:SetScript("OnEvent", function(self)
                           end },
                     },
                 })
-                local cogBtn = CreateFrame("Button", nil, rgn)
-                cogBtn:SetSize(26, 26)
-                cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                rgn._lastInline = cogBtn
-                cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                cogBtn:SetAlpha(0.4)
-                local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                cogTex:SetAllPoints()
-                cogTex:SetTexture(EllesmereUI.COGS_ICON)
-                cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-                cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-                cogBtn:SetScript("OnClick", function(self) xfCogShow(self) end)
             end
             if not EllesmereUI._prebuilding then
                 local rgn = row._leftRegion
@@ -4341,7 +4033,7 @@ initFrame:SetScript("OnEvent", function(self)
                   end }); y = y - h
             do
                 local rgn = row._rightRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(rgn, {
                     title = "Row Wrapping",
                     rows = {
                         { type="slider", label="Wrap After", min=0, max=20, step=1,
@@ -4352,18 +4044,6 @@ initFrame:SetScript("OnEvent", function(self)
                           end },
                     },
                 })
-                local cogBtn = CreateFrame("Button", nil, rgn)
-                cogBtn:SetSize(26, 26)
-                cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                rgn._lastInline = cogBtn
-                cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                cogBtn:SetAlpha(0.4)
-                local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                cogTex:SetAllPoints()
-                cogTex:SetTexture(EllesmereUI.COGS_ICON)
-                cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-                cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-                cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
             end
             end -- Free Move only row
 
@@ -4396,7 +4076,7 @@ initFrame:SetScript("OnEvent", function(self)
             -- regardless of the extra frames' custom size).
             do
                 local rgn = row._leftRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(rgn, {
                     title = "Extra Frame Size",
                     rows = {
                         { type="toggle", label="Auto Resize Indicators",
@@ -4408,18 +4088,6 @@ initFrame:SetScript("OnEvent", function(self)
                           end },
                     },
                 })
-                local cogBtn = CreateFrame("Button", nil, rgn)
-                cogBtn:SetSize(26, 26)
-                cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                rgn._lastInline = cogBtn
-                cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                cogBtn:SetAlpha(0.4)
-                local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                cogTex:SetAllPoints()
-                cogTex:SetTexture(EllesmereUI.COGS_ICON)
-                cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-                cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-                cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
             end
             end   -- close Extra Frames hidden-while-unconfigured gate
 
@@ -4477,21 +4145,10 @@ initFrame:SetScript("OnEvent", function(self)
                           SSet("buffHideTooltips", v); if ns.ReloadFrames then ns.ReloadFrames() end
                       end },
                 }
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
                 title = "Tooltip Settings",
                 rows = tipRows,
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(s) s:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(s) s:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(s) cogShow(s) end)
         end
 
         -- Healer Mana Display: one mana-percent text row per group healer,
@@ -4574,7 +4231,7 @@ initFrame:SetScript("OnEvent", function(self)
         -- Inline cog (text settings) + preview eyeball on the toggle
         if not EllesmereUI._prebuilding then
             local rgn = hmRow._leftRegion
-            local _, hmCogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
                 title = "Healer Mana Display",
                 rows = {
                     { type="slider", label="Text Size", min=8, max=24, step=1,
@@ -4616,17 +4273,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            local hmCogBtn = CreateFrame("Button", nil, rgn)
-            hmCogBtn:SetSize(26, 26)
-            hmCogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = hmCogBtn
-            hmCogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            hmCogBtn:SetAlpha(0.4)
-            local hmCogTex = hmCogBtn:CreateTexture(nil, "OVERLAY")
-            hmCogTex:SetAllPoints(); hmCogTex:SetTexture(EllesmereUI.COGS_ICON)
-            hmCogBtn:SetScript("OnEnter", function(s) s:SetAlpha(0.7) end)
-            hmCogBtn:SetScript("OnLeave", function(s) s:SetAlpha(0.4) end)
-            hmCogBtn:SetScript("OnClick", function(s) hmCogShow(s) end)
 
             local EYE_VISIBLE   = EllesmereUI.EYE_VISIBLE_ICON
             local EYE_INVISIBLE = EllesmereUI.EYE_INVISIBLE_ICON
@@ -4925,7 +4571,8 @@ initFrame:SetScript("OnEvent", function(self)
                                      tip = "Group size at which this layout takes over from the 30 Man layout." },
                         }
                         local tb = TIER_BOUNDS[tier]
-                        local _, cogShow = EllesmereUI.BuildCogPopup({
+                        EllesmereUI.BuildInlineCog(rgn, {
+                            icon = EllesmereUI.DIRECTIONS_ICON,
                             title = EllesmereUI.Lf("%1$s Options", EllesmereUI.L(tierLabel)),
                             rows = {
                                 { type="slider", label=tb.label, min=tb.min, max=tb.max, step=1,
@@ -5004,17 +4651,6 @@ initFrame:SetScript("OnEvent", function(self)
                                   end },
                             },
                         })
-                        local cogBtn = CreateFrame("Button", nil, rgn)
-                        cogBtn:SetSize(26, 26)
-                        cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                        rgn._lastInline = cogBtn
-                        cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                        cogBtn:SetAlpha(0.4)
-                        local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                        cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-                        cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-                        cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-                        cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
                     end
                 end
             end
@@ -5137,7 +4773,8 @@ initFrame:SetScript("OnEvent", function(self)
               apply=ReloadAndUpdate })));  y = y - h
         if not EllesmereUI._prebuilding then
             local rgn = borderStyleRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            local cogBtn = EllesmereUI.BuildInlineCog(rgn, {
+                icon = EllesmereUI.DIRECTIONS_ICON,
                 title = "Border Options",
                 rows = {
                     { type="slider", label="Shift X", min=-10, max=10, step=1,
@@ -5159,17 +4796,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("borderBehind", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-            cogBtn:SetScript("OnEnter", function(s) s:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(s) s:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(s) cogShow(s) end)
             local function UpdateCogVis()
                 local tex = SGet("borderTexture") or "solid"
                 if tex == "solid" then cogBtn:Hide() else cogBtn:Show() end
@@ -5334,7 +4960,8 @@ initFrame:SetScript("OnEvent", function(self)
                 getPx=function() return SGetPx("targetBorderSizePx", "targetBorderSize") end,
                 setPx=function(v) SWrite("targetBorderSizePx", v) end,
                 apply=ReloadAndUpdate })
-            local _, hlCogShow = EllesmereUI.BuildCogPopup({
+            local hlCog = EllesmereUI.BuildInlineCog(rightRgn, {
+                icon = EllesmereUI.DIRECTIONS_ICON,
                 title = "Highlight Border",
                 rows = {
                     { type="slider", label="Hover Border Size", min=1, max=hoverPx.max, step=1,
@@ -5348,17 +4975,6 @@ initFrame:SetScript("OnEvent", function(self)
                       get=targetPx.getValue, set=targetPx.setValue },
                 },
             })
-            local hlCog = CreateFrame("Button", nil, rightRgn)
-            hlCog:SetSize(26, 26)
-            hlCog:SetPoint("RIGHT", rightRgn._lastInline, "LEFT", -8, 0)
-            rightRgn._lastInline = hlCog
-            hlCog:SetFrameLevel(rightRgn:GetFrameLevel() + 5)
-            hlCog:SetAlpha(0.4)
-            local hlCogTex = hlCog:CreateTexture(nil, "OVERLAY")
-            hlCogTex:SetAllPoints(); hlCogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-            hlCog:SetScript("OnEnter", function(s) s:SetAlpha(0.7) end)
-            hlCog:SetScript("OnLeave", function(s) s:SetAlpha(0.4) end)
-            hlCog:SetScript("OnClick", function(s) hlCogShow(s) end)
             local function UpdateHLCogVis()
                 -- Under a stock style the EllesmereUI border is stood down, so
                 -- the hover border draws on its own at this size.
@@ -5520,7 +5136,7 @@ initFrame:SetScript("OnEvent", function(self)
             rgn._lastInline = nil
             EllesmereUI.RegisterWidgetRefresh(cbDDRefresh)
 
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
                 title = "Show Groups",
                 rows = {
                     { type="toggle", label="Hide Empty Groups",
@@ -5533,18 +5149,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) SSet("excludeHiddenGroupsFromSize", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints()
-            cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
             end
 
@@ -5620,22 +5224,6 @@ initFrame:SetScript("OnEvent", function(self)
         if ns.RF_Stock and ns.RF_Stock() and (p0.useBlizzardStyle or p0.useClassicStyle) then
             _, h = W:SectionHeader(parent, "FRAME STYLE", y); y = y - h
             local kitOn = ns.RF_PartyKit and ns.RF_PartyKit()
-            -- Inline cog button (the Party Frames rows below).
-            local function KitCog(rgn, title, rows)
-                if EllesmereUI._prebuilding then return end
-                local _, cogShow = EllesmereUI.BuildCogPopup({ title = title, rows = rows })
-                local cogBtn = CreateFrame("Button", nil, rgn)
-                cogBtn:SetSize(26, 26)
-                cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                rgn._lastInline = cogBtn
-                cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                cogBtn:SetAlpha(0.4)
-                local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-                cogBtn:SetScript("OnEnter", function(s) s:SetAlpha(0.7) end)
-                cogBtn:SetScript("OnLeave", function(s) s:SetAlpha(0.4) end)
-                cogBtn:SetScript("OnClick", function(s) cogShow(s) end)
-            end
             -- Frame Scale default (nil = this, 120%).
             local scaleDef = math.floor((ns.RF_KIT_SCALE or 1.2) * 100 + 0.5)
             local styleRow
@@ -5671,11 +5259,11 @@ initFrame:SetScript("OnEvent", function(self)
                 or { type="label", text="" });  y = y - h
             if kitOn then
                 -- Frame Scale cog: the gap between the party frames.
-                KitCog(styleRow._rightRegion, "Frame Scale", {
+                EllesmereUI.BuildInlineCog(styleRow._rightRegion, { title = "Frame Scale", rows = {
                     { type="slider", label="Spacing", min=0, max=30, step=1,
                       get=function() return db.profile.partyKitSpacing or ns.RF_KIT_SPACING or 6 end,
                       set=function(v) PSSet("partyKitSpacing", v) end },
-                })
+                } })
                 -- Party Frames: the aura row under the frame and the buff run
                 -- beside it (sizes, X/Y, and where the buffs sit).
                 local kitAuraRow
@@ -5686,17 +5274,17 @@ initFrame:SetScript("OnEvent", function(self)
                     { type="slider", text="Buff Size", min=8, max=40, step=1,
                       getValue=function() return db.profile.partyKitBuffSize or 15 end,
                       setValue=function(v) PSSet("partyKitBuffSize", v) end });  y = y - h
-                KitCog(kitAuraRow._leftRegion, "Debuff Position", {
+                EllesmereUI.BuildInlineCog(kitAuraRow._leftRegion, { title = "Debuff Position", rows = {
                     { type="slider", label="Offset X", min=-100, max=100, step=1,
                       get=function() return db.profile.partyKitDebuffX or 0 end,
                       set=function(v) PSSet("partyKitDebuffX", v) end },
                     { type="slider", label="Offset Y", min=-100, max=100, step=1,
                       get=function() return db.profile.partyKitDebuffY or 0 end,
                       set=function(v) PSSet("partyKitDebuffY", v) end },
-                })
+                } })
                 -- Horizontal Frames always puts the buffs above each frame
                 -- (the next frame sits beside it): the side picks disable.
-                KitCog(kitAuraRow._rightRegion, "Buff Position", {
+                EllesmereUI.BuildInlineCog(kitAuraRow._rightRegion, { title = "Buff Position", rows = {
                     { type="dropdown", label="Anchor",
                       values={ right = "Right of Frame", left = "Left of Frame", above = "Above Frame" },
                       order={ "right", "left", "above" },
@@ -5720,7 +5308,7 @@ initFrame:SetScript("OnEvent", function(self)
                     { type="slider", label="Offset Y", min=-100, max=100, step=1,
                       get=function() return db.profile.partyKitBuffY or 0 end,
                       set=function(v) PSSet("partyKitBuffY", v) end },
-                })
+                } })
             end
         end
 
@@ -5760,7 +5348,10 @@ initFrame:SetScript("OnEvent", function(self)
 
         if not EllesmereUI._prebuilding then
             local rgn = syncRow._rightRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                -- Off while only the Raid toggle is on: party never shows solo then (both on = party does show).
+                disabled = function() return db.profile.showWhenSolo and not db.profile.partyShowWhenSolo end,
+                disabledTooltip = "Raid Frames Show When Solo", requireState = "disabled",
                 title = "Show When Solo",
                 rows = {
                     { type = "toggle", label = "Center When Solo",
@@ -5772,34 +5363,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints()
-            cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
-            local cogDis = CreateFrame("Frame", nil, rgn)
-            cogDis:SetAllPoints(cogBtn)
-            cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-            cogDis:EnableMouse(true)
-            cogDis:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("Raid Frames Show When Solo", "disabled"))
-            end)
-            cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateSoloCogDis()
-                -- Disabled whenever Raid Frames Show When Solo is the one that is on: that means
-                -- party never shows solo (both on = party does show, so its cog stays usable).
-                if db.profile.showWhenSolo and not db.profile.partyShowWhenSolo then cogDis:Show() else cogDis:Hide() end
-            end
-            cogBtn:HookScript("OnShow", UpdateSoloCogDis)
-            EllesmereUI.RegisterWidgetRefresh(UpdateSoloCogDis)
-            UpdateSoloCogDis()
         end
 
         -- Left dropdown becomes a per-section sync checkbox dropdown.
@@ -5931,7 +5494,7 @@ initFrame:SetScript("OnEvent", function(self)
                 for _, t in ipairs(order) do out[#out + 1] = { key = t, label = names[t] or t } end
                 return out
             end
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
                 title = "Class Sorting",
                 rows = {
                     { type = "toggle", label = "Prioritize Class",
@@ -5944,17 +5507,6 @@ initFrame:SetScript("OnEvent", function(self)
                       disabled = function() return not db.profile.partyPrioritizeClass end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(s) s:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(s) s:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(s) cogShow(s) end)
         end
 
         _, h = W:DualRow(parent, y,

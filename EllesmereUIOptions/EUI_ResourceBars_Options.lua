@@ -1103,24 +1103,7 @@ initFrame:SetScript("OnEvent", function(self)
         UpdatePreviewHeader()
     end
 
-    -- Inline cog button next to a DualRow region
-    local function MakeCogBtn(rgn, showFn, anchorTo, iconPath)
-        local cogBtn = CreateFrame("Button", nil, rgn)
-        cogBtn:SetSize(26, 26)
-        cogBtn:SetPoint("RIGHT", anchorTo or rgn._lastInline or rgn._control, "LEFT", -8, 0)
-        rgn._lastInline = cogBtn
-        cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        cogBtn:SetAlpha(0.4)
-        local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-        cogTex:SetAllPoints()
-        cogTex:SetTexture(iconPath or EllesmereUI.COGS_ICON)
-        cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-        cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-        cogBtn:SetScript("OnClick", function(self) showFn(self) end)
-        return cogBtn
-    end
-
-    -- Cog + popup for simple per-bar hash lines (Health/Power). cfg = { parentRgn, getBarData, refreshFn, disabledFn, disabledTip, popupTitle, anchorTo }; returns cogBtn.
+    -- Cog + popup for simple per-bar hash lines (Health/Power). cfg = { parentRgn, getBarData, refreshFn, popupTitle, anchorTo }; returns cogBtn.
     local function BuildHashCog(cfg)
         local getBarData = cfg.getBarData
         local refreshFn  = cfg.refreshFn or function() end
@@ -1182,17 +1165,12 @@ initFrame:SetScript("OnEvent", function(self)
               end },
         }
 
-        local _, showFn = EllesmereUI.BuildCogPopup({
+        return EllesmereUI.BuildInlineCog(cfg.parentRgn, {
+            anchorTo = cfg.anchorTo, tip = EllesmereUI.L("Hash Lines"),
             title = cfg.popupTitle or EllesmereUI.L("Hash Lines"), bgAlpha = 1,
             frameStrata = "FULLSCREEN_DIALOG", frameLevel = 500,
             rows = rows,
         })
-
-        local cogBtn = MakeCogBtn(cfg.parentRgn, showFn, cfg.anchorTo)
-        local tip = EllesmereUI.L("Hash Lines")
-        cogBtn:HookScript("OnEnter", function(self) EllesmereUI.ShowWidgetTooltip(self, tip) end)
-        cogBtn:HookScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-        return cogBtn
     end
     -- Druid-only per-form popup button. `field` picks the map the toggles write: "textDisabledForms" (text rows) or "barDisabledForms" (whole-bar rows).
     local function AddFormDisableBtn(rgn, leftOf, cfgFn, refreshFn, field, title, tooltip)
@@ -1224,25 +1202,17 @@ initFrame:SetScript("OnEvent", function(self)
                     refreshFn()
                 end }
         end
-        local _, formShow = EllesmereUI.BuildCogPopup({
+        local btn = EllesmereUI.BuildInlineCog(rgn, {
+            anchorTo = leftOf, tip = tooltip,
+            icon = "Interface\\AddOns\\EllesmereUI\\media\\icons\\class-full\\glyph.tga",
             title = title, bgAlpha = 1,
             frameStrata = "FULLSCREEN_DIALOG", frameLevel = 500,
             rows = rows,
         })
-        local btn = CreateFrame("Button", nil, rgn)
-        btn:SetSize(26, 26)
-        btn:SetPoint("RIGHT", leftOf or rgn._lastInline or rgn._control, "LEFT", -8, 0)
-        rgn._lastInline = btn
-        btn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        btn:SetAlpha(0.4)
-        local tex = btn:CreateTexture(nil, "OVERLAY")
-        tex:SetAllPoints()
-        tex:SetDesaturated(true)
-        tex:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\icons\\class-full\\glyph.tga")
-        tex:SetTexCoord(0.375, 0.5, 0, 0.125)  -- DRUID glyph
-        btn:SetScript("OnEnter", function(self) self:SetAlpha(0.7); EllesmereUI.ShowWidgetTooltip(self, tooltip) end)
-        btn:SetScript("OnLeave", function(self) self:SetAlpha(0.4); EllesmereUI.HideWidgetTooltip() end)
-        btn:SetScript("OnClick", function(self) formShow(self) end)
+        if not btn then return end
+        -- Crop the DRUID cell out of the class glyph sheet.
+        btn._icon:SetDesaturated(true)
+        btn._icon:SetTexCoord(0.375, 0.5, 0, 0.125)
         return btn
     end
     -- The L() literals keep both popup titles in the static locale key list: .tools/extract-locale-keys.sh only sees literal string arguments.
@@ -3324,7 +3294,7 @@ initFrame:SetScript("OnEvent", function(self)
             end
             if not EllesmereUI._prebuilding then
                 local rgn = hpBsRow._leftRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                local cogBtn = EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
                     title = "Border Options",
                     rows = {
                         { type = "slider", label = "Shift X", min = -10, max = 10, step = 1,
@@ -3359,7 +3329,6 @@ initFrame:SetScript("OnEvent", function(self)
                           end },
                     },
                 })
-                local cogBtn = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
                 local function UpdateCogVis()
                     local c = cfg()
                     local tex = c and c.borderTexture or "solid"
@@ -3553,7 +3522,9 @@ initFrame:SetScript("OnEvent", function(self)
         -- Fill Color inline cog: gradient settings
         if not EllesmereUI._prebuilding then
             local rgn = healthBorderRow._rightRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                disabled = function() local c = cfg(); return c and not c.enabled end,
+                disabledTooltip = "Health Bar",
                 title = "Fill Settings",
                 rows = {
                     { type = "toggle", label = "Enable Gradient",
@@ -3573,28 +3544,14 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            local cogBtn = MakeCogBtn(rgn, cogShow)
-            local cogDis = CreateFrame("Frame", nil, rgn)
-            cogDis:SetAllPoints(cogBtn)
-            cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-            cogDis:EnableMouse(true)
-            cogDis:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("Health Bar"))
-            end)
-            cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateCogDisGrad()
-                local c = cfg()
-                if c and not c.enabled then cogDis:Show() else cogDis:Hide() end
-            end
-            cogBtn:HookScript("OnShow", UpdateCogDisGrad)
-            EllesmereUI.RegisterWidgetRefresh(UpdateCogDisGrad)
-            UpdateCogDisGrad()
         end
 
         -- Out of Combat Opacity cog: dims the Health bar to this alpha out of combat (100 = no fade); applied by ns.ResolveBarAlpha in UpdateVisibility, which reacts to combat.
         if not EllesmereUI._prebuilding then
             local rgn = healthBorderRow._leftRegion
-            local _, oocCogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                disabled = function() local c = cfg(); return c and not c.enabled end,
+                disabledTooltip = "Health Bar",
                 title = "Out of Combat Opacity",
                 rows = {
                     { type = "toggle", label = "Fade Out of Combat",
@@ -3613,22 +3570,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            local oocCog = MakeCogBtn(rgn, oocCogShow)
-            local oocCogDis = CreateFrame("Frame", nil, rgn)
-            oocCogDis:SetAllPoints(oocCog)
-            oocCogDis:SetFrameLevel(oocCog:GetFrameLevel() + 5)
-            oocCogDis:EnableMouse(true)
-            oocCogDis:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(oocCog, EllesmereUI.DisabledTooltip("Health Bar"))
-            end)
-            oocCogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateOocCogDis()
-                local c = cfg()
-                if c and not c.enabled then oocCogDis:Show(); oocCog:SetAlpha(0.15) else oocCogDis:Hide(); oocCog:SetAlpha(0.4) end
-            end
-            oocCog:HookScript("OnShow", UpdateOocCogDis)
-            EllesmereUI.RegisterWidgetRefresh(UpdateOocCogDis)
-            UpdateOocCogDis()
         end
 
         -- Text Color disables when the bar is off OR Health Text is None
@@ -3709,7 +3650,9 @@ initFrame:SetScript("OnEvent", function(self)
         -- Health Text inline cog: anchor + x/y offsets
         if not EllesmereUI._prebuilding then
             local rgn = healthTextSizeRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            local cogBtn = EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
+                disabled = function() local c = cfg(); return c and not c.enabled end,
+                disabledTooltip = "Health Bar",
                 title = "Health Text",
                 rows = {
                     { type = "dropdown", label = "Anchor",
@@ -3735,23 +3678,7 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            local cogBtn = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
             AddFormTextBtn(rgn, cogBtn, cfg, RefreshHealth)
-            local cogDis = CreateFrame("Frame", nil, rgn)
-            cogDis:SetAllPoints(cogBtn)
-            cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-            cogDis:EnableMouse(true)
-            cogDis:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("Health Bar"))
-            end)
-            cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateCogDisH2()
-                local c = cfg()
-                if c and not c.enabled then cogDis:Show() else cogDis:Hide() end
-            end
-            cogBtn:HookScript("OnShow", UpdateCogDisH2)
-            EllesmereUI.RegisterWidgetRefresh(UpdateCogDisH2)
-            UpdateCogDisH2()
         end
 
         -- Row 5: Text Size | Threshold Settings
@@ -4104,7 +4031,7 @@ initFrame:SetScript("OnEvent", function(self)
             end
             if not EllesmereUI._prebuilding then
                 local rgn = pwrBsRow._leftRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                local cogBtn = EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
                     title = "Border Options",
                     rows = {
                         { type = "slider", label = "Shift X", min = -10, max = 10, step = 1,
@@ -4139,7 +4066,6 @@ initFrame:SetScript("OnEvent", function(self)
                           end },
                     },
                 })
-                local cogBtn = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
                 local function UpdateCogVis()
                     local c = cfg()
                     local tex = c and c.borderTexture or "solid"
@@ -4334,7 +4260,9 @@ initFrame:SetScript("OnEvent", function(self)
         end
         if not EllesmereUI._prebuilding then
             local rgn = powerBorderRow._rightRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                disabled = function() local c = cfg(); return c and not c.enabled end,
+                disabledTooltip = powerDisTip,
                 title = "Fill Settings",
                 rows = {
                     { type = "toggle", label = "Enable Gradient",
@@ -4354,28 +4282,14 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            local cogBtn = MakeCogBtn(rgn, cogShow)
-            local cogDis = CreateFrame("Frame", nil, rgn)
-            cogDis:SetAllPoints(cogBtn)
-            cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-            cogDis:EnableMouse(true)
-            cogDis:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip(powerDisTip))
-            end)
-            cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateCogDisGrad()
-                local c = cfg()
-                if c and not c.enabled then cogDis:Show() else cogDis:Hide() end
-            end
-            cogBtn:HookScript("OnShow", UpdateCogDisGrad)
-            EllesmereUI.RegisterWidgetRefresh(UpdateCogDisGrad)
-            UpdateCogDisGrad()
         end
 
         -- Out of Combat Opacity cog: dims the Power bar to this alpha out of combat (100 = no fade); applied by ns.ResolveBarAlpha in UpdateVisibility, which reacts to combat.
         if not EllesmereUI._prebuilding then
             local rgn = powerBorderRow._leftRegion
-            local _, oocCogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                disabled = function() local c = cfg(); return c and not c.enabled end,
+                disabledTooltip = powerDisTip,
                 title = "Out of Combat Opacity",
                 rows = {
                     { type = "toggle", label = "Fade Out of Combat",
@@ -4394,22 +4308,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            local oocCog = MakeCogBtn(rgn, oocCogShow)
-            local oocCogDis = CreateFrame("Frame", nil, rgn)
-            oocCogDis:SetAllPoints(oocCog)
-            oocCogDis:SetFrameLevel(oocCog:GetFrameLevel() + 5)
-            oocCogDis:EnableMouse(true)
-            oocCogDis:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(oocCog, EllesmereUI.DisabledTooltip(powerDisTip))
-            end)
-            oocCogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateOocCogDis()
-                local c = cfg()
-                if c and not c.enabled then oocCogDis:Show(); oocCog:SetAlpha(0.15) else oocCogDis:Hide(); oocCog:SetAlpha(0.4) end
-            end
-            oocCog:HookScript("OnShow", UpdateOocCogDis)
-            EllesmereUI.RegisterWidgetRefresh(UpdateOocCogDis)
-            UpdateOocCogDis()
         end
 
         -- Text Color disables when the bar is off OR Power Text is None
@@ -4508,7 +4406,9 @@ initFrame:SetScript("OnEvent", function(self)
         -- Power Text inline cog: percent sign, anchor, x/y offsets
         if not EllesmereUI._prebuilding then
             local rgn = powerTextSizeRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            local cogBtn = EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
+                disabled = function() local c = cfg(); return c and not c.enabled end,
+                disabledTooltip = "Power Bar",
                 title = "Power Text",
                 rows = {
                     { type = "toggle", label = "Show %",
@@ -4540,23 +4440,7 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            local cogBtn = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
             AddFormTextBtn(rgn, cogBtn, cfg, RefreshPower)
-            local cogDis = CreateFrame("Frame", nil, rgn)
-            cogDis:SetAllPoints(cogBtn)
-            cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-            cogDis:EnableMouse(true)
-            cogDis:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("Power Bar"))
-            end)
-            cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateCogDisP2()
-                local c = cfg()
-                if c and not c.enabled then cogDis:Show() else cogDis:Hide() end
-            end
-            cogBtn:HookScript("OnShow", UpdateCogDisP2)
-            EllesmereUI.RegisterWidgetRefresh(UpdateCogDisP2)
-            UpdateCogDisP2()
         end
         -- Threshold Settings popup. Advanced => singleSpec on the per-spec override:
         -- normalize cfg().thresholdSpecs to one implied-spec entry. Form-specific mode holds
@@ -4835,7 +4719,9 @@ initFrame:SetScript("OnEvent", function(self)
         if not ctx.advanced then
             if not EllesmereUI._prebuilding then
                 local rgn = classEnableRow._leftRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(rgn, {
+                    disabled = classOff,
+                    disabledTooltip = "Class Resource",
                     title = "Class Resource",
                     rows = {
                         { type = "toggle", label = "Hide Power Bar if Resource",
@@ -4846,21 +4732,6 @@ initFrame:SetScript("OnEvent", function(self)
                           end },
                     },
                 })
-                local cogBtn = MakeCogBtn(rgn, cogShow)
-                local cogDis = CreateFrame("Frame", nil, rgn)
-                cogDis:SetAllPoints(cogBtn)
-                cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-                cogDis:EnableMouse(true)
-                cogDis:SetScript("OnEnter", function()
-                    EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("Class Resource"))
-                end)
-                cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-                local function UpdateClassCogDis()
-                    if classOff() then cogDis:Show() else cogDis:Hide() end
-                end
-                cogBtn:HookScript("OnShow", UpdateClassCogDis)
-                EllesmereUI.RegisterWidgetRefresh(UpdateClassCogDis)
-                UpdateClassCogDis()
             end
             -- Per-spec class-resource enables live in Spec Overrides: "Show Class Resource" is captured while editing as a group.
         end
@@ -5029,7 +4900,7 @@ initFrame:SetScript("OnEvent", function(self)
             end
             if not EllesmereUI._prebuilding then
                 local rgn = classBsRow._leftRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                local cogBtn = EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
                     title = "Border Options",
                     rows = {
                         { type = "slider", label = "Shift X", min = -10, max = 10, step = 1,
@@ -5064,7 +4935,6 @@ initFrame:SetScript("OnEvent", function(self)
                           end },
                     },
                 })
-                local cogBtn = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
                 local function UpdateCogVis()
                     local c = cfg()
                     local tex = c and c.borderTexture or "solid"
@@ -5141,7 +5011,7 @@ initFrame:SetScript("OnEvent", function(self)
             if not EllesmereUI._prebuilding then
                 local rgn = classBsRow._leftRegion
                 local lastInline = rgn._lastInline or rgn._control
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                local cogBtn = EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.COGS_ICON,
                     title = "Pip Border",
                     rows = {
                         { type = "toggle", label = "Border on individual pips",
@@ -5154,7 +5024,6 @@ initFrame:SetScript("OnEvent", function(self)
                     },
                 })
 
-                local cogBtn = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.COGS_ICON)
                 cogBtn:Show()
 
                 -- Position only: the texture-style dropdown adds/removes its own
@@ -5381,7 +5250,9 @@ initFrame:SetScript("OnEvent", function(self)
         end
         if not EllesmereUI._prebuilding then
             local rgn = classBorderRow._rightRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                disabled = classOff,
+                disabledTooltip = "Class Resource",
                 title = "Fill Settings",
                 rows = {
                     { type = "toggle", label = "Darken Partially Filled Resources",
@@ -5410,26 +5281,6 @@ initFrame:SetScript("OnEvent", function(self)
                 },
                 footer = false,
             })
-            local chargedCog = MakeCogBtn(rgn, cogShow)
-            local chargedCogDis = CreateFrame("Frame", nil, rgn)
-            chargedCogDis:SetAllPoints(chargedCog)
-            chargedCogDis:SetFrameLevel(chargedCog:GetFrameLevel() + 5)
-            chargedCogDis:EnableMouse(true)
-            chargedCogDis:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(chargedCog, EllesmereUI.DisabledTooltip("Class Resource"))
-            end)
-            chargedCogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateChargedCogDis()
-                local c = cfg()
-                if not (c and c.enabled) then
-                    chargedCogDis:Show(); chargedCog:SetAlpha(0.15)
-                else
-                    chargedCogDis:Hide(); chargedCog:SetAlpha(0.4)
-                end
-            end
-            chargedCog:HookScript("OnShow", UpdateChargedCogDis)
-            EllesmereUI.RegisterWidgetRefresh(UpdateChargedCogDis)
-            UpdateChargedCogDis()
         end
         if not ctx.advanced and ctx.syncRows then
             ctx.syncRows.classOpacity = classBorderRow._leftRegion
@@ -5457,7 +5308,9 @@ initFrame:SetScript("OnEvent", function(self)
         -- Out of Combat Opacity cog: dims the Class Resource bar to this alpha out of combat (100 = no fade); applied by ns.ResolveBarAlpha in UpdateVisibility, which reacts to combat.
         if not EllesmereUI._prebuilding then
             local rgn = classBorderRow._leftRegion
-            local _, oocCogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                disabled = function() local c = cfg(); return c and not c.enabled end,
+                disabledTooltip = "Class Resource",
                 title = "Out of Combat Opacity",
                 rows = {
                     { type = "toggle", label = "Fade Out of Combat",
@@ -5476,22 +5329,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            local oocCog = MakeCogBtn(rgn, oocCogShow)
-            local oocCogDis = CreateFrame("Frame", nil, rgn)
-            oocCogDis:SetAllPoints(oocCog)
-            oocCogDis:SetFrameLevel(oocCog:GetFrameLevel() + 5)
-            oocCogDis:EnableMouse(true)
-            oocCogDis:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(oocCog, EllesmereUI.DisabledTooltip("Class Resource"))
-            end)
-            oocCogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateOocCogDis()
-                local c = cfg()
-                if c and not c.enabled then oocCogDis:Show(); oocCog:SetAlpha(0.15) else oocCogDis:Hide(); oocCog:SetAlpha(0.4) end
-            end
-            oocCog:HookScript("OnShow", UpdateOocCogDis)
-            EllesmereUI.RegisterWidgetRefresh(UpdateOocCogDis)
-            UpdateOocCogDis()
         end
 
         -- Resource Text and the threshold popup below touch only the class-resource
@@ -5617,29 +5454,16 @@ initFrame:SetScript("OnEvent", function(self)
                         end })
                 end
             end
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            local cogBtn = EllesmereUI.BuildInlineCog(rgn, {
+                disabled = function()
+                    local p = DB(); return not p or not p.secondary.enabled or not p.secondary.showText
+                end,
+                disabledTooltip = "Resource Text",
                 title = "Resource Text",
                 rows = resTextRows,
                 footer = false,
             })
-            local cogBtn = MakeCogBtn(rgn, cogShow)
             AddFormTextBtn(rgn, cogBtn, function() return DB() and DB().secondary end, RefreshClass)
-            local cogDis = CreateFrame("Frame", nil, rgn)
-            cogDis:SetAllPoints(cogBtn)
-            cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-            cogDis:EnableMouse(true)
-            cogDis:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("Resource Text"))
-            end)
-            cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateCogDisCount()
-                local p = DB()
-                local off = not p or not p.secondary.enabled or not p.secondary.showText
-                if off then cogDis:Show(); cogBtn:SetAlpha(0.15) else cogDis:Hide(); cogBtn:SetAlpha(0.4) end
-            end
-            cogBtn:HookScript("OnShow", UpdateCogDisCount)
-            EllesmereUI.RegisterWidgetRefresh(UpdateCogDisCount)
-            UpdateCogDisCount()
         end
 
 		-- class settings [start]
@@ -7624,8 +7448,9 @@ initFrame:SetScript("OnEvent", function(self)
             -- upvalue (assigning on the same line would leave the closure seeing nil). The popup frame
             -- is built LAZILY on first show, so the closure reaches it via showFn._popupFrame, stamped
             -- by the show wrapper on first open.
-            local splitCogShow
-            splitCogShow = select(2, EllesmereUI.BuildCogPopup({
+            local _, splitCogShow
+            _, splitCogShow = EllesmereUI.BuildInlineCog(rgn, {
+                anchorTo = bgSwatch,
                 title = "Background",
                 minWidth = 290,
                 rows = {
@@ -7653,8 +7478,7 @@ initFrame:SetScript("OnEvent", function(self)
                           EllesmereUI:RefreshPage(true)
                       end },
                 },
-            }))
-            MakeCogBtn(rgn, splitCogShow, bgSwatch)
+            })
         end
 
         -- Split rows are built ONLY while the split is enabled, so the page is byte-identical for
@@ -7755,43 +7579,28 @@ initFrame:SetScript("OnEvent", function(self)
               end }
         );
         -- Texture cog: Blizzard atlas fill for the class resource bar
-        if not EllesmereUI._prebuilding then
-            local lrgn = texRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
-                title = "Texture Settings",
-                rows = {
-                    { type = "toggle", label = "Blizzard Atlas Class Resource",
-                      tooltip = "Bar-style class resources (Insanity, Maelstrom, Astral Power, etc.) use Blizzard's default player frame bar artwork instead of the texture above.",
-                      get = function()
-                          local p = DB(); return (p and p.secondary.useBlizzardAtlas) or false
-                      end,
-                      set = function(v)
-                          local p = DB(); if not p then return end
-                          p.secondary.useBlizzardAtlas = v
-                          RebuildClass()
-                          if v then
-                              EllesmereUI:ShowConfirmPopup({
-                                  title = "Blizzard Atlas Texture",
-                                  message = "Blizzard's bar artwork is never recolored, so fill color modes and threshold colors will not tint the bar while this is enabled. To keep threshold colors visible, use Recolor Text Instead.",
-                                  confirmText = "Okay",
-                              })
-                          end
-                      end },
-                },
-            })
-            local cogBtn = CreateFrame("Button", nil, lrgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", lrgn._lastInline or lrgn._control, "LEFT", -8, 0)
-            lrgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(lrgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints()
-            cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(s) s:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(s) s:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(s) cogShow(s) end)
-        end
+        EllesmereUI.BuildInlineCog(texRow._leftRegion, {
+            title = "Texture Settings",
+            rows = {
+                { type = "toggle", label = "Blizzard Atlas Class Resource",
+                  tooltip = "Bar-style class resources (Insanity, Maelstrom, Astral Power, etc.) use Blizzard's default player frame bar artwork instead of the texture above.",
+                  get = function()
+                      local p = DB(); return (p and p.secondary.useBlizzardAtlas) or false
+                  end,
+                  set = function(v)
+                      local p = DB(); if not p then return end
+                      p.secondary.useBlizzardAtlas = v
+                      RebuildClass()
+                      if v then
+                          EllesmereUI:ShowConfirmPopup({
+                              title = "Blizzard Atlas Texture",
+                              message = "Blizzard's bar artwork is never recolored, so fill color modes and threshold colors will not tint the bar while this is enabled. To keep threshold colors visible, use Recolor Text Instead.",
+                              confirmText = "Okay",
+                          })
+                      end
+                  end },
+            },
+        })
         y = y - h
 
         -- Row 4: Shift Elements if No Resource | Expand Power Bar if No Resource
@@ -7865,7 +7674,7 @@ initFrame:SetScript("OnEvent", function(self)
         -- Inline reposition cog on "Shift Elements if No Resource": Extra Y Offset
         if not EllesmereUI._prebuilding then
             local rgn = shiftResRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
                 title = "Shift Offset",
                 rows = {
                     { type = "slider", pixel = true, label = "Extra Y Offset", min = -50, max = 50, step = 1,
@@ -7884,7 +7693,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
         end
 
         -- Row 5: Shift Elements if No Power | (blank)
@@ -7941,7 +7749,7 @@ initFrame:SetScript("OnEvent", function(self)
         -- Inline reposition cog on "Shift Elements if No Power": Extra Y Offset
         if not EllesmereUI._prebuilding then
             local rgn = shiftPowRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
                 title = "Shift Offset",
                 rows = {
                     { type = "slider", pixel = true, label = "Extra Y Offset", min = -50, max = 50, step = 1,
@@ -7959,7 +7767,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
         end
         -- Inline cog on "Border Around All" (stock styles only): the
         -- separator line between the grouped bars. Greyed while the toggle is
@@ -7972,7 +7779,8 @@ initFrame:SetScript("OnEvent", function(self)
             local function repaint()
                 if ns.ERB_GroupDirty then ns.ERB_GroupDirty() end
             end
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                disabled = groupOff, disabledTooltip = "Border Around All",
                 title = "Border Around All",
                 rows = {
                     { type = "slider", label = "Separator Border", min = 0, max = 5, step = 1,
@@ -7999,21 +7807,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            local cogBtn = MakeCogBtn(rgn, cogShow)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(groupOff() and 0.15 or 0.4) end)
-            local cogBlock = CreateFrame("Frame", nil, cogBtn)
-            cogBlock:SetAllPoints()
-            cogBlock:SetFrameLevel(cogBtn:GetFrameLevel() + 10)
-            cogBlock:EnableMouse(true)
-            cogBlock:SetScript("OnEnter", function() EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("Border Around All")) end)
-            cogBlock:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateGroupCog()
-                local off = groupOff()
-                cogBtn:SetAlpha(off and 0.15 or 0.4)
-                if off then cogBlock:Show() else cogBlock:Hide() end
-            end
-            EllesmereUI.RegisterWidgetRefresh(UpdateGroupCog)
-            UpdateGroupCog()
         end
 
         _, h = W:Spacer(parent, y, 16);  y = y - h
@@ -8030,7 +7823,6 @@ initFrame:SetScript("OnEvent", function(self)
                 W = W, parent = parent, y = y,
                 getData = function() local p = DB(); return p and p.secondary or {} end,
                 onApply = function() RebuildClass(); SmoothRefresh() end,
-                makeCogBtn = (not EllesmereUI._prebuilding) and MakeCogBtn or nil,
             })
             y = y - cursorH
         end
@@ -8048,7 +7840,6 @@ initFrame:SetScript("OnEvent", function(self)
                 W = W, parent = parent, y = y,
                 getData = function() local p = DB(); return p and p.primary or {} end,
                 onApply = function() RebuildPower(); SmoothRefresh() end,
-                makeCogBtn = (not EllesmereUI._prebuilding) and MakeCogBtn or nil,
             })
             y = y - cursorH
         end
@@ -8133,7 +7924,6 @@ initFrame:SetScript("OnEvent", function(self)
                 W = W, parent = parent, y = y,
                 getData = function() local p = DB(); return p and p.health or {} end,
                 onApply = function() RebuildHealth(); SmoothRefresh() end,
-                makeCogBtn = (not EllesmereUI._prebuilding) and MakeCogBtn or nil,
             })
             y = y - cursorH
         end
@@ -8176,7 +7966,9 @@ initFrame:SetScript("OnEvent", function(self)
             -- Inline position cog (X/Y + unlock) on Enable, as on the GCD Bar page
             if not EllesmereUI._prebuilding then
                 local rgn = asEnableRow._leftRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
+                    disabled = function() local p = DB(); return p and not p.arcaneSoul.enabled end,
+                    disabledTooltip = AS_TIP,
                     title = "Arcane Soul Position",
                     rows = {
                         { type = "slider", label = "X Offset", min = -600, max = 600, step = 1,
@@ -8211,22 +8003,6 @@ initFrame:SetScript("OnEvent", function(self)
                     },
                     footer = { unlockKey = "EUI_ArcaneSoul" },
                 })
-                local cogBtn = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
-                local cogDis = CreateFrame("Frame", nil, rgn)
-                cogDis:SetAllPoints(cogBtn)
-                cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-                cogDis:EnableMouse(true)
-                cogDis:SetScript("OnEnter", function()
-                    EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip(AS_TIP))
-                end)
-                cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-                local function UpdateAsCogDis()
-                    local p = DB()
-                    if p and not p.arcaneSoul.enabled then cogDis:Show() else cogDis:Hide() end
-                end
-                cogBtn:HookScript("OnShow", UpdateAsCogDis)
-                EllesmereUI.RegisterWidgetRefresh(UpdateAsCogDis)
-                UpdateAsCogDis()
             end
 
             -- Row: Countdown Format | Text Size
@@ -9113,7 +8889,13 @@ initFrame:SetScript("OnEvent", function(self)
         -- Inline cog on Show Spell Icon: Icon on Right
         if not EllesmereUI._prebuilding then
             local rgn = iconRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                disabled = function()
+                    local p = DB(); return p and (not p.castBar.enabled or p.castBar.showIcon == false)
+                end,
+                disabledTooltip = function()
+                    local p = DB(); return (p and not p.castBar.enabled) and "Player Cast Bar" or "Show Spell Icon"
+                end,
                 title = "Spell Icon Settings",
                 rows = {
                     { type = "toggle", label = "Icon on Right",
@@ -9132,24 +8914,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            local cogBtn = MakeCogBtn(rgn, cogShow)
-            local cogDis = CreateFrame("Frame", nil, rgn)
-            cogDis:SetAllPoints(cogBtn)
-            cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-            cogDis:EnableMouse(true)
-            cogDis:SetScript("OnEnter", function()
-                local p = DB()
-                local req = (p and not p.castBar.enabled) and "Player Cast Bar" or "Show Spell Icon"
-                EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip(req))
-            end)
-            cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateCogDisIcon()
-                local p = DB()
-                if p and (not p.castBar.enabled or p.castBar.showIcon == false) then cogDis:Show() else cogDis:Hide() end
-            end
-            cogBtn:HookScript("OnShow", UpdateCogDisIcon)
-            EllesmereUI.RegisterWidgetRefresh(UpdateCogDisIcon)
-            UpdateCogDisIcon()
         end
 
         -- Row 4: Always Show
@@ -9288,7 +9052,7 @@ initFrame:SetScript("OnEvent", function(self)
             end
             if not EllesmereUI._prebuilding then
                 local rgn = cbBsRow._leftRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                local cogBtn = EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
                     title = "Border Options",
                     rows = {
                         { type = "slider", label = "Shift X", min = -10, max = 10, step = 1,
@@ -9323,7 +9087,6 @@ initFrame:SetScript("OnEvent", function(self)
                           end },
                     },
                 })
-                local cogBtn = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
                 local function UpdateCogVis()
                     local p = DB()
                     local tex = p and p.castBar.borderTexture or "solid"
@@ -9438,7 +9201,10 @@ initFrame:SetScript("OnEvent", function(self)
         -- Inline cog on Fill Color for gradient settings
         if not EllesmereUI._prebuilding then
             local rgn = castColorRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                disabled = function() local p = DB(); return castFillBlizz or (p and not p.castBar.enabled) end,
+                disabledTooltip = castFillBlizz and "Blizzard Style" or "Player Cast Bar",
+                requireState = castFillBlizz and "disabled" or nil,
                 title = "Gradient Settings",
                 rows = {
                     { type = "toggle", label = "Enable Gradient",
@@ -9458,26 +9224,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            local cogBtn = MakeCogBtn(rgn, cogShow)
-            local cogDis = CreateFrame("Frame", nil, rgn)
-            cogDis:SetAllPoints(cogBtn)
-            cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-            cogDis:EnableMouse(true)
-            cogDis:SetScript("OnEnter", function()
-                if castFillBlizz then
-                    EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("Blizzard Style", "disabled"))
-                else
-                    EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("Player Cast Bar"))
-                end
-            end)
-            cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateCogDisGrad()
-                local p = DB()
-                if castFillBlizz or (p and not p.castBar.enabled) then cogDis:Show() else cogDis:Hide() end
-            end
-            cogBtn:HookScript("OnShow", UpdateCogDisGrad)
-            EllesmereUI.RegisterWidgetRefresh(UpdateCogDisGrad)
-            UpdateCogDisGrad()
         end
 
         -- Inline color swatch on Background (right region)
@@ -9556,7 +9302,9 @@ initFrame:SetScript("OnEvent", function(self)
         -- Inline cog (RESIZE) on Spell Text for text size + x/y
         if not EllesmereUI._prebuilding then
             local rgn = textRow._rightRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
+                disabled = function() local p = DB(); return p and (not p.castBar.enabled or not p.castBar.showSpellText) end,
+                disabledTooltip = "Player Cast Bar",
                 title = "Spell Text Settings",
                 rows = {
                     { type = "slider", label = "Text Size", min = 8, max = 24, step = 1,
@@ -9579,22 +9327,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            local cogBtn = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
-            local cogDis = CreateFrame("Frame", nil, rgn)
-            cogDis:SetAllPoints(cogBtn)
-            cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-            cogDis:EnableMouse(true)
-            cogDis:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("Player Cast Bar"))
-            end)
-            cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateCogDisSpellText()
-                local p = DB()
-                if p and (not p.castBar.enabled or not p.castBar.showSpellText) then cogDis:Show() else cogDis:Hide() end
-            end
-            cogBtn:HookScript("OnShow", UpdateCogDisSpellText)
-            EllesmereUI.RegisterWidgetRefresh(UpdateCogDisSpellText)
-            UpdateCogDisSpellText()
         end
         -- Row 4: Duration Text (cog RESIZE: timer size + x/y) | Show Total Duration
         local timerRow
@@ -9634,7 +9366,9 @@ initFrame:SetScript("OnEvent", function(self)
         -- Inline cog (RESIZE) on Duration Text for timer size + x/y
         if not EllesmereUI._prebuilding then
             local rgn = timerRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
+                disabled = function() local p = DB(); return p and (not p.castBar.enabled or not p.castBar.showTimer) end,
+                disabledTooltip = "Player Cast Bar",
                 title = "Timer Settings",
                 rows = {
                     { type = "slider", label = "Timer Size", min = 8, max = 24, step = 1,
@@ -9657,22 +9391,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            local cogBtn = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
-            local cogDis = CreateFrame("Frame", nil, rgn)
-            cogDis:SetAllPoints(cogBtn)
-            cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-            cogDis:EnableMouse(true)
-            cogDis:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("Player Cast Bar"))
-            end)
-            cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateCogDisTimer()
-                local p = DB()
-                if p and (not p.castBar.enabled or not p.castBar.showTimer) then cogDis:Show() else cogDis:Hide() end
-            end
-            cogBtn:HookScript("OnShow", UpdateCogDisTimer)
-            EllesmereUI.RegisterWidgetRefresh(UpdateCogDisTimer)
-            UpdateCogDisTimer()
         end
 
 
@@ -9965,7 +9683,7 @@ initFrame:SetScript("OnEvent", function(self)
 
             -- Spacing cog on Icon Size (right region)
             local rgn = row1._rightRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
                 title = "Icon Settings",
                 rows = {
                     { type = "slider", pixel = true, label = "Spacing", min = 0, max = 20, step = 1,
@@ -9976,7 +9694,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            MakeCogBtn(rgn, cogShow)
             end
         end
 
@@ -10101,7 +9818,8 @@ initFrame:SetScript("OnEvent", function(self)
             -- disabled with the section's controls while no class is selected
             if not EllesmereUI._prebuilding then
                 local rgn = bsRow._leftRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                local cogBtn = EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
+                    disabled = totemOff, disabledTooltip = "Select a class above", rawTooltip = true,
                     title = "Border Options",
                     rows = {
                         { type = "slider", label = "Shift X", min = -10, max = 10, step = 1,
@@ -10136,22 +9854,10 @@ initFrame:SetScript("OnEvent", function(self)
                           end },
                     },
                 })
-                local cogBtn = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
-                local cogDis = CreateFrame("Frame", nil, rgn)
-                cogDis:SetAllPoints(cogBtn)
-                cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-                cogDis:EnableMouse(true)
-                cogDis:SetScript("OnEnter", function()
-                    EllesmereUI.ShowWidgetTooltip(cogBtn, "Select a class above")
-                end)
-                cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
                 local function UpdateCogVis()
                     local p = DB()
                     local tex = p and p.totemBar.borderTexture or "solid"
-                    if tex == "solid" then cogBtn:Hide(); cogDis:Hide(); return end
-                    cogBtn:Show()
-                    if totemOff() then cogDis:Show(); cogBtn:SetAlpha(0.15)
-                    else cogDis:Hide(); cogBtn:SetAlpha(0.4) end
+                    if tex == "solid" then cogBtn:Hide() else cogBtn:Show() end
                 end
                 EllesmereUI.RegisterWidgetRefresh(UpdateCogVis)
                 UpdateCogVis()
@@ -10254,7 +9960,9 @@ initFrame:SetScript("OnEvent", function(self)
         -- Inline position cog (X/Y + unlock) on Enable
         if not EllesmereUI._prebuilding then
             local rgn = enableRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
+                disabled = function() local p = DB(); return p and not p.gcdBar.enabled end,
+                disabledTooltip = "GCD Bar",
                 title = "GCD Bar Position",
                 rows = {
                     -- X/Y edit whichever position is in effect: the saved unlock position takes priority in the renderer, so once it exists these sliders adjust it (otherwise the CENTER offset).
@@ -10287,22 +9995,6 @@ initFrame:SetScript("OnEvent", function(self)
                 },
                 footer = { unlockKey = "ERB_GCDBar" },
             })
-            local cogBtn = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
-            local cogDis = CreateFrame("Frame", nil, rgn)
-            cogDis:SetAllPoints(cogBtn)
-            cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-            cogDis:EnableMouse(true)
-            cogDis:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("GCD Bar"))
-            end)
-            cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateCogDis()
-                local p = DB()
-                if p and not p.gcdBar.enabled then cogDis:Show() else cogDis:Hide() end
-            end
-            cogBtn:HookScript("OnShow", UpdateCogDis)
-            EllesmereUI.RegisterWidgetRefresh(UpdateCogDis)
-            UpdateCogDis()
         end
 
         -- Row: Height | Width. Orientation-aware: this bar's size callbacks report the drawn axes, so its sliders must be guarded on the matching axis for vertical orientations.
@@ -10354,7 +10046,7 @@ initFrame:SetScript("OnEvent", function(self)
         );  y = y - h
         -- Inline cog on Always Show: idle fill appearance
         if not EllesmereUI._prebuilding then
-            local _, gcdIdleCogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(gcdShowRow._rightRegion, {
                 title = "Always Show",
                 rows = {
                     { type = "toggle", label = "Show Fill Color When Idle",
@@ -10367,7 +10059,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            MakeCogBtn(gcdShowRow._rightRegion, gcdIdleCogShow)
         end
 
         _, h = W:Spacer(parent, y, 16);  y = y - h
@@ -10460,7 +10151,7 @@ initFrame:SetScript("OnEvent", function(self)
             -- Offset cog on Border Style (left region), hidden for "solid"
             if not EllesmereUI._prebuilding then
                 local rgn = bsRow._leftRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                local cogBtn = EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
                     title = "Border Options",
                     rows = {
                         { type = "slider", label = "Shift X", min = -10, max = 10, step = 1,
@@ -10474,7 +10165,6 @@ initFrame:SetScript("OnEvent", function(self)
                           set = function(v) local p = DB(); if not p then return end; p.gcdBar.borderBehind = v == false and nil or v; RefreshGCD(); EllesmereUI:RefreshPage() end },
                     },
                 })
-                local cogBtn = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
                 local function UpdateCogVis()
                     local p = DB()
                     local tex = p and p.gcdBar.borderTexture or "solid"
@@ -10513,7 +10203,9 @@ initFrame:SetScript("OnEvent", function(self)
         -- Gradient cog on Color
         if not EllesmereUI._prebuilding then
             local rgn = colorRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                disabled = function() local p = DB(); return p and not p.gcdBar.enabled end,
+                disabledTooltip = "GCD Bar",
                 title = "Gradient Settings",
                 rows = {
                     { type = "toggle", label = "Enable Gradient",
@@ -10525,17 +10217,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set = function(v) local p = DB(); if not p then return end; p.gcdBar.gradientDir = v; RefreshGCD() end },
                 },
             })
-            local cogBtn = MakeCogBtn(rgn, cogShow)
-            local cogDis = CreateFrame("Frame", nil, rgn)
-            cogDis:SetAllPoints(cogBtn)
-            cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-            cogDis:EnableMouse(true)
-            cogDis:SetScript("OnEnter", function() EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("GCD Bar")) end)
-            cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateCogDisGrad() local p = DB(); if p and not p.gcdBar.enabled then cogDis:Show() else cogDis:Hide() end end
-            cogBtn:HookScript("OnShow", UpdateCogDisGrad)
-            EllesmereUI.RegisterWidgetRefresh(UpdateCogDisGrad)
-            UpdateCogDisGrad()
         end
         -- Gradient end-color swatch enable/disable
         do
@@ -10662,7 +10343,9 @@ initFrame:SetScript("OnEvent", function(self)
         -- Inline position cog (X/Y + unlock) on Enable, as on the GCD Bar page
         if not EllesmereUI._prebuilding then
             local rgn = enableRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
+                disabled = function() local p = DB(); return p and not p.swingTimer.enabled end,
+                disabledTooltip = ST_TIP,
                 title = "Swing Timer Position",
                 rows = {
                     { type = "slider", label = "X Offset", min = -600, max = 600, step = 1,
@@ -10694,22 +10377,6 @@ initFrame:SetScript("OnEvent", function(self)
                 },
                 footer = { unlockKey = "ERB_SwingTimer" },
             })
-            local cogBtn = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
-            local cogDis = CreateFrame("Frame", nil, rgn)
-            cogDis:SetAllPoints(cogBtn)
-            cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-            cogDis:EnableMouse(true)
-            cogDis:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip(ST_TIP))
-            end)
-            cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateCogDis()
-                local p = DB()
-                if p and not p.swingTimer.enabled then cogDis:Show() else cogDis:Hide() end
-            end
-            cogBtn:HookScript("OnShow", UpdateCogDis)
-            EllesmereUI.RegisterWidgetRefresh(UpdateCogDis)
-            UpdateCogDis()
         end
 
         -- Row: Row Height | Width. Height is per row; the mover reports the whole stack.
@@ -10756,7 +10423,7 @@ initFrame:SetScript("OnEvent", function(self)
               setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.hideWhenIdle = v; RefreshST() end }
         );  y = y - h
         if not EllesmereUI._prebuilding then
-            local _, idleCogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(stShowRow._rightRegion, {
                 title = "Idle Rows",
                 rows = {
                     { type = "toggle", label = "Show Fill Color When Idle",
@@ -10769,7 +10436,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            MakeCogBtn(stShowRow._rightRegion, idleCogShow)
         end
 
         _, h = W:Spacer(parent, y, 16);  y = y - h
@@ -10861,7 +10527,7 @@ initFrame:SetScript("OnEvent", function(self)
             end
             if not EllesmereUI._prebuilding then
                 local rgn = bsRow._leftRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                local cogBtn = EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
                     title = "Border Options",
                     rows = {
                         { type = "slider", label = "Shift X", min = -10, max = 10, step = 1,
@@ -10875,7 +10541,6 @@ initFrame:SetScript("OnEvent", function(self)
                           set = function(v) local p = DB(); if not p then return end; p.swingTimer.borderBehind = v == false and nil or v; RefreshST(); EllesmereUI:RefreshPage() end },
                     },
                 })
-                local cogBtn = MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
                 local function UpdateCogVis()
                     local p = DB()
                     local tex = p and p.swingTimer.borderTexture or "solid"
@@ -10932,7 +10597,9 @@ initFrame:SetScript("OnEvent", function(self)
         );  y = y - h
         if not EllesmereUI._prebuilding then
             local rgn = colorRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                disabled = function() local p = DB(); return p and not p.swingTimer.enabled end,
+                disabledTooltip = ST_TIP,
                 title = "Gradient Settings",
                 rows = {
                     { type = "toggle", label = "Enable Gradient",
@@ -10944,17 +10611,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set = function(v) local p = DB(); if not p then return end; p.swingTimer.gradientDir = v; RefreshST() end },
                 },
             })
-            local cogBtn = MakeCogBtn(rgn, cogShow)
-            local cogDis = CreateFrame("Frame", nil, rgn)
-            cogDis:SetAllPoints(cogBtn)
-            cogDis:SetFrameLevel(cogBtn:GetFrameLevel() + 5)
-            cogDis:EnableMouse(true)
-            cogDis:SetScript("OnEnter", function() EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip(ST_TIP)) end)
-            cogDis:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdateCogDisGrad() local p = DB(); if p and not p.swingTimer.enabled then cogDis:Show() else cogDis:Hide() end end
-            cogBtn:HookScript("OnShow", UpdateCogDisGrad)
-            EllesmereUI.RegisterWidgetRefresh(UpdateCogDisGrad)
-            UpdateCogDisGrad()
         end
         do
             local swatch = colorRow._leftRegion._control
@@ -11015,7 +10671,7 @@ initFrame:SetScript("OnEvent", function(self)
               setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.rangeCheck = v; RefreshST() end }
         );  y = y - h
         if not EllesmereUI._prebuilding then
-            local _, rangeCogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rangeRow._rightRegion, {
                 title = "Range Check",
                 rows = {
                     { type = "slider", label = "Out of Range Opacity", min = 0, max = 100, step = 1,
@@ -11024,7 +10680,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set = function(v) local p = DB(); if not p then return end; p.swingTimer.outOfRangeAlpha = v / 100; RefreshST() end },
                 },
             })
-            MakeCogBtn(rangeRow._rightRegion, rangeCogShow)
         end
 
         -- Row: Show Time | Show Weapon Label

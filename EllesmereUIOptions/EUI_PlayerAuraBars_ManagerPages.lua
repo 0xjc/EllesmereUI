@@ -951,7 +951,7 @@ local function BuildCoreFields(frame, fontPath, sy, cfg, apply, isBuff)
     ); sy = sy - hh
     do
         local rgn = sizeRow._leftRegion
-        local _, cogShow = EllesmereUI.BuildCogPopup({
+        EllesmereUI.BuildInlineCog(rgn, {
             title = "Icon Size",
             rows = {
                 { type = "slider", label = "Icon Zoom", min = 0, max = 0.20, step = 0.01,
@@ -959,14 +959,13 @@ local function BuildCoreFields(frame, fontPath, sy, cfg, apply, isBuff)
                   set = function(v) cfg.iconZoom = v; apply() end },
             },
         })
-        ns._PAMakeCogBtn(rgn, cogShow)
     end
     do
         -- Icon Wrap: only meaningful for vertical growth (Up/Down) and horizontal growth (Left/Right) -- decides which
         -- side additional columns stack toward when Icons Per Row/Column > 1. Cog-only,
         -- no separate dropdown row, and only shown while Growth Direction is Up/Down or Left/Right.
         local rgn = sizeRow._rightRegion
-        local _, cogShow = EllesmereUI.BuildCogPopup({
+        local cogBtn = EllesmereUI.BuildInlineCog(rgn, {
             title = "Growth",
             rows = {
                 { type = "dropdown", label = "Icon Wrap",
@@ -984,28 +983,12 @@ local function BuildCoreFields(frame, fontPath, sy, cfg, apply, isBuff)
                  },
             },
         })
-        local cogBtn = ns._PAMakeCogBtn(rgn, cogShow)
         local function UpdateWrapCogVisibility()
             local dir = cfg.growDirection or "LEFT"
-            cogBtn:SetShown(dir == "UP" or dir == "DOWN" or dir == "LEFT" or dir == "RIGHT")
+            if cogBtn then cogBtn:SetShown(dir == "UP" or dir == "DOWN" or dir == "LEFT" or dir == "RIGHT") end
         end
         EllesmereUI.RegisterWidgetRefresh(UpdateWrapCogVisibility)
         UpdateWrapCogVisibility()
-    end
-
-    local function AttachCog(rgn, title, rows)
-        local _, cogShow = EllesmereUI.BuildCogPopup({ title = title, rows = rows })
-        local cogBtn = CreateFrame("Button", nil, rgn)
-        cogBtn:SetSize(26, 26)
-        cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-        rgn._lastInline = cogBtn
-        cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        cogBtn:SetAlpha(0.4)
-        local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-        cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.RESIZE_ICON)
-        cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-        cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-        cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
     end
 
     local dsRow
@@ -1031,7 +1014,7 @@ local function BuildCoreFields(frame, fontPath, sy, cfg, apply, isBuff)
         swatch:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
         rgn._lastInline = swatch
         EllesmereUI.RegisterWidgetRefresh(updateSwatch)
-        AttachCog(rgn, "Duration Text", {
+        EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.RESIZE_ICON, title = "Duration Text", rows = {
             { type = "slider", label = "Text Size", min = 6, max = 60, step = 1,
               get = function() return cfg.durationTextSize or 11 end,
               set = function(v) cfg.durationTextSize = v; apply() end },
@@ -1051,7 +1034,7 @@ local function BuildCoreFields(frame, fontPath, sy, cfg, apply, isBuff)
             { type = "slider", label = "Precise Below (minutes, 0 = off)", min = 0, max = 60, step = 1,
               get = function() return cfg.durationPrecisionThreshold and cfg.durationPrecisionThreshold / 60 or 0 end,
               set = function(v) cfg.durationPrecisionThreshold = v > 0 and math.floor(v * 60 + 0.5) or nil; apply() end },
-        })
+        } })
     end
     do
         local rgn = dsRow._rightRegion
@@ -1063,7 +1046,7 @@ local function BuildCoreFields(frame, fontPath, sy, cfg, apply, isBuff)
         swatch:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
         rgn._lastInline = swatch
         EllesmereUI.RegisterWidgetRefresh(updateSwatch)
-        AttachCog(rgn, "Stacks Text", {
+        EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.RESIZE_ICON, title = "Stacks Text", rows = {
             { type = "slider", label = "Text Size", min = 6, max = 60, step = 1,
               get = function() return cfg.stackTextSize or 11 end,
               set = function(v) cfg.stackTextSize = v; apply() end },
@@ -1077,7 +1060,7 @@ local function BuildCoreFields(frame, fontPath, sy, cfg, apply, isBuff)
               values = AURA_POINT_VALUES, order = AURA_POINT_ORDER,
               get = function() return cfg.stackPosition or "BOTTOMRIGHT" end,
               set = function(v) cfg.stackPosition = v; apply() end },
-        })
+        } })
     end
 
     return sy
@@ -1172,7 +1155,7 @@ local function BuildDisplayFields(frame, fontPath, sy, cfg, apply, isBuff)
     ); sy = sy - hh
     do
         local rgn = styleRow._leftRegion
-        local _, cogShow = EllesmereUI.BuildCogPopup({
+        local cogBtn = EllesmereUI.BuildInlineCog(rgn, {
             title = "Border Options",
             rows = {
                 { type = "slider", label = "Shift X", min = -10, max = 10, step = 1,
@@ -1200,11 +1183,10 @@ local function BuildDisplayFields(frame, fontPath, sy, cfg, apply, isBuff)
                   set = function(v) cfg.borderBehind = v; apply() end },
             },
         })
-        local cogBtn = ns._PAMakeCogBtn(rgn, cogShow)
         local function UpdateBorderCogVisibility()
-            cogBtn:SetShown((cfg.borderTexture or "solid") ~= "solid"
+            if cogBtn then cogBtn:SetShown((cfg.borderTexture or "solid") ~= "solid"
                 and not (cfg.iconShape and cfg.iconShape ~= "none")
-                and not EllesmereUI.BlizzStyle.Get("playerauras"))
+                and not EllesmereUI.BlizzStyle.Get("playerauras")) end
         end
         EllesmereUI.RegisterWidgetRefresh(UpdateBorderCogVisibility)
         UpdateBorderCogVisibility()
@@ -1402,7 +1384,7 @@ local function BuildDisplayFields(frame, fontPath, sy, cfg, apply, isBuff)
         -- rows, same family as Spacing (icon-to-icon gap), not a grid-size concern like
         -- Icons Per Row/ Max Rows/Max Total.
         local rgn = rowRow._rightRegion
-        local _, cogShow = EllesmereUI.BuildCogPopup({
+        EllesmereUI.BuildInlineCog(rgn, {
             title = "Spacing",
             rows = {
                 -- nil = 12px default -- deliberately
@@ -1412,7 +1394,6 @@ local function BuildDisplayFields(frame, fontPath, sy, cfg, apply, isBuff)
                   set = function(v) cfg.rowSpacing = v; apply() end },
             },
         })
-        ns._PAMakeCogBtn(rgn, cogShow)
     end
 
     do
@@ -1421,7 +1402,7 @@ local function BuildDisplayFields(frame, fontPath, sy, cfg, apply, isBuff)
         -- gridRow._leftRegion -- i.e. directly on Icons Per Row's own
         -- region. Same trackWidth=120 slider + cog combo used there.
         local rgn = rowRow._leftRegion
-        local _, cogShow = EllesmereUI.BuildCogPopup({
+        EllesmereUI.BuildInlineCog(rgn, {
             title = "Icons Per Row",
             rows = {
                 { type = "slider", label = "Max Rows", min = 1, max = 10, step = 1,
@@ -1432,7 +1413,6 @@ local function BuildDisplayFields(frame, fontPath, sy, cfg, apply, isBuff)
                   set = function(v) cfg.maxTotal = v; apply() end },
             },
         })
-        ns._PAMakeCogBtn(rgn, cogShow)
     end
 
     -- Icon Shape reuses the base Border Size/Color above -- no separate shape fields.
@@ -1556,7 +1536,7 @@ local function BuildDisplayFields(frame, fontPath, sy, cfg, apply, isBuff)
     ); sy = sy - hh
     do
         local rgn = swipeRow._leftRegion
-        local _, cogShow = EllesmereUI.BuildCogPopup({
+        EllesmereUI.BuildInlineCog(rgn, {
             title = "Duration Swipe",
             rows = {
                 -- Default on = the swipe UNCOVERS the icon as time runs out
@@ -1567,7 +1547,6 @@ local function BuildDisplayFields(frame, fontPath, sy, cfg, apply, isBuff)
                   set = function(v) cfg.reverseSwipe = v; apply() end },
             },
         })
-        ns._PAMakeCogBtn(rgn, cogShow)
     end
 
     -- Buff bars only: debuffs are never player-cancelable, so the row would
@@ -1626,7 +1605,9 @@ local function BuildDispelColorFields(frame, fontPath, sy, cfg, apply)
             FontOutlineField(cfg, apply)
         ); sy = sy - hh
         local rgn = row._leftRegion
-        local _, cogShow = EllesmereUI.BuildCogPopup({
+        EllesmereUI.BuildInlineCog(rgn, {
+            disabled = function() return not IconOn() end,
+            disabledTooltip = "This option requires a Type Icon Position other than None.",
             title = "Type Icon",
             rows = {
                 { type = "slider", label = "Icon Size", min = 8, max = 48, step = 1,
@@ -1640,12 +1621,6 @@ local function BuildDispelColorFields(frame, fontPath, sy, cfg, apply)
                   set = function(v) cfg.dispelIconOffsetY = v; apply() end },
             },
         })
-        local cogBtn = ns._PAMakeCogBtn(rgn, function(self)
-            if IconOn() then cogShow(self) end
-        end)
-        cogBtn:SetAlpha(IconOn() and 0.4 or 0.15)
-        cogBtn:SetScript("OnEnter", function(self) if IconOn() then self:SetAlpha(0.7) end end)
-        cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(IconOn() and 0.4 or 0.15) end)
     end
 
     -- Blizzard Style paints the stock per-type border art, so the palette has

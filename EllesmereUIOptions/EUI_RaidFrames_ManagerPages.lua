@@ -434,7 +434,9 @@ function ns.BMP_BuildBaseDetail(root, leftW, visibleH, s, fontPath, PP)
           end }); sy = sy - hh
     do
         local rgn = row1._rightRegion
-        local _, cogShow = EllesmereUI.BuildCogPopup({
+        EllesmereUI.BuildInlineCog(rgn, {
+            icon = EllesmereUI.DIRECTIONS_ICON,
+            disabled = BuffsOff, disabledTooltip = "Show Buffs",
             title = "Buff Offset",
             rows = {
                 { type = "slider", label = "Offset X", min = -50, max = 50, step = 1,
@@ -443,18 +445,6 @@ function ns.BMP_BuildBaseDetail(root, leftW, visibleH, s, fontPath, PP)
                   get = function() return BVal("offsetY", 0) end, set = function(v) BSet("offsetY", v) end },
             },
         })
-        local cogBtn = CreateFrame("Button", nil, rgn)
-        cogBtn:SetSize(26, 26)
-        cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-        rgn._lastInline = cogBtn
-        cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-        cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-        local function UpdCog() local off = BuffsOff(); cogBtn:SetAlpha(off and 0.15 or 0.4); cogBtn:EnableMouse(not off) end
-        cogBtn:SetScript("OnEnter", function(self) if not BuffsOff() then self:SetAlpha(0.7) end end)
-        cogBtn:SetScript("OnLeave", function() UpdCog() end)
-        cogBtn:SetScript("OnClick", function(self) if not BuffsOff() then cogShow(self) end end)
-        UpdCog(); EllesmereUI.RegisterWidgetRefresh(UpdCog)
     end
 
     local row2
@@ -469,7 +459,8 @@ function ns.BMP_BuildBaseDetail(root, leftW, visibleH, s, fontPath, PP)
           setValue = function(v) BSet("size", v) end }); sy = sy - hh
     do
         local rgn = row2._rightRegion
-        local _, cogShow = EllesmereUI.BuildCogPopup({
+        EllesmereUI.BuildInlineCog(rgn, {
+            disabled = BuffsOff, disabledTooltip = "Show Buffs",
             title = "Icon Zoom",
             rows = {
                 { type = "slider", label = "Zoom", min = 0, max = 0.20, step = 0.01,
@@ -477,18 +468,6 @@ function ns.BMP_BuildBaseDetail(root, leftW, visibleH, s, fontPath, PP)
                   set = function(v) BSet("iconZoom", v) end },
             },
         })
-        local cogBtn = CreateFrame("Button", nil, rgn)
-        cogBtn:SetSize(26, 26)
-        cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-        rgn._lastInline = cogBtn
-        cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-        cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-        local function UpdCog() local off = BuffsOff(); cogBtn:SetAlpha(off and 0.15 or 0.4); cogBtn:EnableMouse(not off) end
-        cogBtn:SetScript("OnEnter", function(self) if not BuffsOff() then self:SetAlpha(0.7) end end)
-        cogBtn:SetScript("OnLeave", function() UpdCog() end)
-        cogBtn:SetScript("OnClick", function(self) if not BuffsOff() then cogShow(self) end end)
-        UpdCog(); EllesmereUI.RegisterWidgetRefresh(UpdCog)
     end
 
     local row3
@@ -528,7 +507,8 @@ function ns.BMP_BuildBaseDetail(root, leftW, visibleH, s, fontPath, PP)
         swatch:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
         rgn._lastInline = swatch
 
-        local _, cogShow = EllesmereUI.BuildCogPopup({
+        EllesmereUI.BuildInlineCog(rgn, {
+            icon = EllesmereUI.RESIZE_ICON,
             title = "Duration Text",
             rows = {
                 { type = "slider", label = "Text Size", min = 6, max = 26, step = 1,
@@ -539,17 +519,6 @@ function ns.BMP_BuildBaseDetail(root, leftW, visibleH, s, fontPath, PP)
                   get = function() return BVal("durTextOffsetY", 0) end, set = function(v) BSet("durTextOffsetY", v) end },
             },
         })
-        local cogBtn = CreateFrame("Button", nil, rgn)
-        cogBtn:SetSize(26, 26)
-        cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-        rgn._lastInline = cogBtn
-        cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        cogBtn:SetAlpha(0.4)
-        local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-        cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.RESIZE_ICON)
-        cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-        cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-        cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
     end
 
     local row5
@@ -570,7 +539,10 @@ function ns.BMP_BuildBaseDetail(root, leftW, visibleH, s, fontPath, PP)
         swatch:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
         rgn._lastInline = swatch
 
-        local _, cogShow = EllesmereUI.BuildCogPopup({
+        EllesmereUI.BuildInlineCog(rgn, {
+            icon = EllesmereUI.RESIZE_ICON,
+            disabled = function() return BuffsOff() or not BVal("showStacks", true) end,
+            disabledTooltip = function() return BuffsOff() and "Show Buffs" or "Show Stacks" end,
             title = "Stacks Text",
             rows = {
                 { type = "slider", label = "Text Size", min = 6, max = 26, step = 1,
@@ -581,24 +553,6 @@ function ns.BMP_BuildBaseDetail(root, leftW, visibleH, s, fontPath, PP)
                   get = function() return BVal("stacksOffsetY", 2) end, set = function(v) BSet("stacksOffsetY", v) end },
             },
         })
-        local cogBtn = CreateFrame("Button", nil, rgn)
-        cogBtn:SetSize(26, 26)
-        cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-        rgn._lastInline = cogBtn
-        cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        cogBtn:SetAlpha(0.4)
-        local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-        cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.RESIZE_ICON)
-        local function UpdateStacksCog()
-            local off = BuffsOff() or not BVal("showStacks", true)
-            cogBtn:SetAlpha(off and 0.15 or 0.4)
-            cogBtn:EnableMouse(not off)
-        end
-        cogBtn:SetScript("OnEnter", function(self) if not (BuffsOff() or not BVal("showStacks", true)) then self:SetAlpha(0.7) end end)
-        cogBtn:SetScript("OnLeave", function() UpdateStacksCog() end)
-        cogBtn:SetScript("OnClick", function(self) if not (BuffsOff() or not BVal("showStacks", true)) then cogShow(self) end end)
-        UpdateStacksCog()
-        EllesmereUI.RegisterWidgetRefresh(UpdateStacksCog)
     end
 
     _, hh = W:DualRow(optsFrame, sy,
@@ -1368,7 +1322,7 @@ local function BuildBaseDetailDM(frame, fontPath)
           setValue = function(v) p.debuffCap = v; DmApply() end }); sy = sy - hh
     do
         local rgn = sizeRow._leftRegion
-        local _, cogShow = EllesmereUI.BuildCogPopup({
+        EllesmereUI.BuildInlineCog(rgn, {
             title = "Icon Zoom",
             rows = {
                 { type = "slider", label = "Zoom", min = 0, max = 0.20, step = 0.01,
@@ -1376,17 +1330,6 @@ local function BuildBaseDetailDM(frame, fontPath)
                   set = function(v) p.debuffIconZoom = v; DmApply() end },
             },
         })
-        local cogBtn = CreateFrame("Button", nil, rgn)
-        cogBtn:SetSize(26, 26)
-        cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-        rgn._lastInline = cogBtn
-        cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        cogBtn:SetAlpha(0.4)
-        local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-        cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-        cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-        cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-        cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
     end
 
     -- Row: Position (+ offsets cog) | Growth Direction
@@ -1405,7 +1348,8 @@ local function BuildBaseDetailDM(frame, fontPath)
           setValue = function(v) p.debuffGrowDirection = v; DmApply() end }); sy = sy - hh
     do
         local rgn = posRow2._leftRegion
-        local _, cogShow = EllesmereUI.BuildCogPopup({
+        EllesmereUI.BuildInlineCog(rgn, {
+            icon = EllesmereUI.DIRECTIONS_ICON,
             title = "Position Offset",
             rows = {
                 { type = "slider", label = "Offset X", min = -50, max = 50, step = 1,
@@ -1416,17 +1360,6 @@ local function BuildBaseDetailDM(frame, fontPath)
                   set = function(v) p.debuffOffsetY = v; DmApply() end },
             },
         })
-        local cogBtn = CreateFrame("Button", nil, rgn)
-        cogBtn:SetSize(26, 26)
-        cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-        rgn._lastInline = cogBtn
-        cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        cogBtn:SetAlpha(0.4)
-        local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-        cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-        cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-        cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-        cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
     end
 
     -- Row: Icons Per Row (end of CORE). The key predates this UI (its row
@@ -1493,7 +1426,8 @@ local function BuildBaseDetailDM(frame, fontPath)
         swatch:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
         rgn._lastInline = swatch
 
-        local _, cogShow = EllesmereUI.BuildCogPopup({
+        EllesmereUI.BuildInlineCog(rgn, {
+            icon = EllesmereUI.RESIZE_ICON,
             title = "Duration Text",
             rows = {
                 { type = "slider", label = "Text Size", min = 6, max = 26, step = 1,
@@ -1507,17 +1441,6 @@ local function BuildBaseDetailDM(frame, fontPath)
                   set = function(v) p.debuffDurTextOffsetY = v; DmApply() end },
             },
         })
-        local cogBtn = CreateFrame("Button", nil, rgn)
-        cogBtn:SetSize(26, 26)
-        cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-        rgn._lastInline = cogBtn
-        cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        cogBtn:SetAlpha(0.4)
-        local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-        cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.RESIZE_ICON)
-        cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-        cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-        cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
     end
     do
         local rgn = dtRow._rightRegion
@@ -1533,7 +1456,8 @@ local function BuildBaseDetailDM(frame, fontPath)
         swatch:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
         rgn._lastInline = swatch
 
-        local _, cogShow = EllesmereUI.BuildCogPopup({
+        EllesmereUI.BuildInlineCog(rgn, {
+            icon = EllesmereUI.RESIZE_ICON,
             title = "Stacks Text",
             rows = {
                 { type = "slider", label = "Text Size", min = 6, max = 26, step = 1,
@@ -1547,17 +1471,6 @@ local function BuildBaseDetailDM(frame, fontPath)
                   set = function(v) p.debuffStacksOffsetY = v; DmApply() end },
             },
         })
-        local cogBtn = CreateFrame("Button", nil, rgn)
-        cogBtn:SetSize(26, 26)
-        cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-        rgn._lastInline = cogBtn
-        cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        cogBtn:SetAlpha(0.4)
-        local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-        cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.RESIZE_ICON)
-        cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-        cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-        cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
     end
 
     -- Row: Tooltips | Show Duration Swipe. The swipe toggle was not in
@@ -1584,7 +1497,11 @@ local function BuildBaseDetailDM(frame, fontPath)
         local function tipOff()
             return TipModeKey(p.debuffHideTooltips) ~= "modifier"
         end
-        local _, tipModShow = EllesmereUI.BuildCogPopup({
+        local tipModBtn = EllesmereUI.BuildInlineCog(leftRgn, {
+            gap = 9,
+            disabled = tipOff,
+            -- Whole sentence: DisabledTooltip passes "This option..." strings through verbatim (still localized).
+            disabledTooltip = "This option requires Tooltips to be set to Shown on Modifier",
             title = "Tooltips",
             rows = {
                 { type = "dropdown", label = "Use Modifier",
@@ -1597,54 +1514,22 @@ local function BuildBaseDetailDM(frame, fontPath)
                   end },
             },
         })
-        local tipModBtn = CreateFrame("Button", nil, leftRgn)
-        tipModBtn:SetSize(26, 26)
-        tipModBtn:SetPoint("RIGHT", leftRgn._lastInline or leftRgn._control, "LEFT", -9, 0)
-        leftRgn._lastInline = tipModBtn
-        tipModBtn:SetFrameLevel(leftRgn:GetFrameLevel() + 5)
-        tipModBtn:SetAlpha(tipOff() and 0.15 or 0.4)
-        local tipModTex = tipModBtn:CreateTexture(nil, "OVERLAY")
-        tipModTex:SetAllPoints()
-        tipModTex:SetTexture(EllesmereUI.COGS_ICON)
-        tipModBtn:SetScript("OnEnter", function(self)
-            self:SetAlpha(0.7)
-            if (p.debuffTooltipModifier or "none") == "none" then
-                EllesmereUI.ShowWidgetTooltip(self,
-                    "Select a modifier key here, or tooltips will always be shown")
-            end
-        end)
-        tipModBtn:SetScript("OnLeave", function(self)
-            self:SetAlpha(tipOff() and 0.15 or 0.4)
-            EllesmereUI.HideWidgetTooltip()
-        end)
-        tipModBtn:SetScript("OnClick", function(self) tipModShow(self) end)
-
-        -- Blocking overlay + disabled tooltip while the mode is Hidden
-        local tipModBlock = CreateFrame("Frame", nil, tipModBtn)
-        tipModBlock:SetAllPoints()
-        tipModBlock:SetFrameLevel(tipModBtn:GetFrameLevel() + 10)
-        tipModBlock:EnableMouse(true)
-        tipModBlock:SetScript("OnEnter", function()
-            -- Whole sentence: DisabledTooltip passes "This option..." strings
-            -- through verbatim (still localized).
-            EllesmereUI.ShowWidgetTooltip(tipModBtn,
-                EllesmereUI.DisabledTooltip("This option requires Tooltips to be set to Shown on Modifier"))
-        end)
-        tipModBlock:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-        local function UpdateTipModState()
-            local off = tipOff()
-            tipModBtn:SetAlpha(off and 0.15 or 0.4)
-            if off then tipModBlock:Show() else tipModBlock:Hide() end
-        end
-        UpdateTipModState(); EllesmereUI.RegisterWidgetRefresh(UpdateTipModState)
-
-        -- Persistent red bubble above the cog while Shown on Modifier is
-        -- selected with no key picked (the standard empty-selection warning);
-        -- the hover tooltip above keeps the explanation.
-        EllesmereUI.AttachEmptyFilterWarn(leftRgn, tipModBtn, L("Select a Modifier"),
-            function()
-                return tipOff() or (p.debuffTooltipModifier or "none") ~= "none"
+        if tipModBtn then
+            tipModBtn:HookScript("OnEnter", function(self)
+                if (p.debuffTooltipModifier or "none") == "none" then
+                    EllesmereUI.ShowWidgetTooltip(self, "Select a modifier key here, or tooltips will always be shown")
+                end
             end)
+            tipModBtn:HookScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
+
+            -- Persistent red bubble above the cog while Shown on Modifier is
+            -- selected with no key picked (the standard empty-selection warning);
+            -- the hover tooltip above keeps the explanation.
+            EllesmereUI.AttachEmptyFilterWarn(leftRgn, tipModBtn, L("Select a Modifier"),
+                function()
+                    return tipOff() or (p.debuffTooltipModifier or "none") ~= "none"
+                end)
+        end
     end
 
     sy = BuildFxEffects(frame, sy, dm)
@@ -1708,7 +1593,7 @@ local function BuildTileDetail(frame, fontPath, t)
               setValue = function(v) TSet("cap", v) end }); sy = sy - hh
         do
             local rgn = sizeRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
                 title = "Icon Zoom",
                 rows = {
                     { type = "slider", label = "Zoom", min = 0, max = 0.20, step = 0.01,
@@ -1716,17 +1601,6 @@ local function BuildTileDetail(frame, fontPath, t)
                       set = function(v) TSet("iconZoom", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
 
         -- Row: Position (+ offsets cog) | Growth Direction
@@ -1744,7 +1618,8 @@ local function BuildTileDetail(frame, fontPath, t)
               setValue = function(v) TSet("growDirection", v) end }); sy = sy - hh
         do
             local rgn = posRow2._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                icon = EllesmereUI.DIRECTIONS_ICON,
                 title = "Position Offset",
                 rows = {
                     { type = "slider", label = "Offset X", min = -50, max = 50, step = 1,
@@ -1755,17 +1630,6 @@ local function BuildTileDetail(frame, fontPath, t)
                       set = function(v) TSet("offsetY", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
 
         -- Row: Icons Per Row (end of CORE). Tile-local key, no base
@@ -1828,7 +1692,8 @@ local function BuildTileDetail(frame, fontPath, t)
             swatch:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
             rgn._lastInline = swatch
 
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                icon = EllesmereUI.RESIZE_ICON,
                 title = "Duration Text",
                 rows = {
                     { type = "slider", label = "Text Size", min = 6, max = 26, step = 1,
@@ -1842,17 +1707,6 @@ local function BuildTileDetail(frame, fontPath, t)
                       set = function(v) TSet("durTextOffsetY", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.RESIZE_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
         do
             local rgn = dtRow._rightRegion
@@ -1868,7 +1722,8 @@ local function BuildTileDetail(frame, fontPath, t)
             swatch:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
             rgn._lastInline = swatch
 
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                icon = EllesmereUI.RESIZE_ICON,
                 title = "Stacks Text",
                 rows = {
                     { type = "slider", label = "Text Size", min = 6, max = 26, step = 1,
@@ -1882,17 +1737,6 @@ local function BuildTileDetail(frame, fontPath, t)
                       set = function(v) TSet("stacksOffsetY", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.RESIZE_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
 
         -- Row: Tooltips | Show Duration Swipe (base pane parity)
@@ -2020,7 +1864,8 @@ local function BuildTileDetail(frame, fontPath, t)
               setValue = function(v) TSet("position", v) end }); sy = sy - hh
         do
             local rgn = coreRow._rightRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
+                icon = EllesmereUI.DIRECTIONS_ICON,
                 title = "Position Offset",
                 rows = {
                     { type = "slider", label = "Offset X", min = -50, max = 50, step = 1,
@@ -2037,17 +1882,6 @@ local function BuildTileDetail(frame, fontPath, t)
                       set = function(v) TSet("frameLevel", v) end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
         _, hh = W:DualRow(frame, sy,
             { type = "toggle", text = "Reverse Fill",
@@ -4610,7 +4444,7 @@ function ns.BMP_BuildAssignedFilters(parent, sy, ind, fontPath)
                 for i = 1, #rest do Add(rest[i]) end
                 return out
             end
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
                 title = "Custom Order",
                 rows = {
                     { type = "reorder", label = "Buff Order", hint = "Drag to Reorder",
@@ -4624,17 +4458,6 @@ function ns.BMP_BuildAssignedFilters(parent, sy, ind, fontPath)
                       disabledTooltip = "Custom Order" },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(s) s:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(s) s:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(s) cogShow(s) end)
         end
     else
         _r, hh = W:DualRow(parent, sy, showInCfg, { type = "label", text = "" }); sy = sy - hh

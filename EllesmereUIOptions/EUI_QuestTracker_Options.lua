@@ -28,22 +28,6 @@ initFrame:SetScript("OnEvent", function(self)
     local function Cfg(k)    return DB()[k]  end
     local function Set(k, v) DB()[k] = v     end
 
-    local function MakeCogBtn(rgn, showFn)
-        local cogBtn = CreateFrame("Button", nil, rgn)
-        cogBtn:SetSize(26, 26)
-        cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-        rgn._lastInline = cogBtn
-        cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        cogBtn:SetAlpha(0.4)
-        local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-        cogTex:SetAllPoints()
-        cogTex:SetTexture(EllesmereUI.COGS_ICON)
-        cogBtn:SetScript("OnEnter", function(s) s:SetAlpha(0.7) end)
-        cogBtn:SetScript("OnLeave", function(s) s:SetAlpha(0.4) end)
-        cogBtn:SetScript("OnClick", function(s) showFn(s) end)
-        return cogBtn
-    end
-
     local function RefreshAll()
         if EQT.RefreshStateDriver then EQT.RefreshStateDriver() end
         if EQT.UpdateVisibility   then EQT.UpdateVisibility()   end
@@ -386,32 +370,26 @@ initFrame:SetScript("OnEvent", function(self)
             { type="toggle", text="Auto Turn In Quests",
               getValue=function() return Cfg("autoTurnIn") or false end,
               setValue=function(v) Set("autoTurnIn", v) end })
-        if not EllesmereUI._prebuilding then
-            local lrgn = row._leftRegion
-            local _, cogShowL = EllesmereUI.BuildCogPopup({
-                title = "Auto Accept Settings",
-                rows = {
-                    { type="toggle", label="Prevent Multi Quest Accept",
-                      get=function() return Cfg("autoAcceptPreventMulti") ~= false end,
-                      set=function(v) Set("autoAcceptPreventMulti", v) end },
-                    { type="toggle", label="Hold Shift to Skip",
-                      get=function() return Cfg("autoAcceptShiftSkip") ~= false end,
-                      set=function(v) Set("autoAcceptShiftSkip", v) end },
-                },
-            })
-            MakeCogBtn(lrgn, cogShowL)
+        EllesmereUI.BuildInlineCog(row._leftRegion, {
+            title = "Auto Accept Settings",
+            rows = {
+                { type="toggle", label="Prevent Multi Quest Accept",
+                  get=function() return Cfg("autoAcceptPreventMulti") ~= false end,
+                  set=function(v) Set("autoAcceptPreventMulti", v) end },
+                { type="toggle", label="Hold Shift to Skip",
+                  get=function() return Cfg("autoAcceptShiftSkip") ~= false end,
+                  set=function(v) Set("autoAcceptShiftSkip", v) end },
+            },
+        })
 
-            local rrgn = row._rightRegion
-            local _, cogShowR = EllesmereUI.BuildCogPopup({
-                title = "Auto Turn In Settings",
-                rows = {
-                    { type="toggle", label="Hold Shift to Skip",
-                      get=function() return Cfg("autoTurnInShiftSkip") ~= false end,
-                      set=function(v) Set("autoTurnInShiftSkip", v) end },
-                },
-            })
-            MakeCogBtn(rrgn, cogShowR)
-        end
+        EllesmereUI.BuildInlineCog(row._rightRegion, {
+            title = "Auto Turn In Settings",
+            rows = {
+                { type="toggle", label="Hold Shift to Skip",
+                  get=function() return Cfg("autoTurnInShiftSkip") ~= false end,
+                  set=function(v) Set("autoTurnInShiftSkip", v) end },
+            },
+        })
         y = y - h
 
         -- Quest Item Hotkey row

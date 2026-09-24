@@ -24,36 +24,6 @@ _G._EUI_BuildFlightTimerPage = function(pageName, parent, yOffset)
         FT.ApplyStyle()
     end
 
-    -- Cog button on a row half, left of whatever that half already holds.
-    local function AddCog(rgn, title, rows, cogOff, offTip)
-        local _, cogShow = EllesmereUI.BuildCogPopup({ title = title, rows = rows })
-        local cogBtn = CreateFrame("Button", nil, rgn)
-        cogBtn:SetSize(26, 26)
-        cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -9, 0)
-        rgn._lastInline = cogBtn
-        cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-        cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-        cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-        cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(cogOff() and 0.15 or 0.4) end)
-        cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
-        local cogBlock = CreateFrame("Frame", nil, cogBtn)
-        cogBlock:SetAllPoints()
-        cogBlock:SetFrameLevel(cogBtn:GetFrameLevel() + 10)
-        cogBlock:EnableMouse(true)
-        cogBlock:SetScript("OnEnter", function()
-            EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip(offTip))
-        end)
-        cogBlock:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-        local function Update()
-            local isOff = cogOff()
-            cogBtn:SetAlpha(isOff and 0.15 or 0.4)
-            if isOff then cogBlock:Show() else cogBlock:Hide() end
-        end
-        EllesmereUI.RegisterWidgetRefresh(Update)
-        Update()
-    end
-
     local function TextCogRows(prefix)
         return {
             { type = "slider", label = "Text Size", min = 8, max = 24, step = 1,
@@ -220,12 +190,12 @@ _G._EUI_BuildFlightTimerPage = function(pageName, parent, yOffset)
           getValue = function() return FT.Get("timeText") end,
           setValue = function(v) Set("timeText", v); EllesmereUI:RefreshPage() end }
     );  y = y - h
-    if not EllesmereUI._prebuilding then
-        AddCog(textRow._leftRegion, "Destination Text Settings", TextCogRows("dest"),
-            function() return off() or FT.Get("destText") == "none" end, "Destination Text")
-        AddCog(textRow._rightRegion, "Time Text Settings", TextCogRows("time"),
-            function() return off() or FT.Get("timeText") == "none" end, "Time Text")
-    end
+    EllesmereUI.BuildInlineCog(textRow._leftRegion, { title = "Destination Text Settings", rows = TextCogRows("dest"),
+        icon = EllesmereUI.DIRECTIONS_ICON, gap = 9, disabledTooltip = "Destination Text",
+        disabled = function() return off() or FT.Get("destText") == "none" end })
+    EllesmereUI.BuildInlineCog(textRow._rightRegion, { title = "Time Text Settings", rows = TextCogRows("time"),
+        icon = EllesmereUI.DIRECTIONS_ICON, gap = 9, disabledTooltip = "Time Text",
+        disabled = function() return off() or FT.Get("timeText") == "none" end })
 
     do
         local fontValues, fontOrder = EllesmereUI.BuildFontDropdownData()

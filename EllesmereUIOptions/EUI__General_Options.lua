@@ -4269,7 +4269,7 @@ initFrame:SetScript("OnEvent", function(self)
         -- Cog with "Set UI Scale to 0.5333" toggle
         if not EllesmereUI._prebuilding then
             local rgn = uiScaleRow._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
                 title = "UI Scale Options",
                 rows = {
                     { type="toggle", label="Set UI Scale to 0.5333",
@@ -4302,18 +4302,8 @@ initFrame:SetScript("OnEvent", function(self)
                           EllesmereUI:RefreshPage()
                       end },
                 },
+                gap = 9,
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -9, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
 
         -- Row 3: EUI Buttons (merged button toggles) | Disable Sync Icons (+ cog)
@@ -4380,7 +4370,7 @@ initFrame:SetScript("OnEvent", function(self)
         -- Cog with "Only Hide Fully Synced" toggle on Disable Sync Icons (right region)
         if not EllesmereUI._prebuilding then
             local rgn = euiBtnRow._rightRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
                 title = "Sync Icon Options",
                 rows = {
                     { type="toggle", label="Only Hide Fully Synced",
@@ -4394,17 +4384,6 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
         end
 
         -- EUI Options Language: options-panel display language (auto-detects the client; untranslated text falls back to English).
@@ -4633,7 +4612,7 @@ initFrame:SetScript("OnEvent", function(self)
             local dmgOff = function() return not GetCVarBool("floatingCombatTextCombatDamage_v2") end
             local leftRgn = showDmgRow._leftRegion
 
-            local _, dmgCogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(leftRgn, {
                 title = "Damage Text Settings",
                 rows = {
                     { type="toggle", label="Show Periodic Damage",
@@ -4646,42 +4625,8 @@ initFrame:SetScript("OnEvent", function(self)
                       get=function() return GetCVarBool("floatingCombatTextPetSpellDamage_v2") end,
                       set=function(v) SetCVarSafe("floatingCombatTextPetSpellDamage_v2", v and "1" or "0") end },
                 },
+                gap = 9, disabled = dmgOff, disabledTooltip = "Show Combat Damage Text",
             })
-
-            local dmgCogBtn = CreateFrame("Button", nil, leftRgn)
-            dmgCogBtn:SetSize(26, 26)
-            dmgCogBtn:SetPoint("RIGHT", leftRgn._lastInline or leftRgn._control, "LEFT", -9, 0)
-            leftRgn._lastInline = dmgCogBtn
-            dmgCogBtn:SetFrameLevel(leftRgn:GetFrameLevel() + 5)
-            dmgCogBtn:SetAlpha(dmgOff() and 0.15 or 0.4)
-            local dmgCogTex = dmgCogBtn:CreateTexture(nil, "OVERLAY")
-            dmgCogTex:SetAllPoints()
-            dmgCogTex:SetTexture(EllesmereUI.COGS_ICON)
-            dmgCogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            dmgCogBtn:SetScript("OnLeave", function(self) self:SetAlpha(dmgOff() and 0.15 or 0.4) end)
-            dmgCogBtn:SetScript("OnClick", function(self) dmgCogShow(self) end)
-
-            local dmgCogBlock = CreateFrame("Frame", nil, dmgCogBtn)
-            dmgCogBlock:SetAllPoints()
-            dmgCogBlock:SetFrameLevel(dmgCogBtn:GetFrameLevel() + 10)
-            dmgCogBlock:EnableMouse(true)
-            dmgCogBlock:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(dmgCogBtn, EllesmereUI.DisabledTooltip("Show Combat Damage Text"))
-            end)
-            dmgCogBlock:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-
-            EllesmereUI.RegisterWidgetRefresh(function()
-                if dmgOff() then
-                    dmgCogBtn:SetAlpha(0.15)
-                    dmgCogBlock:Show()
-                else
-                    dmgCogBtn:SetAlpha(0.4)
-                    dmgCogBlock:Hide()
-                end
-            end)
-
-            dmgCogBtn:SetAlpha(dmgOff() and 0.15 or 0.4)
-            if dmgOff() then dmgCogBlock:Show() else dmgCogBlock:Hide() end
         end
 
         -- Swiftmend Brightness Fix (Druid only)

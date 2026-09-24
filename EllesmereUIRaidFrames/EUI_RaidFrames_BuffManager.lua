@@ -2110,7 +2110,8 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
     local function AttachOwnAllSpecsCog(rgn, ind)
         -- v2 retires the spec-borrow restriction: an inert cog would mislead.
         if ns.BM2_Enabled then return end
-        local _, cogShow = EllesmereUI.BuildCogPopup({
+        EllesmereUI.BuildInlineCog(rgn, {
+            anchorTo = rgn._control,
             title = "Own Only",
             rows = {
                 { type = "toggle", label = "Show Own on All Specs",
@@ -2122,17 +2123,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                   end },
             },
         })
-        local cogBtn = CreateFrame("Button", nil, rgn)
-        cogBtn:SetSize(26, 26)
-        cogBtn:SetPoint("RIGHT", rgn._control, "LEFT", -8, 0)
-        cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        cogBtn:SetAlpha(0.4)
-        local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-        cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-        cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-        cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-        cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
-        rgn._lastInline = cogBtn
     end
 
     local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or "Fonts\\FRIZQT__.TTF"
@@ -4438,7 +4428,8 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                 end
             end
             if perRgn then
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(perRgn, {
+                    tip = "Max Icons",
                     title = "Max Icons",
                     rows = {
                         { type="slider", label="Max Icons", min=0, max=40, step=1,
@@ -4449,23 +4440,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                           end },
                     },
                 })
-                local cogBtn = CreateFrame("Button", nil, perRgn)
-                cogBtn:SetSize(26, 26)
-                cogBtn:SetPoint("RIGHT", perRgn._lastInline or perRgn._control, "LEFT", -8, 0)
-                perRgn._lastInline = cogBtn
-                cogBtn:SetFrameLevel(perRgn:GetFrameLevel() + 5)
-                local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-                cogBtn:SetAlpha(0.4)
-                cogBtn:SetScript("OnEnter", function(self)
-                    self:SetAlpha(0.7)
-                    EllesmereUI.ShowWidgetTooltip(self, "Max Icons")
-                end)
-                cogBtn:SetScript("OnLeave", function(self)
-                    self:SetAlpha(0.4)
-                    EllesmereUI.HideWidgetTooltip()
-                end)
-                cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
             end
             local ownRgn = ns.BM2_Enabled and row1._leftRegion or row1._rightRegion
             -- Mount the abilities CB dropdown (legacy only; v2 has no control)
@@ -4567,7 +4541,8 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                     local g = cur.growDirection or "RIGHT"
                     return g == "UP" or g == "DOWN"
                 end
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(rgn, {
+                    icon = EllesmereUI.DIRECTIONS_ICON,
                     title = "Position Offset",
                     rows = {
                         { type="slider", label="Offset X", min=-50, max=50, step=1,
@@ -4587,17 +4562,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                           set=function(v) ind.frameLevel = v; ReloadAndUpdate() end },
                     },
                 })
-                local cogBtn = CreateFrame("Button", nil, rgn)
-                cogBtn:SetSize(26, 26)
-                cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                rgn._lastInline = cogBtn
-                cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                cogBtn:SetAlpha(0.4)
-                local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-                cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-                cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-                cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
             end
 
             -----------------------------------------------------------
@@ -4617,7 +4581,8 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
             -- Icon Zoom cog (icon type only): one profile-wide value shared by all icon indicators.
             if indType == "icon" then
                 local rgn = sizeRow._leftRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(rgn, {
+                    disabled = IconHidden, disabledTooltip = "Hide Icons", requireState = "disabled",
                     title = "Icon Zoom",
                     rows = {
                         { type="slider", label="Zoom", min=0, max=0.20, step=0.01,
@@ -4625,18 +4590,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                           set=function(v) ns.db.profile.bmIconZoom = v; ReloadAndUpdate() end },
                     },
                 })
-                local cogBtn = CreateFrame("Button", nil, rgn)
-                cogBtn:SetSize(26, 26)
-                cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                rgn._lastInline = cogBtn
-                cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-                local function UpdCog() local off = IconHidden(); cogBtn:SetAlpha(off and 0.15 or 0.4); cogBtn:EnableMouse(not off) end
-                cogBtn:SetScript("OnEnter", function(self) if not IconHidden() then self:SetAlpha(0.7) end end)
-                cogBtn:SetScript("OnLeave", function(self) UpdCog() end)
-                cogBtn:SetScript("OnClick", function(self) if not IconHidden() then cogShow(self) end end)
-                UpdCog(); EllesmereUI.RegisterWidgetRefresh(UpdCog)
             end
 
             local bdrRow = SettingsRow(
@@ -4687,7 +4640,8 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                 swatch:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
                 rgn._lastInline = swatch
 
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(rgn, {
+                    icon = EllesmereUI.RESIZE_ICON,
                     title = "Duration Text",
                     rows = {
                         { type="slider", label="Text Size", min=6, max=26, step=1,
@@ -4701,17 +4655,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                           set=function(v) ind.durationTextOffsetY = v; ReloadAndUpdate() end },
                     },
                 })
-                local cogBtn = CreateFrame("Button", nil, rgn)
-                cogBtn:SetSize(26, 26)
-                cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                rgn._lastInline = cogBtn
-                cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                cogBtn:SetAlpha(0.4)
-                local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.RESIZE_ICON)
-                cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-                cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-                cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
             end
 
             local stacksRow = SettingsRow(
@@ -4740,7 +4683,10 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
             end
             do
                 local rgn = stacksRow._leftRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(rgn, {
+                    icon = EllesmereUI.RESIZE_ICON,
+                    disabled = function() return ind.showStacks == false end,
+                    disabledTooltip = "Show Stacks",
                     title = "Stacks Text",
                     rows = {
                         { type="slider", label="Text Size", min=6, max=26, step=1,
@@ -4754,26 +4700,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                           set=function(v) ind.stacksOffsetY = v; ReloadAndUpdate() end },
                     },
                 })
-                local cogBtn = CreateFrame("Button", nil, rgn)
-                cogBtn:SetSize(26, 26)
-                cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                rgn._lastInline = cogBtn
-                cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                cogBtn:SetAlpha(0.15)
-                local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.RESIZE_ICON)
-                cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-                cogBtn:SetScript("OnLeave", function(self)
-                    self:SetAlpha((ind.showStacks ~= false) and 0.4 or 0.15)
-                end)
-                cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
-                local function UpdateStacksCog()
-                    local off = not (ind.showStacks ~= false)
-                    cogBtn:SetAlpha(off and 0.15 or 0.4)
-                    cogBtn:EnableMouse(not off)
-                end
-                EllesmereUI.RegisterWidgetRefresh(UpdateStacksCog)
-                UpdateStacksCog()
             end
             -- Per-ability color swatches (square only), right-to-left like every inline
             -- swatch row (ability 1 at the right edge); no per-spell color falls back to ind.color, then the default.
@@ -4963,7 +4889,8 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                       setValue=function(v) ind.reverseFill = v; ReloadAndUpdate() end })
                 do
                     local rgn = posRow._leftRegion
-                    local _, cogShow = EllesmereUI.BuildCogPopup({
+                    EllesmereUI.BuildInlineCog(rgn, {
+                        icon = EllesmereUI.DIRECTIONS_ICON,
                         title = "Position Offset",
                         rows = {
                             { type="slider", label="Offset X", min=-50, max=50, step=1,
@@ -4977,17 +4904,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                               set=function(v) ind.frameLevel = v; ReloadAndUpdate() end },
                         },
                     })
-                    local cogBtn = CreateFrame("Button", nil, rgn)
-                    cogBtn:SetSize(26, 26)
-                    cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                    rgn._lastInline = cogBtn
-                    cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                    cogBtn:SetAlpha(0.4)
-                    local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                    cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-                    cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-                    cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-                    cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
                 end
 
                 -----------------------------------------------------------
@@ -5078,7 +4994,8 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                     { type="label", text="" })
                 do
                     local rgn = posRow._leftRegion
-                    local _, cogShow = EllesmereUI.BuildCogPopup({
+                    EllesmereUI.BuildInlineCog(rgn, {
+                        icon = EllesmereUI.DIRECTIONS_ICON,
                         title = "Position Offset",
                         rows = {
                             { type="slider", label="Offset X", min=-50, max=50, step=1,
@@ -5089,17 +5006,6 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                               set=function(v) ind.offsetY = v; ReloadAndUpdate() end },
                         },
                     })
-                    local cogBtn = CreateFrame("Button", nil, rgn)
-                    cogBtn:SetSize(26, 26)
-                    cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-                    rgn._lastInline = cogBtn
-                    cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-                    cogBtn:SetAlpha(0.4)
-                    local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                    cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.DIRECTIONS_ICON)
-                    cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-                    cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-                    cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
                 end
                 BuildOwnOnlyRow()
             end

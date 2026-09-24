@@ -2951,28 +2951,6 @@ initFrame:SetScript("OnEvent", function(self)
     end
 
     ---------------------------------------------------------------------------
-    --  Inline cog button beside a DualRow region, opening a BuildCogPopup.
-    --  The same shape the other option pages use (EUI_AuraBuffReminders_
-    --  Options.lua:588): parked left of the region's control, dim until
-    --  hovered, and handing itself to showFn as the popup's anchor.
-    ---------------------------------------------------------------------------
-    local function MakeCogBtn(rgn, showFn, anchorTo, iconPath)
-        local cogBtn = CreateFrame("Button", nil, rgn)
-        cogBtn:SetSize(26, 26)
-        cogBtn:SetPoint("RIGHT", anchorTo or rgn._lastInline or rgn._control, "LEFT", -8, 0)
-        rgn._lastInline = cogBtn
-        cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        cogBtn:SetAlpha(0.4)
-        local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-        cogTex:SetAllPoints()
-        cogTex:SetTexture(iconPath or EllesmereUI.COGS_ICON)
-        cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-        cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-        cogBtn:SetScript("OnClick", function(self) showFn(self) end)
-        return cogBtn
-    end
-
-    ---------------------------------------------------------------------------
     --  "Apply All Settings From" -- bulk copy between action menus, the Unit
     --  Frames main-frames row re-cut for menus.
     ---------------------------------------------------------------------------
@@ -3276,7 +3254,6 @@ initFrame:SetScript("OnEvent", function(self)
         -- go stale.
         local layoutMode = ACfg("layout") or "ARC"
 
-        local layoutCogShow
         local layoutCogTitle, layoutCogRows
         if layoutMode == "GRID" then
             layoutCogTitle = "Grid Settings"
@@ -3307,11 +3284,10 @@ initFrame:SetScript("OnEvent", function(self)
             -- (noCapture), so there is nothing for Spec Overrides to bank.
             -- Only the GRID builds a layout cog.
             if layoutCogRows then
-                layoutCogShow = select(2, EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(row._leftRegion, {
                     title = layoutCogTitle,
                     rows = layoutCogRows,
-                }))
-                MakeCogBtn(row._leftRegion, layoutCogShow)
+                })
             end
 
             -- The X/Y offsets are the ONLY way to place the palette: the
@@ -3323,8 +3299,11 @@ initFrame:SetScript("OnEvent", function(self)
             local fixedOnly = function()
                 return Disabled() or (ACfg("centerMode") or "CURSOR") ~= "SCREEN"
             end
-            local _, posCogShow = EllesmereUI.BuildCogPopup({
+            -- The cog disables with the offsets it opens, so the row still says they exist.
+            EllesmereUI.BuildInlineCog(row._rightRegion, {
                 title = "Fixed Position",
+                disabled = fixedOnly,
+                disabledTooltip = function() return Disabled() and "the module" or "Fixed Position mode" end,
                 rows = {
                     { type="slider", label="X Offset", noCapture=true,
                       min=-800, max=800, step=1,
@@ -3338,30 +3317,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) ASet("posY", v); Refresh() end },
                 },
             })
-            local posCogBtn = MakeCogBtn(row._rightRegion, posCogShow)
-
-            -- The offsets are dead ground in cursor mode, so the cog that
-            -- opens them disables with them: the blocking-overlay pattern
-            -- (clicks eaten, disabled tooltip) rather than a hidden button,
-            -- so the row still says the settings exist.
-            local posCogBlock = CreateFrame("Frame", nil, posCogBtn)
-            posCogBlock:SetAllPoints()
-            posCogBlock:SetFrameLevel(posCogBtn:GetFrameLevel() + 10)
-            posCogBlock:EnableMouse(true)
-            posCogBlock:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(posCogBtn, EllesmereUI.DisabledTooltip(
-                    Disabled() and "the module" or "Fixed Position mode"))
-            end)
-            posCogBlock:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-            local function UpdatePosCogDisabled()
-                if fixedOnly() then
-                    posCogBtn:SetAlpha(0.15); posCogBlock:Show()
-                else
-                    posCogBtn:SetAlpha(0.4); posCogBlock:Hide()
-                end
-            end
-            UpdatePosCogDisabled()
-            EllesmereUI.RegisterWidgetRefresh(UpdatePosCogDisabled)
         end
         y = y - h
 
@@ -3418,7 +3373,7 @@ initFrame:SetScript("OnEvent", function(self)
                   getValue=function() return ACfg("arcSpan") or 360 end,
                   setValue=function(v) ASet("arcSpan", v); Refresh() end })
             do
-                local _, rotCogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(arcRow._rightRegion, {
                     title = "Arc Rotation",
                     rows = {
                         -- 360 is a full turn, and rotating a full circle is
@@ -3437,7 +3392,6 @@ initFrame:SetScript("OnEvent", function(self)
                           set=function(v) ASet("arcRotation", v); Refresh() end },
                     },
                 })
-                MakeCogBtn(arcRow._rightRegion, rotCogShow)
             end
             y = y - h
         end
@@ -3470,7 +3424,7 @@ initFrame:SetScript("OnEvent", function(self)
             do
                 -- No captureRegion: every row here is per-menu (noCapture),
                 -- so there is nothing for Spec Overrides to bank.
-                local _, fanCogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(fanRow._leftRegion, {
                     title = "Fan Settings",
                     rows = {
                         -- The strip's hover channel: the entry under the
@@ -3492,7 +3446,6 @@ initFrame:SetScript("OnEvent", function(self)
                           set=function(v) ASet("fanInvert", v); Refresh() end },
                     },
                 })
-                MakeCogBtn(fanRow._leftRegion, fanCogShow)
             end
             y = y - h
         end
@@ -3521,7 +3474,7 @@ initFrame:SetScript("OnEvent", function(self)
                   getValue=function() return ACfg("nestScale") or 0.8 end,
                   setValue=function(v) ASet("nestScale", v); Refresh() end })
             if layoutMode == "ARC" then
-                local _, nestCogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(nestRow._leftRegion, {
                     title = "Arc Nest Shape",
                     rows = {
                         { type="dropdown", label="Nest Width", noCapture=true,
@@ -3546,9 +3499,8 @@ initFrame:SetScript("OnEvent", function(self)
                           set=function(v) ASet("arcChildMaxSpan", v); Refresh() end },
                     },
                 })
-                MakeCogBtn(nestRow._leftRegion, nestCogShow)
             elseif layoutMode == "GRID" then
-                local _, nestCogShow = EllesmereUI.BuildCogPopup({
+                EllesmereUI.BuildInlineCog(nestRow._leftRegion, {
                     title = "Grid Nest Style",
                     rows = {
                         --   Lane     a halo hugging the block, centered on the
@@ -3570,7 +3522,6 @@ initFrame:SetScript("OnEvent", function(self)
                           set=function(v) ASet("gridNestStyle", v); Refresh() end },
                     },
                 })
-                MakeCogBtn(nestRow._leftRegion, nestCogShow)
             end
             y = y - h
         end
@@ -3766,29 +3717,15 @@ initFrame:SetScript("OnEvent", function(self)
         y = y - h
 
         -- Inline cog on Toggle World Markers: the placed-marker pip opt-out.
-        if not EllesmereUI._prebuilding then
-            local rgn = wmRow._rightRegion
-            local _, wmCogShow = EllesmereUI.BuildCogPopup({
-                title = "World Marker Entries",
-                rows = {
-                    { type="toggle", label="Show Placed-Marker Pips",
-                      tooltip="Mark a world marker entry whose marker is on the ground with a small corner square, so you can see whether pressing it places or picks up.",
-                      get=function() return ACfg("worldMarkerPip") ~= false end,
-                      set=function(v) ASet("worldMarkerPip", v); Refresh() end },
-                },
-            })
-            local cogBtn = CreateFrame("Button", nil, rgn)
-            cogBtn:SetSize(26, 26)
-            cogBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
-            rgn._lastInline = cogBtn
-            cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-            cogBtn:SetAlpha(0.4)
-            local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-            cogTex:SetAllPoints(); cogTex:SetTexture(EllesmereUI.COGS_ICON)
-            cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-            cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-            cogBtn:SetScript("OnClick", function(self) wmCogShow(self) end)
-        end
+        EllesmereUI.BuildInlineCog(wmRow._rightRegion, {
+            title = "World Marker Entries",
+            rows = {
+                { type="toggle", label="Show Placed-Marker Pips",
+                  tooltip="Mark a world marker entry whose marker is on the ground with a small corner square, so you can see whether pressing it places or picks up.",
+                  get=function() return ACfg("worldMarkerPip") ~= false end,
+                  set=function(v) ASet("worldMarkerPip", v); Refresh() end },
+            },
+        })
 
         _, h = W:Spacer(parent, y, 10); y = y - h
 

@@ -673,25 +673,6 @@ initFrame:SetScript("OnEvent", function(self)
     end
 
     ---------------------------------------------------------------------------
-    --  MakeCogBtn helper (inline cog button next to a DualRow region)
-    ---------------------------------------------------------------------------
-    local function MakeCogBtn(rgn, showFn, anchorTo, iconPath)
-        local cogBtn = CreateFrame("Button", nil, rgn)
-        cogBtn:SetSize(26, 26)
-        cogBtn:SetPoint("RIGHT", anchorTo or rgn._lastInline or rgn._control, "LEFT", -8, 0)
-        rgn._lastInline = cogBtn
-        cogBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
-        cogBtn:SetAlpha(0.4)
-        local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-        cogTex:SetAllPoints()
-        cogTex:SetTexture(iconPath or EllesmereUI.COGS_ICON)
-        cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.7) end)
-        cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-        cogBtn:SetScript("OnClick", function(self) showFn(self) end)
-        return cogBtn
-    end
-
-    ---------------------------------------------------------------------------
     --  Per-section "Where to Show" + "Show When" multi-selects. The stored
     --  table keeps only unchecked buckets (value false); an absent bucket =
     --  shown. Buckets mirror EABR.CurrentWhereBucket in the core file.
@@ -780,8 +761,7 @@ initFrame:SetScript("OnEvent", function(self)
                 if p then PlaySoundFile(p, "Master") end
             end,
         } }
-        local _, cogShow = EllesmereUI.BuildCogPopup({ title="Reminder Sound", rows=rows, minWidth=220 })
-        return MakeCogBtn(rgn, cogShow)
+        return EllesmereUI.BuildInlineCog(rgn, { title="Reminder Sound", rows=rows, minWidth=220 })
     end
 
     -- Per-section control dual-row: a "Where to Show" checkbox dropdown on
@@ -979,22 +959,12 @@ initFrame:SetScript("OnEvent", function(self)
                 -- current item populates cogRows; the hook exists for
                 -- per-item condition sets.
                 if item.cogRows then
-                    local _, cogShow = EllesmereUI.BuildCogPopup({
+                    EllesmereUI.BuildInlineCog(cell, {
                         title = item.cogTitle or "Reminder Conditions",
                         rows = item.cogRows,
                         minWidth = 220,
+                        anchorTo = box, chain = false, size = 16, gap = 10,
                     })
-                    local cogBtn = CreateFrame("Button", nil, cell)
-                    cogBtn:SetSize(16, 16)
-                    cogBtn:SetPoint("RIGHT", box, "LEFT", -10, 0)
-                    cogBtn:SetFrameLevel(btn:GetFrameLevel() + 5)
-                    cogBtn:SetAlpha(0.4)
-                    local cogTex = cogBtn:CreateTexture(nil, "OVERLAY")
-                    cogTex:SetAllPoints()
-                    cogTex:SetTexture(EllesmereUI.COGS_ICON)
-                    cogBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.75) end)
-                    cogBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.4) end)
-                    cogBtn:SetScript("OnClick", function(self) cogShow(self) end)
                 end
 
                 EllesmereUI.RegisterWidgetRefresh(ApplyVisual)
@@ -1176,7 +1146,7 @@ initFrame:SetScript("OnEvent", function(self)
         if not EllesmereUI._prebuilding then
             do
                 local rgn = borderRow._leftRegion
-                local _, cogShow = EllesmereUI.BuildCogPopup({
+                local cogBtn = EllesmereUI.BuildInlineCog(rgn, {
                     title = "Border Options",
                     rows = {
                         { type="slider", label="Shift X", min=-10, max=10, step=1,
@@ -1200,7 +1170,6 @@ initFrame:SetScript("OnEvent", function(self)
                           set=function(v) local d=DDB(); if d then d.borderBehind=v; RefreshBorders() end end },
                     },
                 })
-                local cogBtn = MakeCogBtn(rgn, cogShow)
                 local function UpdateBorderCogVisibility()
                     local d = DDB()
                     cogBtn:SetShown(d and (d.borderTexture or "solid") ~= "solid")
@@ -1253,8 +1222,10 @@ initFrame:SetScript("OnEvent", function(self)
         if not EllesmereUI._prebuilding then
             local rgn = rowText._rightRegion
             local countFontValues, countFontOrder = EllesmereUI.BuildFontDropdownData()
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
                 title = "Item Count Settings",
+                disabled = function() local d = DDB(); return d and d.showCount == false end,
+                disabledTooltip = "Show Item Count",
                 rows = {
                     { type="dropdown", label="Item Count Font",
                       values=countFontValues, order=countFontOrder,
@@ -1275,28 +1246,6 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) local d = DDB(); if not d then return end; d.countYOffset = v; RefreshAll(); UpdatePreviewHeader() end },
                 },
             })
-            local cogBtn = MakeCogBtn(rgn, cogShow)
-
-            local cogBlock = CreateFrame("Frame", nil, cogBtn)
-            cogBlock:SetAllPoints()
-            cogBlock:SetFrameLevel(cogBtn:GetFrameLevel() + 10)
-            cogBlock:EnableMouse(true)
-            cogBlock:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("Show Item Count"))
-            end)
-            cogBlock:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-
-            local function UpdateCountCogDisabled()
-                local d = DDB()
-                local off = d and d.showCount == false
-                if off then
-                    cogBtn:SetAlpha(0.15); cogBlock:Show()
-                else
-                    cogBtn:SetAlpha(0.4); cogBlock:Hide()
-                end
-            end
-            UpdateCountCogDisabled()
-            EllesmereUI.RegisterWidgetRefresh(UpdateCountCogDisabled)
         end
 
         -- Row 3: Glow Type (+ inline trio swatch) | Attach Important Buffs to Cursor
@@ -1410,8 +1359,10 @@ initFrame:SetScript("OnEvent", function(self)
 
             -- Inline cog for name settings (font, size, anchor, x/y offset)
             local nameFontValues, nameFontOrder = EllesmereUI.BuildFontDropdownData()
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, {
                 title = "Name Settings",
+                disabled = function() local d = DDB(); return not d or not d.showText end,
+                disabledTooltip = "Show Name",
                 rows = {
                     { type="dropdown", label="Name Font",
                       values=nameFontValues, order=nameFontOrder,
@@ -1440,33 +1391,12 @@ initFrame:SetScript("OnEvent", function(self)
                       set=function(v) local d = DDB(); if not d then return end; d.textYOffset = v; RefreshAll(); UpdatePreviewHeader() end },
                 },
             })
-            local cogBtn = MakeCogBtn(rgn, cogShow)
 
-            -- Disabled overlay for cog when Show Name is off
-            local cogBlock = CreateFrame("Frame", nil, cogBtn)
-            cogBlock:SetAllPoints()
-            cogBlock:SetFrameLevel(cogBtn:GetFrameLevel() + 10)
-            cogBlock:EnableMouse(true)
-            cogBlock:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("Show Name"))
-            end)
-            cogBlock:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-
-            -- Shared refresh for both swatch and cog disabled states
             local function UpdateTextInlinesDisabled()
                 local d = DDB()
                 local off = not d or not d.showText
-                if off then
-                    swatch:SetAlpha(0.3)
-                    swatchBlock:Show()
-                    cogBtn:SetAlpha(0.15)
-                    cogBlock:Show()
-                else
-                    swatch:SetAlpha(1)
-                    swatchBlock:Hide()
-                    cogBtn:SetAlpha(0.4)
-                    cogBlock:Hide()
-                end
+                swatch:SetAlpha(off and 0.3 or 1)
+                swatchBlock:SetShown(off)
             end
             UpdateTextInlinesDisabled()
             EllesmereUI.RegisterWidgetRefresh(UpdateTextInlinesDisabled)
@@ -1495,7 +1425,7 @@ initFrame:SetScript("OnEvent", function(self)
         -- Inline DIRECTIONS cog on Icon Spacing (left of row 3) for Y offset
         if not EllesmereUI._prebuilding then
             local rgn = rowSliders._leftRegion
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
                 title = "Layout Settings",
                 rows = {
                     { type="slider", label="Y Offset", min=-600, max=600, step=1,
@@ -1504,7 +1434,6 @@ initFrame:SetScript("OnEvent", function(self)
                           if _G._EABR_ApplyUnlockPos then _G._EABR_ApplyUnlockPos() end end },
                 },
             })
-            MakeCogBtn(rgn, cogShow, nil, EllesmereUI.DIRECTIONS_ICON)
         end
 
         -- Row 5: Show Below | Show Below Pre-Key (global timing, minutes)
@@ -2144,8 +2073,10 @@ initFrame:SetScript("OnEvent", function(self)
                 if _G._EABR_RCWarnPreview then _G._EABR_RCWarnPreview() end
             end
             leftRgn._rcwFontValues, leftRgn._rcwFontOrder = EllesmereUI.BuildFontDropdownData()
-            local _, cogShow = EllesmereUI.BuildCogPopup({
+            EllesmereUI.BuildInlineCog(leftRgn, {
                 title = "Mana Warning Settings",
+                disabled = rcwOff,
+                disabledTooltip = "Ready Check Mana Warning",
                 rows = {
                     { type="dropdown", label="Mana Warning Font",
                       values=leftRgn._rcwFontValues, order=leftRgn._rcwFontOrder,
@@ -2170,16 +2101,6 @@ initFrame:SetScript("OnEvent", function(self)
                           ShowPreviewFromCog() end },
                 },
             })
-            local cogBtn = MakeCogBtn(leftRgn, cogShow)
-
-            local cogBlock = CreateFrame("Frame", nil, cogBtn)
-            cogBlock:SetAllPoints()
-            cogBlock:SetFrameLevel(cogBtn:GetFrameLevel() + 10)
-            cogBlock:EnableMouse(true)
-            cogBlock:SetScript("OnEnter", function()
-                EllesmereUI.ShowWidgetTooltip(cogBtn, EllesmereUI.DisabledTooltip("Ready Check Mana Warning"))
-            end)
-            cogBlock:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
 
             -- Eye icon toggles a live preview (left of cog)
             local EYE_VISIBLE   = EllesmereUI.EYE_VISIBLE_ICON
@@ -2230,12 +2151,10 @@ initFrame:SetScript("OnEvent", function(self)
                     rcwPreviewShown = false
                     RefreshRcwEye()
                     swatch:SetAlpha(0.3);  swatchBlock:Show()
-                    cogBtn:SetAlpha(0.15); cogBlock:Show()
                     eyeBtn:SetAlpha(0.15); eyeBlock:Show()
                 else
                     swatch:SetAlpha(1)
                     swatchBlock:Hide()
-                    cogBtn:SetAlpha(0.4); cogBlock:Hide()
                     eyeBtn:SetAlpha(0.4); eyeBlock:Hide()
                 end
             end
