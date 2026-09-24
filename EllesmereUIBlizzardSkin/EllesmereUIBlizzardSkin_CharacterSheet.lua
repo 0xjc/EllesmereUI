@@ -31,7 +31,7 @@ function ns.CharSheetStyle()
         if EllesmereUI.IS_FOREVER then
             v = "eui"
         else
-            local p = EllesmereUI.GetActiveProfileData and EllesmereUI.GetActiveProfileData()
+            local p = EllesmereUI.GetActiveProfileData()
             if type(p) ~= "table" then return "eui" end
             v = (p.charSheetUseClassicStyle and "classic") or (p.charSheetUseBlizzardStyle and "blizzard") or "eui"
         end
@@ -861,7 +861,7 @@ local function SkinCharacterSheet()
         ns.WSkin.CloseButton(closeBtn)
     end
 
-    local fontPath = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("blizzardSkin") or STANDARD_TEXT_FONT
+    local fontPath = EllesmereUI.GetFontPath("blizzardSkin") or STANDARD_TEXT_FONT
     local EG = EllesmereUI.ELLESMERE_GREEN or { r = 0.51, g = 0.784, b = 1 }
 
     do
@@ -953,9 +953,7 @@ local function SkinCharacterSheet()
                 underline:SetPoint("BOTTOMLEFT", tab, "BOTTOMLEFT", 0, 0)
                 underline:SetPoint("BOTTOMRIGHT", tab, "BOTTOMRIGHT", 0, 0)
                 underline:SetColorTexture(EG.r or 0.51, EG.g or 0.784, EG.b or 1, 1)
-                if EllesmereUI and EllesmereUI.RegAccent then
-                    EllesmereUI.RegAccent({ type = "solid", obj = underline, a = 1 })
-                end
+                EllesmereUI.RegAccent({ type = "solid", obj = underline, a = 1 })
                 underline:Hide()
                 GetFFD(tab).underline = underline
             end
@@ -3058,11 +3056,9 @@ local function SkinCharacterSheet()
             _paintTopButton(b)
         end
     end
-    if EllesmereUI and EllesmereUI.RegAccent then
-        EllesmereUI.RegAccent({ type = "callback", fn = function()
-            for _, b in ipairs(topButtonRegistry) do _paintTopButton(b) end
-        end })
-    end
+    EllesmereUI.RegAccent({ type = "callback", fn = function()
+        for _, b in ipairs(topButtonRegistry) do _paintTopButton(b) end
+    end })
 
     local function CreateEUIButton(name, label, onClick)
         -- Plain Button, NOT SecureActionButtonTemplate: these tabs only need insecure
@@ -3723,9 +3719,7 @@ local function SkinCharacterSheet()
                         end }
                     end
                 end
-                if EllesmereUI and EllesmereUI.ShowContextMenu then
-                    EllesmereUI.ShowContextMenu(self, items)
-                end
+                EllesmereUI.ShowContextMenu(self, items)
             end)
             tile._cog = cog
 
@@ -4021,7 +4015,7 @@ local function SkinCharacterSheet()
         "CharacterTrinket0Slot", "CharacterTrinket1Slot"
     }
 
-    local fontPath = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("blizzardSkin") or STANDARD_TEXT_FONT
+    local fontPath = EllesmereUI.GetFontPath("blizzardSkin") or STANDARD_TEXT_FONT
 
     -- Create overlay frame for text labels (above model, transparent, no mouse input).
     -- Stock styles: a PaperDollFrame child (hides with the Character tab) above
@@ -4063,13 +4057,11 @@ local function SkinCharacterSheet()
         end)
         eyeBtn:SetScript("OnEnter", function(self)
             self:SetAlpha(0.8)
-            if EllesmereUI.ShowWidgetTooltip then
-                EllesmereUI.ShowWidgetTooltip(self, hidden and "Show Item Text" or "Hide Item Text", { width = 135 })
-            end
+            EllesmereUI.ShowWidgetTooltip(self, hidden and "Show Item Text" or "Hide Item Text", { width = 135 })
         end)
         eyeBtn:SetScript("OnLeave", function(self)
             self:SetAlpha(0.4)
-            if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
+            EllesmereUI.HideWidgetTooltip()
         end)
         GetFFD(frame).textEyeBtn = eyeBtn
     end
@@ -4812,7 +4804,7 @@ local function EnsureCalcTab(frame)
     local existing = GetFFD(frame).calcToggleBtn
     if existing then return existing end
 
-    local fontPath = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("blizzardSkin") or STANDARD_TEXT_FONT
+    local fontPath = EllesmereUI.GetFontPath("blizzardSkin") or STANDARD_TEXT_FONT
     local PP = EllesmereUI and EllesmereUI.PP
 
     local refTab = _G["CharacterFrameTab1"]
@@ -4853,9 +4845,7 @@ local function EnsureCalcTab(frame)
     underline:SetPoint("BOTTOMRIGHT", calcTab, "BOTTOMRIGHT", 0, 0)
     underline:SetColorTexture(EG.r, EG.g, EG.b, 1)
     underline:Hide()
-    if EllesmereUI.RegAccent then
-        EllesmereUI.RegAccent({ type = "solid", obj = underline, a = 1 })
-    end
+    EllesmereUI.RegAccent({ type = "solid", obj = underline, a = 1 })
 
     local function RefreshCalcTab()
         local fr = _G["EUIUpgCalcFrame"]
@@ -5139,7 +5129,7 @@ function EllesmereUI._applyCharSheetTextSizes()
     local enchantShadow = EllesmereUIDB and EllesmereUIDB.charSheetEnchantShadow or false
     local enchantOutline = EllesmereUIDB and EllesmereUIDB.charSheetEnchantOutline or false
 
-    local fontPath = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("blizzardSkin") or STANDARD_TEXT_FONT
+    local fontPath = EllesmereUI.GetFontPath("blizzardSkin") or STANDARD_TEXT_FONT
 
     local itemSlots = EUI_GEAR_SLOTS
 
@@ -5151,7 +5141,7 @@ function EllesmereUI._applyCharSheetTextSizes()
                 if itemLevelOutline then
                     flags = "OUTLINE, SLUG"
                 end
-                if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(GetFFD(slot).itemLevelLabel, itemLevelShadow) end
+                EllesmereUI.PrimeFontShadow(GetFFD(slot).itemLevelLabel, itemLevelShadow)
                 GetFFD(slot).itemLevelLabel:SetFont(fontPath, itemLevelSize, flags)
             end
             if GetFFD(slot).upgradeTrackLabel then
@@ -5159,7 +5149,7 @@ function EllesmereUI._applyCharSheetTextSizes()
                 if upgradeTrackOutline then
                     flags = "OUTLINE, SLUG"
                 end
-                if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(GetFFD(slot).upgradeTrackLabel, upgradeTrackShadow) end
+                EllesmereUI.PrimeFontShadow(GetFFD(slot).upgradeTrackLabel, upgradeTrackShadow)
                 GetFFD(slot).upgradeTrackLabel:SetFont(fontPath, upgradeTrackSize, flags)
             end
             if GetFFD(slot).enchantLabel then
@@ -5167,7 +5157,7 @@ function EllesmereUI._applyCharSheetTextSizes()
                 if enchantOutline then
                     flags = "OUTLINE, SLUG"
                 end
-                if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(GetFFD(slot).enchantLabel, enchantShadow) end
+                EllesmereUI.PrimeFontShadow(GetFFD(slot).enchantLabel, enchantShadow)
                 GetFFD(slot).enchantLabel:SetFont(fontPath, enchantSize, flags)
             end
         end

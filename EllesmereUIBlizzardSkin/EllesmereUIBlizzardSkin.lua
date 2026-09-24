@@ -78,7 +78,7 @@ local WINDOW_ENABLE_KEYS = {
 --- PRESERVED while killed. Skins install at load, so crossings need a reload
 --- (callers show the popup). Queue Popup, Pause Menu, and Dragon Riding are not windows and stay untouched.
 function EllesmereUI.BlizzWindowSkinsKilled()
-    local prof = EllesmereUI.GetActiveProfileData and EllesmereUI.GetActiveProfileData()
+    local prof = EllesmereUI.GetActiveProfileData()
     return (prof and prof.disableWindowSkins) and true or false
 end
 
@@ -363,7 +363,7 @@ end
 function EllesmereUI.ReconcileWindowSkinLook()
     local db = EllesmereUIDB
     if type(db) ~= "table" then return end
-    local prof = EllesmereUI.GetActiveProfileData and EllesmereUI.GetActiveProfileData()
+    local prof = EllesmereUI.GetActiveProfileData()
     local look = EllesmereUI.ProfileWindowSkinLook(prof, db.fonts)
     if look then EllesmereUI.SwapWindowSkinStyle(look, false, look ~= "eui" and look or nil) end
 end
@@ -497,8 +497,8 @@ end
 
     local function _ttFonts(tt, startFrom)
         if not tt or tt:IsForbidden() or not _enabled() then return end
-        local fp = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("blizzardSkin") or STANDARD_TEXT_FONT
-        local ol = EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag("blizzardSkin") or ""
+        local fp = EllesmereUI.GetFontPath("blizzardSkin") or STANDARD_TEXT_FONT
+        local ol = EllesmereUI.GetFontOutlineFlag("blizzardSkin") or ""
         local scale = EllesmereUIDB and EllesmereUIDB.tooltipFontScale or 1.0
         local titleSize = math.floor(13 * scale + 0.5)
         local bodySize  = math.floor(11 * scale + 0.5)
@@ -1594,9 +1594,9 @@ end
             local db = EllesmereUIDB or {}
             local QT = EllesmereUI.QUEUE_TIMER
             local c = db.queueTimerTextColor
-            local fontPath = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("extras"))
+            local fontPath = (EllesmereUI.GetFontPath("extras"))
                 or "Fonts\\FRIZQT__.TTF"
-            if EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(timerText, true) end
+            EllesmereUI.PrimeFontShadow(timerText, true)
             timerText:SetFont(fontPath, db.queueTimerTextSize or QT.TEXT_SIZE, "")
             timerText:SetTextColor((c and c.r) or QT.TEXT_R, (c and c.g) or QT.TEXT_G,
                 (c and c.b) or QT.TEXT_B, 1)
@@ -1628,14 +1628,12 @@ end
 
                 timerText = timerBar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
 
-                if EllesmereUI.RegAccent then
-                    EllesmereUI.RegAccent({ type = "callback", fn = function()
-                        if GetFFD(timerBar).style then
-                            local r, g, b = EllesmereUI.GetAccentColor()
-                            timerBar:SetStatusBarColor(r, g, b, 0.75)
-                        end
-                    end })
-                end
+                EllesmereUI.RegAccent({ type = "callback", fn = function()
+                    if GetFFD(timerBar).style then
+                        local r, g, b = EllesmereUI.GetAccentColor()
+                        timerBar:SetStatusBarColor(r, g, b, 0.75)
+                    end
+                end })
             end
 
             -- Anchor to the dialog, not the popup wrapper, so the timer follows it when a mover addon drags the dialog independently.
@@ -2219,7 +2217,7 @@ do
             if headerText and headerText.SetTextColor then
                 local r, g, b = EllesmereUI._getPopupMenuButtonTextColor()
                 headerText:SetTextColor(r, g, b, 1)
-                local euiFont = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("blizzardSkin") or "Fonts\\FRIZQT__.TTF"
+                local euiFont = EllesmereUI.GetFontPath("blizzardSkin") or "Fonts\\FRIZQT__.TTF"
                 local _, hSize = headerText:GetFont()
                 headerText:SetFont(euiFont, hSize or 16, "")
             end
@@ -2253,7 +2251,7 @@ do
                 for btn in GameMenuFrame.buttonPool:EnumerateActive() do ApplyButtonStyle(btn) end
             end
             -- The EUI/Unlock custom buttons are created by the PARENT addon and stored in ITS namespace FFD (EllesmereUI._GetFFD), not this file's local FFD; wrong table = dead code.
-            local pd = EllesmereUI._GetFFD and EllesmereUI._GetFFD(GameMenuFrame)
+            local pd = EllesmereUI._GetFFD(GameMenuFrame)
             if pd and pd.euiBtn then ApplyButtonStyle(pd.euiBtn) end
             if pd and pd.unlockBtn then ApplyButtonStyle(pd.unlockBtn) end
         end
@@ -2295,7 +2293,7 @@ do
                     hl:SetColorTexture(1, 1, 1, 0.1)
                     local fs = menuBtn:GetFontString()
                     if fs then
-                        local euiFont = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("blizzardSkin") or nil
+                        local euiFont = EllesmereUI.GetFontPath("blizzardSkin") or nil
                         local _, size, flags = fs:GetFont()
                         fs:SetFont(euiFont or "Fonts\\FRIZQT__.TTF", (size or 14) - 2, flags or "")
                     end
@@ -2506,7 +2504,7 @@ do
     local anchorFrame
 
     local function ActiveProfile()
-        return EllesmereUI.GetActiveProfileData and EllesmereUI.GetActiveProfileData()
+        return EllesmereUI.GetActiveProfileData()
     end
 
     -- Fixed mode is the permanent baseline: no toggle. Only the reskin master (off = vanilla tooltips) and Anchor to Cursor sideline it.

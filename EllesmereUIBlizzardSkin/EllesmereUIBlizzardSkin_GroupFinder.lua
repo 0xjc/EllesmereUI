@@ -466,7 +466,7 @@ local function SkinTab(tab)
         if wsk.RegisterAccentUnderline then wsk.RegisterAccentUnderline(underline) end
     else
         underline:SetColorTexture(Theme.accR, Theme.accG, Theme.accB, 1)
-        if EUI and EUI.RegAccent then EUI.RegAccent({ type = "solid", obj = underline, a = 1 }) end
+        EUI.RegAccent({ type = "solid", obj = underline, a = 1 })
     end
     underline:Hide()
     d.underline = underline
@@ -1540,7 +1540,7 @@ local function DockCharacterFrame()
     -- the flag already true) -- restore the PRIOR value rather than hardcoding false,
     -- or we'd clear it while still nested inside that call, letting Shifter's own
     -- SetPoint hook see it false and recurse.
-    local shifterFFD = EllesmereUI._GetFFD and EllesmereUI._GetFFD(cf)
+    local shifterFFD = EllesmereUI._GetFFD(cf)
     local prevIgnoreSP = shifterFFD and shifterFFD._shIgnoreSP
     if shifterFFD then shifterFFD._shIgnoreSP = true end
     cf:ClearAllPoints()

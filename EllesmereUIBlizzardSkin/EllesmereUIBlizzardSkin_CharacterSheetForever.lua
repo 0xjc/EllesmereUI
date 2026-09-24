@@ -53,7 +53,7 @@ local function Enabled()
 end
 
 local function FontPath()
-    return (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("blizzardSkin")) or STANDARD_TEXT_FONT
+    return (EllesmereUI.GetFontPath("blizzardSkin")) or STANDARD_TEXT_FONT
 end
 
 local MEDIA = "Interface\\AddOns\\EllesmereUIBlizzardSkin\\Media\\"
