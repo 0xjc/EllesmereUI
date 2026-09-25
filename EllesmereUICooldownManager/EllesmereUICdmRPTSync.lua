@@ -93,7 +93,7 @@ function ns.GetAllCDMSpecInfo()
     for classID = 1, numClasses do
         local className, classFile = GetClassInfo(classID)
         local isCurrentClass = (classFile ~= nil and classFile == curClassFile)
-        local numSpecs = (GetNumSpecializationsForClassID and GetNumSpecializationsForClassID(classID)) or 0
+        local numSpecs = C_SpecializationInfo.GetNumSpecializationsForClassID(classID) or 0
         for specIndex = 1, numSpecs do
             local specID, sName, _, sIcon = GetSpecializationInfoForClassID(classID, specIndex)
             if specID then
