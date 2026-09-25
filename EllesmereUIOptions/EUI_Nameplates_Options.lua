@@ -561,6 +561,10 @@ initFrame:SetScript("OnEvent", function(self)
         classIcon:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\elite-rare-indicator.png")
         classIcon:SetSize(24, 24)
         classIcon:Hide()
+        -- Faction badge preview (Core Positions "Faction" element)
+        local factionIcon = pf:CreateTexture(nil, "OVERLAY", nil, -1)  -- under classIcon when stacked
+        factionIcon:SetSize(20, 20)
+        factionIcon:Hide()
 
         -- Cast bar (icon + bar fill health bar width)
         local cast = CreateFrame("StatusBar", nil, pf)
@@ -1269,6 +1273,46 @@ initFrame:SetScript("OnEvent", function(self)
                 end
                 classIcon:Show()
                 if pf._classOverlay then pf._classOverlay:Show() end
+            end
+
+            -- Faction badge, slot-based like the classification icon above. Shows the
+            -- other faction's badge (what Opposite Faction Only would show).
+            local fcCombined = DBVal("classificationIncludeFaction") == true
+            local fcPos = fcCombined and clPos or (DBVal("factionSlot") or defaults.factionSlot or "none")
+            factionIcon:ClearAllPoints()
+            if fcPos == "none" then
+                factionIcon:Hide()
+                if pf._factionOverlay then pf._factionOverlay:Hide() end
+            else
+                local fcX = DBVal(fcPos .. "SlotXOffset") or 0
+                local fcY = DBVal(fcPos .. "SlotYOffset") or 0
+                local fcSz = DBVal(fcPos .. "SlotSize") or defaults[fcPos .. "SlotSize"] or 20
+                -- Sharing the slot with a showing Rare/Quest icon: stack up behind it,
+                -- overlapping by 40% (matches NameplateFrame:UpdateFaction).
+                if fcCombined and classIcon:IsShown() then
+                    fcY = fcY + math.floor(reIconSz * 0.6 + 0.5)
+                end
+                local mine = UnitFactionGroup("player")
+                local fac = (mine == "Horde") and "Alliance" or "Horde"
+                EllesmereUI.SetFactionArt(factionIcon, DBVal("factionStyle") or defaults.factionStyle, fac)
+                factionIcon:SetSize(fcSz, fcSz)
+                if fcPos == "top" then
+                    factionIcon:SetPoint("BOTTOM", health, "TOP", fcX, debuffY + cpPush + fcY)
+                elseif fcPos == "left" then
+                    local sideOff = DBVal("sideAuraXOffset") or defaults.sideAuraXOffset
+                    factionIcon:SetPoint("RIGHT", health, "LEFT", -sideOff - castIconLeftPush + fcX, fcY)
+                elseif fcPos == "right" then
+                    local sideOff = DBVal("sideAuraXOffset") or defaults.sideAuraXOffset
+                    factionIcon:SetPoint("LEFT", health, "RIGHT", sideOff + castIconRightPush + fcX, fcY)
+                elseif fcPos == "topleft" then
+                    factionIcon:SetPoint("BOTTOMLEFT", health, "TOPLEFT", fcX, 2 + cpPush + fcY)
+                elseif fcPos == "topright" then
+                    factionIcon:SetPoint("BOTTOMRIGHT", health, "TOPRIGHT", fcX, 2 + cpPush + fcY)
+                elseif fcPos == "bottom" then
+                    factionIcon:SetPoint("TOP", cast, "BOTTOM", fcX, -2 + fcY)
+                end
+                factionIcon:Show()
+                if pf._factionOverlay then pf._factionOverlay:Show() end
             end
 
             -- Arrow positioning happens after all auras are placed (arrows sit OUTSIDE the auras).
@@ -2361,6 +2405,7 @@ initFrame:SetScript("OnEvent", function(self)
         pf._castTimerFS  = castParts.timerFS
         pf._raidFrame    = raidFrame
         pf._classIcon    = classIcon
+        pf._factionIcon  = factionIcon
         pf._health       = health
         pf._healthWrapper = healthWrapper
         pf._cpPips       = CP.pips
@@ -4189,7 +4234,7 @@ initFrame:SetScript("OnEvent", function(self)
         -----------------------------------------------------------------------
         --  AURA POSITIONS
         -----------------------------------------------------------------------
-        local slotKeys = { "debuffSlot", "buffSlot", "ccSlot", "raidMarkerPos", "classificationSlot" }
+        local slotKeys = { "debuffSlot", "buffSlot", "ccSlot", "raidMarkerPos", "classificationSlot", "factionSlot" }
 
         -- Inverted mapping: position element (for CORE POSITIONS dropdowns)
         local elementToKey = {
@@ -4198,6 +4243,7 @@ initFrame:SetScript("OnEvent", function(self)
             ccs            = "ccSlot",
             raidmarker     = "raidMarkerPos",
             classification = "classificationSlot",
+            faction        = "factionSlot",
         }
         local keyToElement = {}
         for elem, key in pairs(elementToKey) do keyToElement[key] = elem end
@@ -4205,10 +4251,17 @@ initFrame:SetScript("OnEvent", function(self)
         local function GetElementAtPosition(pos)
             local db = DB()
             for _, key in ipairs(slotKeys) do
-                if (db[key] or defaults[key]) == pos then
+                -- A leftover Faction slot is ignored while Rare/Quest + Faction is on
+                -- (the badge rides the classification slot), so it is not shown here either.
+                local ignored = key == "factionSlot" and db.classificationIncludeFaction
+                if not ignored and (db[key] or defaults[key]) == pos then
                     -- "Debuffs + CC" is a VIEW over the debuff slot: same position key + the debuffIncludeCC flag.
                     if key == "debuffSlot" and db.debuffIncludeCC then
                         return "debuffsccs"
+                    end
+                    -- "Rare/Quest + Faction" is a VIEW over the classification slot + classificationIncludeFaction.
+                    if key == "classificationSlot" and db.classificationIncludeFaction then
+                        return "classfaction"
                     end
                     return keyToElement[key]
                 end
@@ -4233,6 +4286,16 @@ initFrame:SetScript("OnEvent", function(self)
                 element = "debuffs"
             elseif element == "debuffs" then
                 DB().debuffIncludeCC = false
+            end
+            -- "Rare/Quest + Faction" rides the classification slot key and takes the
+            -- faction badge with it (its own Faction slot is cleared); picking either
+            -- one alone splits them again.
+            if element == "classfaction" then
+                DB().classificationIncludeFaction = true
+                DB().factionSlot = "none"
+                element = "classification"
+            elseif element == "classification" or element == "faction" then
+                DB().classificationIncludeFaction = false
             end
             local key = elementToKey[element]
             if not key then return end
@@ -4281,8 +4344,10 @@ initFrame:SetScript("OnEvent", function(self)
                 end
                 plate:UpdateRaidIcon()
                 plate:UpdateClassification()
+                if plate.UpdateFaction then plate:UpdateFaction() end
                 if ns.ApplySlotStrata then ns.ApplySlotStrata(plate) end
             end
+            if ns.NP_RefreshFriendlyFaction then ns.NP_RefreshFriendlyFaction() end
             UpdatePreview()
             EllesmereUI:RefreshPage()
         end
@@ -4955,9 +5020,11 @@ initFrame:SetScript("OnEvent", function(self)
             debuffsccs     = "Debuffs + CC",
             raidmarker     = "Raid Marker",
             classification = "Rare/Quest Indicator",
+            faction        = "Faction",
+            classfaction   = "Rare/Quest + Faction",
             none           = "None",
         }
-        local coreElementOrder = { "debuffs", "buffs", "ccs", "debuffsccs", "raidmarker", "classification", "none" }
+        local coreElementOrder = { "debuffs", "buffs", "ccs", "debuffsccs", "raidmarker", "classification", "faction", "classfaction", "none" }
 
         local coreRow1, coreRow2, coreRow3
         local _refreshRaidMarkerEyePos
@@ -5325,7 +5392,7 @@ initFrame:SetScript("OnEvent", function(self)
                 wrapHover:EnableMouse(true)
                 wrapHover:Hide()
                 wrapHover:SetScript("OnEnter", function(self)
-                    EllesmereUI.ShowWidgetTooltip(self, EllesmereUI.L("Lets long text wrap onto a second line instead of being cut off."), { width = 230 })
+                    EllesmereUI.ShowWidgetTooltip(self, pf._wrapTip and EllesmereUI.L(pf._wrapTip) or EllesmereUI.L("Lets long text wrap onto a second line instead of being cut off."), { width = 230 })
                 end)
                 wrapHover:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
                 pf._wrapHover = wrapHover
@@ -5340,7 +5407,7 @@ initFrame:SetScript("OnEvent", function(self)
 
                 -- Optional second generic toggle row (own row, below Wrap), for an
                 -- element that needs one more switch than the toggle row gives it
-                -- (e.g. Level Text: Include Friendly); wired via pf._toggle2Get/Set, label per show.
+                -- (e.g. Level Text: Include Friendly, Rare/Quest + Faction); wired via pf._toggle2Get/Set, label per show.
                 local t2Label = MakeFont(pf, 12, nil, 1, 1, 1)
                 t2Label:SetAlpha(0.6)
                 t2Label:SetPoint("LEFT", pf, "TOPLEFT", SIDE_PAD, G_ROW_Y - GROWTH_ROW_H / 2)
@@ -5354,6 +5421,29 @@ initFrame:SetScript("OnEvent", function(self)
                 t2Toggle:Hide()
                 pf._t2Toggle = t2Toggle
                 pf._t2ToggleSnap = t2ToggleSnap
+
+                -- Optional second dropdown row (own row, below the second toggle),
+                -- built like Grow; values/label per show, via pf._dd2Get/Set.
+                local d2Label = MakeFont(pf, 12, nil, 1, 1, 1)
+                d2Label:SetAlpha(0.6)
+                d2Label:SetPoint("LEFT", pf, "TOPLEFT", SIDE_PAD, G_ROW_Y - GROWTH_ROW_H / 2)
+                d2Label:Hide()
+                pf._d2Label = d2Label
+                pf._dd2Values = {}
+                pf._dd2Order  = {}
+                local d2DD = EllesmereUI.BuildDropdownControl(pf, GROW_DD_W, pf:GetFrameLevel() + 6,
+                    pf._dd2Values, pf._dd2Order,
+                    function() return pf._dd2Get and pf._dd2Get() or "" end,
+                    function(v) if pf._dd2Set then pf._dd2Set(v) end end)
+                d2DD:SetScale(GROW_DD_SCALE)
+                d2DD:HookScript("OnClick", function(self)
+                    if self._ddMenu and not self._ddMenu._npCogScaled then
+                        self._ddMenu:SetScale(GROW_DD_SCALE)
+                        self._ddMenu._npCogScaled = true
+                    end
+                end)
+                d2DD:Hide()
+                pf._d2DD = d2DD
 
                 -- Layout constants stored for height calc
                 pf._TOP_PAD = TOP_PAD; pf._TITLE_H = TITLE_H; pf._TITLE_GAP = TITLE_GAP
@@ -5418,6 +5508,7 @@ initFrame:SetScript("OnEvent", function(self)
             local hasCrop = opts.cropGet ~= nil
             local hasWrap = opts.wrapGet ~= nil
             local hasToggle2 = opts.toggle2Get ~= nil
+            local hasDropdown2 = opts.dropdown2Get ~= nil
             local hasRaiseStrata = opts.raiseStrataGet ~= nil
             local hasStrata = opts.strataGet ~= nil
             local hasCropPct = opts.cropPctGet ~= nil
@@ -5499,6 +5590,8 @@ initFrame:SetScript("OnEvent", function(self)
                     if cogPopup._gDD._invalidateMenu then cogPopup._gDD._invalidateMenu() end
                     cogPopup._gDD:Show()
                 end
+                -- growthLabel: an element can reuse this dropdown row for its own setting.
+                cogPopup._gLabel:SetText(EllesmereUI.L(opts.growthLabel or "Grow"))
                 cogPopup._gLabel:Show()
             else
                 cogPopup._growthGet = nil
@@ -5558,6 +5651,9 @@ initFrame:SetScript("OnEvent", function(self)
             if hasWrap then
                 cogPopup._wrapGet = opts.wrapGet
                 cogPopup._wrapSet = opts.wrapSet
+                -- wrapLabel/wrapTooltip: an element can reuse this toggle row for its own setting.
+                cogPopup._wrapLabel:SetText(EllesmereUI.L(opts.wrapLabel or "Wrap"))
+                cogPopup._wrapTip = opts.wrapTooltip
                 cogPopup._wrapLabel:Show()
                 cogPopup._wrapToggle:Show()
                 if cogPopup._wrapToggleSnap then cogPopup._wrapToggleSnap() end
@@ -5583,6 +5679,27 @@ initFrame:SetScript("OnEvent", function(self)
                 cogPopup._toggle2Set = nil
                 cogPopup._t2Label:Hide()
                 cogPopup._t2Toggle:Hide()
+            end
+
+            -- Show/hide the second dropdown row ({ { value, label }, ... } like Grow)
+            if hasDropdown2 then
+                cogPopup._dd2Get = opts.dropdown2Get
+                cogPopup._dd2Set = opts.dropdown2Set
+                wipe(cogPopup._dd2Values)
+                wipe(cogPopup._dd2Order)
+                for _, entry in ipairs(opts.dropdown2Values or {}) do
+                    cogPopup._dd2Values[entry.value] = entry.label
+                    cogPopup._dd2Order[#cogPopup._dd2Order + 1] = entry.value
+                end
+                if cogPopup._d2DD._invalidateMenu then cogPopup._d2DD._invalidateMenu() end
+                cogPopup._d2DD:Show()
+                cogPopup._d2Label:SetText(EllesmereUI.L(opts.dropdown2Label or ""))
+                cogPopup._d2Label:Show()
+            else
+                cogPopup._dd2Get = nil
+                cogPopup._dd2Set = nil
+                cogPopup._d2Label:Hide()
+                cogPopup._d2DD:Hide()
             end
 
             -- Show/hide Raise Strata row (its own row, below all other toggles)
@@ -5701,11 +5818,22 @@ initFrame:SetScript("OnEvent", function(self)
                 p._wrapLabel:SetPoint("LEFT", p, "TOPLEFT", SPAD, wrapY - GRH / 2)
                 p._wrapToggle:ClearAllPoints()
                 p._wrapToggle:SetPoint("RIGHT", p, "TOPRIGHT", -SPAD, wrapY - GRH / 2)
+                -- Second dropdown: its own row below Cropped Icons/Adjust Crop/Wrap.
+                local d2RowIndex = #seq + 1 + extraRows
+                if hasCrop or hasWrap then d2RowIndex = d2RowIndex + 1 end
+                if hasCropPct then d2RowIndex = d2RowIndex + 1 end
+                local d2Y = rowY(d2RowIndex)
+                p._d2Label:ClearAllPoints()
+                p._d2Label:SetPoint("LEFT", p, "TOPLEFT", SPAD, d2Y - GRH / 2)
+                local d2s = p._GROW_DD_SCALE or 1
+                p._d2DD:ClearAllPoints()
+                p._d2DD:SetPoint("RIGHT", p, "TOPRIGHT", -SPAD / d2s, (d2Y - GRH / 2) / d2s)
                 -- Raise Strata sits in its own row, below the Grow/toggle band and Cropped Icons when present; Core Position cogs never use Wrap or Width %, so no collision there.
                 if hasRaiseStrata then
                     local rsRowIndex = #seq + 1 + extraRows
                     if hasCrop or hasWrap then rsRowIndex = rsRowIndex + 1 end
                     if hasCropPct then rsRowIndex = rsRowIndex + 1 end
+                    if hasDropdown2 then rsRowIndex = rsRowIndex + 1 end
                     local rsY = rowY(rsRowIndex)
                     p._rsLabel:ClearAllPoints()
                     p._rsLabel:SetPoint("LEFT", p, "TOPLEFT", SPAD, rsY - GRH / 2)
@@ -5717,6 +5845,7 @@ initFrame:SetScript("OnEvent", function(self)
                     local widthRowIndex = #seq + 1 + extraRows
                     if hasCrop or hasWrap then widthRowIndex = widthRowIndex + 1 end
                     if hasCropPct then widthRowIndex = widthRowIndex + 1 end
+                    if hasDropdown2 then widthRowIndex = widthRowIndex + 1 end
                     anchorRow(p._wLabel, p._wTrack, p._wValBox, rowY(widthRowIndex))
                 end
             end
@@ -5751,6 +5880,8 @@ initFrame:SetScript("OnEvent", function(self)
                 if hasWrap then h = h + gap + p._GROWTH_ROW_H end
                 -- Second toggle gets its own row (below the first toggle).
                 if hasToggle2 then h = h + gap + p._GROWTH_ROW_H end
+                -- Second dropdown occupies its own extra row.
+                if hasDropdown2 then h = h + gap + p._GROWTH_ROW_H end
                 -- Raise Strata occupies its own extra row.
                 if hasRaiseStrata then h = h + gap + p._GROWTH_ROW_H end
                 -- Strata dropdown occupies its own extra row.
@@ -5951,6 +6082,73 @@ initFrame:SetScript("OnEvent", function(self)
                         if ns.RefreshQuestObjective then ns.RefreshQuestObjective() end
                         UpdatePreview()
                     end
+                end
+                -- Rare/Quest + Faction: Show In Instances (toggle row), Opposite Faction
+                -- Only (second toggle row), Players Only (Wrap row), PvP Flag (Grow row).
+                if element == "classfaction" then
+                    local function refresh()
+                        RefreshAllSlots()
+                        UpdatePreview()
+                    end
+                    opts.toggleLabel = "Show In Instances"
+                    opts.toggleGet = function() return DBVal("classificationShowInInstances") == true end
+                    opts.toggleSet = function(v)
+                        DB().classificationShowInInstances = v and true or false
+                        if ns.RefreshQuestObjective then ns.RefreshQuestObjective() end
+                        UpdatePreview()
+                    end
+                    opts.dropdown2Label = "Icon Style"
+                    opts.dropdown2Values = {}
+                    for _, k in ipairs(EllesmereUI.FACTION_ART_ORDER) do
+                        opts.dropdown2Values[#opts.dropdown2Values + 1] = { value = k, label = EllesmereUI.FACTION_ART_LABELS[k] }
+                    end
+                    opts.dropdown2Get = function() return DBVal("factionStyle") or defaults.factionStyle end
+                    opts.dropdown2Set = function(v) DB().factionStyle = v; refresh() end
+                    opts.toggle2Label = "Opposite Faction Only"
+                    opts.toggle2Get = function() return DBVal("factionOppositeOnly") == true end
+                    opts.toggle2Set = function(v) DB().factionOppositeOnly = v and true or false; refresh() end
+                    opts.wrapLabel = "Players Only"
+                    opts.wrapTooltip = "Hide the faction badge on faction NPCs such as guards."
+                    opts.wrapGet = function() return DBVal("factionPlayersOnly") == true end
+                    opts.wrapSet = function(v) DB().factionPlayersOnly = v and true or false; refresh() end
+                    opts.growthLabel = "PvP Flag"
+                    opts.growthValues = {
+                        { value = "dim",    label = "Dim Unflagged" },
+                        { value = "only",   label = "Flagged Only"  },
+                        { value = "ignore", label = "Ignore"        },
+                    }
+                    opts.growthGet = function() return DBVal("factionPvP") or defaults.factionPvP end
+                    opts.growthSet = function(v) DB().factionPvP = v; refresh() end
+                end
+                -- Faction: Opposite Faction Only (toggle row), Players Only (the Wrap row)
+                -- and PvP Flag (the Grow dropdown; a single badge has nothing to grow).
+                if element == "faction" then
+                    local function refresh()
+                        RefreshAllSlots()
+                        UpdatePreview()
+                    end
+                    opts.dropdown2Label = "Icon Style"
+                    opts.dropdown2Values = {}
+                    for _, k in ipairs(EllesmereUI.FACTION_ART_ORDER) do
+                        opts.dropdown2Values[#opts.dropdown2Values + 1] = { value = k, label = EllesmereUI.FACTION_ART_LABELS[k] }
+                    end
+                    opts.dropdown2Get = function() return DBVal("factionStyle") or defaults.factionStyle end
+                    opts.dropdown2Set = function(v) DB().factionStyle = v; refresh() end
+                    opts.toggleLabel = "Opposite Faction Only"
+                    opts.toggleGet = function() return DBVal("factionOppositeOnly") == true end
+                    opts.toggleSet = function(v) DB().factionOppositeOnly = v and true or false; refresh() end
+                    opts.wrapLabel = "Players Only"
+                    opts.wrapTooltip = "Hide the badge on faction NPCs such as guards."
+                    opts.wrapGet = function() return DBVal("factionPlayersOnly") == true end
+                    opts.wrapSet = function(v) DB().factionPlayersOnly = v and true or false; refresh() end
+                    opts.growthLabel = "PvP Flag"
+                    opts.growthValues = {
+                        { value = "dim",    label = "Dim Unflagged" },
+                        { value = "only",   label = "Flagged Only"  },
+                        { value = "ignore", label = "Ignore"        },
+                    }
+                    opts.growthGet = function() return DBVal("factionPvP") or defaults.factionPvP end
+                    opts.growthSet = function(v) DB().factionPvP = v; refresh() end
                 end
                 -- Raise Strata: bumps whatever element occupies this slot one strata level up so it renders above the rest of the plate.
                 local rsKey = posKey .. "SlotRaiseStrata"
@@ -8697,6 +8895,11 @@ initFrame:SetScript("OnEvent", function(self)
             ccIcon       = function() return ResolveCoreMapping("ccs") end,
             raidMarker   = function() return ResolveCoreMapping("raidmarker") end,
             classIcon    = function() return ResolveCoreMapping("classification") end,
+            -- Combined with Rare/Quest, the badge's settings live on that row.
+            factionIcon  = function()
+                if DB().classificationIncludeFaction then return ResolveCoreMapping("classification") end
+                return ResolveCoreMapping("faction")
+            end,
             enemyName    = function()
                 -- The name FontString renders whichever name-family variant is slotted; resolve the row for any of them.
                 local slot = FindTextSlotForElement("enemyName") or FindTextSlotForElement("levelName") or FindTextSlotForElement("nameLevel") or FindTextSlotForElement("level")
@@ -8889,6 +9092,11 @@ initFrame:SetScript("OnEvent", function(self)
             if pv._classIcon then
                 classOverlay = CreateHitOverlay(pv._classIcon, "classIcon")
                 if not showClassificationPreview then classOverlay:Hide() end
+            end
+            -- Faction badge: shown and hidden with the badge by the preview update.
+            if pv._factionIcon then
+                pv._factionOverlay = CreateHitOverlay(pv._factionIcon, "factionIcon")
+                pv._factionOverlay:SetShown(pv._factionIcon:IsShown())
             end
             -- Class resource pips wrapper button spanning all visible pips
             local cpOverlay

@@ -14001,3 +14001,45 @@ function EllesmereUI.ColorText(text, r, g, b)
     return ("|cff%02x%02x%02x%s|r"):format(math.floor(r * 255 + 0.5),
         math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5), text)
 end
+
+-------------------------------------------------------------------------------
+--  Faction badge art, shared by the unit frame and nameplate faction indicators
+--  and their options previews. Each style is a Horde/Alliance pair, an atlas or a
+--  file; "%s" takes the faction ("lower" = lowercased, "num" = 1 Horde / 2 Alliance).
+--  "coords" crops a file whose art does not fill it (the Classic banner sits in the
+--  top-left 42 of 64 pixels; same crop as oUF's PvPIndicator).
+--  Unknown styles fall back to "pvp", the default.
+-------------------------------------------------------------------------------
+EllesmereUI.FACTION_ART = {
+    pvp       = { atlas = "UI-HUD-UnitFrame-Player-PVP-%sIcon" },
+    honor     = { atlas = "honorsystem-portrait-%s", lower = true },
+    poi       = { atlas = "poi-%s", lower = true },
+    classic   = { file = "Interface\\TargetingFrame\\UI-PVP-%s", coords = { 0, 0.65625, 0, 0.65625 } },
+    banner    = { file = "Interface\\Icons\\INV_BannerPVP_0%s", num = true },
+    honoricon = { file = "Interface\\Icons\\PVPCurrency-Honor-%s" },
+    friends   = { file = "Interface\\FriendsFrame\\PlusManz-%s" },
+}
+EllesmereUI.FACTION_ART_ORDER = { "pvp", "honor", "poi", "classic", "banner", "honoricon", "friends" }
+EllesmereUI.FACTION_ART_LABELS = {
+    pvp = "PvP Emblem", honor = "Honor Portrait", poi = "Map Flag", classic = "Classic Banner",
+    banner = "Banner Icon", honoricon = "Honor Icon", friends = "Friends Crest",
+}
+function EllesmereUI.SetFactionArt(tex, style, faction)
+    local art = EllesmereUI.FACTION_ART[style] or EllesmereUI.FACTION_ART.pvp
+    local key = faction
+    if art.lower then
+        key = faction:lower()
+    elseif art.num then
+        key = (faction == "Horde") and "1" or "2"
+    end
+    if art.atlas then
+        -- SetAtlas keeps an earlier SetTexCoord (e.g. the Classic banner's crop)
+        -- unless told to reset it, so clear it first and ask for the reset too.
+        tex:SetTexCoord(0, 1, 0, 1)
+        tex:SetAtlas(art.atlas:format(key), false, nil, true)
+    else
+        tex:SetTexture(art.file:format(key))
+        local c = art.coords
+        if c then tex:SetTexCoord(c[1], c[2], c[3], c[4]) else tex:SetTexCoord(0, 1, 0, 1) end
+    end
+end

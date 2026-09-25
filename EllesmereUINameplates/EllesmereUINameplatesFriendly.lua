@@ -406,6 +406,7 @@ end
 --  on the nameplate.  This gives us full control over width, color, and font.
 -------------------------------------------------------------------------------
 local npcOverlays = {}        -- nameplate → overlay frame
+ns.npcOverlays = npcOverlays  -- read by EllesmereUINameplates_Faction.lua (badge anchor)
 local npcOverlayPool = {}     -- recycled overlay frames
 
 local function GetNPCNameColor(unit)
@@ -1900,6 +1901,10 @@ function ns.UpdateFriendlyNameplateSystem()
 
     -- Apply friendly click-through (independent of player/NPC plate mode).
     ApplyFriendlyClickThrough()
+
+    -- Friendly faction badges follow the plate mode: redraw after the name-only
+    -- sweep above has re-anchored the names they sit beside.
+    if ns.NP_RefreshFriendlyFaction then C_Timer.After(0.6, ns.NP_RefreshFriendlyFaction) end
 end
 
 -------------------------------------------------------------------------------

@@ -412,6 +412,13 @@ local defaults = {
             leaderIndicatorPosition = "topleft",
             leaderIndicatorX = 0,
             leaderIndicatorY = 0,
+            factionIndicatorMode = "off",
+            factionIndicatorStyle = "pvp",
+            factionIndicatorPvP = "only",
+            factionIndicatorSize = 18,
+            factionIndicatorPosition = "topright",
+            factionIndicatorX = 0,
+            factionIndicatorY = 0,
             healthReverseFill = false,
             healthVerticalFill = false,
             smoothBars = false,
@@ -604,6 +611,14 @@ local defaults = {
             eliteIndicatorX = 0,
             eliteIndicatorY = 0,
             eliteIndicatorShowInInstances = false,
+            factionIndicatorMode = "off",
+            factionIndicatorStyle = "pvp",
+            factionIndicatorPlayersOnly = false,
+            factionIndicatorPvP = "dim",
+            factionIndicatorSize = 18,
+            factionIndicatorPosition = "topright",
+            factionIndicatorX = 0,
+            factionIndicatorY = 0,
             healthReverseFill = false,
             healthVerticalFill = false,
             smoothBars = false,
@@ -12353,6 +12368,14 @@ ReloadFramesBody = function()
         frames.target._applyEliteIndicator()
     end
 
+    -- Refresh faction indicator on the player and target frames after settings change
+    if frames.player and frames.player._applyFactionIndicator then
+        frames.player._applyFactionIndicator()
+    end
+    if frames.target and frames.target._applyFactionIndicator then
+        frames.target._applyFactionIndicator()
+    end
+
     ---------------------------------------------------------------------------
     --  Live-update raid target marker icon (size / alignment / X / Y / enabled)
     --  for player, target, focus, and boss frames.  Uses oUF's EnableElement /
@@ -13834,6 +13857,127 @@ function InitializeFrames()
         end
 
         _setupEliteIndicator(frames.target, db.profile.target)
+    end
+
+    -- Faction indicator (Horde/Alliance badge on the target and player frames), driven
+    -- like the elite badge above. Mode "always" shows any Horde/Alliance unit;
+    -- "opposite" (target) only one whose faction differs from the player's. Faction
+    -- NPCs count unless Players Only is on. Neutral units and unreadable (secret)
+    -- factions show nothing. PvP flag: "dim" greys the badge on unflagged units,
+    -- "only" hides it on them (Blizzard's own rule; the player frame's default, which
+    -- makes it a PvP-flagged indicator there), "ignore" draws both alike.
+    -- UNIT_FACTION also fires on PvP flag changes. Art: the Icon Style setting, drawn
+    -- by EllesmereUI.SetFactionArt (shared with the nameplates).
+    do
+        local _factionFrames = {}
+        local factionEvents
+
+        local function _factionRefresh(uf)
+            local s = uf and uf._factionSettings
+            if not (uf and uf._factionIndicator and s) then return end
+            local tex = uf._factionIndicator
+            local mode = s.factionIndicatorMode or "off"
+            local unit = uf._euiUnit
+            if mode == "off" or not unit or issecretvalue(unit) or not UnitExists(unit) then
+                tex:Hide(); return
+            end
+            if s.factionIndicatorPlayersOnly then
+                local isPlayer = UnitIsPlayer(unit)
+                if issecretvalue(isPlayer) or not isPlayer then tex:Hide(); return end
+            end
+            -- Secrecy check MUST run before the lookup and comparisons, same rule
+            -- as the leader checks above.
+            local fac = UnitFactionGroup(unit)
+            local atlas = (not issecretvalue(fac)) and (fac == "Horde" or fac == "Alliance")
+            if atlas and mode == "opposite" and unit ~= "player" then
+                local mine = UnitFactionGroup("player")
+                if issecretvalue(mine) or mine == fac then atlas = nil end
+            end
+            local dim = false
+            if atlas then
+                local pvpMode = s.factionIndicatorPvP or "dim"
+                if pvpMode ~= "ignore" then
+                    -- Unreadable counts as flagged: never hide or grey on a guess.
+                    local pvp = UnitIsPVP(unit)
+                    local unflagged = not issecretvalue(pvp) and not pvp
+                    if unflagged and pvpMode == "only" then atlas = nil end
+                    dim = unflagged and pvpMode == "dim"
+                end
+            end
+            if atlas then
+                EllesmereUI.SetFactionArt(tex, s.factionIndicatorStyle or "pvp", fac)
+                tex:SetDesaturated(dim)
+                tex:SetAlpha(dim and 0.6 or 1)
+                tex:Show()
+            else
+                tex:Hide()
+            end
+        end
+
+        -- Events are registered only while the feature is on somewhere (zero cost
+        -- while off) and re-armed from every settings apply.
+        local function _factionArmEvents()
+            local on = false
+            for i = 1, #_factionFrames do
+                local s = _factionFrames[i]._factionSettings
+                if s and (s.factionIndicatorMode or "off") ~= "off" then on = true; break end
+            end
+            if on then
+                if not factionEvents then
+                    factionEvents = CreateFrame("Frame")
+                    factionEvents:SetScript("OnEvent", function()
+                        for i = 1, #_factionFrames do _factionRefresh(_factionFrames[i]) end
+                    end)
+                end
+                factionEvents:RegisterEvent("PLAYER_TARGET_CHANGED")
+                factionEvents:RegisterUnitEvent("UNIT_FACTION", "target", "player")
+                factionEvents:RegisterEvent("PLAYER_ENTERING_WORLD")
+            elseif factionEvents then
+                factionEvents:UnregisterAllEvents()
+            end
+        end
+
+        local function _setupFactionIndicator(uf, settings)
+            if not (uf and uf.Health and settings) then return end
+            if not uf._factionIndicator then
+                -- Same parent and layer choice as the leader crown above.
+                local par = uf._textOverlay or uf
+                local tex = par:CreateTexture(nil, "OVERLAY", nil, 7)
+                tex:Hide()
+                uf._factionIndicator = tex
+                _factionFrames[#_factionFrames + 1] = uf
+            end
+            uf._factionSettings = settings
+
+            local function ApplyFactionIndicator()
+                local sz  = settings.factionIndicatorSize or 18
+                local pos = settings.factionIndicatorPosition or "topright"
+                local ox  = settings.factionIndicatorX or 0
+                local oy  = settings.factionIndicatorY or 0
+                local tex = uf._factionIndicator
+                tex:SetSize(sz, sz)
+                tex:ClearAllPoints()
+                if pos == "portrait" and uf.Portrait and uf.Portrait.backdrop then
+                    tex:SetPoint("CENTER", uf.Portrait.backdrop, "CENTER", ox, oy)
+                else
+                    local anchor =
+                        (pos == "topleft"     and "TOPLEFT")     or
+                        (pos == "bottomleft"  and "BOTTOMLEFT")  or
+                        (pos == "bottomright" and "BOTTOMRIGHT") or
+                        "TOPRIGHT"
+                    -- Corners of the whole frame (portrait included), so "Top Left"
+                    -- is the frame's top-left whichever side the portrait is on.
+                    tex:SetPoint(anchor, uf, anchor, ox, oy)
+                end
+                _factionArmEvents()
+                _factionRefresh(uf)
+            end
+            uf._applyFactionIndicator = ApplyFactionIndicator
+            ApplyFactionIndicator()
+        end
+
+        _setupFactionIndicator(frames.player, db.profile.player)
+        _setupFactionIndicator(frames.target, db.profile.target)
     end
 
     local petFrameSource = ns.GetUnitFrameSource("pet")
