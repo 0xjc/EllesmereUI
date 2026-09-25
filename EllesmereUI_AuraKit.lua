@@ -824,7 +824,8 @@ local function ApplyStyleToRegions(button, style)
                                 showWhenHelpful = false, showWithoutDispelType = true }
                         else
                             opts = { style = dispelTint, showWhenHarmful = true,
-                                showWhenHelpful = false, customDispelColorMap = style.dispelColorMap }
+                                showWhenHelpful = style.dispelHelpful == true,
+                                customDispelColorMap = style.dispelColorMap }
                         end
                         for i = 1, #dispelTexSet do
                             if not pcall(addFn, button, dispelTexSet[i], opts) then

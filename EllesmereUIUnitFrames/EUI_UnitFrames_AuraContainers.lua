@@ -1335,7 +1335,7 @@ local function StyleTableFP(st, font)
         b and b.texture, b and b.size, b and b.edgePx, b and b[1], b and b[2], b and b[3], b and b[4],
         b and b.offsetX, b and b.offsetY, b and b.shiftX, b and b.shiftY,
         b and b.behind, b and b.behindUnitFrame, b and b.unitFrameLevel,
-        st.noTooltips, st.blizzBorder)
+        st.noTooltips, st.blizzBorder, st.dispelBorder)
 end
 
 -- Declares one chain group and records it in the element's declared-set
@@ -1434,6 +1434,11 @@ local function BuildStyle(unit, base, s, unitFrame)
         -- dispel color itself -- the user palette cannot apply under secrecy
         -- (same documented delta as the RF debuff border).
         dispel = (not isBuff and s.debuffDispelBorder) and true or nil
+        -- Buffs on target/focus/boss (opt-in): the same engine ring, tinted by
+        -- the buff's dispel type (Magic blue). Untyped buffs get no ring.
+        if isBuff and unit ~= "player" and s.buffDispelBorder == true then
+            dispel = true
+        end
     end
 
     return {
@@ -1465,6 +1470,7 @@ local function BuildStyle(unit, base, s, unitFrame)
         -- goes off with the tooltips; clicks (player buff cancel) unaffected.
         noTooltips = (s.showAuraTooltips == false) or nil,
         dispelBorder = dispel,
+        dispelHelpful = (isBuff and dispel) or nil,
         -- Resolved once per (fingerprint-gated) style rebuild instead of on
         -- every ApplyUFText call -- GetFontPath's result only changes when
         -- font settings change, which already forces a fresh style table.
