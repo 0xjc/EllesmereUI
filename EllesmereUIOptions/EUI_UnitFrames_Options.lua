@@ -1493,6 +1493,10 @@ initFrame:SetScript("OnEvent", function(self)
             elseif content == "level" or content == "levelname" or content == "namelevel" then
                 local lvl = UnitLevel("player")
                 lvl = (type(lvl) == "number" and lvl > 0) and tostring(lvl) or "80"
+                -- Level Difficulty Color: sample as an attackable unit of your level.
+                if s and s.levelDifficultyColor then
+                    lvl = EllesmereUI.ColorText(lvl, EllesmereUI.GetLevelDifficultyColor(tonumber(lvl), true))
+                end
                 if content == "level" then return lvl
                 elseif content == "levelname" then return lvl .. " | " .. _pvName()
                 else return _pvName() .. " | " .. lvl end
@@ -7752,6 +7756,26 @@ initFrame:SetScript("OnEvent", function(self)
                     },
                 })
             end
+        end
+
+        -- Level text in Blizzard's difficulty colors: the level part of the
+        -- Level, Level | Name and Name | Level texts.
+        do
+            local _
+            _, h = W:DualRow(parent, y,
+                { type="toggle", text="Level Text: Difficulty Color",
+                  tooltip="Colors level text by difficulty, from grey (trivial) through green, yellow and orange to red (5+ levels above you).",
+                  getValue=function() return SVal("levelDifficultyColor", false) == true end,
+                  setValue=function(v)
+                      SSet("levelDifficultyColor", v); UpdatePreview()
+                      EllesmereUI:RefreshPage()
+                  end },
+                { type="toggle", text="Level Text: Include Friendly",
+                  tooltip="Friendly units get their level's color too, instead of gold.",
+                  disabled=function() return SVal("levelDifficultyColor", false) ~= true end,
+                  disabledTooltip="Level Text: Difficulty Color",
+                  getValue=function() return SVal("levelDifficultyColorFriendly", false) == true end,
+                  setValue=function(v) SSet("levelDifficultyColorFriendly", v); UpdatePreview() end });  y = y - h
         end
 
         _, h = W:Spacer(parent, y, 20); y = y - h
