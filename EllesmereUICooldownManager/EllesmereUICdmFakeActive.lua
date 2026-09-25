@@ -30,7 +30,7 @@ local _, ns = ...
 
 local GetTime                = GetTime
 local UnitClass              = UnitClass
-local GetSpecialization      = GetSpecialization
+local GetSpecialization      = C_SpecializationInfo.GetSpecialization
 local GetInventoryItemID     = GetInventoryItemID
 local CreateFrame            = CreateFrame
 local C_Timer                = C_Timer

@@ -1675,7 +1675,7 @@ local _cachedSpecKey = nil
 
 function ns.GetActiveSpecKey()
     if _cachedSpecKey then return _cachedSpecKey end
-    local specIndex = GetSpecialization and GetSpecialization()
+    local specIndex = C_SpecializationInfo.GetSpecialization()
     if not specIndex or specIndex == 0 then return nil end
     local specID = select(1, C_SpecializationInfo.GetSpecializationInfo(specIndex))
     if not specID or specID == 0 then return nil end
@@ -1692,7 +1692,7 @@ end
 
 -- Live spec key from the game API without touching the cache; nil if not ready.
 local function ComputeLiveSpecKey()
-    local specIndex = GetSpecialization and GetSpecialization()
+    local specIndex = C_SpecializationInfo.GetSpecialization()
     if not specIndex or specIndex == 0 then return nil end
     local specID = select(1, C_SpecializationInfo.GetSpecializationInfo(specIndex))
     if not specID or specID == 0 then return nil end
@@ -6918,8 +6918,8 @@ local _HEALER_NO_KICK = {
 local function UpdateFocusKickContext()
     local _, instanceType = IsInInstance()
     local nowInDungeon = (instanceType == "party")
-    local specID = GetSpecializationInfo and GetSpecialization
-        and GetSpecialization() and GetSpecializationInfo(GetSpecialization())
+    local specIndex = C_SpecializationInfo.GetSpecialization()
+    local specID = specIndex > 0 and C_SpecializationInfo.GetSpecializationInfo(specIndex)
     local nowNoKick = specID and _HEALER_NO_KICK[specID] or false
     local changed = (nowInDungeon ~= _focusKickInDungeon) or (nowNoKick ~= _focusKickNoKick)
     _focusKickInDungeon = nowInDungeon

@@ -761,7 +761,7 @@ function ns.AddBarToAllSpecs(srcIdx)
     local added = 0
     local numSpecs = GetNumSpecializations and GetNumSpecializations() or 0
     for i = 1, numSpecs do
-        local specID = GetSpecializationInfo(i)
+        local specID = C_SpecializationInfo.GetSpecializationInfo(i)
         if specID then
             local key = tostring(specID)
             if key ~= activeKey then
@@ -838,7 +838,7 @@ function ns.RemoveBarFromAllSpecs(srcIdx)
     local removed = 0
     local numSpecs = GetNumSpecializations and GetNumSpecializations() or 0
     for i = 1, numSpecs do
-        local specID = GetSpecializationInfo(i)
+        local specID = C_SpecializationInfo.GetSpecializationInfo(i)
         if specID then
             local specKey = tostring(specID)
             if specKey ~= activeKey then
