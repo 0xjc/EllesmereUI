@@ -1221,9 +1221,12 @@ end
 -- State sync for what the panels lost by no longer being chat frame children,
 -- plus two Blizzard buttons hidden by alpha: Blizzard fades ButtonFrame /
 -- ScrollToBottomButton back in on hover (UIFrameFadeIn drives only their
--- alpha) and re-levels chat frames on dock passes. Runs from the interaction
--- follower and the deferred event passes. The stack-hidden gate keeps the
--- shown-follow from re-showing panels the full-hide put away.
+-- alpha) and re-levels chat frames on dock passes. ButtonFrame's minimize
+-- button keeps its own art and inherits its alpha, so DOCKED ONLY below:
+-- undocked, Blizzard's own hover fade owns that alpha and this would fight
+-- it every pass. Runs from the interaction follower and the deferred event
+-- passes. The stack-hidden gate keeps the shown-follow from re-showing
+-- panels the full-hide put away.
 function ECHAT.SyncChatFrameState()
     if ECHAT.SuppressChatEditModeSelection then ECHAT.SuppressChatEditModeSelection() end
     EnsureChatClampInsets()
@@ -1293,9 +1296,13 @@ function ECHAT.SyncChatFrameState()
         if cf then
             local shown = cf:IsShown()
             if shown then
-                -- GetAlpha reads secret on chat-roleset widgets in lockdown;
-                -- a secret skips the compare and re-asserts.
-                local bf = _G["ChatFrame" .. i .. "ButtonFrame"]
+                -- Docked only: undocked, Blizzard's own hover fade owns this
+                -- alpha (0.2 idle, 1 on hover), and re-asserting here would
+                -- fight it every pass -- the minimize button, its child, kept
+                -- flickering with that fight even after btnFrame's own art was
+                -- emptied. GetAlpha reads secret on chat-roleset widgets in
+                -- lockdown; a secret skips the compare and re-asserts.
+                local bf = cf.isDocked and _G["ChatFrame" .. i .. "ButtonFrame"]
                 local bfA = bf and bf:GetAlpha()
                 if bfA and ((issecretvalue and issecretvalue(bfA)) or bfA ~= 0) then bf:SetAlpha(0) end
                 local sb = cf.ScrollToBottomButton
@@ -4808,13 +4815,24 @@ local function SkinChatFrame(cf)
     -- the button frame to ours would put Blizzard manipulating an insecure-owned frame
     -- mid-dock, tainting the rest of that dock -- that one field feeds both reported
     -- error classes: FCF_Tab_SetupMenu (tab menu) and FCF_UpdateResizeButton
-    -- (temp-window open) both read it. Blizzard drives this frame's alpha on hover
-    -- (UIFrameFadeIn/Out), so the zero is re-asserted by the state watcher rather than
-    -- set once -- same idiom as the scroll buttons and minimize button below.
+    -- (temp-window open) both read it. On an undocked window FCF_FadeIn/OutChatFrame
+    -- animate this frame's alpha every frame (to 1 on hover, 0.2 after), which no
+    -- alpha assert outpaces, and a SetAlpha hook would run inside those fades and
+    -- the dock pass. Blizzard never re-textures the frame or its minimize button, so
+    -- their art is emptied once instead: the fades then have nothing to draw.
     local btnFrame = _G[name .. "ButtonFrame"]
     if btnFrame then
         btnFrame:SetAlpha(0)
         btnFrame:EnableMouse(false)
+        -- Empty the border/background textures so btnFrame's own hover/undock
+        -- alpha fades (0.2-1, never fully off) have nothing left to draw. The
+        -- minimize button is left alone: a separate child object, Blizzard
+        -- fades it in with btnFrame's alpha on hover the same as any other
+        -- chat window, and its own alpha/mouse state were never touched here.
+        for i = 1, select("#", btnFrame:GetRegions()) do
+            local region = select(i, btnFrame:GetRegions())
+            if region:IsObjectType("Texture") then region:SetTexture("") end
+        end
     end
 
     -- Restyle Blizzard's resize button to align with our bg (undocked-capable
@@ -4891,9 +4909,6 @@ local function SkinChatFrame(cf)
         end
         sb:Hide()
     end
-
-    local minBtn = _G[name .. "MinimizeButton"]
-    if minBtn then minBtn:SetAlpha(0); minBtn:EnableMouse(false) end
 
     -- Strip ALL Blizzard textures from the chat frame. Texture objects only, and
     -- skips anything we created (marked with _euiOwned). The stock styles skip
