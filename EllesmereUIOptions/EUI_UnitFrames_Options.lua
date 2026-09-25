@@ -3447,6 +3447,39 @@ initFrame:SetScript("OnEvent", function(self)
                     pf._powerFill:SetAlpha(s.powerGradientEnabled and 1 or pOpacity)
                 end
                 if pf._powerBg then pf._powerBg:SetColorTexture(pvPbR, pvPbG, pvPbB, 1) end
+                -- Spell Cost Prediction eyeball (player): the last third of the
+                -- fill in the prediction color, as during a cast.
+                if unitKey == "player" and pf._powerFill and ns._ufShowPowerCostPreview
+                   and s.powerCostPrediction == true then
+                    local seg = pf._pvCostSeg
+                    if not seg then
+                        seg = power:CreateTexture(nil, "ARTWORK", nil, 2)
+                        pf._pvCostSeg = seg
+                    end
+                    local r, g, b
+                    if ns.UF_PowerCostColor then r, g, b = ns.UF_PowerCostColor(s)
+                    else r, g, b = 0.40, 0.70, 1 end
+                    local curTP = (ns.healthBarTextures or {})[s.healthBarTexture or db.profile.healthBarTexture or "none"]
+                    if curTP then
+                        seg:SetTexture(curTP)
+                        seg:SetVertexColor(r, g, b, 1)
+                    else
+                        seg:SetColorTexture(r, g, b, 1)
+                    end
+                    seg:SetAlpha(pOpacity)
+                    seg:ClearAllPoints()
+                    if s.powerReverseFill then
+                        seg:SetPoint("TOPLEFT", pf._powerFill, "TOPLEFT", 0, 0)
+                        seg:SetPoint("BOTTOMLEFT", pf._powerFill, "BOTTOMLEFT", 0, 0)
+                    else
+                        seg:SetPoint("TOPRIGHT", pf._powerFill, "TOPRIGHT", 0, 0)
+                        seg:SetPoint("BOTTOMRIGHT", pf._powerFill, "BOTTOMRIGHT", 0, 0)
+                    end
+                    seg:SetWidth(math.floor(pf._powerFill:GetWidth() / 3 + 0.5))
+                    seg:Show()
+                elseif pf._pvCostSeg then
+                    pf._pvCostSeg:Hide()
+                end
             end
 
             -- Power percent text in preview
@@ -8727,6 +8760,60 @@ initFrame:SetScript("OnEvent", function(self)
             pbSwatch:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
             rightRgn._lastInline = pbSwatch
             EllesmereUI.RegisterWidgetRefresh(function() updatePBSwatch() end)
+        end
+
+        -- Spell Cost Prediction (player only; the page rebuilds on unit change):
+        -- toggle with a preview eyeball | its color. Above Power Type, which keeps
+        -- its height when hidden.
+        if selectedUnit == "player" then
+            local costRow
+            costRow, h = W:DualRow(parent, y,
+                { type="toggle", text="Spell Cost Prediction",
+                  tooltip="While you cast, shows on the bar the mana the spell will cost.",
+                  getValue=function() return SVal("powerCostPrediction", false) == true end,
+                  setValue=function(v) SSet("powerCostPrediction", v); UpdatePreview(); EllesmereUI:RefreshPage() end },
+                { type="colorpicker", text="Spell Cost Color",
+                  disabled=function() return SVal("powerCostPrediction", false) ~= true end,
+                  disabledTooltip="Spell Cost Prediction",
+                  getValue=function()
+                      if ns.UF_PowerCostColor then
+                          local r, g, b = ns.UF_PowerCostColor(SDB())
+                          return r, g, b
+                      end
+                      return 0.40, 0.70, 1
+                  end,
+                  setValue=function(r, g, b)
+                      SSet("powerCostColor", { r=r, g=g, b=b }); UpdatePreview()
+                  end });  y = y - h
+            -- Inline eyeball: preview the cost on the live preview. Session-only.
+            if not EllesmereUI._prebuilding then
+                local rgn = costRow._leftRegion
+                local eyeBtn = CreateFrame("Button", nil, rgn)
+                eyeBtn:SetSize(26, 26)
+                eyeBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
+                eyeBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
+                eyeBtn:SetAlpha(0.4)
+                rgn._lastInline = eyeBtn
+                local eyeTex = eyeBtn:CreateTexture(nil, "OVERLAY")
+                eyeTex:SetAllPoints()
+                local function RefreshCostEye()
+                    eyeTex:SetTexture(ns._ufShowPowerCostPreview and EllesmereUI.EYE_INVISIBLE_ICON or EllesmereUI.EYE_VISIBLE_ICON)
+                end
+                RefreshCostEye()
+                eyeBtn:SetScript("OnClick", function()
+                    ns._ufShowPowerCostPreview = not ns._ufShowPowerCostPreview
+                    RefreshCostEye()
+                    UpdatePreview()
+                end)
+                eyeBtn:SetScript("OnEnter", function(self)
+                    self:SetAlpha(0.7)
+                    EllesmereUI.ShowWidgetTooltip(self, ns._ufShowPowerCostPreview and "Hide spell cost preview" or "Show spell cost preview")
+                end)
+                eyeBtn:SetScript("OnLeave", function(self)
+                    self:SetAlpha(0.4)
+                    EllesmereUI.HideWidgetTooltip()
+                end)
+            end
         end
 
         -- Row 6: Power Type override (player-only, spec-dependent)

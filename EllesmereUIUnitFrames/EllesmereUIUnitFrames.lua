@@ -5692,6 +5692,145 @@ function ns.UpdatePowerBorder(power, settings)
     end
 end
 
+-------------------------------------------------------------------------------
+--  Spell Cost Prediction (player only, opt-in s.powerCostPrediction): while a
+--  spell with a cast time is cast, the mana it will spend is drawn on the power
+--  bar in a lighter color, like Blizzard's player frame. Mana only: nothing is
+--  drawn while the bar shows another power type. The segment is a
+--  StatusBar at the fill's leading edge, filling back over it (secret-safe: max
+--  power and the cost only reach SetMinMaxValues/SetValue), in a holder that
+--  clips to the bar. It is laid out on each cast start, so texture swaps, fill
+--  direction and Blizzard Style masks need no hooks. The cast is matched by
+--  castGUID: instants cast during it, and their failures, leave it alone.
+--  Nothing is built or registered until the option is on.
+--  On ns: this chunk sits at the Lua 5.1 local ceiling.
+-------------------------------------------------------------------------------
+-- Fallback when the client has no POWERBAR_PREDICTION_COLOR_MANA.
+ns.UF_POWER_COST_COLOR = { r = 0.40, g = 0.70, b = 1 }
+
+-- Custom color, else Blizzard's mana prediction color.
+function ns.UF_PowerCostColor(s)
+    local c = s and s.powerCostColor
+    if c then return c.r, c.g, c.b end
+    local b = POWERBAR_PREDICTION_COLOR_MANA
+    if b and b.GetRGB then return b:GetRGB() end
+    c = ns.UF_POWER_COST_COLOR
+    return c.r, c.g, c.b
+end
+
+ns.UF_POWER_COST_EVENTS = { "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP",
+    "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_SUCCEEDED" }
+
+function ns.UF_SetupPowerCost(power, settings)
+    local on = power and settings and settings.powerCostPrediction == true
+    local old = ns._ufPowerCostBar
+    if old and old._costBar and (old ~= power or not on) then old._costBar:Hide() end
+    ns._ufPowerCostBar = on and power or nil
+    ns._ufPowerCostGUID = nil
+    local ev = ns._ufPowerCostEvents
+    if on and not ev then
+        ev = CreateFrame("Frame")
+        ev:SetScript("OnEvent", function(_, event, _, castGUID, spellID)
+            ns.UF_OnPowerCostEvent(event, castGUID, spellID)
+        end)
+        ns._ufPowerCostEvents = ev
+    end
+    if not ev then return end
+    if on then
+        for _, e in ipairs(ns.UF_POWER_COST_EVENTS) do ev:RegisterUnitEvent(e, "player") end
+    else
+        ev:UnregisterAllEvents()
+    end
+end
+
+function ns.UF_OnPowerCostEvent(event, castGUID, spellID)
+    local power = ns._ufPowerCostBar
+    if not power then return end
+    if event == "UNIT_SPELLCAST_START" then
+        ns._ufPowerCostGUID = castGUID
+        ns.UF_ShowPowerCost(power, spellID)
+        return
+    end
+    local cur = ns._ufPowerCostGUID
+    if cur == nil then return end
+    -- Player cast GUIDs are never secret; if one is, end on any stop but an
+    -- instant's success.
+    local secret = issecretvalue and (issecretvalue(castGUID) or issecretvalue(cur))
+    if secret then
+        if event == "UNIT_SPELLCAST_SUCCEEDED" then return end
+    elseif castGUID ~= cur then
+        return
+    end
+    ns._ufPowerCostGUID = nil
+    if power._costBar then power._costBar:Hide() end
+end
+
+function ns.UF_ShowPowerCost(power, spellID)
+    local bar = power._costBar
+    local pfill = power:GetStatusBarTexture()
+    local ptype = power.displayType or UnitPowerType("player")
+    local mana = Enum and Enum.PowerType and Enum.PowerType.Mana
+    if not mana or (issecretvalue and issecretvalue(ptype)) or ptype ~= mana then
+        if bar then bar:Hide() end
+        return
+    end
+    local cost
+    local costs = spellID and pfill and C_Spell and C_Spell.GetSpellPowerCost(spellID)
+    if costs then
+        for _, c in ipairs(costs) do
+            if not (issecretvalue and issecretvalue(c.type)) and c.type == ptype then
+                cost = c.cost
+                break
+            end
+        end
+    end
+    if not cost then
+        if bar then bar:Hide() end
+        return
+    end
+    if not bar then
+        local clip = CreateFrame("Frame", nil, power)
+        clip:SetAllPoints(power)
+        clip:SetClipsChildren(true)
+        bar = CreateFrame("StatusBar", nil, clip)
+        power._costBar = bar
+    end
+    local level = power:GetFrameLevel() + 1
+    bar:GetParent():SetFrameLevel(level)
+    bar:SetFrameLevel(level)
+    -- Same texture as the power fill (a swap replaces the fill object, so the
+    -- mask is seated again after one).
+    local path = pfill:GetTexture() or "Interface\\Buttons\\WHITE8X8"
+    if bar._texPath ~= path then
+        bar._texPath = path
+        bar:SetStatusBarTexture(path)
+        local fill = bar:GetStatusBarTexture()
+        if fill then UnsnapTex(fill) end
+    end
+    local fill = bar:GetStatusBarTexture()
+    local pm = power._blizzMask
+    if fill and pm then
+        pcall(fill.RemoveMaskTexture, fill, pm)
+        if power._blizzMasked then pcall(fill.AddMaskTexture, fill, pm) end
+    end
+    local rev = power:GetReverseFill() and true or false
+    bar:ClearAllPoints()
+    if rev then
+        bar:SetPoint("TOPLEFT", pfill, "TOPLEFT", 0, 0)
+        bar:SetPoint("BOTTOMLEFT", pfill, "BOTTOMLEFT", 0, 0)
+    else
+        bar:SetPoint("TOPRIGHT", pfill, "TOPRIGHT", 0, 0)
+        bar:SetPoint("BOTTOMRIGHT", pfill, "BOTTOMRIGHT", 0, 0)
+    end
+    bar:SetWidth(power:GetWidth())
+    bar:SetReverseFill(not rev)
+    local r, g, b = ns.UF_PowerCostColor(GetSettingsForUnit("player"))
+    bar:SetStatusBarColor(r, g, b, pfill:GetAlpha())
+    bar:SetMinMaxValues(0, UnitPowerMax("player", ptype))
+    bar:SetValue(cost)
+    bar:Show()
+end
+
 local function CreatePowerBar(frame, unit, settings)
     local powerPos = settings.powerPosition or "below"
 
@@ -6018,6 +6157,8 @@ local function CreatePowerBar(frame, unit, settings)
 
     -- Power bar border: full when detached, divider when attached; lazy.
     ns.UpdatePowerBorder(power, settings)
+
+    if unit == "player" then ns.UF_SetupPowerCost(power, settings) end
 
     return power
 end
@@ -12249,6 +12390,7 @@ ReloadFramesBody = function()
                 -- change would otherwise leave the bg anchored to the wrong side).
                 ApplyPowerBarAlpha(frame.Power, UnitToSettingsKey(unit))
                 if frame.Power.ForceUpdate then frame.Power:ForceUpdate() end
+                if unit == "player" then ns.UF_SetupPowerCost(frame.Power, settings) end
             end
 
             -- Apply castbar reverse fill
