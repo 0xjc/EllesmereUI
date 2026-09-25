@@ -8462,7 +8462,7 @@ initFrame:SetScript("OnEvent", function(self)
                     -- spellID can also be this bar's cooldown entry, which must keep the CD
                     -- store + cd/util menu. Legacy fallback: flag set with no marker entry yet means the plain entry is the buff (pre-marker data).
                     local isHostedBuff = (anchorFrame and anchorFrame._previewHostedBuff) or false
-                    if not isHostedBuff and sd.hostedBuffSpellIDs and sd.hostedBuffSpellIDs[spellID]
+                    if not isHostedBuff and sd and sd.hostedBuffSpellIDs and sd.hostedBuffSpellIDs[spellID]
                        and not (ns.ListHasHostedMarker and sd.assignedSpells
                                 and ns.ListHasHostedMarker(sd.assignedSpells, spellID)) then
                         isHostedBuff = true

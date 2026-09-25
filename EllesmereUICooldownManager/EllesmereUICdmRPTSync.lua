@@ -47,7 +47,7 @@ function ns.GetCDMSpecInfo()
     local result = {}
     local numSpecs = GetNumSpecializations and GetNumSpecializations() or 0
     for i = 1, numSpecs do
-        local specID, sName, _, sIcon = GetSpecializationInfo(i)
+        local specID, sName, _, sIcon = C_SpecializationInfo.GetSpecializationInfo(i)
         if specID then
             local key = tostring(specID)
             local prof = sp and sp[key]
@@ -93,7 +93,7 @@ function ns.GetAllCDMSpecInfo()
     for classID = 1, numClasses do
         local className, classFile = GetClassInfo(classID)
         local isCurrentClass = (classFile ~= nil and classFile == curClassFile)
-        local numSpecs = (GetNumSpecializationsForClassID and GetNumSpecializationsForClassID(classID)) or 0
+        local numSpecs = C_SpecializationInfo.GetNumSpecializationsForClassID(classID) or 0
         for specIndex = 1, numSpecs do
             local specID, sName, _, sIcon = GetSpecializationInfoForClassID(classID, specIndex)
             if specID then
