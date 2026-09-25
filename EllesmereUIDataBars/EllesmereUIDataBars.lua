@@ -3196,3 +3196,35 @@ end
 _G._EDB_RegisterUnlock = function()
     ns.RegisterAllUnlockElements()
 end
+
+-------------------------------------------------------------------------------
+--  Party Mode: spinning data bars. Each block orbits its own bar's centre,
+--  like the action bar spin. Driver, combat pause and rest tracking live in
+--  the shared engine (EllesmereUI.PartySpin_Create, EllesmereUI_PartyMode.lua).
+-------------------------------------------------------------------------------
+if EllesmereUI.PartySpin_Create then
+    local groups = {}
+    EllesmereUI.PartySpinDataBars_Refresh = EllesmereUI.PartySpin_Create({
+        enabledKey = "partyModeSpinDataBars",
+        speedKey   = "partyModeSpinDataBarsSpeed",
+        collect = function()
+            wipe(groups)
+            for _, rec in pairs(live) do
+                if rec.enabled and rec.bar and rec.slots then
+                    local list = {}
+                    for _, slot in pairs(rec.slots) do list[#list + 1] = slot end
+                    groups[#groups + 1] = { pivot = rec.bar, frames = list }
+                end
+            end
+            return groups
+        end,
+    })
+end
+
+-- Party Mode visibility axis (Visibility > Party Mode): no game event, so the
+-- core fires its own edge.
+if EllesmereUI.RegisterVisEdge then
+    EllesmereUI.RegisterVisEdge(function()
+        if ns.UpdateAllBarVisibility then ns.UpdateAllBarVisibility() end
+    end)
+end

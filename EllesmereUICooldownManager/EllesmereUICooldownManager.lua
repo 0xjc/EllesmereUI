@@ -10604,6 +10604,10 @@ eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
 -- Resting: IsResting() has no dedicated poll, so without this the Resting
 -- axis only re-evaluated when some unrelated event above happened to fire.
 eventFrame:RegisterEvent("PLAYER_UPDATE_RESTING")
+-- Party Mode axis: no game event; the core fires its own edge.
+if EllesmereUI.RegisterVisEdge then
+    EllesmereUI.RegisterVisEdge(function() _CDMApplyVisibility() end)
+end
 -- Vehicle edges for the In Vehicle axis (player-filtered; same reasoning).
 eventFrame:RegisterUnitEvent("UNIT_ENTERED_VEHICLE", "player")
 eventFrame:RegisterUnitEvent("UNIT_EXITED_VEHICLE", "player")

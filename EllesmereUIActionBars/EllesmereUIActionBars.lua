@@ -14554,6 +14554,12 @@ function EAB:FinishSetup()
     self:RegisterEvent("PLAYER_UPDATE_RESTING", function()
         self:UpdateHousingVisibility()
     end)
+    -- Party Mode axis: no game event, so the core fires its own edge
+    -- (EllesmereUI.FireVisEdge, re-fired after combat for secure bars).
+    if EllesmereUI.RegisterVisEdge and not self._partyVisEdge then
+        self._partyVisEdge = true
+        EllesmereUI.RegisterVisEdge(function() self:UpdateHousingVisibility() end)
+    end
     -- Vehicle edges for the In Vehicle axis (same reasoning as Resting; the
     -- sync is gated + coalesced, so the rare fire costs a flag check).
     self:RegisterEvent("UNIT_ENTERED_VEHICLE", function()

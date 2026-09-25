@@ -15906,3 +15906,35 @@ do
         end
     end
 end
+
+-------------------------------------------------------------------------------
+--  Party Mode: spinning unit frames. Every EUI unit frame (player, target,
+--  focus, pet, target-of-target, focus target, boss) orbits the centre of the
+--  screen, so player and target swing round each other like a carousel.
+--  Unit frames are secure, so this pauses in combat exactly like the action
+--  bar spin. Driver and rest tracking live in the shared engine
+--  (EllesmereUI.PartySpin_Create, EllesmereUI_PartyMode.lua).
+-------------------------------------------------------------------------------
+if EllesmereUI.PartySpin_Create then
+    local list, groups = {}, {}
+    EllesmereUI.PartySpinUF_Refresh = EllesmereUI.PartySpin_Create({
+        enabledKey = "partyModeSpinUF",
+        speedKey   = "partyModeSpinUFSpeed",
+        collect = function()
+            wipe(list); wipe(groups)
+            for _, f in pairs(frames) do
+                if type(f) == "table" and f.GetCenter then list[#list + 1] = f end
+            end
+            groups[1] = { pivot = UIParent, frames = list }
+            return groups
+        end,
+    })
+end
+
+-- Party Mode visibility axis (Visibility > Party Mode): no game event, so the
+-- core fires its own edge (re-fired after combat for the secure frames).
+if EllesmereUI.RegisterVisEdge then
+    EllesmereUI.RegisterVisEdge(function()
+        if ns.UpdateFrameVisibility then ns.UpdateFrameVisibility() end
+    end)
+end

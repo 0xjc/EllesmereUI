@@ -13196,6 +13196,7 @@ EllesmereUI.VIS_OPT_KEYS = {
     "visHideNoEnemy", "visHideWithEnemy",
     "visOnlyResting", "visHideResting",
     "visOnlyVehicle", "visHideVehicle",
+    "visOnlyPartyMode", "visHidePartyMode",
 }
 
 -- Cache player class once at load time (never changes).
@@ -13360,6 +13361,19 @@ function EllesmereUI.CheckVisibilityOptionsNonMacro(opts, skipMountAxis)
         if opts.visHideVehicle and inVehicle then return true end
     end
 
+    -- Party Mode axis: Only Show during Party Mode / Hide during Party Mode.
+    -- A plain true (not "mountaxis") on purpose: Party Mode can start or stop
+    -- inside combat (Bloodlust, the celebration timer), where a secure driver
+    -- cannot be rewritten. A constant hide HOLDS the pre-combat state through
+    -- the fight and catches up on combat end (EllesmereUI.FireVisEdge re-fires
+    -- then); the "[nocombat] hide" escape hatch would instead pop a "Hide during
+    -- Party Mode" bar back on screen the moment combat starts.
+    if opts.visOnlyPartyMode or opts.visHidePartyMode then
+        local party = EllesmereUI.IsPartyModeActive()
+        if opts.visOnlyPartyMode and not party then return true end
+        if opts.visHidePartyMode and party then return true end
+    end
+
     return false
 end
 
@@ -13398,6 +13412,47 @@ function EllesmereUI.CheckVisibilityOptions(opts)
     return false
 end
 
+-- Party Mode visibility axis ---------------------------------------------------
+-- Party Mode has no game event, so it brings its own edge: EllesmereUI_PartyMode.lua
+-- calls FireVisEdge after every start/stop (options page, keybind, random timer,
+-- Bloodlust, celebration end). Each module that evaluates visibility on its own
+-- event frame registers its refresh here once; dispatcher-driven modules (Minimap,
+-- Friends, Chat, Damage Meters, Quest Tracker) are covered by RequestVisibilityUpdate.
+-- An edge that lands in combat re-fires once on PLAYER_REGEN_ENABLED, because secure
+-- consumers (Action Bars) cannot rewrite their drivers until then.
+function EllesmereUI.IsPartyModeActive()
+    return (EllesmereUIDB and EllesmereUIDB.partyMode) and true or false
+end
+do
+    local callbacks = {}
+    local pending, regenF = false, nil
+    function EllesmereUI.RegisterVisEdge(fn)
+        if type(fn) == "function" then callbacks[#callbacks + 1] = fn end
+    end
+    local function Run()
+        pending = false
+        if EllesmereUI.RequestVisibilityUpdate then EllesmereUI.RequestVisibilityUpdate() end
+        for i = 1, #callbacks do callbacks[i]() end
+    end
+    function EllesmereUI.FireVisEdge()
+        if InCombatLockdown() then
+            if not regenF then
+                regenF = CreateFrame("Frame")
+                regenF:SetScript("OnEvent", function(self)
+                    self:UnregisterEvent("PLAYER_REGEN_ENABLED")
+                    EllesmereUI.FireVisEdge()
+                end)
+            end
+            regenF:RegisterEvent("PLAYER_REGEN_ENABLED")
+        end
+        -- Coalesced and deferred one frame: a clean execution context, and a
+        -- toggle that stops and restarts in one frame costs one pass.
+        if pending then return end
+        pending = true
+        C_Timer.After(0, Run)
+    end
+end
+
 -- Option-lane axes: one axis per condition (Show lane, Hide lane, probe() = holds now),
 -- read by the "any" match for per-axis verdicts; the "all" veto chain above is untouched.
 -- luaOnly = no macro conditional exists, so the secure driver resolves the axis in Lua.
@@ -13419,6 +13474,11 @@ EllesmereUI.VIS_OPT_AXES = {
       probe = function() return IsResting() and true or false end },
     { show = "visOnlyVehicle", hide = "visHideVehicle", luaOnly = true, combatFlip = true,
       probe = function() return UnitInVehicle("player") and true or false end },
+    -- Not combatFlip, deliberately: see the Party Mode axis in
+    -- CheckVisibilityOptionsNonMacro -- a secure bar holds its pre-combat state
+    -- and catches up when combat ends, instead of popping back mid-fight.
+    { show = "visOnlyPartyMode", hide = "visHidePartyMode", luaOnly = true,
+      probe = function() return EllesmereUI.IsPartyModeActive() end },
     -- needsEdge: [exists]/[harm] re-evaluate on soft-target changes that
     -- UnitExists("target") ignores; a consumer without those edges resolves the axis in Lua.
     { show = "visHideNoTarget", hide = "visHideWithTarget", needsEdge = "softTarget",
