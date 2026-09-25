@@ -13189,6 +13189,7 @@ EllesmereUI.VIS_OPT_ITEMS = {
 -- a module still building the legacy pair of dropdowns.
 EllesmereUI.VIS_OPT_KEYS = {
     "visOnlyInstances", "visHideInstances",
+    "visOnlyDungeons", "visHideDungeons",
     "visHideHousing", "visOnlyHousing",
     "visHideMounted", "visOnlyMounted",
     "visHideDragonriding", "visOnlySkyriding",
@@ -13223,6 +13224,14 @@ function EllesmereUI.IsInInstancedContent()
     end
     return iType == "party" or iType == "raid" or iType == "scenario"
         or iType == "arena" or iType == "pvp"
+end
+
+-- Dungeons axis probe: five-player dungeons only, Mythic+ included. Delves report as
+-- scenarios, so a Dungeons lane leaves them alone where the Instances lane does not.
+function EllesmereUI.IsInDungeon()
+    local _, iType = GetInstanceInfo()
+    if iType ~= "party" then return false end
+    return not (C_Garrison and C_Garrison.IsOnGarrisonMap and C_Garrison.IsOnGarrisonMap())
 end
 
 -- Runtime check: returns true if the element should be HIDDEN by visibility options.
@@ -13303,6 +13312,13 @@ function EllesmereUI.CheckVisibilityOptionsNonMacro(opts, skipMountAxis)
         local inInstance = EllesmereUI.IsInInstancedContent()
         if opts.visOnlyInstances and not inInstance then return true end
         if opts.visHideInstances and inInstance then return true end
+    end
+
+    -- Dungeons axis: Only Show in Dungeons / Hide in Dungeons share one probe.
+    if opts.visOnlyDungeons or opts.visHideDungeons then
+        local inDungeon = EllesmereUI.IsInDungeon()
+        if opts.visOnlyDungeons and not inDungeon then return true end
+        if opts.visHideDungeons and inDungeon then return true end
     end
 
     -- Hide in Housing
@@ -13461,6 +13477,8 @@ end
 EllesmereUI.VIS_OPT_AXES = {
     { show = "visOnlyInstances", hide = "visHideInstances", luaOnly = true,
       probe = function() return EllesmereUI.IsInInstancedContent() end },
+    { show = "visOnlyDungeons", hide = "visHideDungeons", luaOnly = true,
+      probe = function() return EllesmereUI.IsInDungeon() end },
     { show = "visOnlyHousing", hide = "visHideHousing", luaOnly = true,
       probe = function()
           return (C_Housing and C_Housing.IsInsideHouseOrPlot
