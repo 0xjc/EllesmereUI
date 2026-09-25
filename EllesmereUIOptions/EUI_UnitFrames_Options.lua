@@ -2329,6 +2329,22 @@ initFrame:SetScript("OnEvent", function(self)
             haBgPv:SetAllPoints(healAbsorbBar:GetStatusBarTexture())
             healAbsorbBar._bg = haBgPv
 
+            -- Heal prediction preview (Heal Prediction eyeball): others' heals at the
+            -- full incoming total underneath, yours on top, from the HP edge. The
+            -- holder clips at the bar's end unless Overheal lets them run past it.
+            -- Fields on pf, not locals: this builder is long. Driven in pf:Update.
+            pf._pvPredHolder = CreateFrame("Frame", nil, health)
+            pf._pvPredHolder:SetAllPoints(health)
+            pf._pvPredHolder:SetFrameLevel(health:GetFrameLevel() + 1)
+            for i, key in ipairs({ "_pvPredOther", "_pvPredMy" }) do
+                local bar = CreateFrame("StatusBar", nil, pf._pvPredHolder)
+                bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+                bar:SetMinMaxValues(0, 1)
+                bar:SetFrameLevel(health:GetFrameLevel() + i)
+                bar:Hide()
+                pf[key] = bar
+            end
+
             -- Absorb / Heal Absorb preview strips, parented to the frame so "above"
             -- positions sit outside the health bar. Driven below.
             absorbTopBar = CreateFrame("StatusBar", nil, pf)
@@ -3908,6 +3924,43 @@ initFrame:SetScript("OnEvent", function(self)
                 end
             end
 
+            -- Heal prediction eyeball: shows the two segments (and hides the shield
+            -- absorb, like the heal absorb eyeball). The incoming total fills most
+            -- of the missing health, or runs past the bar's end by the full
+            -- Overheal allowance when that is set.
+            if pf._pvPredMy then
+                if ns._ufShowHealPredPreview and s.healPrediction == true then
+                    local over = (tonumber(s.healPredOverheal) or 0) / 100
+                    local missing = 1 - (_previewHealthPct or 0.70)
+                    local total = (over > 0) and (missing + over) or (missing * 0.85)
+                    local alpha = (s.healPredOpacity or 60) / 100
+                    local mc = s.healPredColor or ns.UF_HEAL_PRED_MY or { r = 102/255, g = 243/255, b = 102/255 }
+                    local oc = s.healPredOtherColor or ns.UF_HEAL_PRED_OTHER or { r = 40/255, g = 170/255, b = 40/255 }
+                    pf._pvPredHolder:SetClipsChildren(over == 0)
+                    -- Texture as render resolves it; Health Bar reads the unit's health texture key.
+                    local texKey = s.healPredTexture or "health"
+                    if texKey == "health" then
+                        texKey = ns.ResolveHealthBarTextureKey and ns.ResolveHealthBarTextureKey(s) or "none"
+                    end
+                    local texPath = (texKey ~= "flat") and EllesmereUI.ResolveTexturePath(ns.healthBarTextures, texKey, nil)
+                        or "Interface\\Buttons\\WHITE8X8"
+                    for _, e in ipairs({ { pf._pvPredOther, oc, total }, { pf._pvPredMy, mc, total * 0.55 } }) do
+                        local bar, c, v = e[1], e[2], e[3]
+                        bar:SetStatusBarTexture(texPath)
+                        bar:SetStatusBarColor(c.r, c.g, c.b, alpha)
+                        PositionPreviewAbsorb(bar, "forward", s.healthReverseFill, s.healthVerticalFill)
+                        bar:SetWidth(fw)
+                        bar:SetHeight(hh)
+                        bar:SetValue(v)
+                        bar:Show()
+                    end
+                    if absorbBar then absorbBar:Hide() end
+                else
+                    pf._pvPredOther:Hide()
+                    pf._pvPredMy:Hide()
+                end
+            end
+
             -- Absorb / Heal Absorb strips: independent of the overlay styles,
             -- anchored to the preview health bar.
             local _absStripHp = absorbBar and absorbBar:GetParent()
@@ -4721,6 +4774,10 @@ initFrame:SetScript("OnEvent", function(self)
         healAbsorbColor      = { player=true, target=true, focus=true },
         healAbsorbEdgeMode   = { player=true, target=true, focus=true },
         healAbsorbBgOpacity  = { player=true, target=true, focus=true },
+        healPrediction       = { player=true, target=true, focus=true },
+        healPredOpacity      = { player=true, target=true, focus=true },
+        healPredOverheal     = { player=true, target=true, focus=true },
+        healPredTexture      = { player=true, target=true, focus=true },
         absorbBarPosition     = { player=true, target=true, focus=true },
         absorbBarHeight       = { player=true, target=true, focus=true },
         absorbBarColor        = { player=true, target=true, focus=true },
@@ -11860,7 +11917,7 @@ initFrame:SetScript("OnEvent", function(self)
         local sharedAbsorbsHeader, absorbRow
         local _supportsAbsorbs = (selectedUnit == "player" or selectedUnit == "target" or selectedUnit == "focus")
         if _supportsAbsorbs then
-        sharedAbsorbsHeader, h = W:SectionHeader(parent, "ABSORBS", y); y = y - h
+        sharedAbsorbsHeader, h = W:SectionHeader(parent, "ABSORBS AND HEALS", y); y = y - h
 
         local absorbStyleValues = {
             ["none"]            = "None",
@@ -12350,6 +12407,111 @@ initFrame:SetScript("OnEvent", function(self)
             RegisterWidgetRefresh(UpdateHealAbsorbBarSwatchVis)
             UpdateHealAbsorbBarSwatchVis()
         end
+
+        -- Row 5: Heal Prediction (+ your / others' color swatches) | Prediction Opacity
+        local healPredRow
+        healPredRow, h = W:DualRow(parent, y,
+            { type="toggle", text="Heal Prediction",
+              tooltip="Shows incoming heals past the health bar: yours, then other players'. Boss Frames use the Target setting.",
+              getValue=function() return SValSupported("healPrediction", false) == true end,
+              setValue=function(v) SSetSupported("healPrediction", v); EllesmereUI:RefreshPage() end },
+            { type="slider", text="Prediction Opacity", min=5, max=100, step=1,
+              disabled=function() return SValSupported("healPrediction", false) ~= true end,
+              disabledTooltip="Heal Prediction",
+              getValue=function() return SValSupported("healPredOpacity", 60) end,
+              setValue=function(v) SSetSupported("healPredOpacity", v) end });  y = y - h
+        SApplySupport(healPredRow._leftRegion, "healPrediction")
+        SApplySupport(healPredRow._rightRegion, "healPredOpacity")
+        -- Inline eyeball: preview heal prediction on the live preview. Session-only.
+        if not EllesmereUI._prebuilding then
+            local rgn = healPredRow._leftRegion
+            local eyeBtn = CreateFrame("Button", nil, rgn)
+            eyeBtn:SetSize(26, 26)
+            eyeBtn:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
+            eyeBtn:SetFrameLevel(rgn:GetFrameLevel() + 5)
+            eyeBtn:SetAlpha(0.4)
+            rgn._lastInline = eyeBtn
+            local eyeTex = eyeBtn:CreateTexture(nil, "OVERLAY")
+            eyeTex:SetAllPoints()
+            local function RefreshPredEye()
+                eyeTex:SetTexture(ns._ufShowHealPredPreview and EllesmereUI.EYE_INVISIBLE_ICON or EllesmereUI.EYE_VISIBLE_ICON)
+            end
+            RefreshPredEye()
+            eyeBtn:SetScript("OnClick", function()
+                ns._ufShowHealPredPreview = not ns._ufShowHealPredPreview
+                RefreshPredEye()
+                UpdatePreview()
+            end)
+            eyeBtn:SetScript("OnEnter", function(self)
+                self:SetAlpha(0.7)
+                EllesmereUI.ShowWidgetTooltip(self, ns._ufShowHealPredPreview and "Hide heal prediction preview" or "Show heal prediction preview")
+            end)
+            eyeBtn:SetScript("OnLeave", function(self)
+                self:SetAlpha(0.4)
+                EllesmereUI.HideWidgetTooltip()
+            end)
+        end
+        if not EllesmereUI._prebuilding then
+            local rgn = healPredRow._leftRegion
+            local function PredSwatch(key, default, tip)
+                local swatch = EllesmereUI.BuildColorSwatch(
+                    rgn, healPredRow:GetFrameLevel() + 3,
+                    function()
+                        local c = SGetSupported(key) or default
+                        return c.r, c.g, c.b, 1
+                    end,
+                    function(r, g, b)
+                        UNIT_DB_MAP[selectedUnit]()[key] = { r=r, g=g, b=b }
+                        ReloadAndUpdate(); UpdatePreview()
+                    end, false, 20)
+                swatch:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
+                rgn._lastInline = swatch
+                swatch:HookScript("OnEnter", function(sw) EllesmereUI.ShowWidgetTooltip(sw, tip) end)
+                swatch:HookScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
+                local function UpdateVis()
+                    swatch:SetAlpha(SValSupported("healPrediction", false) == true and 1 or 0.3)
+                end
+                RegisterWidgetRefresh(UpdateVis)
+                UpdateVis()
+            end
+            -- Each swatch lands left of the last, so build others' first: reads yours, others'.
+            PredSwatch("healPredOtherColor", ns.UF_HEAL_PRED_OTHER or { r = 40/255, g = 170/255, b = 40/255 }, "Other players' heals")
+            PredSwatch("healPredColor", ns.UF_HEAL_PRED_MY or { r = 102/255, g = 243/255, b = 102/255 }, "Your heals")
+        end
+        -- Row 6: Overheal (how far heal prediction may run past the bar's end) | Texture
+        -- (Health Bar follows the frame's own health texture; no absorb stripes:
+        -- stripes read as absorbs on these frames).
+        local healPredTexValues = { health = "Health Bar", flat = "Flat" }
+        local healPredTexOrder = { "health", "flat", "---" }
+        for _, k in ipairs(ns.healthBarTextureOrder or {}) do
+            if k ~= "none" and k ~= "---" and not healPredTexValues[k] then
+                healPredTexValues[k] = (ns.healthBarTextureNames and ns.healthBarTextureNames[k]) or k
+                healPredTexOrder[#healPredTexOrder + 1] = k
+            end
+        end
+        healPredTexValues._menuOpts = {
+            itemHeight = 28,
+            background = function(key)
+                if not key or key == "---" or key == "health" then return nil end
+                if key == "flat" then return "Interface\\Buttons\\WHITE8X8" end
+                return EllesmereUI.ResolveTexturePath(ns.healthBarTextures, key, nil)
+            end,
+        }
+        local overhealRow
+        overhealRow, h = W:DualRow(parent, y,
+            { type="slider", text="Overheal", min=0, max=50, step=1,
+              tooltip="How far incoming heals can extend past the end of the health bar, as a percent of its length. 0 keeps them inside the bar.",
+              disabled=function() return SValSupported("healPrediction", false) ~= true end,
+              disabledTooltip="Heal Prediction",
+              getValue=function() return SValSupported("healPredOverheal", 0) end,
+              setValue=function(v) SSetSupported("healPredOverheal", v) end },
+            { type="dropdown", text="Heal Prediction Texture", values=healPredTexValues, order=healPredTexOrder,
+              disabled=function() return SValSupported("healPrediction", false) ~= true end,
+              disabledTooltip="Heal Prediction",
+              getValue=function() return SValSupported("healPredTexture", "health") end,
+              setValue=function(v) SSetSupported("healPredTexture", v); UpdatePreview() end });  y = y - h
+        SApplySupport(overhealRow._leftRegion, "healPredOverheal")
+        SApplySupport(overhealRow._rightRegion, "healPredTexture")
 
         _, h = W:Spacer(parent, y, 20); y = y - h
         end -- _supportsAbsorbs
