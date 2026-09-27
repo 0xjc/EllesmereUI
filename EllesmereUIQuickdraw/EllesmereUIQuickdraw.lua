@@ -1100,7 +1100,8 @@ end
 --  fits on a ring and costs one keybind. A panel with a micro button fires as
 --  "/click <button>", the click Blizzard's own menu makes: the macro runs
 --  untainted from the secure button, where an addon opening the frame from its
---  own Lua taints what it draws (EllesmereUIDataBars_Blocks.lua:4138). The five
+--  own Lua taints what it draws (see MM_MICRO_BUTTON_NAMES in
+--  EllesmereUIDataBars/Blocks/MicroMenu.lua). The five
 --  with no button to click fire from FireInsecure, out of combat only.
 -------------------------------------------------------------------------------
 do
