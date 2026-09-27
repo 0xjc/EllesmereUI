@@ -61,6 +61,12 @@ local HP_BAR_SLOTS = {
     { key = "textSlotCenter", anchor = "CENTER", point = "CENTER", xOff = 0 },
 }
 
+local THREAT_PCT_POS = {
+    RIGHT  = { anchor = "RIGHT",  point = "RIGHT",  xOff = -2 },
+    LEFT   = { anchor = "LEFT",   point = "LEFT",   xOff = 4 },
+    CENTER = { anchor = "CENTER", point = "CENTER", xOff = 0 },
+}
+
 ns.NP_ABSORB_STYLE_TEX = {
     blizzard = "Interface\\AddOns\\EllesmereUI\\media\\textures\\shields\\blizzard-nameplates.png",
     striped  = "Interface\\AddOns\\EllesmereUI\\media\\textures\\shields\\striped3.tga",
@@ -181,6 +187,12 @@ local defaults = {
     tankNoAggro = { r = 1.00, g = 0.22, b = 0.17 },
     dpsNearAggro = { r = 0.81, g = 0.72, b = 0.19 },
     threatNearAggroGlow = false,  -- Non-Tank Threat cog: red glow while the Near Aggro color is active
+    threatPctEnabled = false,
+    threatPctPosition = "RIGHT",
+    threatPctColorByThreat = true,
+    threatPctSize = 10,
+    threatPctXOffset = 0,
+    threatPctYOffset = 0,
     dpsHasAggro = { r = 1.00, g = 0.50, b = 0.00 },
     offTankAggro = { r = 0.188, g = 0.761, b = 0.812 },
     offTankAggroEnabled = true,
@@ -3173,6 +3185,35 @@ function ns.ApplyFocusLetter(plate, unit, db)
     end
 end
 
+function ns.ApplyThreatPctPos(plate)
+    local db = p or defaults
+    local posKey = db.threatPctPosition or defaults.threatPctPosition
+    local slot = THREAT_PCT_POS[posKey] or THREAT_PCT_POS.RIGHT
+    local size = db.threatPctSize or defaults.threatPctSize
+    local xOff = db.threatPctXOffset or defaults.threatPctXOffset
+    local yOff = db.threatPctYOffset or defaults.threatPctYOffset
+    local font = GetFont()
+    local outline = GetNPOutline()
+    if plate._tptPos ~= posKey or plate._tptSize ~= size
+        or plate._tptX ~= xOff or plate._tptY ~= yOff
+        or plate._tptFont ~= font or plate._tptOutline ~= outline then
+        plate._tptPos = posKey
+        plate._tptSize = size
+        plate._tptX = xOff
+        plate._tptY = yOff
+        plate._tptFont = font
+        plate._tptOutline = outline
+        SetFSFont(plate.threatPctText, size, outline)
+        plate.threatPctText:ClearAllPoints()
+        if slot.anchor == "CENTER" then
+            plate.threatPctText:SetPoint("CENTER", plate.health, "CENTER", xOff, yOff)
+        else
+            PP.Point(plate.threatPctText, slot.anchor, plate.health, slot.point, slot.xOff + xOff, yOff)
+        end
+        plate.threatPctText:SetJustifyH(slot.anchor)
+    end
+end
+
 ns.EnsureHoverOverlay = function(plate)
     if plate.hoverClipFill then return end
     local overlayAlpha = (p and p.hoverAlpha) or defaults.hoverAlpha
@@ -3391,6 +3432,11 @@ local frameCache = CreateFramePool("Frame", UIParent, nil, nil, false, function(
     SetFSFont(plate.levelText, 10, GetNPOutline())
     plate.levelText:SetPoint("CENTER", plate.health, "CENTER", 0, 0)
     plate.levelText:Hide()
+    plate.threatPctText = plate.healthTextFrame:CreateFontString(nil, "OVERLAY")
+    SetFSFont(plate.threatPctText, 10, GetNPOutline())
+    plate.threatPctText:SetPoint("RIGHT", plate.health, "RIGHT", -2, 0)
+    plate.threatPctText:SetJustifyH("RIGHT")
+    plate.threatPctText:Hide()
     -- Mouseover highlight: parented to the health bar (not the higher-level text
     -- frame) so it renders BEHIND the border (a child at health level + 1).
     -- Blizzard Style: under the stock ring / deselected overlay (OVERLAY 4/5),
@@ -7085,6 +7131,8 @@ function NameplateFrame:ClearUnit()
     self._hpTxtPct, self._hpTxtCur = nil, nil
     self._ovFocShown, self._ovTgtShown = nil, nil
     self._focusLetterShown = nil
+    self._tptShown = nil
+    self.threatPctText:Hide()
     self._kickIsChannel = nil
     self._castIsChannel = nil
     self._kickIsEmpowered = nil
@@ -7573,6 +7621,35 @@ function NameplateFrame:UpdateHealthColor()
         elseif self.naGlowFrame then
             self.naGlowFrame:Hide()
         end
+    end
+    -- Threat percent text, Forever only. Forever returns the percent secret for
+    -- nameplate units, so it goes straight to SetFormattedText and is never read.
+    local tptShow = false
+    if EllesmereUI.IS_FOREVER and p and p.threatPctEnabled == true then
+        local isTanking, status, scaledPct = UnitDetailedThreatSituation("player", unit)
+        if type(scaledPct) == "number" then
+            ns.ApplyThreatPctPos(self)
+            local fs = self.threatPctText
+            fs:SetFormattedText("%.0f%%", scaledPct)
+            local fold = C_CurveUtil and C_CurveUtil.EvaluateColorValueFromBoolean
+            if not p.threatPctColorByThreat then
+                fs:SetTextColor(1, 1, 1)
+            elseif type(status) == "number" and not (issecretvalue and issecretvalue(status)) then
+                fs:SetTextColor(GetThreatStatusColor(status))
+            elseif fold and type(isTanking) == "boolean" then
+                -- Status is secret too; the tanking flag can only pick has-aggro vs low threat.
+                local ar, ag, ab = GetThreatStatusColor(3)
+                local lr, lg, lb = GetThreatStatusColor(0)
+                fs:SetTextColor(fold(isTanking, ar, lr), fold(isTanking, ag, lg), fold(isTanking, ab, lb))
+            else
+                fs:SetTextColor(1, 1, 1)
+            end
+            tptShow = true
+        end
+    end
+    if tptShow ~= (self._tptShown or false) then
+        self._tptShown = tptShow or nil
+        self.threatPctText:SetShown(tptShow)
     end
     -- Focus overlay: stripe textures on the focus target's health bar (fill clip at full alpha,
     -- bg clip at half). Value-keyed: reapplied only when a component differs from the last

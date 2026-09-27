@@ -176,6 +176,73 @@ _G._EUI_BuildThreatMeterPage = function(_, parent, y)
     Row({ type = "labeledButton", text = "Test Warning Sound", buttonText = "Play",
         onClick = function() ns.PlaySoundKey(ns.Config().warnSoundKey) end })
 
+    -- Threat % text drawn by the Nameplates and Unit Frames modules; these rows
+    -- write those modules' profile keys, so a disabled module has no row here.
+    local np = EUI._ModuleNS["EllesmereUINameplates"]
+    local uf = EUI._ModuleNS["EllesmereUIUnitFrames"]
+    local hasNP = np and np.db and np.ApplyThreatPctPos
+    local hasUF = uf and uf.db and uf.SetThreatPctEnabled
+    local function ThreatPctRow(text, tooltip, profile, apply)
+        local function Get(key) return profile()[key] end
+        local function Set(key, v)
+            profile()[key] = v
+            apply(key, v)
+        end
+        local function Off() return not Get("threatPctEnabled") end
+        local function Offset(key, label, low, high)
+            return { type = "slider", label = label, min = low, max = high, step = 1,
+                get = function() return Get(key) end,
+                set = function(v) Set(key, v) end }
+        end
+        local row, h = W:DualRow(parent, y,
+            { type = "toggle", text = text, tooltip = tooltip,
+              getValue = function() return Get("threatPctEnabled") end,
+              setValue = function(v)
+                  Set("threatPctEnabled", v)
+                  if EUI.RefreshPage then EUI:RefreshPage() end
+              end },
+            { type = "dropdown", text = "Position",
+              values = { RIGHT = "Inside Right", LEFT = "Inside Left", CENTER = "Inside Center" },
+              order = { "RIGHT", "LEFT", "CENTER" },
+              disabled = Off, disabledTooltip = text,
+              getValue = function() return Get("threatPctPosition") end,
+              setValue = function(v) Set("threatPctPosition", v) end }); y = y - h
+        if not EUI._prebuilding then
+            EUI.BuildInlineCog(row._rightRegion, { title = "Threat %", disabled = Off, rows = {
+                { type = "toggle", label = "Color by Threat",
+                  tooltip = "Colors the number by threat status. Off shows it in white.",
+                  get = function() return Get("threatPctColorByThreat") end,
+                  set = function(v) Set("threatPctColorByThreat", v) end },
+                Offset("threatPctSize", "Size", 6, 20),
+                Offset("threatPctXOffset", "X", -100, 100),
+                Offset("threatPctYOffset", "Y", -100, 100),
+            } })
+        end
+    end
+
+    if hasNP or hasUF then
+        Section("THREAT % TEXT")
+        if hasNP then
+            ThreatPctRow("Show on Nameplates",
+                "Shows your threat percentage on each enemy nameplate while you are in combat with it. Colored by threat status.",
+                function() return np.db.profile end,
+                function()
+                    for _, plate in pairs(np.plates) do
+                        plate._tptPos = nil
+                        plate:UpdateHealthColor()
+                    end
+                end)
+        end
+        if hasUF then
+            ThreatPctRow("Show on Target & Focus Frames",
+                "Shows your threat percentage on the target and focus frames while you are in combat with that unit. Colored by threat status.",
+                function() return uf.db.profile end,
+                function(key, v)
+                    if key == "threatPctEnabled" then uf.SetThreatPctEnabled(v) else uf.RefreshThreatPct() end
+                end)
+        end
+    end
+
     Section("BARS & ICONS")
     Row(ConfigSlider("barHeight", "Bar Height", 12, 32), Toggle("growUp", "Grow Bars Upward"))
     Row(Setting("bars", "barTexture", "Bar Texture", "dropdown", { values = ns.BarTextureNames, order = ns.BarTextureOrder }),

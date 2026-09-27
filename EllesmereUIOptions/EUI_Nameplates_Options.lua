@@ -10299,6 +10299,95 @@ initFrame:SetScript("OnEvent", function(self)
             swatch:EnableMouse(not off)
         end
 
+        -- Row 4: Threat % text toggle (Forever only; retail restricts threat values in instances)
+        if EllesmereUI.IS_FOREVER then
+            local threatPctRow
+            threatPctRow, h = W:DualRow(parent, y,
+                { type="toggle", text="Show Threat % on Nameplates",
+                  tooltip="Shows your threat percentage on each nameplate while you are in combat with it. Colored by threat status.",
+                  getValue=function()
+                    local db = DB()
+                    if db and db.threatPctEnabled ~= nil then return db.threatPctEnabled end
+                    return defaults.threatPctEnabled
+                  end,
+                  setValue=function(v)
+                    DB().threatPctEnabled = v
+                    for _, plate in pairs(ns.plates) do
+                        plate:UpdateHealthColor()
+                    end
+                    EllesmereUI:RefreshPage()
+                  end },
+                { type="label", text="" });  y = y - h
+
+            if not EllesmereUI._prebuilding then
+                local rgn = threatPctRow._rightRegion
+                EllesmereUI.BuildInlineCog(rgn, {
+                    title = "Threat %",
+                    rows = {
+                        { type="toggle", label="Color by Threat",
+                          tooltip="Colors the number by threat status. Off shows it in white.",
+                          get=function() return DB().threatPctColorByThreat end,
+                          set=function(v)
+                            DB().threatPctColorByThreat = v
+                            for _, plate in pairs(ns.plates) do
+                                plate:UpdateHealthColor()
+                            end
+                          end },
+                        { type="dropdown", label="Position",
+                          values = { RIGHT="Inside Right", LEFT="Inside Left", CENTER="Inside Center" },
+                          order  = { "RIGHT", "LEFT", "CENTER" },
+                          get=function()
+                            local db = DB()
+                            return (db and db.threatPctPosition) or defaults.threatPctPosition
+                          end,
+                          set=function(v)
+                            DB().threatPctPosition = v
+                            for _, plate in pairs(ns.plates) do
+                                plate._tptPos = nil
+                                plate:UpdateHealthColor()
+                            end
+                          end },
+                        { type="slider", label="Size", min=6, max=20, step=1,
+                          get=function()
+                            local db = DB()
+                            return (db and db.threatPctSize) or defaults.threatPctSize
+                          end,
+                          set=function(v)
+                            DB().threatPctSize = v
+                            for _, plate in pairs(ns.plates) do
+                                plate._tptPos = nil
+                                plate:UpdateHealthColor()
+                            end
+                          end },
+                        { type="slider", label="X", min=-100, max=100, step=1,
+                          get=function()
+                            local db = DB()
+                            return (db and db.threatPctXOffset) or defaults.threatPctXOffset
+                          end,
+                          set=function(v)
+                            DB().threatPctXOffset = v
+                            for _, plate in pairs(ns.plates) do
+                                plate._tptPos = nil
+                                plate:UpdateHealthColor()
+                            end
+                          end },
+                        { type="slider", label="Y", min=-100, max=100, step=1,
+                          get=function()
+                            local db = DB()
+                            return (db and db.threatPctYOffset) or defaults.threatPctYOffset
+                          end,
+                          set=function(v)
+                            DB().threatPctYOffset = v
+                            for _, plate in pairs(ns.plates) do
+                                plate._tptPos = nil
+                                plate:UpdateHealthColor()
+                            end
+                          end },
+                    },
+                })
+            end
+        end
+
         _, h = W:Spacer(parent, y, 20);  y = y - h
 
         -- Build a refresh-all function for page cache restore
