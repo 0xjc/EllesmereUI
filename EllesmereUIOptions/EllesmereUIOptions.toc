@@ -12,6 +12,7 @@
 # Widget factory first: everything below builds pages with it. File order
 # mirrors the original suite load order (parent files, then children A-Z).
 EllesmereUI_Widgets.lua
+EllesmereUI_GlowOptions.lua
 EUI__General_Options.lua
 EUI_Fonts_Options.lua
 EUI_Textures_Options.lua
