@@ -4119,6 +4119,7 @@ ns.UF_UNMASKED_RING = { pixelsCircle = 4 }
 -- Round shapes: the only ones that take the Outer Ring and the Inner Shadow.
 ns.UF_ROUND_SHAPES = { circle = true, pixelsCircle = true }
 ns.UF_PORTRAIT_INNER_SHADOW = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\pixels_inner_shadow.tga"
+ns.UF_NAOWH_RING = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\pixels_ring_textured_naowh.tga"
 
 -- Outer Ring art for a detachedPortraitOuterRing value, or nil (nothing to
 -- draw). "border" follows the frame's Border Style (frameTex): its ring
@@ -4129,6 +4130,7 @@ function ns.UF_OuterRingPath(ringKey, frameTex)
     if ringKey == "pixels" or ringKey == "pixels-textured" then return GBC(ringKey, "ring") end
     if ringKey == "pixels-shadow" then return GBC("pixels", "ringShadow") end
     if ringKey == "pixels-textured-shadow" then return GBC("pixels-textured", "ringShadow") end
+    if ringKey == "naowh-textured" then return ns.UF_NAOWH_RING end
     return nil
 end
 
