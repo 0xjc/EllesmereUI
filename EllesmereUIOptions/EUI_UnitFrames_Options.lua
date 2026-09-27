@@ -7553,7 +7553,7 @@ initFrame:SetScript("OnEvent", function(self)
                           ["pixels-textured"]        = "Pixels Textured Ring",
                           ["pixels-shadow"]          = "Pixels Ring Shadow",
                           ["pixels-textured-shadow"] = "Pixels Textured Ring Shadow",
-                          ["thin-border"]            = "Thin Border Circle",
+                          ["thin-border"]            = "Naowh Thin Circle",
                       },
                       order={ "none", "border", "pixels", "pixels-textured", "pixels-shadow", "pixels-textured-shadow", "thin-border" },
                       -- "Pixels Textured Ring Shadow" needs more than the 130px default.
