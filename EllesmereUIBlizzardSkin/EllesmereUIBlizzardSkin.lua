@@ -196,6 +196,33 @@ do
         if type(p) == "table" then p.windowSkinLook = live end
     end
 
+    -- WoW Forever, once per account: a profile the whole-UI switch put on a
+    -- stock look before the Character Sheet row existed there takes that
+    -- look for the sheet (the WoW Forever variant when a module wears it).
+    -- A row choice already made is kept.
+    local function AdoptForeverCharSheetStyle(db)
+        if not EllesmereUI.IS_FOREVER or db.foreverCharSheetStyleAdopted then return end
+        db.foreverCharSheetStyleAdopted = true
+        if type(db.profiles) ~= "table" then return end
+        for name, p in pairs(db.profiles) do
+            if type(p) == "table" and p.charSheetUseBlizzardStyle == nil and p.charSheetUseClassicStyle == nil then
+                local look = p.windowSkinLook or FontLookOf(db, name, p)
+                if look == "blizzard" or look == "classic" then
+                    p.charSheetUseBlizzardStyle = (look == "blizzard")
+                    p.charSheetUseClassicStyle  = (look == "classic")
+                    if look == "blizzard" and type(p.addons) == "table" then
+                        for _, t in pairs(p.addons) do
+                            if type(t) == "table" and t.useForeverStyle then
+                                p.charSheetUseForeverStyle = true
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
     local seedFrame = CreateFrame("Frame")
     seedFrame:RegisterEvent("ADDON_LOADED")
     -- Registered here, first among this addon's frames, so the login pass
@@ -214,6 +241,7 @@ do
         for _, batch in ipairs(BATCHES) do SeedBatch(batch.marker, batch.keys) end
         AdoptLegacyCharSheetStyle(EllesmereUIDB)
         AdoptLegacyWindowLook(EllesmereUIDB)
+        AdoptForeverCharSheetStyle(EllesmereUIDB)
         EllesmereUI.ReconcileWindowSkinLook()
     end)
 end
@@ -755,13 +783,12 @@ end
     end
 
     -- Hard blocks for a tooltip request, checked before the dwell and again in it: the
-    -- inspect window is open or waiting on this player, the talent frame is inspecting
-    -- someone (ClearInspectPlayer would retarget it), or another addon is polling
-    -- (passive mode). Timed hold-offs are not blocks; _dwellTick waits them out.
+    -- inspect window is open or waiting on this player, or the talent frame is inspecting
+    -- someone (ClearInspectPlayer would retarget it). Timed hold-offs, passive mode
+    -- included, are not blocks; _dwellTick waits them out.
     local function _inspBlocked(guid, now)
         local psf = PlayerSpellsFrame
         if psf and psf.IsInspecting and psf:IsInspecting() then return true end
-        if (now - _insp.lastForeign) < _insp.FOREIGN_WINDOW then return true end
         local f = InspectFrame
         if f then
             if f:IsShown() then return true end
@@ -778,9 +805,9 @@ end
     -- Tooltip-side inspect request, paced. It never fires straight out of the tooltip
     -- pass: a dwell timer runs first, so sweeping the cursor across raid frames costs
     -- one request instead of one per frame. It then yields to the shared request
-    -- budget, and stays silent entirely while another addon is polling the group --
+    -- budget, and asks for no group member while another addon is polling the group --
     -- the INSPECT_READY handler caches whatever that addon asked for, so in a raid
-    -- with such an addon running the tooltip contributes no requests at all.
+    -- with such an addon running the tooltip adds requests only for non-members.
     -- The price is that an uncached player's item level appears a moment later.
     -- One named timer function, rescheduled while needed, so no closure per hover.
     local function _dwellTick()
@@ -811,13 +838,19 @@ end
         if guid == _inspectPendingGUID then
             readyAt = math.max(readyAt, _insp.pendingAt + _insp.PENDING_TTL)
         end
+        -- Passive mode: a group member waits out another addon's polling, which will
+        -- inspect them and feed the open tooltip through the handler. Anyone outside the
+        -- group is never polled by it, so they keep the plain MIN_GAP pacing.
+        local unit = _CleanTokenForGUID(guid)
+        if unit then
+            readyAt = math.max(readyAt, _insp.lastForeign + _insp.FOREIGN_WINDOW)
+        end
         if readyAt > now then
             _insp.dwellArmed = true
             C_Timer.After(readyAt - now, _dwellTick)
             return
         end
         _insp.dwellGUID = nil
-        local unit = _CleanTokenForGUID(guid)
         if not unit and _G.UnitTokenFromGUID then
             local tu = _G.UnitTokenFromGUID(guid)
             if tu and not (_isSecret and _isSecret(tu)) then unit = tu end
@@ -839,7 +872,7 @@ end
         -- The pending dwell re-checks every gate itself; skip them on each refresh meanwhile.
         if _insp.dwellArmed and _insp.dwellGUID == guid then return end
         local now = GetTime()
-        -- Blocked now: arm nothing; a later tooltip refresh or re-hover asks again.
+        -- Hard-blocked now: arm nothing; a later tooltip refresh or re-hover asks again.
         if _inspBlocked(guid, now) then return end
         -- Always track the latest unit; a running timer picks up the retarget.
         if _insp.dwellGUID ~= guid then

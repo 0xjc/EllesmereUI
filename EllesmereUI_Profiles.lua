@@ -1409,7 +1409,6 @@ local REFRESH_ADDON_STEPS = {
     end,
     -- Damage Meters
     function() if _G._EDM_Apply then _G._EDM_Apply() end end,
-    function() if EllesmereUI._ThreatMeter then EllesmereUI._ThreatMeter.Apply() end end,
     -- DataBars (bar set + blocks + layout + positions are all per-profile)
     function() if _G._EDB_Apply then _G._EDB_Apply() end end,
     -- Quickdraw (enable state + palette count drive the override bindings),
@@ -1718,11 +1717,12 @@ end
 
 --- Returns true if switching to profileData would give any module a different
 --- style (Global Settings > Style: EllesmereUI, Blizzard Style or Classic WoW
---- UI) from the look it is rendering. Styles are reload-gated: each module
---- latches its style key at load and keeps that look until the UI reloads, so
---- callers pair this with the same reload popup as the font check above. Must
---- be called BEFORE the switch (the Action Bars flags, which have no latch,
---- are read live from the outgoing profile).
+--- UI, plus WoW Forever on that client) from the look it is rendering.
+--- Styles are reload-gated: each module latches its style key at load and
+--- keeps that look until the UI reloads, so callers pair this with the same
+--- reload popup as the font check above. Must be called BEFORE the switch
+--- (the Action Bars flags, which have no latch, are read live from the
+--- outgoing profile).
 -- Each surface carries a Blizzard flag and a sibling Classic flag; the style
 -- key reads classic when the Classic flag is set, else blizzard when the
 -- Blizzard flag is, else eui. `active` names the module's latched key getter;
@@ -1730,30 +1730,77 @@ end
 -- profile and returns true when another latched, reload-gated choice would
 -- change (Raid Frames: the Party page's Frame Style). `root` reads the flags
 -- from the incoming profile's root instead of its module table (the
--- Character Sheet, which has no module profile); `retailOnly` skips the entry
--- on WoW Forever (no Style row there, its getter always reads eui).
+-- Character Sheet, which has no module profile); `data` names the incoming
+-- profile's addons key when it is not the module folder (the Skyriding HUD's
+-- own DB inside Blizz UI Enhanced); `retailOnly` skips the entry on WoW
+-- Forever (no Style row there, its getter always reads eui or is absent).
+-- `forever` (read on the Forever client only) names the sibling flag of the
+-- WoW Forever variant of Blizzard Style (set together with the Blizzard flag)
+-- and, on a latched module, `foreverActive` its getter that says the variant
+-- renders (Action Bars reads the flag live like its other flags); only the
+-- modules whose variant draws differently (Forever-only pieces, or that
+-- client's own art where plain Blizzard Style draws the retail sheets) carry
+-- them, so a profile that differs only by the variant prompts where the look
+-- changes. Every other module reads the variant as Blizzard Style on both
+-- sides.
 local STYLE_FLAGS = {
-    { folder = "EllesmereUIActionBars",      key = "useBlizzardStyle",     classic = "useClassicStyle" },
-    { folder = "EllesmereUIUnitFrames",      key = "useBlizzardStyle",     classic = "useClassicStyle",     active = "UF_Style" },
+    { folder = "EllesmereUIActionBars",      key = "useBlizzardStyle",     classic = "useClassicStyle",
+      forever = "useForeverStyle" },
+    { folder = "EllesmereUIUnitFrames",      key = "useBlizzardStyle",     classic = "useClassicStyle",     active = "UF_Style",
+      forever = "useForeverStyle", foreverActive = "UF_Forever" },
     { folder = "EllesmereUIUnitFrames",      key = "useBlizzardStyle",     classic = "useClassicStyle",     sub = "playerAuraBars", active = "PAB_Style" },
-    { folder = "EllesmereUINameplates",      key = "useBlizzardStyle",     classic = "useClassicStyle",     active = "NP_Style" },
-    { folder = "EllesmereUICooldownManager", key = "useBlizzardStyle",     classic = "useClassicStyle",     active = "CdmIconStyle" },
-    { folder = "EllesmereUICooldownManager", key = "useBlizzardStyleBars", classic = "useClassicStyleBars", active = "CdmBarStyle" },
-    { folder = "EllesmereUIResourceBars",    key = "useBlizzardStyle",     classic = "useClassicStyle",     sub = "castBar", active = "ERB_CastStyle" },
+    { folder = "EllesmereUINameplates",      key = "useBlizzardStyle",     classic = "useClassicStyle",     active = "NP_Style",
+      forever = "useForeverStyle", foreverActive = "NP_Forever" },
+    { folder = "EllesmereUICooldownManager", key = "useBlizzardStyle",     classic = "useClassicStyle",     active = "CdmIconStyle",
+      forever = "useForeverStyle", foreverActive = "CdmIconsForever" },
+    { folder = "EllesmereUICooldownManager", key = "useBlizzardStyleBars", classic = "useClassicStyleBars", active = "CdmBarStyle",
+      forever = "useForeverStyleBars", foreverActive = "CdmBarsForever" },
+    { folder = "EllesmereUIResourceBars",    key = "useBlizzardStyle",     classic = "useClassicStyle",     sub = "castBar", active = "ERB_CastStyle",
+      forever = "useForeverStyle", foreverActive = "ERB_CastForever" },
     { folder = "EllesmereUIResourceBars",    key = "useBlizzardStyleBars", classic = "useClassicStyleBars", active = "ERB_BarsStyle" },
-    { folder = "EllesmereUIMinimap",         key = "useBlizzardStyle",     classic = "useClassicStyle",     sub = "minimap", active = "MinimapStyle" },
-    { folder = "EllesmereUIDamageMeters",    key = "useBlizzardStyle",     classic = "useClassicStyle",     sub = "dm",      active = "DMStyle" },
+    { folder = "EllesmereUIMinimap",         key = "useBlizzardStyle",     classic = "useClassicStyle",     sub = "minimap", active = "MinimapStyle",
+      forever = "useForeverStyle", foreverActive = "MinimapForever" },
+    { folder = "EllesmereUIDamageMeters",    key = "useBlizzardStyle",     classic = "useClassicStyle",     sub = "dm",      active = "DMStyle",
+      forever = "useForeverStyle", foreverActive = "DMForever" },
     { folder = "EllesmereUIQuestTracker",    key = "useBlizzardStyle",     classic = "useClassicStyle",     sub = "questTracker", active = "QT_Style" },
     { folder = "EllesmereUIFriends",         key = "useBlizzardStyle",     classic = "useClassicStyle",     sub = "friends", active = "FR_Style" },
-    { folder = "EllesmereUIChat",            key = "useBlizzardStyle",     classic = "useClassicStyle",     sub = "chat",    active = "ChatStyle" },
+    { folder = "EllesmereUIChat",            key = "useBlizzardStyle",     classic = "useClassicStyle",     sub = "chat",    active = "ChatStyle",
+      forever = "useForeverStyle", foreverActive = "ChatForeverFlag" },
     { folder = "EllesmereUIRaidFrames",      key = "useBlizzardStyle",     classic = "useClassicStyle",     active = "RF_Style", extra = "RF_PartyKitChanged" },
-    { folder = "EllesmereUIBlizzardSkin",    key = "charSheetUseBlizzardStyle", classic = "charSheetUseClassicStyle", root = true, retailOnly = true, active = "CharSheetStyle" },
+    { folder = "EllesmereUIBlizzardSkin",    key = "charSheetUseBlizzardStyle", classic = "charSheetUseClassicStyle", root = true, active = "CharSheetStyle",
+      forever = "charSheetUseForeverStyle", foreverActive = "CharSheetForever" },
+    { folder = "EllesmereUIBlizzardSkin",    key = "useBlizzardStyle",     classic = "useClassicStyle",     data = "EllesmereUIDragonRiding", retailOnly = true, active = "EDR_Style" },
 }
 local function StyleKeyOfFlags(p, f)
     if type(p) ~= "table" then return "eui" end
     if p[f.classic] then return "classic" end
-    if p[f.key] then return "blizzard" end
+    if p[f.key] then
+        if f.forever and EllesmereUI.IS_FOREVER and p[f.forever] then return "forever" end
+        return "blizzard"
+    end
     return "eui"
+end
+-- The style one surface renders this session, from its module ns `mns`: the
+-- module's latched key ("forever" where its Forever latch says the variant
+-- renders), or Action Bars' live flags. nil with no getter (Action Bars: no
+-- profile yet).
+local function RenderedStyleOf(f, mns)
+    if f.active then
+        local fn = mns[f.active]
+        if not fn then return nil end
+        local cur = fn()
+        if cur ~= "blizzard" and cur ~= "classic" then cur = "eui" end
+        -- The WoW Forever variant renders under a "blizzard" latch.
+        if cur == "blizzard" and f.foreverActive and EllesmereUI.IS_FOREVER then
+            local ff = mns[f.foreverActive]
+            if ff and ff() then cur = "forever" end
+        end
+        return cur
+    end
+    local EAB = mns.EAB
+    local p = EAB and EAB.db and EAB.db.profile
+    if p then return StyleKeyOfFlags(p, f) end
+    return nil
 end
 function EllesmereUI.ProfileChangesStyle(profileData)
     if type(profileData) ~= "table" or type(profileData.addons) ~= "table" then return false end
@@ -1763,20 +1810,9 @@ function EllesmereUI.ProfileChangesStyle(profileData)
         local f = STYLE_FLAGS[i]
         local mns = reg[f.folder]
         if mns and not (f.retailOnly and EllesmereUI.IS_FOREVER) then
-            local cur
-            if f.active then
-                local fn = mns[f.active]
-                if fn then
-                    cur = fn()
-                    if cur ~= "blizzard" and cur ~= "classic" then cur = "eui" end
-                end
-            else
-                local EAB = mns.EAB
-                local p = EAB and EAB.db and EAB.db.profile
-                if p then cur = StyleKeyOfFlags(p, f) end
-            end
+            local cur = RenderedStyleOf(f, mns)
             if cur ~= nil then
-                local incoming = f.root and profileData or profileData.addons[f.folder]
+                local incoming = f.root and profileData or profileData.addons[f.data or f.folder]
                 if f.sub and type(incoming) == "table" then incoming = incoming[f.sub] end
                 if cur ~= StyleKeyOfFlags(incoming, f) then return true end
                 -- `extra`: a reload-gated choice under the same style (the
@@ -1789,6 +1825,43 @@ function EllesmereUI.ProfileChangesStyle(profileData)
         end
     end
     return false
+end
+
+--- The look every loaded styleable surface renders this session: "eui",
+--- "blizzard", "classic" or, on WoW Forever, "forever". false when the loaded
+--- modules render different looks, nil when none is loaded. A WoW Forever
+--- surface with no variant of its own draws Blizzard Style under either
+--- Blizzard look, so it fits both; with only such surfaces loaded, the
+--- Forever flag the look switch sets beside the Blizzard one tells them apart.
+function EllesmereUI.RenderedLook()
+    local reg = EllesmereUI._ModuleNS
+    if not reg then return nil end
+    local look, eitherBlizz
+    for i = 1, #STYLE_FLAGS do
+        local f = STYLE_FLAGS[i]
+        local mns = reg[f.folder]
+        if mns and not (f.retailOnly and EllesmereUI.IS_FOREVER) then
+            local cur = RenderedStyleOf(f, mns)
+            if cur == "blizzard" and not f.forever and EllesmereUI.IS_FOREVER then
+                eitherBlizz = f
+            elseif cur ~= nil then
+                if look == nil then look = cur elseif look ~= cur then return false end
+            end
+        end
+    end
+    if eitherBlizz then
+        if look == nil then
+            local f = eitherBlizz
+            local p = EllesmereUI.GetActiveProfileData()
+            local t = p
+            if p and not f.root then t = type(p.addons) == "table" and p.addons[f.data or f.folder] end
+            if f.sub and type(t) == "table" then t = t[f.sub] end
+            if type(t) == "table" and t[(f.key:gsub("Blizzard", "Forever", 1))] then return "forever" end
+            return "blizzard"
+        end
+        if look ~= "blizzard" and look ~= "forever" then return false end
+    end
+    return look
 end
 
 -------------------------------------------------------------------------------
@@ -2303,6 +2376,9 @@ function EllesmereUI.ImportFullAccountData(payload)
     if data.unlockHeightMatch ~= nil and data.unlockHeightMatchExtra == nil then
         EllesmereUIDB.unlockHeightMatchExtra = nil
     end
+    -- WoW Forever: the imported account carries its own look, so an import
+    -- also settles the first-install style picker (a carried stamp included).
+    if EllesmereUI.IS_FOREVER then EllesmereUIDB.styleChoicePending = nil end
 
     -- 2) The carried profile. The recipient's OTHER profiles survive; a
     --    same-named profile is replaced (that is the import).
@@ -3156,6 +3232,9 @@ function EllesmereUI.ImportProfile(importStr, profileName)
         merged.charSheetUseBlizzardStyle = imported.charSheetUseBlizzardStyle
         merged.charSheetUseClassicStyle  = imported.charSheetUseClassicStyle
         merged.windowSkinLook            = imported.windowSkinLook
+        -- WoW Forever's sibling flag for the sheet rides with them there (the
+        -- WoW Forever style keeps the slot text on Blizzard's sheet).
+        if EllesmereUI.IS_FOREVER then merged.charSheetUseForeverStyle = imported.charSheetUseForeverStyle end
 
         -- Snap all positions to the physical pixel grid (imported profiles
         -- may come from a different version without pixel snapping)
@@ -3354,6 +3433,9 @@ function EllesmereUI.ImportProfile(importStr, profileName)
         -- popups and capture paths stay quiet from here on.
         db.firstInstallPopupShown = true
         EllesmereUI._firstInstallPending = nil
+        -- WoW Forever: the imported profile carries its own look, so an
+        -- import also settles the first-install style picker.
+        if EllesmereUI.IS_FOREVER then db.styleChoicePending = nil end
         -- Don't ReloadUI() here: the caller (options panel import flow)
         -- reloads unconditionally right after this returns. (The old CDM
         -- spec-picker popup flow is gone -- CDM spells import as-is.)

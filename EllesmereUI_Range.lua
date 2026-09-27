@@ -90,9 +90,8 @@ local EnsureLadder -- defined below; the no-spec fallback reads the ladder
 -- Range_GetAttackCutoff below).
 local function SpecAttackCutoff(holyPaladinMelee)
     local _, classFile = UnitClass("player")
-    local CSI = C_SpecializationInfo
-    local specIndex = CSI and CSI.GetSpecialization and CSI.GetSpecialization()
-    local specID = specIndex and CSI.GetSpecializationInfo and CSI.GetSpecializationInfo(specIndex)
+    local specIndex = C_SpecializationInfo.GetSpecialization()
+    local specID = specIndex and C_SpecializationInfo.GetSpecializationInfo(specIndex)
     -- WoW Forever has no specs, so specID is nil for everyone. Caster cutoff
     -- (Druid, Priest, Mage, Warlock) = the longest harmful spellbook rung
     -- (<= 40 yd), so the cutoff lands on a real spell (Wrath, Shadow Bolt) that
@@ -149,7 +148,16 @@ function EllesmereUI.Range_GetAttackCutoff(customCutoff, holyPaladinMelee)
     end
 
     local _, classFile = UnitClass("player")
-    if classFile == "DRUID" and DRUID_MELEE_FORMS[GetShapeshiftForm()] then return 5 end
+    if classFile == "DRUID" then
+        -- WoW Forever orders the stance bar the vanilla way (Aquatic Form can sit
+        -- between Bear and Cat), so it checks the form ID: Cat 1, Bear 5, Dire Bear 8.
+        if EllesmereUI.IS_FOREVER == true then
+            local fid = GetShapeshiftFormID()
+            if fid == 1 or fid == 5 or fid == 8 then return 5 end
+        elseif DRUID_MELEE_FORMS[GetShapeshiftForm()] then
+            return 5
+        end
+    end
 
     if holyPaladinMelee then
         local v = RG.cutoffHolyMelee

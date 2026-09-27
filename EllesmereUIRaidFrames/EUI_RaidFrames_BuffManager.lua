@@ -1778,7 +1778,7 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
         end
         if htMode == "percent" then htFS:SetText("85%")
         elseif htMode == "percentNoSign" then htFS:SetText("85")
-        elseif htMode == "number" then htFS:SetText("1.02M") end
+        elseif htMode == "number" then htFS:SetText(AbbreviateNumbers(1020000)) end
     end
 
     pvFrame._health = health

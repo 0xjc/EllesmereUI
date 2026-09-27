@@ -1,4 +1,5 @@
 if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+if EllesmereUI.IS_FOREVER then return end -- no Great Vault on WoW Forever: no factory, no keystone feed (the main file drops the block from BLOCK_TYPES too)
 -- Blocks\GreatVault.lua
 -- Great Vault block factory.
 
@@ -476,5 +477,3 @@ ns.BlockFactories.greatvault = function(blockCfg, slot, content, barCtx)
 
     return inst
 end
--- No Great Vault on WoW Forever: no factory, so no instance, no keystone feed (the main file drops the block from BLOCK_TYPES too).
-if EllesmereUI.IS_FOREVER then ns.BlockFactories.greatvault = nil end

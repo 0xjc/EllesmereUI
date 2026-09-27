@@ -8,6 +8,21 @@ local ADDON_NAME = "EllesmereUICooldownManager"
 local ns = EllesmereUI._ModuleNS[ADDON_NAME]  -- module namespace (published by the module at its load)
 if not ns then return end  -- module disabled: no options page
 
+-- Controller cursor: a hand-built popup (named dimmer over its panel) joins the
+-- controller cursor and answers controller Back from its first open with a
+-- controller in use; until then nothing is registered or hooked. The panel
+-- stays a blocker without being a cursor stop, closeBtn is what the
+-- controller's cancel button presses, and onEscape (nil = hide the dimmer) is
+-- what Back runs. Call it just before the dimmer's Show. On ns: shared with the
+-- Talent Conditions popup, and no main-chunk local.
+function ns.PadPopupOpen(dimmer, panel, closeBtn, onEscape)
+    if dimmer._padReg or not EllesmereUI.PadInUse() then return end
+    dimmer._padReg = true
+    EllesmereUI.PadHint(panel, "nodepass")
+    if closeBtn then panel.CloseButton = closeBtn end
+    EllesmereUI.RegisterEscapeClose(dimmer, { padOnly = true, onEscape = onEscape })
+end
+
 -- Gates a row under Blizzard Style only: the classic kit draws chrome round
 -- the user's own fill and background, so those settings stay live there.
 local function GateBlizzardOnly(key, cfg)
@@ -1885,7 +1900,8 @@ initFrame:SetScript("OnEvent", function(self)
     -- Bars page. activeModule/activePage alone is NOT enough -- both persist after close,
     -- and event-driven refreshes (saved positions, spec/instance events) rebuild this page with the panel hidden. Every show path funnels through this check.
     local function TBBPreviewAllowed()
-        if not (EllesmereUI:IsShown()) then return false end
+        -- Folded to the mini window counts as closed (the page is off screen).
+        if not (EllesmereUI:IsShown()) or EllesmereUI._panelCollapsed then return false end
         -- nil = mid-build (page state not stamped); builders only run for the page shown, so only a definite mismatch blocks.
         local am = EllesmereUI:GetActiveModule()
         local ap = EllesmereUI:GetActivePage()
@@ -2159,13 +2175,19 @@ initFrame:SetScript("OnEvent", function(self)
     -- Re-show placeholders when the panel re-opens on Tracking Bars. Exiting unlock mode
     -- to the SAME page skips SelectPage (currentPage == restorePage), so the page-restore
     -- hook that calls ShowTBBPlaceholders never fires; this OnShow re-asserts them.
-    EllesmereUI:RegisterOnShow(function()
+    local function ReassertTBBPreviews()
         local am = EllesmereUI:GetActiveModule()
         local ap = EllesmereUI:GetActivePage()
         if am == "EllesmereUICooldownManager" and ap == PAGE_BUFF_BARS then
             UpdateTBBPlaceholder()
             RefreshTBBPopout()
         end
+    end
+    EllesmereUI:RegisterOnShow(ReassertTBBPreviews)
+    -- The popout sits on UIParent beside the panel: it folds away with the panel
+    -- and comes back with it (the live-bar placeholders stay up as the preview).
+    EllesmereUI:RegisterOnCollapse(function(on)
+        if on then HideTBBPopout() else ReassertTBBPreviews() end
     end)
 
     -- Every CDM page + its selected-bar index are per-spec, but the options panel caches
@@ -2351,6 +2373,7 @@ initFrame:SetScript("OnEvent", function(self)
             cancelBtn:SetScript("OnEnter", function() cLbl:SetTextColor(1, 1, 1, 1) end)
             cancelBtn:SetScript("OnLeave", function() cLbl:SetTextColor(0.7, 0.7, 0.7, 0.8) end)
             cancelBtn:SetScript("OnClick", function() dimmer:Hide() end)
+            popup._cancelBtn = cancelBtn
 
             sidBox:SetScript("OnEscapePressed", function() dimmer:Hide() end)
             durBox:SetScript("OnEscapePressed", function() dimmer:Hide() end)
@@ -2400,6 +2423,7 @@ initFrame:SetScript("OnEvent", function(self)
             if onChanged then onChanged() end
         end)
 
+        ns.PadPopupOpen(popup._dimmer, popup, popup._cancelBtn)  -- controller cursor
         popup._dimmer:Show()
         popup._sidBox:SetFocus()
     end
@@ -6488,7 +6512,8 @@ initFrame:SetScript("OnEvent", function(self)
         -- spells moved to Not Displayed never materialize, and each inserts after its
         -- nearest catalog predecessor already in the list. Guards, all load-bearing:
         --   * default cooldowns/utility bars only (custom bars get spells via the picker)
-        --   * LEARNED spells are exclusively the live-icon pass's job above
+        --   * LEARNED spells are the live-icon pass's job above (except one its
+        --     Talent Conditions hide: no live icon, so it materializes here too)
         --   * skipped while import ghosting is pending, or before the spec's V6 ghost
         --     migration flag is stamped (ghosting must classify spells BEFORE materializing)
         --   * ghosted, explicitly-removed, and claimed-elsewhere spells skip
@@ -6550,6 +6575,13 @@ initFrame:SetScript("OnEvent", function(self)
                             end
                         end
                     end
+                    -- A LEARNED spell whose Talent Conditions dropped it from this bar in the
+                    -- last reanchor has no live icon either: materialize it like an unlearned
+                    -- one, so it keeps (or regains, after Repopulate or a Blizzard untrack and
+                    -- retrack) a preview slot and its conditions stay reachable. The set is
+                    -- shared and empty for non-users, so the check is skipped for them.
+                    local tcHidden = ns.TalentCondHiddenSet(barKeyE)
+                    if not next(tcHidden) then tcHidden = nil end
                     for ci = 1, #catalog do
                         local ce = catalog[ci]
                         if wantSet[ce.category] then
@@ -6558,6 +6590,11 @@ initFrame:SetScript("OnEvent", function(self)
                             if type(nsid) == "number" and nsid > 0 then
                                 isKnownM = (IsPlayerSpell(nsid) or IsPlayerSpell(ce.sid)
                                     or IsPlayerSpell(ResolveToLive(nsid))) and true or false
+                                if isKnownM and tcHidden
+                                   and (ns.ResolveVariantValue(tcHidden, nsid)
+                                        or ns.ResolveVariantValue(tcHidden, ce.sid)) then
+                                    isKnownM = false
+                                end
                             end
                             if type(nsid) == "number" and nsid > 0
                                and not isKnownM
@@ -6881,6 +6918,7 @@ initFrame:SetScript("OnEvent", function(self)
             -- Buff contexts (aura-tracked) hide the CD-only charges note.
             if popup._chargeWarn then popup._chargeWarn:SetShown(not hideChargeWarn) end
         end
+        ns.PadPopupOpen(popup._dimmer, popup, popup._cancelBtn)  -- controller cursor
         popup._dimmer:Show()
         popup._editBox:SetFocus()
     end
@@ -7034,6 +7072,7 @@ initFrame:SetScript("OnEvent", function(self)
         popup._editBox:SetScript("OnEnterPressed", DoAdd)
         popup._editBox:SetText("")
         popup._status:SetText("")
+        ns.PadPopupOpen(popup._dimmer, popup, popup._cancelBtn)  -- controller cursor
         popup._dimmer:Show()
         popup._editBox:SetFocus()
     end
@@ -7199,6 +7238,7 @@ initFrame:SetScript("OnEvent", function(self)
         popup._editBox:SetText("")
         popup._status:SetText("")
         popup._nameLine:SetText("")
+        ns.PadPopupOpen(popup._dimmer, popup, popup._cancelBtn)  -- controller cursor
         popup._dimmer:Show()
         popup._editBox:SetFocus()
     end
@@ -7846,6 +7886,7 @@ initFrame:SetScript("OnEvent", function(self)
             cancelBtn:SetScript("OnEnter", function() cLbl:SetTextColor(1, 1, 1, 1) end)
             cancelBtn:SetScript("OnLeave", function() cLbl:SetTextColor(0.7, 0.7, 0.7, 0.8) end)
             cancelBtn:SetScript("OnClick", function() dimmer:Hide() end)
+            popup._cancelBtn = cancelBtn
 
             local function Commit()
                 local v = tonumber(durBox:GetText())
@@ -7860,6 +7901,7 @@ initFrame:SetScript("OnEvent", function(self)
         end
         popup._onConfirm = onConfirm
         popup._durBox:SetText(currentVal and tostring(currentVal) or "")
+        ns.PadPopupOpen(popup._dimmer, popup, popup._cancelBtn)  -- controller cursor
         popup._dimmer:Show()
         popup._durBox:SetFocus()
         popup._durBox:HighlightText()
@@ -7945,6 +7987,7 @@ initFrame:SetScript("OnEvent", function(self)
             cancelBtn:SetScript("OnEnter", function() cLbl:SetTextColor(1, 1, 1, 1) end)
             cancelBtn:SetScript("OnLeave", function() cLbl:SetTextColor(0.7, 0.7, 0.7, 0.8) end)
             cancelBtn:SetScript("OnClick", function() dimmer:Hide() end)
+            popup._cancelBtn = cancelBtn
 
             local function Commit()
                 local v = tonumber(box:GetText())
@@ -7959,6 +8002,7 @@ initFrame:SetScript("OnEvent", function(self)
         end
         popup._onConfirm = onConfirm
         popup._box:SetText(currentPct and tostring(currentPct) or "")
+        ns.PadPopupOpen(popup._dimmer, popup, popup._cancelBtn)  -- controller cursor
         popup._dimmer:Show()
         popup._box:SetFocus()
         popup._box:HighlightText()
@@ -8045,6 +8089,7 @@ initFrame:SetScript("OnEvent", function(self)
             cancelBtn:SetScript("OnEnter", function() cLbl:SetTextColor(1, 1, 1, 1) end)
             cancelBtn:SetScript("OnLeave", function() cLbl:SetTextColor(0.7, 0.7, 0.7, 0.8) end)
             cancelBtn:SetScript("OnClick", function() dimmer:Hide() end)
+            popup._cancelBtn = cancelBtn
 
             local function Commit()
                 local v = tonumber(box:GetText())
@@ -8059,6 +8104,7 @@ initFrame:SetScript("OnEvent", function(self)
         end
         popup._onConfirm = onConfirm
         popup._box:SetText(currentVal and tostring(currentVal) or "")
+        ns.PadPopupOpen(popup._dimmer, popup, popup._cancelBtn)  -- controller cursor
         popup._dimmer:Show()
         popup._box:SetFocus()
         popup._box:HighlightText()
@@ -8160,6 +8206,7 @@ initFrame:SetScript("OnEvent", function(self)
             cancelBtn:SetScript("OnEnter", function() cLbl:SetTextColor(1, 1, 1, 1) end)
             cancelBtn:SetScript("OnLeave", function() cLbl:SetTextColor(0.7, 0.7, 0.7, 0.8) end)
             cancelBtn:SetScript("OnClick", function() dimmer:Hide() end)
+            popup._cancelBtn = cancelBtn
 
             local function Commit()
                 local v = tonumber(box:GetText())
@@ -8178,6 +8225,7 @@ initFrame:SetScript("OnEvent", function(self)
         end
         popup._onConfirm = onConfirm
         popup._box:SetText(currentID and tostring(currentID) or "")
+        ns.PadPopupOpen(popup._dimmer, popup, popup._cancelBtn)  -- controller cursor
         popup._dimmer:Show()
         popup._box:SetFocus()
         popup._box:HighlightText()
@@ -10875,6 +10923,10 @@ initFrame:SetScript("OnEvent", function(self)
                             { val = nil,  label = "None" },
                             { val = true, label = "Keep Colored (On CD)" },
                         }
+                        local RANGE_COLOR_ITEMS = {
+                            { val = nil,  label = "Off" },
+                            { val = true, label = "Color Out of Range" },
+                        }
 
                         -- Right-aligned colour swatch on a subnav item.
                         -- Per-spell settings are outside Spec Overrides, so the swatch opts out of capture.
@@ -10995,17 +11047,26 @@ initFrame:SetScript("OnEvent", function(self)
                         -- Blizzard viewer frame, so nothing tinted them out of range. Default off;
                         -- stored in customActiveStates so it travels with the spell. Racials and
                         -- items are not offered it (item range checks are protected in combat).
+                        -- Greyed for a spell with no range in its base or live form, unless
+                        -- already on (so it can still be cleared).
                         if sd.customSpellIDs and sd.customSpellIDs[spellID]
                            and not (ns._myRacialsSet and ns._myRacialsSet[spellID]) then
-                            MakeSubnavRow("Out of Range Coloring",
-                                { { val = nil, label = "Off" }, { val = true, label = "On" } },
+                            MakeSubnavRow("Out of Range Coloring", RANGE_COLOR_ITEMS,
                                 function() return cas.outOfRangeColoring and true or nil end,
                                 function(v)
                                     SetCasOwn("outOfRangeColoring", v or nil)
                                     if v then ns._cdmAnyCustomRangeColor = true end
-                                    if ns.RefreshCustomSpellRange then ns.RefreshCustomSpellRange() end
+                                    ns.RefreshCustomSpellRange()
                                 end,
-                                function() return not cas.outOfRangeColoring end)
+                                function() return not cas.outOfRangeColoring end,
+                                nil,
+                                { disabled = function()
+                                      if cas.outOfRangeColoring then return false end
+                                      if C_Spell.SpellHasRange(spellID) then return false end
+                                      local ovr = C_SpellBook.FindSpellOverrideByID(spellID)
+                                      return not (ovr and ovr > 0 and C_Spell.SpellHasRange(ovr))
+                                  end,
+                                  disabledTooltip = "Requires a spell with a range" })
                         end
 
                         -- Audio Effect on CD Ready (preset/trinket/racial/custom): fired when the
@@ -11198,9 +11259,20 @@ initFrame:SetScript("OnEvent", function(self)
                                 local e = store and store[casKey]
                                 if e then
                                     e.duration = nil
-                                    -- rawget: a chained slot-stamp effect must not
-                                    -- hold this own entry alive.
-                                    if rawget(e, "cdStateEffect") == nil then store[casKey] = nil end
+                                    -- Prune only when nothing but active-overlay keys is left:
+                                    -- the other rows (cd state, saturation, swipe, range, glow
+                                    -- colour, sound, threshold) store here too. pairs walks own
+                                    -- keys only, so a chained slot stamp never holds it alive.
+                                    local keep
+                                    for k in pairs(e) do
+                                        if k ~= "activeSwipeMode" and k ~= "activeSwipeClassColor"
+                                           and k ~= "activeSwipeR" and k ~= "activeSwipeG"
+                                           and k ~= "activeSwipeB" and k ~= "activeSwipeA"
+                                           and k ~= "activeGlow" then
+                                            keep = true; break
+                                        end
+                                    end
+                                    if not keep then store[casKey] = nil end
                                 end
                                 if ns.FakeActive_Rearm then ns.FakeActive_Rearm() end
                                 menu:Hide()
@@ -11765,7 +11837,8 @@ initFrame:SetScript("OnEvent", function(self)
                     -- Replace with Buff -- no tiers, no apply strip). The icon shows only while
                     -- every picked condition holds (EllesmereUICdmTalentConditions.lua); the
                     -- tree popup lives in EUI_CooldownManager_TalentConditions.lua. Closes the menu (popup flow).
-                    if ns.ShowCDMTalentConditionsPopup
+                    -- Not on WoW Forever: its vanilla trees have no class/spec split for the popup to draw.
+                    if not EllesmereUI.IS_FOREVER
                        and not isBuffBar and not isHostedBuff and not (bd and bd.isGhostBar)
                        and type(spellID) == "number" and spellID > 0
                        and not ((ns._myRacialsSet and ns._myRacialsSet[spellID])
@@ -11781,8 +11854,8 @@ initFrame:SetScript("OnEvent", function(self)
                         tcLbl:SetFont(FONT_PATH, 11, GetCDMOptOutline())
                         tcLbl:SetPoint("LEFT", 10, 0); tcLbl:SetPoint("RIGHT", -10, 0)
                         tcLbl:SetJustifyH("LEFT"); tcLbl:SetWordWrap(false); tcLbl:SetMaxLines(1)
-                        tcLbl:SetText(EllesmereUI.L("Talent Conditions") .. ": "
-                            .. (tcCount > 0 and tostring(tcCount) or EllesmereUI.L("None")))
+                        tcLbl:SetText(EllesmereUI.Lf("Talent Conditions: %1$s",
+                            tcCount > 0 and tostring(tcCount) or EllesmereUI.L("None")))
                         tcLbl:SetTextColor(tDimR, tDimG, tDimB, tDimA)
                         local tcHl = tcRow:CreateTexture(nil, "ARTWORK")
                         tcHl:SetAllPoints(); tcHl:SetColorTexture(1, 1, 1, 0); tcHl:SetAlpha(0)
@@ -12279,6 +12352,7 @@ initFrame:SetScript("OnEvent", function(self)
                     if popup._forceCountMark then popup._forceCountMark:Hide() end
                     if popup._forceCountCheck then popup._forceCountCheck:Show() end
                 end
+                ns.PadPopupOpen(popup._dimmer, popup, popup._cancelBtn)  -- controller cursor
                 popup._dimmer:Show()
                 popup._editBox:SetFocus()
             end)
@@ -14628,11 +14702,11 @@ initFrame:SetScript("OnEvent", function(self)
             local unlearnedSet
             -- Talent Conditions (same CD/utility gate): assigned id -> "on" (conditions
             -- hold) / "off" (not met: renders dimmed like an unlearned spell, so it can
-            -- still be right-clicked). nil for non-users.
+            -- still be right-clicked). nil for non-users and on WoW Forever (no menu row there).
             local tcSet
             if bd.key ~= "buffs" and not isBuffBar and not isCustomBuffBar
                and not isFocusKick and IsPlayerSpell then
-                if ns._cdmAnyTalentCond and ns.TalentCondPreviewSet then
+                if ns._cdmAnyTalentCond and not EllesmereUI.IS_FOREVER then
                     tcSet = ns.TalentCondPreviewSet(bd.key, tracked)
                 end
                 local sdUn = ns.GetBarSpellData(bd.key)
@@ -14887,10 +14961,6 @@ initFrame:SetScript("OnEvent", function(self)
                     slot._previewItemID = nil
                     slot._previewHostedBuff = nil
                 end
-                -- Talent Conditions corner mark (built on first use; slots are shared across bars, so always repainted once it exists).
-                if tcSet or slot._tcMark then
-                    ns.PaintTalentCondMark(slot, tcSet and i <= count and tcSet[tracked[i]] or nil)
-                end
 
                 local bSz = bd.borderSize or 1
                 -- The art inset follows an exact Solid size (borderSizePx) so the border keeps sitting outside the art here.
@@ -14924,6 +14994,11 @@ initFrame:SetScript("OnEvent", function(self)
                     if slot._hlBrd then slot._hlBrd:GetParent():SetFrameLevel(lvl + 17) end
                     if slot._hostBrd then slot._hostBrd:GetParent():SetFrameLevel(lvl + 16) end
                     if slot._glowOverlay then slot._glowOverlay:SetFrameLevel(lvl + 16) end
+                end
+                -- Talent Conditions corner mark (built on first use; slots are shared across bars, so always
+                -- repainted once it exists). After the style pass: it sits just under the text overlay's level.
+                if tcSet or slot._tcMark then
+                    ns.PaintTalentCondMark(slot, tcSet and i <= count and tcSet[tracked[i]] or nil)
                 end
                 -- For custom shapes, ensure the square highlight border stays hidden
                 -- (ApplyShapeToCDMIcon hides the slot's own PP border but not _hlBrd)
@@ -19008,7 +19083,7 @@ initFrame:SetScript("OnEvent", function(self)
             local ar, ag, ab = EG.r, EG.g, EG.b
             local PP = EllesmereUI.PanelPP or EllesmereUI.PP
 
-            local tip = CreateFrame("Frame", nil, EllesmereUI._mainFrame)
+            local tip = CreateFrame("Frame", nil, EllesmereUI._panelBody)
             tip:SetFrameStrata("FULLSCREEN_DIALOG")
             tip:SetFrameLevel(200)
             if PP and PP.Size then PP.Size(tip, TIP_W, TIP_H) else tip:SetSize(TIP_W, TIP_H) end
@@ -19060,7 +19135,7 @@ initFrame:SetScript("OnEvent", function(self)
             msg:SetWidth(TIP_W - 30)
             msg:SetJustifyH("CENTER")
             msg:SetSpacing(4)
-            msg:SetText(EllesmereUI.L("CDM Buttons can have all their glow and active\nstates changed on a per icon (or synced to the bar)\nbasis. Click on a button to show that button's settings."))
+            msg:SetText(EllesmereUI.L("CDM buttons can have their glow and active states\nset per icon or synced to the bar. Click a button\nto show its settings."))
 
             -- Okay button
             local okBtn = CreateFrame("Button", nil, tip)

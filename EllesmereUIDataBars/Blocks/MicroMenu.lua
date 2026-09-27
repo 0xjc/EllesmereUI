@@ -18,6 +18,7 @@ local ipairs           = ipairs
 local type             = type
 local pcall            = pcall
 local format           = string.format
+local tinsert          = table.insert
 local tconcat          = table.concat
 local floor            = math.floor
 local max              = math.max
@@ -102,6 +103,38 @@ local MM_MICRO_BUTTON_NAMES = {
     shop    = "StoreMicroButton",
     help    = "HelpMicroButton",
 }
+
+-- WoW Forever splits the spellbook and the talents into two micro buttons. Its
+-- PlayerSpellsMicroButton still exists but opens the frame on whichever tab was last
+-- shown, so there the spell entry clicks the spellbook's own button and a Talents entry follows it.
+if EllesmereUI.IS_FOREVER then
+    MM_MICRO_BUTTON_NAMES.spell  = "SpellbookMicroButton"
+    MM_MICRO_BUTTON_NAMES.talent = "TalentMicroButton"
+    for i, def in ipairs(mmButtonDefs) do
+        if def.key == 'spell' then
+            def.label = SPELLBOOK or 'Spellbook'
+            -- Full icon path: the shared micromenu art holds glyphs this strip's own set lacks,
+            -- so Talents does not repeat the Achievements glyph right beside it.
+            local talent = { key = 'talent', binding = 'TOGGLETALENTS', label = TALENTS or 'Talents', onWhenUnset = true,
+                icon = "Interface\\AddOns\\EllesmereUI\\media\\micromenu\\menu-vault.png" }
+            tinsert(mmButtonDefs, i + 1, talent)
+            tinsert(mmButtonOrder, i + 1, 'talent')
+            mmButtonDefsByKey.talent = talent
+            break
+        end
+    end
+end
+
+-- Whether a block shows one button. A button added after blocks were saved
+-- (onWhenUnset) reads a missing setting as on, as the options checklist does.
+local function MMButtonOn(mm, key)
+    local v = mm[key]
+    if v == nil then
+        local def = mmButtonDefsByKey[key]
+        return def and def.onWhenUnset or false
+    end
+    return v
+end
 
 -- Plain-button click handlers (no Blizzard secure backing). Shared table: they close over no instance state.
 local mmClickFunctions = {}
@@ -283,7 +316,8 @@ local function MMAddCharStats()
         return
     end
 
-    pctRating(STAT_CRITICAL_STRIKE or "Critical Strike", GetCritChance(),    GetCombatRating(CR_CRIT_MELEE))
+    local crit, critCR = EllesmereUI.PlayerCritChance()
+    pctRating(STAT_CRITICAL_STRIKE or "Critical Strike", crit,               GetCombatRating(critCR))
     pctRating(STAT_HASTE or "Haste",                     GetHaste(),         GetCombatRating(CR_HASTE_MELEE))
     pctRating(STAT_MASTERY or "Mastery",                 GetMasteryEffect(), GetCombatRating(CR_MASTERY))
 
@@ -650,8 +684,8 @@ ns.BlockFactories.micromenu = function(blockCfg, slot, content, barCtx)
         elseif microBtnName then
             microRef = _G[microBtnName]
         end
-        if key == 'housing' and not microRef then
-            -- Skip housing if the Blizzard micro button does not exist.
+        if (key == 'housing' or key == 'talent') and not microRef then
+            -- Skip housing and talents if the Blizzard micro button does not exist.
             return nil
         end
         local frame
@@ -688,7 +722,7 @@ ns.BlockFactories.micromenu = function(blockCfg, slot, content, barCtx)
             AttachTextOffset(inst, textFS[key])
         end
         icons[key] = frame:CreateTexture(nil, "OVERLAY")
-        icons[key]:SetTexture(MM_MEDIA .. (MM_ICON_FILE[key] or key) .. ".png")
+        icons[key]:SetTexture(def.icon or (MM_MEDIA .. (MM_ICON_FILE[key] or key) .. ".png"))
         SetupButtonScripts(key, frame)
         return frame
     end
@@ -697,7 +731,7 @@ ns.BlockFactories.micromenu = function(blockCfg, slot, content, barCtx)
     local function CreateFramesInner()
         local mm = D()
         for _, def in ipairs(mmButtonDefs) do
-            if mm[def.key] then EnsureButtonFrame(def) end
+            if MMButtonOn(mm, def.key) then EnsureButtonFrame(def) end
         end
         -- A full out-of-combat pass clears the deferred marker (buttons that cannot exist, e.g. housing without its micro button, do not count).
         if not InCombatLockdown() then inst._mmDeferred = nil end
@@ -786,7 +820,7 @@ ns.BlockFactories.micromenu = function(blockCfg, slot, content, barCtx)
         for _, key in ipairs(mmButtonOrder) do
             local frame = frames[key]
             -- Hide buttons toggled off after creation; lay out enabled ones.
-            if frame and not mm[key] then
+            if frame and not MMButtonOn(mm, key) then
                 frame:Hide()
                 frame = nil
             end
@@ -878,7 +912,7 @@ ns.BlockFactories.micromenu = function(blockCfg, slot, content, barCtx)
         local ICON_SIZE = GetIconSize()
         local count = 0
         for _, key in ipairs(mmButtonOrder) do
-            if frames[key] and mm[key] then count = count + 1 end
+            if frames[key] and MMButtonOn(mm, key) then count = count + 1 end
         end
         if count == 0 then return 50 end
         local spacing = mm.iconSpacing or 2

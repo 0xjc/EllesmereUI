@@ -720,7 +720,7 @@ local function GetBarGrowDirActual(barKey)
     end
     if barKey == "EABR_Reminders" then
         if EllesmereUI.GetAuraBuffGrowDir then
-            return EllesmereUI.GetAuraBuffGrowDir() or "CENTER"
+            return EllesmereUI.GetAuraBuffGrowDir()
         end
         return "CENTER"
     end
@@ -1427,7 +1427,9 @@ function MatchH.ApplyWidthMatch(sourceKey, targetKey)
         local pw = targetElem.getMatchPad(targetKey)
         if pw and pw > 0 then targetW = targetW + pw end
     end
-    if targetW and targetW > 0 then
+    -- A width that is not a real number (a frame not laid out yet can read NaN)
+    -- skips the match: WoW Forever errors on dividing one.
+    if targetW and EllesmereUI.PP.IsNum(targetW) and targetW > 0 then
         local rawW, conv = targetW, 1
         -- Snap to the physical pixel grid with round-to-nearest: PP.Scale
         -- truncates and drops a pixel on float boundary values; SnapForES uses
@@ -1518,7 +1520,7 @@ function MatchH.ApplyHeightMatch(sourceKey, targetKey)
         local _, ph = targetElem.getMatchPad(targetKey)
         if ph and ph > 0 then targetH = targetH + ph end
     end
-    if targetH and targetH > 0 then
+    if targetH and EllesmereUI.PP.IsNum(targetH) and targetH > 0 then
         local rawH, conv = targetH, 1
         local PPm = EllesmereUI and EllesmereUI.PP
         if PPm and PPm.SnapForES and targetBar then
@@ -7725,6 +7727,8 @@ local function CreateMover(barKey)
                 local _, v3 = EllesmereUI.GetTotemGrowDir()
                 isVert = v3
             end
+        elseif barKey == "EABR_Reminders" then
+            isVert = false   -- the reminder row is horizontal only
         elseif barKey:sub(1, 4) == "PAB_" then
             -- Player Aura Bars support vertical growth too -- read the bar's
             -- own current growDirection (same bridge the currentVal lookup below uses)
@@ -7768,7 +7772,7 @@ local function CreateMover(barKey)
             currentVal = EllesmereUI.GetTotemGrowDir and EllesmereUI.GetTotemGrowDir()
                 or (isVert and "DOWN" or "RIGHT")
         elseif barKey == "EABR_Reminders" then
-            currentVal = (EllesmereUI.GetAuraBuffGrowDir and EllesmereUI.GetAuraBuffGrowDir()) or "CENTER"
+            if EllesmereUI.GetAuraBuffGrowDir then currentVal = EllesmereUI.GetAuraBuffGrowDir() end
         elseif barKey:sub(1, 4) == "PAB_" then
             local euf4 = EllesmereUI.Lite.GetAddon("EllesmereUIUnitFrames", true)
             currentVal = (euf4 and euf4.GetGrowDirectionForBar and euf4:GetGrowDirectionForBar(barKey)) or "LEFT"
@@ -12575,7 +12579,11 @@ function ns.RequestClose(save, afterFn)
         end,
         -- Dismiss (ESC / click-off) does nothing -- user stays in unlock mode,
         -- and any pending close callback is cleared since the close was abandoned
-        onDismiss = function() pendingAfterClose = nil end,
+        onDismiss = function()
+            pendingAfterClose = nil
+            -- Controller Back: stamp the dismiss so the same press's step skips
+            if unlockFrame and unlockFrame._padEsc then unlockFrame._padDismissAt = GetTime() end
+        end,
     })
 end
 
@@ -12775,6 +12783,41 @@ local function CreateUnlockFrame()
     -- Click-to-deselect is handled by toggle behavior on movers themselves
     -- (clicking the selected mover again deselects it), so no full-screen catcher is needed -- world interaction (targeting, camera) stays unblocked.
 
+    -- One Escape step: the innermost open layer closes, else Unlock Mode does
+    -- (which asks first when there are unsaved changes). padAll: a controller
+    -- Back that closes every window at once (nil from the keyboard).
+    local function EscapeStep(padAll)
+        -- If anchor dropdown is open, close it instead of closing unlock mode
+        if anchorDropdownFrame and anchorDropdownFrame:IsShown() then
+            anchorDropdownFrame:Hide()
+            if anchorDropdownCatcher then anchorDropdownCatcher:Hide() end
+            return
+        end
+        -- If in width/height/anchor pick mode, cancel it instead of closing
+        if pickModeMover and pickMode then
+            CancelPickMode()
+            return
+        end
+        -- If in select-element pick mode, cancel it instead of closing
+        if selectElementPicker then
+            local picker = selectElementPicker
+            picker._snapTarget = picker._preSelectTarget
+            picker._preSelectTarget = nil
+            if picker._updateSnapLabel then picker._updateSnapLabel() end
+            selectElementPicker = nil
+            FadeOverlayForSelectElement(false)
+            return
+        end
+        -- That Back exits to the world, as Blizzard's does: a panel reopened
+        -- here loses the pointer as soon as the press ends. Unsaved changes
+        -- keep the way back for the prompt's Save & Exit.
+        if padAll and not hasChanges then
+            EllesmereUI._unlockReturnModule = nil
+            EllesmereUI._unlockReturnPage = nil
+        end
+        ns.CloseUnlockMode()
+    end
+
     -- ESC to close (skip if confirm popup is already showing)
     unlockFrame:SetScript("OnKeyDown", function(self, key)
         if key == "ESCAPE" then
@@ -12784,36 +12827,39 @@ local function CreateUnlockFrame()
                 self:SetPropagateKeyboardInput(true)
                 return
             end
-            -- If anchor dropdown is open, close it instead of closing unlock mode
-            if anchorDropdownFrame and anchorDropdownFrame:IsShown() then
-                self:SetPropagateKeyboardInput(false)
-                anchorDropdownFrame:Hide()
-                if anchorDropdownCatcher then anchorDropdownCatcher:Hide() end
-                return
-            end
-            -- If in width/height/anchor pick mode, cancel it instead of closing
-            if pickModeMover and pickMode then
-                self:SetPropagateKeyboardInput(false)
-                CancelPickMode()
-                return
-            end
-            -- If in select-element pick mode, cancel it instead of closing
-            if selectElementPicker then
-                self:SetPropagateKeyboardInput(false)
-                local picker = selectElementPicker
-                picker._snapTarget = picker._preSelectTarget
-                picker._preSelectTarget = nil
-                if picker._updateSnapLabel then picker._updateSnapLabel() end
-                selectElementPicker = nil
-                FadeOverlayForSelectElement(false)
-                return
-            end
             self:SetPropagateKeyboardInput(false)
-            ns.CloseUnlockMode()
+            EscapeStep()
         else
             self:SetPropagateKeyboardInput(true)
         end
     end)
+
+    -- Controller Back (the escape proxy runs it once Unlock Mode is registered
+    -- there, see OpenUnlockMode): the same step as Escape. A shown confirm
+    -- popup answers Back itself, and the Back that just dismissed the
+    -- unsaved-changes prompt must not raise it again in the same pass.
+    unlockFrame._padBack = function()
+        local dimmer = _G["EUIConfirmDimmer"]
+        if dimmer and dimmer:IsShown() then return end
+        if unlockFrame._padDismissAt == GetTime() then return end
+        -- The game also closes every window by itself (the UI hidden and shown
+        -- again, a loading screen, death, loss of control): not a Back press,
+        -- so Unlock Mode stays open through those, as it always has. Hiding
+        -- the UI marks the frame, so the close when it returns is skipped too.
+        if not unlockFrame:IsVisible() then
+            unlockFrame._padUIHidden = true
+            return
+        end
+        if unlockFrame._padUIHidden then
+            unlockFrame._padUIHidden = nil
+            return
+        end
+        if EllesmereUI._zoneTransitionActive or UnitIsDeadOrGhost("player")
+           or (not HasFullControl() and not UnitOnTaxi("player")) then
+            return
+        end
+        EscapeStep(EllesmereUI.PadNative() and CanAutoSetGamePadCursorControl(false))
+    end
 
     unlockFrame:Hide()
     return unlockFrame
@@ -13227,6 +13273,16 @@ function ns.OpenUnlockMode()
     -- BASE_SCALE makes the container appear as ICON_SZ on screen,
     -- so to appear as panelStartSz we need: BASE_SCALE * (panelStartSz / ICON_SZ)
     local startScale = BASE_SCALE * (panelStartSz / ICON_SZ) * 0.6
+
+    -- Controller Back steps out like Escape: registered with the escape proxy
+    -- on the first open with a controller in use (padOnly: it counts only then),
+    -- and never a controller-cursor root (a pointer-drag UI).
+    if not unlockFrame._padEsc and EllesmereUI.PadInUse() then
+        unlockFrame._padEsc = true
+        EllesmereUI.RegisterEscapeClose(unlockFrame, {
+            padOnly = true, notOwned = true, onEscape = unlockFrame._padBack,
+        })
+    end
 
     -- Show overlay, hide grid/toolbar/movers
     unlockFrame:Show()

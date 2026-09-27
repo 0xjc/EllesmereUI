@@ -2173,7 +2173,6 @@ local ICON_SIZE = 40
 local iconAnchor
 local iconPool = {}     -- all created icon buttons
 local activeIcons = {}  -- currently visible icons
-local ApplyUnlockPos
 
 -- Talent icon state moved to EllesmereUIABR_TalentReminders.lua
 
@@ -2348,10 +2347,11 @@ local function ShowCombatIcon(iconIdx, m)
     combatActiveIcons[#combatActiveIcons+1] = f
 end
 
--- Left-aligned like the OOC row. Slot 0 is reserved while the provider
--- secure button is shown, and stays reserved after a mid-combat hide until
--- the OOC park -- its SetPoint/EnableMouse are protected under lockdown, so
--- other icons must never slide under it.
+-- Left-aligned from the anchor's left edge; Grow Left right-aligns from its
+-- right edge instead. Slot 0 is reserved while the provider secure button is
+-- shown, and stays reserved after a mid-combat hide until the OOC park -- its
+-- SetPoint/EnableMouse are protected under lockdown, so other icons must never
+-- slide under it: while it is reserved Grow Left keeps the left-aligned row.
 local function LayoutCombatIcons()
     local reserveSlot = EABR._providerCastVisible or EABR._providerCastCombatReserved
     local count = #combatActiveIcons
@@ -2361,41 +2361,18 @@ local function LayoutCombatIcons()
     local baseScale = p.scale or 1.0
     local sz = floor(ICON_SIZE * baseScale + 0.5)
     local xOff = reserveSlot and (sz + spacing) or 0
-    local growDir = p.growDirection or "CENTER"
-
-    if growDir == "RIGHT" then
-        for i, f in ipairs(combatActiveIcons) do
-            f:SetSize(sz, sz)
-            f:SetAlpha(p.opacity or 1.0)
-            EABR.ApplyIconBorder(f, false)
-            EABR.SizeIconQuality(f, sz)
-            EABR.SizeIconBagCount(f, sz)
-            f:ClearAllPoints()
-            f:SetPoint("TOPLEFT", combatAnchor, "TOPLEFT", xOff + (i - 1) * (sz + spacing), 0)
-        end
-    elseif growDir == "LEFT" then
-        for i, f in ipairs(combatActiveIcons) do
-            f:SetSize(sz, sz)
-            f:SetAlpha(p.opacity or 1.0)
-            EABR.ApplyIconBorder(f, false)
-            EABR.SizeIconQuality(f, sz)
-            EABR.SizeIconBagCount(f, sz)
-            f:ClearAllPoints()
-            f:SetPoint("TOPRIGHT", combatAnchor, "TOPRIGHT", -(count - i) * (sz + spacing), 0)
-        end
-    else
-        local totalCount = count + (reserveSlot and 1 or 0)
-        local totalW = (totalCount * sz) + ((totalCount - 1) * spacing)
-        local startX = -(totalW / 2) + (sz / 2) + (reserveSlot and (sz + spacing) or 0)
-        for i, f in ipairs(combatActiveIcons) do
-            f:SetSize(sz, sz)
-            f:SetAlpha(p.opacity or 1.0)
-            EABR.ApplyIconBorder(f, false)
-            EABR.SizeIconQuality(f, sz)
-            EABR.SizeIconBagCount(f, sz)
-            f:ClearAllPoints()
-            f:SetPoint("CENTER", combatAnchor, "CENTER", startX + (i - 1) * (sz + spacing), 0)
-        end
+    local pt = "TOPLEFT"
+    if p.growDirection == "LEFT" and not reserveSlot then
+        pt, xOff = "TOPRIGHT", -(count - 1) * (sz + spacing)
+    end
+    for i, f in ipairs(combatActiveIcons) do
+        f:SetSize(sz, sz)
+        f:SetAlpha(p.opacity or 1.0)
+        EABR.ApplyIconBorder(f, false)
+        EABR.SizeIconQuality(f, sz)
+        EABR.SizeIconBagCount(f, sz)
+        f:ClearAllPoints()
+        f:SetPoint(pt, combatAnchor, pt, xOff + (i-1)*(sz+spacing), 0)
     end
 end
 
@@ -3211,6 +3188,8 @@ local function HideAllIcons()
     wipe(activeIcons)
 end
 
+-- iconAnchor is pinned by its grow edge (CENTER, LEFT or RIGHT) and the icons
+-- hang off that same edge, so resizing it never moves them.
 local function ResizeAnchorCentered(newW, newH)
     if not iconAnchor or InCombatLockdown() then return end
     iconAnchor:SetSize(newW, newH)
@@ -3244,46 +3223,28 @@ local function LayoutIcons()
     local totalW = (count * sz) + ((count-1) * spacing)
     local textH = 0
     if p.showText then textH = (p.textSize or 11) + abs(p.textYOffset or -2) end
-    local growDir = p.growDirection or "CENTER"
-    if growDir == "RIGHT" then
-        for i, btn in ipairs(allIcons) do
-            btn:SetSize(sz, sz)
-            btn:SetAlpha(p.opacity or 1.0)
-            EABR.ApplyIconBorder(btn, true)
-            EABR.SizeIconQuality(btn, sz)
-            EABR.SizeIconBagCount(btn, sz)
-            btn:ClearAllPoints()
-            btn:SetPoint("TOPLEFT", iconAnchor, "TOPLEFT", (i - 1) * (sz + spacing), 0)
-        end
-    elseif growDir == "LEFT" then
-        for i, btn in ipairs(allIcons) do
-            btn:SetSize(sz, sz)
-            btn:SetAlpha(p.opacity or 1.0)
-            EABR.ApplyIconBorder(btn, true)
-            EABR.SizeIconQuality(btn, sz)
-            EABR.SizeIconBagCount(btn, sz)
-            btn:ClearAllPoints()
-            btn:SetPoint("TOPRIGHT", iconAnchor, "TOPRIGHT", -(count - i) * (sz + spacing), 0)
-        end
-    else
-        -- Center-grow: icons pin to the anchor's CENTER and spread symmetrically so the row's center stays fixed as
-        -- icons are added/removed, and resizing the anchor (unlock overlay) never shifts them; +textH/2 keeps the row at the icon+text box's top, matching the combat pool.
-        local startX = -(totalW / 2) + (sz / 2)
-        for i, btn in ipairs(allIcons) do
-            btn:SetSize(sz, sz)
-            btn:SetAlpha(p.opacity or 1.0)
-            -- This layout is OOC-only, so treating every entry as protected also
-            -- covers the provider/main secure buttons without needing pool scans.
-            EABR.ApplyIconBorder(btn, true)
-            EABR.SizeIconQuality(btn, sz)
-            EABR.SizeIconBagCount(btn, sz)
-            btn:ClearAllPoints()
-            btn:SetPoint("CENTER", iconAnchor, "CENTER", startX + (i-1)*(sz+spacing), textH/2)
-        end
+    -- Icons hang off the anchor's grow edge. Center-grow spreads them symmetrically so the row's center stays fixed
+    -- as icons are added/removed; +textH/2 keeps the row at the icon+text box's top, matching the combat pool.
+    -- Grow Right/Left hang them from the TOPLEFT/TOPRIGHT corner so that edge stays fixed instead.
+    local pt, startX, yOff = "CENTER", -(totalW / 2) + (sz / 2), textH/2
+    if p.growDirection == "RIGHT" then
+        pt, startX, yOff = "TOPLEFT", 0, 0
+    elseif p.growDirection == "LEFT" then
+        pt, startX, yOff = "TOPRIGHT", -(count - 1) * (sz + spacing), 0
+    end
+    for i, btn in ipairs(allIcons) do
+        btn:SetSize(sz, sz)
+        btn:SetAlpha(p.opacity or 1.0)
+        -- This layout is OOC-only, so treating every entry as protected also
+        -- covers the provider/main secure buttons without needing pool scans.
+        EABR.ApplyIconBorder(btn, true)
+        EABR.SizeIconQuality(btn, sz)
+        EABR.SizeIconBagCount(btn, sz)
+        btn:ClearAllPoints()
+        btn:SetPoint(pt, iconAnchor, pt, startX + (i-1)*(sz+spacing), yOff)
     end
     -- Size the anchor to the row so the unlock mode overlay covers it.
     ResizeAnchorCentered(totalW, sz + textH)
-    if ApplyUnlockPos then ApplyUnlockPos() end
 end
 
 local function ShowIcon(iconIdx, m)
@@ -4432,48 +4393,80 @@ end
 -------------------------------------------------------------------------------
 --  Unlock Mode
 -------------------------------------------------------------------------------
-local function UpdateUnlockPosForGrowDir(newGrowDir)
-    if not db or not db.profile then return end
+-- Nominal two-icon row width from settings alone: the nil-position grow edge and the converter's empty-row width.
+function EABR.NominalRowW(d)
+    return 2 * floor(ICON_SIZE * (d.scale or 1.0) + 0.5) + (d.iconSpacing or 8)
+end
+
+local function ApplyUnlockPos()
+    if not iconAnchor or not db then return end
+    -- Skip for unlock-anchored elements (anchor system is authority)
+    local anchored = EllesmereUI and EllesmereUI.IsUnlockAnchored and EllesmereUI.IsUnlockAnchored("EABR_Reminders")
+    if anchored and iconAnchor:GetLeft() then return end
     local pos = db.profile.unlockPos
-    local targetPoint = (newGrowDir == "RIGHT" and "LEFT") or (newGrowDir == "LEFT" and "RIGHT") or "CENTER"
-    local d = db.profile.display
-    local baseScale = (d and d.scale) or 1.0
-    local sz = floor(ICON_SIZE * baseScale + 0.5)
-    local spacing = (d and d.iconSpacing) or 8
-    local nominalW = 2 * sz + spacing
-    local curW = (iconAnchor and iconAnchor:GetWidth() and iconAnchor:GetWidth() > 1) and iconAnchor:GetWidth() or nominalW
-
-    if not pos then
-        local cx = d and d.xOffset or 0
-        local cy = d and d.yOffset or 200
-        local px = cx
-        if targetPoint == "LEFT" then px = cx - (curW / 2)
-        elseif targetPoint == "RIGHT" then px = cx + (curW / 2) end
-        db.profile.unlockPos = { point = targetPoint, relPoint = "CENTER", x = px, y = cy }
-        return
+    if pos and pos.point then
+        local px, py = pos.x or 0, pos.y or 0
+        local PPa = EllesmereUI and EllesmereUI.PP
+        if PPa then
+            local es = iconAnchor:GetEffectiveScale()
+            -- For CENTER anchor, uses SnapCenterForDim with the frame's actual size so odd-pixel-dim frames get the +0.5 offset that places edges on whole pixels.
+            local isCenterAnchor = (pos.point == "CENTER")
+                and (pos.relPoint == "CENTER" or pos.relPoint == nil)
+            if isCenterAnchor and PPa.SnapCenterForDim then
+                px = PPa.SnapCenterForDim(px, iconAnchor:GetWidth() or 0, es)
+                py = PPa.SnapCenterForDim(py, iconAnchor:GetHeight() or 0, es)
+            elseif PPa.SnapForES then
+                px = PPa.SnapForES(px, es)
+                py = PPa.SnapForES(py, es)
+            end
+        end
+        iconAnchor:ClearAllPoints()
+        iconAnchor:SetPoint(pos.point, UIParent, pos.relPoint or pos.point, px, py)
+    else
+        -- No saved position: the row sits at the configured offset from screen center, anchored by its grow edge.
+        -- Grow Right/Left place that edge half a nominal two-icon row out (settings only, never the live width) so
+        -- it never follows the icon count; LayoutIcons hangs the icons off the same edge and owns the anchor's size.
+        local d = db.profile.display
+        local growDir = d.growDirection
+        iconAnchor:ClearAllPoints()
+        if growDir == "RIGHT" then
+            iconAnchor:SetPoint("LEFT", UIParent, "CENTER", (d.xOffset or 0) - EABR.NominalRowW(d) / 2, d.yOffset or 0)
+        elseif growDir == "LEFT" then
+            iconAnchor:SetPoint("RIGHT", UIParent, "CENTER", (d.xOffset or 0) + EABR.NominalRowW(d) / 2, d.yOffset or 0)
+        else
+            iconAnchor:SetPoint("CENTER", UIParent, "CENTER", d.xOffset or 0, d.yOffset or 0)
+        end
     end
+end
 
-    local curPoint = pos.point or "CENTER"
+-- Moves a saved position onto the new grow edge (Grow Right = LEFT, Grow Left = RIGHT, else CENTER) without
+-- moving the row. Runs only on a grow direction change or a spec layer restoring a position banked under another
+-- direction: the apply path never writes the DB, and a nil position stays nil. Only positions this module writes
+-- (CENTER, LEFT or RIGHT of UIParent's CENTER) convert.
+function EABR.UpdateUnlockPosForGrowDir(newGrowDir)
+    local pos = db.profile.unlockPos
+    if not pos or not pos.point or (pos.relPoint or pos.point) ~= "CENTER" then return end
+    local curPoint = pos.point
+    if curPoint ~= "CENTER" and curPoint ~= "LEFT" and curPoint ~= "RIGHT" then return end
+    local targetPoint = (newGrowDir == "RIGHT" and "LEFT") or (newGrowDir == "LEFT" and "RIGHT") or "CENTER"
     if curPoint == targetPoint then return end
-
+    local w = iconAnchor and iconAnchor:GetWidth() or 0
+    if w <= 1 then w = EABR.NominalRowW(db.profile.display) end
     local cx = pos.x or 0
     if curPoint == "LEFT" then
-        cx = cx + (curW / 2)
+        cx = cx + (w / 2)
     elseif curPoint == "RIGHT" then
-        cx = cx - (curW / 2)
+        cx = cx - (w / 2)
     end
-
     if targetPoint == "LEFT" then
-        pos.x = cx - (curW / 2)
+        pos.x = cx - (w / 2)
     elseif targetPoint == "RIGHT" then
-        pos.x = cx + (curW / 2)
+        pos.x = cx + (w / 2)
     else
         pos.x = cx
     end
     pos.point = targetPoint
     pos.relPoint = "CENTER"
-    pos.leftX = nil
-    pos.rightX = nil
 end
 
 function EllesmereUI.GetAuraBuffGrowDir()
@@ -4484,43 +4477,9 @@ end
 function EllesmereUI.SetAuraBuffGrowDir(v)
     if not db or not db.profile or not db.profile.display then return end
     db.profile.display.growDirection = v
-    UpdateUnlockPosForGrowDir(v)
+    EABR.UpdateUnlockPosForGrowDir(v)
     ApplyUnlockPos()
     LayoutIcons()
-end
-
-ApplyUnlockPos = function()
-    if not iconAnchor or not db then return end
-    -- Skip for unlock-anchored elements (anchor system is authority)
-    local anchored = EllesmereUI and EllesmereUI.IsUnlockAnchored and EllesmereUI.IsUnlockAnchored("EABR_Reminders")
-    if anchored and iconAnchor:GetLeft() then return end
-
-    local d = db.profile.display
-    local growDir = d and d.growDirection or "CENTER"
-    UpdateUnlockPosForGrowDir(growDir)
-
-    local pos = db.profile.unlockPos
-    local targetPoint = (growDir == "RIGHT" and "LEFT") or (growDir == "LEFT" and "RIGHT") or "CENTER"
-    local anchorPoint = (pos and pos.point) or targetPoint
-    local px = pos and pos.x or (d and d.xOffset or 0)
-    local py = pos and pos.y or (d and d.yOffset or 200)
-    local w = iconAnchor:GetWidth() or 0
-    local h = iconAnchor:GetHeight() or 0
-
-    local PPa = EllesmereUI and EllesmereUI.PP
-    if PPa then
-        local es = iconAnchor:GetEffectiveScale()
-        if anchorPoint == "CENTER" and PPa.SnapCenterForDim then
-            px = PPa.SnapCenterForDim(px, w, es)
-            py = PPa.SnapCenterForDim(py, h, es)
-        elseif PPa.SnapForES then
-            px = PPa.SnapForES(px, es)
-            py = PPa.SnapForES(py, es)
-        end
-    end
-
-    iconAnchor:ClearAllPoints()
-    iconAnchor:SetPoint(anchorPoint, UIParent, "CENTER", px, py)
 end
 
 local function RegisterUnlockElements()
@@ -4535,7 +4494,6 @@ local function RegisterUnlockElements()
             noAnchorTarget = true,  -- icon count changes dynamically with auras
             -- Icon size is driven solely by the Scale slider. No drag-resize: row width is count-dependent, so restoring a stored width under a different count would corrupt the persisted scale (matches External Defensives).
             noResize = true,
-            noInitHook = true,      -- CRITICAL! Self-positioning: prevents EUI_UnlockMode from overriding iconAnchor with ApplyCenterPosition
             getFrame = function() return iconAnchor end,
             getSize = function()
                 local p = db.profile.display
@@ -4562,48 +4520,48 @@ local function RegisterUnlockElements()
                 return w, h
             end,
             savePos = function(key, point, relPoint, x, y)
-                local d = db.profile.display
-                local growDir = d and d.growDirection or "CENTER"
-                local w = iconAnchor and iconAnchor:GetWidth() or 0
-                local storeX = x
-                local anchorPoint = "CENTER"
-                if growDir == "RIGHT" then
-                    anchorPoint = "LEFT"
-                    storeX = x - (w / 2)
-                elseif growDir == "LEFT" then
-                    anchorPoint = "RIGHT"
-                    storeX = x + (w / 2)
+                -- Unlock mode hands over the row's CENTER; Grow Right/Left store their fixed edge instead.
+                local growDir = db.profile.display.growDirection
+                if (growDir == "RIGHT" or growDir == "LEFT") and point == "CENTER" and relPoint == "CENTER" then
+                    local halfW = (iconAnchor and iconAnchor:GetWidth() or 0) / 2
+                    if growDir == "RIGHT" then
+                        point, x = "LEFT", x - halfW
+                    else
+                        point, x = "RIGHT", x + halfW
+                    end
                 end
-                db.profile.unlockPos = {
-                    point = anchorPoint,
-                    relPoint = "CENTER",
-                    x = storeX,
-                    y = y,
-                }
+                db.profile.unlockPos = {point=point, relPoint=relPoint, x=x, y=y}
                 if not EllesmereUI._unlockActive then
                     ApplyUnlockPos()
                 end
             end,
             loadPos = function()
                 local pos = db.profile.unlockPos
-                if not pos then return nil end
-                local w = iconAnchor and iconAnchor:GetWidth() or 0
-                local cx = pos.x or 0
-                if pos.point == "LEFT" then
-                    cx = cx + (w / 2)
-                elseif pos.point == "RIGHT" then
-                    cx = cx - (w / 2)
+                -- A stored grow edge (LEFT/RIGHT of UIParent's CENTER) reports the row's CENTER, the form unlock mode works in.
+                -- That CENTER follows the live width, so a Discard after the icon count changed moves the edge by half the change.
+                if not pos or (pos.point ~= "LEFT" and pos.point ~= "RIGHT") or pos.relPoint ~= "CENTER" then
+                    return pos
                 end
+                local halfW = (iconAnchor and iconAnchor:GetWidth() or 0) / 2
                 return {
                     point = "CENTER",
                     relPoint = "CENTER",
-                    x = cx,
+                    x = (pos.x or 0) + ((pos.point == "LEFT") and halfW or -halfW),
                     y = pos.y or 0,
                 }
             end,
+            -- Spec-override unlock layers bank the stored table itself, so a Grow Right/Left edge survives a
+            -- layer round trip at any icon count; one banked under another direction moves onto the current edge.
+            loadRawPos = function()
+                return db.profile.unlockPos
+            end,
+            saveRawPos = function(_, p)
+                if not (p and p.point) then return end
+                db.profile.unlockPos = {point=p.point, relPoint=p.relPoint or p.point, x=p.x, y=p.y}
+                EABR.UpdateUnlockPosForGrowDir(db.profile.display.growDirection)
+            end,
             clearPos = function()
                 db.profile.unlockPos = nil
-                ApplyUnlockPos()
             end,
             applyPos = function()
                 ApplyUnlockPos()
@@ -4611,7 +4569,6 @@ local function RegisterUnlockElements()
         }),
     })
 end
-
 
 -------------------------------------------------------------------------------
 --  Last-Used Item Tracking (per-character)
