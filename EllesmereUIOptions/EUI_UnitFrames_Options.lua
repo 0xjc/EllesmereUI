@@ -7553,8 +7553,9 @@ initFrame:SetScript("OnEvent", function(self)
                           ["pixels-textured"]        = "Pixels Textured Ring",
                           ["pixels-shadow"]          = "Pixels Ring Shadow",
                           ["pixels-textured-shadow"] = "Pixels Textured Ring Shadow",
+                          ["thin-border"]            = "Naowh Thin Circle",
                       },
-                      order={ "none", "border", "pixels", "pixels-textured", "pixels-shadow", "pixels-textured-shadow" },
+                      order={ "none", "border", "pixels", "pixels-textured", "pixels-shadow", "pixels-textured-shadow", "thin-border" },
                       -- "Pixels Textured Ring Shadow" needs more than the 130px default.
                       ddWidth=190,
                       tooltip="Adds a second ring around a round portrait; Match Frame Border follows your frame border style.",

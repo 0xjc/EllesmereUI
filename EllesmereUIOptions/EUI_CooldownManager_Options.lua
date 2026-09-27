@@ -35,6 +35,7 @@ end
 local PAGE_BAR_GLOWS    = "Bar Glows"
 local PAGE_BUFF_BARS    = "Tracking Bars"
 local PAGE_CDM_BARS     = "CDM Bars"
+local PAGE_ROTATION_ICON = "Rotation Assist Icon"
 
 local PAGE_UNLOCK       = "Unlock Mode"
 
@@ -15376,20 +15377,9 @@ initFrame:SetScript("OnEvent", function(self)
                     end
                 end
 
-                -- Keybind text preview (mirror live: our CDM font + outline)
+                -- Use the live renderer so font, anchors and badge alpha agree.
                 if slot._keybindText then
-                    EllesmereUI.ApplyIconTextFont(slot._keybindText, FONT_PATH, bd.keybindSize or 10, "cdm")
-                    slot._keybindText:ClearAllPoints()
-                    local kx = bd.keybindOffsetX or 2
-                    local ky = bd.keybindOffsetY or -2
-                    if bd.keybindAlign == "right" then
-                        slot._keybindText:SetJustifyH("RIGHT")
-                        slot._keybindText:SetPoint("TOPRIGHT", slot, "TOPRIGHT", -kx, ky)
-                    else
-                        slot._keybindText:SetJustifyH("LEFT")
-                        slot._keybindText:SetPoint("TOPLEFT", slot, "TOPLEFT", kx, ky)
-                    end
-                    slot._keybindText:SetTextColor(bd.keybindR or 1, bd.keybindG or 1, bd.keybindB or 1, bd.keybindA or 0.9)
+                    ns.StyleCDMKeybind(slot._keybindText, bd, slot, 1, FONT_PATH)
                     local sid = slot._previewSpellID
                     if bd.showKeybind and sid then
                         local cache = ns.CDMKeybindCache or ns._cdmKeybindCache
@@ -15407,6 +15397,7 @@ initFrame:SetScript("OnEvent", function(self)
                     else
                         slot._keybindText:Hide()
                     end
+                    ns.RefreshCDMKeybindBadge(slot._keybindText, bd)
                 end
 
                 if i <= count then
@@ -15589,6 +15580,114 @@ initFrame:SetScript("OnEvent", function(self)
         end
         -- Return wrapper height (already capped by Update's resize logic)
         return wrapper:GetHeight()
+    end
+
+    local function BuildKeybindStyleControls(kbRow, BD, RefreshKeybindStyle)
+        if not EllesmereUI._prebuilding then
+            local rgn = kbRow._rightRegion
+            local ctrl = rgn and rgn._control
+            local kbFonts, kbFontOrder = EllesmereUI.BuildFontDropdownData()
+            kbFonts.__global = { text = "CDM Font" }
+
+            local kbSwatch, updateKbSwatch
+            if ctrl and EllesmereUI.BuildColorSwatch then
+                kbSwatch, updateKbSwatch = EllesmereUI.BuildColorSwatch(
+                    rgn, kbRow:GetFrameLevel() + 3,
+                    function() return BD().keybindR or 1, BD().keybindG or 1, BD().keybindB or 1, BD().keybindA or 0.9 end,
+                    function(r, g, b, a)
+                        BD().keybindR = r; BD().keybindG = g; BD().keybindB = b; BD().keybindA = a
+                        RefreshKeybindStyle()
+                    end,
+                    true, 20)
+                PP.Point(kbSwatch, "RIGHT", ctrl, "LEFT", -8, 0)
+            end
+
+            EllesmereUI.BuildInlineCog(rgn, { anchorTo = kbSwatch, icon = EllesmereUI.RESIZE_ICON,
+                title = "Keybind Text Settings",
+                rows = {
+                    { type = "dropdown", label = "Font", values = kbFonts, order = kbFontOrder,
+                      get = function() return BD().keybindFont or "__global" end,
+                      set = function(v) BD().keybindFont = v; RefreshKeybindStyle() end },
+                    { type = "dropdown", label = "Text Outline",
+                      values = { inherit = "CDM Outline", NONE = "None", OUTLINE = "Outline", THICKOUTLINE = "Thick Outline" },
+                      order = { "inherit", "NONE", "OUTLINE", "THICKOUTLINE" },
+                      get = function() return BD().keybindOutline or "inherit" end,
+                      set = function(v) BD().keybindOutline = v; RefreshKeybindStyle() end },
+                    { type = "slider", label = "Text Size", min = 6, max = 20, step = 1,
+                      get = function() return BD().keybindSize or 10 end,
+                      set = function(v) BD().keybindSize = v; RefreshKeybindStyle() end },
+                    { type = "dropdown", label = "Anchor",
+                      values = { TOPLEFT = "Top Left", TOP = "Top", TOPRIGHT = "Top Right",
+                          LEFT = "Left", CENTER = "Center", RIGHT = "Right",
+                          BOTTOMLEFT = "Bottom Left", BOTTOM = "Bottom", BOTTOMRIGHT = "Bottom Right" },
+                      order = { "TOPLEFT", "TOP", "TOPRIGHT", "LEFT", "CENTER", "RIGHT", "BOTTOMLEFT", "BOTTOM", "BOTTOMRIGHT" },
+                      get = function() return BD().keybindAnchor or (BD().keybindAlign == "right" and "TOPRIGHT" or "TOPLEFT") end,
+                      set = function(v) BD().keybindAnchor = v; RefreshKeybindStyle() end },
+                    { type = "slider", label = "X Offset", min = -30, max = 30, step = 1,
+                      get = function() return BD().keybindOffsetX or 2 end,
+                      set = function(v) BD().keybindOffsetX = v; RefreshKeybindStyle() end },
+                    { type = "slider", label = "Y Offset", min = -30, max = 30, step = 1,
+                      get = function() return BD().keybindOffsetY or -2 end,
+                      set = function(v) BD().keybindOffsetY = v; RefreshKeybindStyle() end },
+                    { type = "colorpicker", label = "Background Color", hasAlpha = true,
+                      tooltip = "Set opacity to 0% for text without a background.",
+                      get = function() return BD().keybindBackgroundR or 0, BD().keybindBackgroundG or 0,
+                          BD().keybindBackgroundB or 0, BD().keybindBackgroundA or 0 end,
+                      set = function(r, g, b, a)
+                          local d = BD(); d.keybindBackgroundR = r; d.keybindBackgroundG = g
+                          d.keybindBackgroundB = b; d.keybindBackgroundA = a; RefreshKeybindStyle()
+                      end },
+                    { type = "colorpicker", label = "Border Color", hasAlpha = true,
+                      tooltip = "Set opacity to 0% to hide the keybind badge border.",
+                      get = function() return BD().keybindBorderR or 1, BD().keybindBorderG or 1,
+                          BD().keybindBorderB or 1, BD().keybindBorderA or 0 end,
+                      set = function(r, g, b, a)
+                          local d = BD(); d.keybindBorderR = r; d.keybindBorderG = g
+                          d.keybindBorderB = b; d.keybindBorderA = a; RefreshKeybindStyle()
+                      end },
+                    { type = "slider", label = "Border Size", min = 0, max = 4, step = 1,
+                      get = function() return BD().keybindBorderSize or 1 end,
+                      set = function(v) BD().keybindBorderSize = v; RefreshKeybindStyle() end },
+                    { type = "slider", label = "Background Padding", min = 0, max = 8, step = 1,
+                      get = function() return BD().keybindPadding or 2 end,
+                      set = function(v) BD().keybindPadding = v; RefreshKeybindStyle() end },
+                    -- Global, not per-bar: there is one shared keybind cache
+                    -- for every CDM bar, so this toggle is labelled as such.
+                    { type = "toggle", label = "Keep Keys on Bar Swap (global)",
+                      tooltip = "Keep keybind text identical when your action bar swaps -- rogue stealth, druid forms, skyriding. Also covers conditional macros like \"/cast [bonusbar:1] Backstab; Shadow Dance\", where the key would otherwise jump to whichever branch is live.\n\nThe key then only changes when you actually move the ability or rebind it.\n\nOn by default. Applies to every CDM bar at once.",
+                      get = function()
+                          local p = DB()
+                          return (p and p.cdmBars and p.cdmBars.stableKeybinds) == true
+                      end,
+                      set = function(v)
+                          local p = DB()
+                          if not p or not p.cdmBars then return end
+                          p.cdmBars.stableKeybinds = v and true or false
+                          -- Changes how the cache is built, not just how it is
+                          -- drawn -- needs a full rebuild, not an apply pass.
+                          if ns.UpdateCDMKeybinds then ns.UpdateCDMKeybinds() end
+                          RefreshKeybindStyle()
+                      end },
+                },
+            })
+
+            if kbSwatch then
+                local swatchBlock = CreateFrame("Frame", nil, kbSwatch)
+                swatchBlock:SetAllPoints()
+                swatchBlock:SetFrameLevel(kbSwatch:GetFrameLevel() + 10)
+                swatchBlock:EnableMouse(true)
+                swatchBlock:SetScript("OnEnter", function()
+                    EllesmereUI.ShowWidgetTooltip(kbSwatch, EllesmereUI.DisabledTooltip("Show Keybind"))
+                end)
+                swatchBlock:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
+                EllesmereUI.RegisterWidgetRefresh(function()
+                    if updateKbSwatch then updateKbSwatch() end
+                    local on = BD().showKeybind == true
+                    kbSwatch:SetAlpha(on and 1 or 0.3)
+                    if on then swatchBlock:Hide() else swatchBlock:Show() end
+                end)
+            end
+        end
     end
 
     local function BuildCDMBarsPage(pageName, parent, yOffset)
@@ -18810,94 +18909,19 @@ initFrame:SetScript("OnEvent", function(self)
                   ns.ApplyCDMTooltipState(BD().key)
                   Refresh()
               end },
-            { type="dropdown", text="Show Keybind",
-              values = { none = "None", left = "Left Aligned", right = "Right Aligned" },
-              order = { "none", "left", "right" },
-              getValue=function()
-                  local b = BD()
-                  if not b.showKeybind then return "none" end
-                  return (b.keybindAlign == "right") and "right" or "left"
-              end,
+            { type="toggle", text="Show Keybind",
+              getValue=function() return BD().showKeybind == true end,
               setValue=function(v)
                   local b = BD()
-                  if v == "none" then
-                      b.showKeybind = false
-                  elseif v == "right" then
-                      b.showKeybind = true; b.keybindAlign = "right"
-                  else
-                      b.showKeybind = true; b.keybindAlign = "left"
-                  end
+                  b.showKeybind = v
                   ns.RefreshCDMIconAppearance(b.key); ns.ApplyCachedKeybinds(); UpdateCDMPreview(); EllesmereUI:RefreshPage()
               end }
         );  y = y - h
 
-        -- Inline color swatch + cog on Show Keybind (right region)
-        if not EllesmereUI._prebuilding then
-            local rgn = kbRow._rightRegion
-            local ctrl = rgn and rgn._control
-
-            local kbSwatch, updateKbSwatch
-            if ctrl and EllesmereUI.BuildColorSwatch then
-                kbSwatch, updateKbSwatch = EllesmereUI.BuildColorSwatch(
-                    rgn, kbRow:GetFrameLevel() + 3,
-                    function() return BD().keybindR or 1, BD().keybindG or 1, BD().keybindB or 1 end,
-                    function(r, g, b)
-                        BD().keybindR = r; BD().keybindG = g; BD().keybindB = b
-                        ns.RefreshCDMIconAppearance(BD().key); ns.ApplyCachedKeybinds(); UpdateCDMPreview(); EllesmereUI:RefreshPage()
-                    end,
-                    false, 20)
-                PP.Point(kbSwatch, "RIGHT", ctrl, "LEFT", -8, 0)
-            end
-
-            EllesmereUI.BuildInlineCog(rgn, { anchorTo = kbSwatch, icon = EllesmereUI.RESIZE_ICON,
-                title = "Keybind Text Settings",
-                rows = {
-                    { type = "slider", label = "Text Size", min = 6, max = 20, step = 1,
-                      get = function() return BD().keybindSize or 10 end,
-                      set = function(v) BD().keybindSize = v; ns.RefreshCDMIconAppearance(BD().key); ns.ApplyCachedKeybinds(); UpdateCDMPreview(); EllesmereUI:RefreshPage() end },
-                    { type = "slider", label = "X Offset", min = -30, max = 30, step = 1,
-                      get = function() return BD().keybindOffsetX or 2 end,
-                      set = function(v) BD().keybindOffsetX = v; ns.RefreshCDMIconAppearance(BD().key); ns.ApplyCachedKeybinds(); UpdateCDMPreview(); EllesmereUI:RefreshPage() end },
-                    { type = "slider", label = "Y Offset", min = -30, max = 30, step = 1,
-                      get = function() return BD().keybindOffsetY or -2 end,
-                      set = function(v) BD().keybindOffsetY = v; ns.RefreshCDMIconAppearance(BD().key); ns.ApplyCachedKeybinds(); UpdateCDMPreview(); EllesmereUI:RefreshPage() end },
-                    -- Global, not per-bar: there is one shared keybind cache
-                    -- for every CDM bar, so this toggle is labelled as such.
-                    { type = "toggle", label = "Keep Keys on Bar Swap (global)",
-                      tooltip = "Keep keybind text identical when your action bar swaps -- rogue stealth, druid forms, skyriding. Also covers conditional macros like \"/cast [bonusbar:1] Backstab; Shadow Dance\", where the key would otherwise jump to whichever branch is live.\n\nThe key then only changes when you actually move the ability or rebind it.\n\nOn by default. Applies to every CDM bar at once.",
-                      get = function()
-                          local p = DB()
-                          return (p and p.cdmBars and p.cdmBars.stableKeybinds) == true
-                      end,
-                      set = function(v)
-                          local p = DB()
-                          if not p or not p.cdmBars then return end
-                          p.cdmBars.stableKeybinds = v and true or false
-                          -- Changes how the cache is built, not just how it is
-                          -- drawn -- needs a full rebuild, not an apply pass.
-                          if ns.UpdateCDMKeybinds then ns.UpdateCDMKeybinds() end
-                          UpdateCDMPreview(); EllesmereUI:RefreshPage()
-                      end },
-                },
-            })
-
-            if kbSwatch then
-                local swatchBlock = CreateFrame("Frame", nil, kbSwatch)
-                swatchBlock:SetAllPoints()
-                swatchBlock:SetFrameLevel(kbSwatch:GetFrameLevel() + 10)
-                swatchBlock:EnableMouse(true)
-                swatchBlock:SetScript("OnEnter", function()
-                    EllesmereUI.ShowWidgetTooltip(kbSwatch, EllesmereUI.DisabledTooltip("Show Keybind"))
-                end)
-                swatchBlock:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-                EllesmereUI.RegisterWidgetRefresh(function()
-                    if updateKbSwatch then updateKbSwatch() end
-                    local on = BD().showKeybind == true
-                    kbSwatch:SetAlpha(on and 1 or 0.3)
-                    if on then swatchBlock:Hide() else swatchBlock:Show() end
-                end)
-            end
-        end
+        BuildKeybindStyleControls(kbRow, BD, function()
+            ns.RefreshCDMIconAppearance(BD().key); ns.ApplyCachedKeybinds()
+            UpdateCDMPreview(); EllesmereUI:RefreshPage()
+        end)
         end -- if isAnyBuffBar (tooltip only) / else (tooltip + keybind)
 
         -- Pandemic Glow
@@ -19010,7 +19034,7 @@ initFrame:SetScript("OnEvent", function(self)
             end
         end
 
-        -- Show Non-On Use Trinkets | Hide Rotation Helper
+        -- Show Non-On Use Trinkets | Show Rotation Helper
         _, h = W:DualRow(parent, y,
             { type="toggle", text="Show Non-On Use Trinkets",
               tooltip = "Show equipped trinkets even if they don't have an on-use effect.",
@@ -19019,15 +19043,19 @@ initFrame:SetScript("OnEvent", function(self)
                   BD().showPassiveTrinkets = v
                   if ns.FullCDMRebuild then ns.FullCDMRebuild("trinket_toggle") end
               end },
-            { type="toggle", text="Hide Rotation Helper",
-              tooltip = "Force-hide Blizzard's Assisted Combat Highlight (rotation helper glow) on all CDM bars, even if enabled in Blizzard's Combat settings.",
+            { type="toggle", text="Show Rotation Helper",
+              tooltip = "Highlight Blizzard's next recommended ability on all CDM bars. Requires Assisted Highlight to be enabled in Blizzard's options. Disabling this hides only the CDM highlight.\n\nPress the normal ability's keybind yourself. This does not cast spells or use the Single-Button Assistant, so it does not add that assistant's global cooldown penalty. Only abilities present on your CDM bars can be highlighted.",
+              disabled=function() return not GetCVarBool("assistedCombatHighlight") end,
+              disabledTooltip="This option requires Blizzard's Assisted Highlight to be enabled",
+              rawTooltip=true,
               getValue=function()
-                  local p = DB(); return p and p.cdmBars and p.cdmBars.hideRotationHelper == true
+                  local p = DB()
+                  return p and p.cdmBars and not p.cdmBars.hideRotationHelper and GetCVarBool("assistedCombatHighlight")
               end,
               setValue=function(v)
                   local p = DB()
                   if p and p.cdmBars then
-                      p.cdmBars.hideRotationHelper = v
+                      p.cdmBars.hideRotationHelper = not v
                       if ns.UpdateRotationHighlights then ns.UpdateRotationHighlights() end
                   end
               end });  y = y - h
@@ -19383,6 +19411,78 @@ initFrame:SetScript("OnEvent", function(self)
 
 
     ---------------------------------------------------------------------------
+    --  Standalone Rotation Assist Icon (independent of the selected CDM bar)
+    ---------------------------------------------------------------------------
+    local function BuildRotationAssistIconPage(pageName, parent, yOffset)
+        local W = EllesmereUI.Widgets
+        local y = yOffset
+        local _, h
+        local function Settings() return DB().rotationAssistIcon end
+        local function Apply()
+            ns.RefreshRotationAssistIcon()
+            EllesmereUI:RefreshPage()
+        end
+        local function Position()
+            local pos = Settings().position
+            if pos then return pos end
+            return { point = "CENTER", relPoint = "CENTER", x = 0, y = -140 }
+        end
+        local function SetOffset(axis, value)
+            local pos = Position()
+            pos[axis] = EllesmereUI.PP.FromPixels(value)
+            Settings().position = pos
+            ns.RefreshRotationAssistIcon()
+        end
+
+        _, h = W:SectionHeader(parent, "ROTATION ASSIST ICON", y);  y = y - h
+        _, h = W:DualRow(parent, y,
+            { type="toggle", text="Show Rotation Assist Icon",
+              tooltip="Show Blizzard's current recommendation in a separate icon. Requires Assisted Highlight to be enabled in Blizzard's options. Press the spell's normal keybind; this display never casts spells. Blizzard supplies one recommendation, not a queue of future casts.",
+              disabled=function() return not GetCVarBool("assistedCombatHighlight") end,
+              disabledTooltip="This option requires Blizzard's Assisted Highlight to be enabled",
+              rawTooltip=true,
+              getValue=function() return Settings().enabled == true end,
+              setValue=function(v)
+                  Settings().enabled = v
+                  Apply()
+              end },
+            { type="slider", text="Icon Size", min=16, max=128, step=1,
+              getValue=function() return Settings().iconSize or 48 end,
+              setValue=function(v) Settings().iconSize = v; ns.RefreshRotationAssistIcon() end }
+        );  y = y - h
+        local kbRow
+        kbRow, h = W:DualRow(parent, y,
+            { type="toggle", text="Only in Combat",
+              tooltip="Hide outside combat. Unlock Mode shows a placeholder when no recommendation is available.",
+              getValue=function() return Settings().onlyInCombat == true end,
+              setValue=function(v) Settings().onlyInCombat = v; Apply() end },
+            { type="toggle", text="Show Keybind",
+              tooltip="Use the CDM keybind mapping. Configure the font, outline, position, background and border with the cog.",
+              getValue=function() return Settings().showKeybind == true end,
+              setValue=function(v) Settings().showKeybind = v; Apply() end }
+        );  y = y - h
+        BuildKeybindStyleControls(kbRow, Settings, Apply)
+        _, h = W:DualRow(parent, y,
+            { type="slider", text="X Offset", min=-2000, max=2000, step=1,
+              tooltip="Horizontal screen offset. You can also drag the Rotation Assist Icon in Unlock Mode.",
+              getValue=function() return EllesmereUI.PP.ToPixels(Position().x or 0) end,
+              setValue=function(v) SetOffset("x", v) end },
+            { type="slider", text="Y Offset", min=-1200, max=1200, step=1,
+              tooltip="Vertical screen offset. You can also drag the Rotation Assist Icon in Unlock Mode.",
+              getValue=function() return EllesmereUI.PP.ToPixels(Position().y or 0) end,
+              setValue=function(v) SetOffset("y", v) end }
+        );  y = y - h
+        _, h = W:DualRow(parent, y,
+            { type="toggle", text="Show GCD",
+              tooltip="Show the global cooldown as a swipe over the recommended ability. The swipe shows when the GCD ends; casting, channeling and ability requirements can still delay your next action.",
+              getValue=function() return Settings().showGCD == true end,
+              setValue=function(v) Settings().showGCD = v; Apply() end },
+            { type = "label", text = "" }
+        );  y = y - h
+        return math.abs(y)
+    end
+
+    ---------------------------------------------------------------------------
     --  Unlock Mode page  (opens EllesmereUI Unlock Mode overlay)
     ---------------------------------------------------------------------------
     local function BuildUnlockPage(pageName, parent, yOffset)
@@ -19527,7 +19627,7 @@ initFrame:SetScript("OnEvent", function(self)
     EllesmereUI:RegisterModule("EllesmereUICooldownManager", {
         title       = "Cooldown Manager",
         description = "CDM bar customization, action bar glows, and buff bars.",
-        pages       = { PAGE_CDM_BARS, PAGE_BAR_GLOWS, PAGE_BUFF_BARS },
+        pages       = { PAGE_CDM_BARS, PAGE_ROTATION_ICON, PAGE_BAR_GLOWS, PAGE_BUFF_BARS },
         disabledPages = {},
         disabledPageTooltips = {},
         buildPage   = function(pageName, parent, yOffset)
@@ -19545,6 +19645,8 @@ initFrame:SetScript("OnEvent", function(self)
             if EllesmereUI._prebuilding then
                 if pageName == PAGE_CDM_BARS then
                     return BuildCDMBarsPage(pageName, parent, yOffset)
+                elseif pageName == PAGE_ROTATION_ICON then
+                    return BuildRotationAssistIconPage(pageName, parent, yOffset)
                 elseif pageName == PAGE_BAR_GLOWS then
                     return BuildBarGlowsPage(pageName, parent, yOffset)
                 end
@@ -19573,6 +19675,8 @@ initFrame:SetScript("OnEvent", function(self)
                 -- Show one-time button settings tip after preview renders
                 QueueCDMButtonTip()
                 return h2
+            elseif pageName == PAGE_ROTATION_ICON then
+                return BuildRotationAssistIconPage(pageName, parent, yOffset)
             elseif pageName == PAGE_BAR_GLOWS then
                 return BuildBarGlowsPage(pageName, parent, yOffset)
             elseif pageName == PAGE_BUFF_BARS then
