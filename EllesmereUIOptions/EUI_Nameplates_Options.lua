@@ -2644,11 +2644,17 @@ initFrame:SetScript("OnEvent", function(self)
                         DB().friendlyHideHealthText = not v
                         if ns.RefreshFriendlyHealthText then ns.RefreshFriendlyHealthText() end
                       end },
-                    { type = "toggle", label = "Class Colored",
+                    { type = "toggle", label = "Class Colored Health Bar",
                       get = function() return DBVal("classColorFriendly") ~= false end,
                       set = function(v)
                         DB().classColorFriendly = v and true or false
                         ns.RefreshAllSettings()
+                        if ns.RefreshFriendlyColors then ns.RefreshFriendlyColors() end
+                      end },
+                    { type = "toggle", label = "Class Colored Name",
+                      get = function() return DBVal("friendlyNameClassColor") == true end,
+                      set = function(v)
+                        DB().friendlyNameClassColor = v and true or false
                         if ns.RefreshFriendlyColors then ns.RefreshFriendlyColors() end
                       end },
                 },

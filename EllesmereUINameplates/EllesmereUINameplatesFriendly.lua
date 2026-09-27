@@ -601,6 +601,21 @@ local function GetSubTextColor(unit)
     return SUB_TEXT_R, SUB_TEXT_G, SUB_TEXT_B
 end
 
+-- Full-plate player name color: class color when Class Colored Name is on
+-- (a secret class token falls back to white), else white.
+local function GetPlayerNameColor(unit)
+    local fp = FP()
+    if fp and fp.friendlyNameClassColor then
+        local _, classToken = UnitClass(unit)
+        if classToken and not (issecretvalue and issecretvalue(classToken))
+            and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken] then
+            local cc = RAID_CLASS_COLORS[classToken]
+            return cc.r, cc.g, cc.b
+        end
+    end
+    return 1, 1, 1
+end
+
 local function ModeHasTitle(mode) return mode == "title" or mode == "both" end
 local function ModeHasGuild(mode) return mode == "guild" or mode == "both" end
 
@@ -1222,7 +1237,7 @@ function FriendlyFrame:SetUnit(unit, nameplate)
     end
     if classColor then
         self.health:SetStatusBarColor(classColor.r, classColor.g, classColor.b)
-        self.name:SetTextColor(1, 1, 1)
+        self.name:SetTextColor(GetPlayerNameColor(unit))
     else
         local nr, ng, nb = GetFriendlyNPCColor()
         self.health:SetStatusBarColor(nr, ng, nb)
@@ -1583,6 +1598,7 @@ function ns.RefreshFriendlyColors()
             else
                 plate.health:SetStatusBarColor(bc.r, bc.g, bc.b)
             end
+            plate.name:SetTextColor(GetPlayerNameColor(unit))
         else
             plate.health:SetStatusBarColor(nr, ng, nb)
             plate.name:SetTextColor(nr, ng, nb)
