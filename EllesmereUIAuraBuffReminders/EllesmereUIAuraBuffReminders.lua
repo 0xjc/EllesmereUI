@@ -731,8 +731,14 @@ SnapshotOwnOnRaidBuffs = function()
     for _, id in ipairs(_ownOnRaidIDs) do
         local found = false
         _snapScratch[1] = id
-        if _unitHasBuffFromPlayer("player", _snapScratch) then found = true end
-        if not found then
+        -- Source of Magic is a targeted buff: only our strict-source cache on
+        -- another group member may satisfy it. Never count an aura on self.
+        if id == 369459 then
+            found = EABR._ownOtherAuraCache and EABR._ownOtherAuraCache[369459] == true
+        elseif _unitHasBuffFromPlayer("player", _snapScratch) then
+            found = true
+        end
+        if not found and id ~= 369459 then
             if IsInRaid() then
                 for i = 1, GetNumGroupMembers() do
                     if _unitHasBuffFromPlayer("raid"..i, _snapScratch) then found = true; break end
@@ -839,6 +845,103 @@ local function BuffExistsOnAnyGroupMember(spellIDs)
         end
     end
     return false
+end
+
+-- Event-driven cache for player-owned targeted auras on OTHER group members.
+-- Refresh() only reads these booleans; group scans are limited to sync/recovery.
+-- strictSource=true is intentional so another player's identical aura never counts.
+EABR._ownOtherAuraCache = {}
+EABR._ownOtherAuraTargetGUID = {}
+EABR._ownOtherAuraIDs = {
+    [974] = true,     -- Earth Shield (Elemental Orbit second target)
+    [369459] = true,  -- Source of Magic
+}
+EABR._singleOwnOtherAuraID = {}
+
+EABR._ownOtherAuraScanGeneration = 0
+
+-- Incremental full-group recovery scan. One unit is checked per frame so a
+-- GROUP_ROSTER_UPDATE in a large raid cannot stall the UI with 20-40 strict
+-- aura-source lookups in the same frame. A newer scan invalidates older work.
+function EABR.RescanOwnOtherAura(spellID)
+    if InCombat() then return end
+    if spellID == 974 and not Known(383010) then
+        EABR._ownOtherAuraCache[spellID] = false
+        EABR._ownOtherAuraTargetGUID[spellID] = nil
+        return
+    end
+
+    EABR._ownOtherAuraScanGeneration = EABR._ownOtherAuraScanGeneration + 1
+    local generation = EABR._ownOtherAuraScanGeneration
+    local isRaid = IsInRaid()
+    local count = isRaid and GetNumGroupMembers() or (IsInGroup() and GetNumSubgroupMembers() or 0)
+    local index = 1
+    local found = false
+
+    -- Do not clear the live cache up front: keeping the previous known state
+    -- avoids reminder flicker while a 30/40-player roster is being traversed.
+    local function scanNext()
+        if generation ~= EABR._ownOtherAuraScanGeneration then return end
+        if InCombat() then return end
+
+        while index <= count do
+            local u = (isRaid and "raid" or "party") .. index
+            index = index + 1
+            if _unitOk(u) and not UnitIsUnit(u, "player") then
+                local ids = EABR._singleOwnOtherAuraID
+                ids[1] = spellID
+                if _unitHasBuffFromPlayer(u, ids, true) == true then
+                    EABR._ownOtherAuraCache[spellID] = true
+                    EABR._ownOtherAuraTargetGUID[spellID] = UnitGUID(u)
+                    found = true
+                    if _G._EABR_RequestRefresh then _G._EABR_RequestRefresh() end
+                    return
+                end
+                -- Yield after every actual unit lookup. This is the expensive
+                -- operation; spreading it across frames prevents roster-join hitching.
+                C_Timer.After(0, scanNext)
+                return
+            end
+        end
+
+        if not found then
+            EABR._ownOtherAuraCache[spellID] = false
+            EABR._ownOtherAuraTargetGUID[spellID] = nil
+            if _G._EABR_RequestRefresh then _G._EABR_RequestRefresh() end
+        end
+    end
+
+    scanNext()
+end
+function EABR.UpdateOwnOtherAurasForUnit(unit)
+    if InCombat() or not unit or UnitIsUnit(unit, "player") then return end
+    local c = unit:byte(1)
+    if c ~= 112 and c ~= 114 then return end -- party/raid only
+
+    local playerClass = _cachedPlayerClass or GetPlayerClass()
+    local spellID = playerClass == "SHAMAN" and 974
+                 or playerClass == "EVOKER" and 369459
+    if not spellID or (spellID == 974 and not Known(383010)) then return end
+
+    local guid = UnitGUID(unit)
+    local ids = EABR._singleOwnOtherAuraID
+    ids[1] = spellID
+    if _unitHasBuffFromPlayer(unit, ids, true) == true then
+        EABR._ownOtherAuraCache[spellID] = true
+        EABR._ownOtherAuraTargetGUID[spellID] = guid
+    elseif guid and EABR._ownOtherAuraTargetGUID[spellID] == guid then
+        -- Cached target lost the aura; recover once in case it moved directly.
+        EABR.RescanOwnOtherAura(spellID)
+    end
+end
+
+function EABR.RescanOwnOtherAuras()
+    local playerClass = _cachedPlayerClass or GetPlayerClass()
+    if playerClass == "EVOKER" then
+        EABR.RescanOwnOtherAura(369459)
+    elseif playerClass == "SHAMAN" then
+        EABR.RescanOwnOtherAura(974)
+    end
 end
 
 -- True if the player's own cast exists on any group member, OR no in-range member is a valid target (suppress either way). Used for Source of Magic, Blistering Scales.
@@ -3450,7 +3553,11 @@ do
                             local cached = _preCombatOwnOnRaidCache[aura.buffIDs[1]]
                             isMissing = (cached == false)
                         else
-                            isMissing = not PlayerOwnBuffOnAnyGroupMember(aura.buffIDs)
+                            if aura.key == "som" then
+                                isMissing = not EABR._ownOtherAuraCache[369459]
+                            else
+                                isMissing = not PlayerOwnBuffOnAnyGroupMember(aura.buffIDs)
+                            end
                         end
                         if not (IsInGroup() or IsInRaid()) then isMissing = false end
                     elseif aura.check == "ownGroupOrSelf" then
@@ -3837,7 +3944,11 @@ local specialsActive = EABR.SectionShows(co.specialsWhereToShow, inInstance)
         local esOrbit = SHAMAN_SHIELDS[1]  -- es_orbit entry
         if co.enabled[esOrbit.key] ~= false and Known(esOrbit.castSpell)
            and esOrbit.requireTalent and Known(esOrbit.requireTalent) then
-            if not PlayerHasAuraByID(esOrbit.buffIDs) then
+            -- Elemental Orbit requires both the self aura (383648) and our
+            -- normal Earth Shield (974) on another group member.
+            local hasSelfEarthShield = PlayerHasAuraByID(esOrbit.buffIDs)
+            local hasSecondEarthShield = EABR._ownOtherAuraCache[974] == true
+            if not hasSelfEarthShield or not hasSecondEarthShield then
                 local e = AcquireEntry()
                 e.mode = "spell"; e.spellID = esOrbit.castSpell
                 e.label = ShortLabel(esOrbit.name, "SHAMAN_SHIELD")
@@ -5137,6 +5248,11 @@ function EABR:OnEnable()
         -- Only the own-cast group checks re-evaluate on roster changes: a
         -- provider's coverage already follows the joiner's UNIT_AURA.
         EABR._rosterRefresh = false
+        -- Elemental Orbit tracks our second Earth Shield on another unit.
+        if playerClass == "SHAMAN" and Known(383010) then
+            _needGroupAura = true
+            EABR._rosterRefresh = true
+        end
         for _, buff in ipairs(RAID_BUFFS) do
             if buff.class == playerClass then
                 _needGroupAura = true
@@ -5172,7 +5288,11 @@ function EABR:OnEnable()
         end
     end
     _G._EABR_UpdateGroupAuraRegistration = UpdateGroupAuraRegistration
-    if not EABR.FOREVER then UpdateGroupAuraRegistration() end  -- Forever keeps the player-only UNIT_AURA from file scope
+    if not EABR.FOREVER then
+        UpdateGroupAuraRegistration()
+        -- Seed the targeted-aura cache once; normal Refresh() stays O(1).
+        EABR.RescanOwnOtherAuras()
+    end  -- Forever keeps the player-only UNIT_AURA from file scope
 
     -- Register spellcast tracking for Hunters (combat reminder for Hunter's Mark)
     if not EABR.FOREVER and GetPlayerClass() == "HUNTER" then
@@ -5356,6 +5476,11 @@ mainFrame:SetScript("OnEvent", function(_, e, arg1, arg2, arg3)
 
     if e == "PLAYER_ENTERING_WORLD" then
         wipe(_dismissedUntilLoad)
+        wipe(EABR._ownOtherAuraCache)
+        wipe(EABR._ownOtherAuraTargetGUID)
+        if _cachedPlayerClass == "SHAMAN" or _cachedPlayerClass == "EVOKER" then
+            C_Timer.After(0.5, EABR.RescanOwnOtherAuras)
+        end
         EABR.ScanEatingState()
         if not InCombatLockdown() then EABR.SyncProviderCastSpell() end
         -- GetInstanceInfo() can return stale data on the first frame after a loading screen (e.g. still
@@ -5372,9 +5497,11 @@ mainFrame:SetScript("OnEvent", function(_, e, arg1, arg2, arg3)
             local isEvoker = _cachedPlayerClass == "EVOKER"
             if isEvoker and InCombat() and IsInGroup() then
                 for _, id in ipairs(_ownOnRaidIDs) do
+                    if id ~= 369459 then
                     local ok, result = pcall(C_UnitAuras.GetPlayerAuraBySpellID, id)
                     if ok and result ~= nil and not isSecret(result) then
                         _preCombatOwnOnRaidCache[id] = true
+                    end
                     end
                 end
             end
@@ -5383,9 +5510,12 @@ mainFrame:SetScript("OnEvent", function(_, e, arg1, arg2, arg3)
             -- Group member aura change (fast unit-type check via first byte). Broad UNIT_AURA stays registered in combat for Evoker ownOnRaid / provider-view coverage tracking; coalesces group events into one deferred refresh.
             local c = arg1 and arg1:byte(1)
             if c == 112 or c == 114 then  -- 'p' or 'r'
+                if _cachedPlayerClass == "SHAMAN" or _cachedPlayerClass == "EVOKER" then
+                    EABR.UpdateOwnOtherAurasForUnit(arg1)
+                end
                 if _isEvokerOwnOnRaid and InCombat() and IsInGroup() then
                     for _, id in ipairs(_ownOnRaidIDs) do
-                        if not _preCombatOwnOnRaidCache[id] then
+                        if id ~= 369459 and not _preCombatOwnOnRaidCache[id] then
                             local ok, result = pcall(C_UnitAuras.GetUnitAuraBySpellID, arg1, id)
                             if ok and result ~= nil and not isSecret(result) then
                                 _preCombatOwnOnRaidCache[id] = true
@@ -5413,6 +5543,9 @@ mainFrame:SetScript("OnEvent", function(_, e, arg1, arg2, arg3)
     -- Roster changes do not touch player buffs/consumables; only the receiver
     -- view (class presence) and the own-cast group checks re-evaluate here.
     if e == "GROUP_ROSTER_UPDATE" then
+        if _cachedPlayerClass == "SHAMAN" or _cachedPlayerClass == "EVOKER" then
+            EABR.RescanOwnOtherAuras()
+        end
         local rbSW = db and db.profile.raidBuffs and db.profile.raidBuffs.showWhen
         if EABR._rosterRefresh or (rbSW and rbSW.iAmMissing == true) then RequestRefresh() end
         return
@@ -5437,6 +5570,17 @@ mainFrame:SetScript("OnEvent", function(_, e, arg1, arg2, arg3)
     if e == "PLAYER_MOUNT_DISPLAY_CHANGED" and not IsMounted() then
         EABR._petRemountGrace = GetTime() + 2
         C_Timer.After(2.1, RequestRefresh)
+    end
+
+    -- Talent/spec changes can enable/disable Elemental Orbit and therefore
+    -- change whether broad group UNIT_AURA tracking is required.
+    if e == "PLAYER_TALENT_UPDATE" or e == "TRAIT_CONFIG_UPDATED"
+       or e == "PLAYER_SPECIALIZATION_CHANGED" then
+        -- UpdateGroupAuraRegistration is local to OnEnable; use its exported hook here.
+        if _G._EABR_UpdateGroupAuraRegistration then
+            _G._EABR_UpdateGroupAuraRegistration()
+        end
+        EABR.RescanOwnOtherAuras()
     end
 
     -- All other events: just refresh
