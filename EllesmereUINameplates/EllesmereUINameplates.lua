@@ -3185,7 +3185,14 @@ function ns.ApplyFocusLetter(plate, unit, db)
     end
 end
 
+function ns.EnsureThreatPctText(plate)
+    if plate.threatPctText then return end
+    plate.threatPctText = plate.healthTextFrame:CreateFontString(nil, "OVERLAY")
+    plate.threatPctText:Hide()
+end
+
 function ns.ApplyThreatPctPos(plate)
+    ns.EnsureThreatPctText(plate)
     local db = p or defaults
     local posKey = db.threatPctPosition or defaults.threatPctPosition
     local slot = THREAT_PCT_POS[posKey] or THREAT_PCT_POS.RIGHT
@@ -3432,11 +3439,6 @@ local frameCache = CreateFramePool("Frame", UIParent, nil, nil, false, function(
     SetFSFont(plate.levelText, 10, GetNPOutline())
     plate.levelText:SetPoint("CENTER", plate.health, "CENTER", 0, 0)
     plate.levelText:Hide()
-    plate.threatPctText = plate.healthTextFrame:CreateFontString(nil, "OVERLAY")
-    SetFSFont(plate.threatPctText, 10, GetNPOutline())
-    plate.threatPctText:SetPoint("RIGHT", plate.health, "RIGHT", -2, 0)
-    plate.threatPctText:SetJustifyH("RIGHT")
-    plate.threatPctText:Hide()
     -- Mouseover highlight: parented to the health bar (not the higher-level text
     -- frame) so it renders BEHIND the border (a child at health level + 1).
     -- Blizzard Style: under the stock ring / deselected overlay (OVERLAY 4/5),
@@ -7131,8 +7133,8 @@ function NameplateFrame:ClearUnit()
     self._hpTxtPct, self._hpTxtCur = nil, nil
     self._ovFocShown, self._ovTgtShown = nil, nil
     self._focusLetterShown = nil
+    if self._tptShown then self.threatPctText:Hide() end
     self._tptShown = nil
-    self.threatPctText:Hide()
     self._kickIsChannel = nil
     self._castIsChannel = nil
     self._kickIsEmpowered = nil

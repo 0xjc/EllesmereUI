@@ -16819,7 +16819,7 @@ local function EnableBody()
         if db and db.profile and db.profile.playerThreatBorderEnabled and ns.SetPlayerThreatEnabled then
             ns.SetPlayerThreatEnabled(true)
         end
-        if db and db.profile and db.profile.threatPctEnabled then
+        if EllesmereUI.IS_FOREVER and db and db.profile and db.profile.threatPctEnabled then
             ns.SetThreatPctEnabled(true)
         end
     end)
