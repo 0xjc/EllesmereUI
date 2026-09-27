@@ -565,6 +565,7 @@ OK
 Offset X
 Offset Y
 Okay
+Omnium Folio
 One-time copy of your Player Aura Bars filter setups into these filters. Same-named filters are OVERWRITTEN; the two lists stay separate afterwards.
 OneBag
 OneBank
@@ -857,6 +858,7 @@ Unknown error
 Unknown talent
 Unlock Mode
 Unlock Mode is where you can adjust\npositioning for all the elements of EllesmereUI
+Unlock the Omnium Folio to use this shortcut.
 Unlocked
 Unpin Item
 Up to
