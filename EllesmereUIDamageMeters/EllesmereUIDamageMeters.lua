@@ -2724,15 +2724,15 @@ local function CreateDMWindow(winIdx)
                 bar._iconBorderFrame:SetFrameLevel(bar.row:GetFrameLevel() + 6)
                 bar._iconBorderFrame:SetAllPoints(bar.classIcon) -- tracks icon size/position
             end
-            -- Follow the icon's shown state: ResolveIcon hides it for sources without a usable
-            -- class (secret/NPC rows), and a frame anchored to a hidden texture would still render a floating border
-            bar._iconBorderFrame:SetShown(bar.classIcon:IsShown())
             local tex = c.iconBorderTexture or "solid"
             local px = EllesmereUI.BorderPx(c.iconBorderSizePx, sz, tex)
             EllesmereUI.ApplyBorderStyle(bar._iconBorderFrame, sz,
                 c.iconBorderR or 0, c.iconBorderG or 0, c.iconBorderB or 0, c.iconBorderA or 1,
                 tex, c.iconBorderTextureOffset, c.iconBorderTextureOffsetY,
                 c.iconBorderTextureShiftX, c.iconBorderTextureShiftY, "damagemeters_icon", sz, nil, px)
+            -- ApplyBorderStyle shows its target, so restore icon visibility AFTER styling.
+            -- Anchoring a border to a hidden texture does not hide the border itself.
+            bar._iconBorderFrame:SetShown(bar.classIcon:IsShown())
         end
         bar.ApplyIconBorder()
         -- Per-bar track background (behind the fill). Default alpha 0 = invisible.
@@ -3882,7 +3882,7 @@ local function CreateDMWindow(winIdx)
             bar.fill:SetAlpha(c.barFillAlpha or 1)
             SetDMFont(bar.pos, leftFS); SetDMFont(bar.label, leftFS); SetDMFont(bar.amount, rightFS)
             bar.label:SetWidth(math.max(20, (frame:GetWidth() or 200) * 0.60))
-            W._stickyClassCache = nil; W._stickySpecCache = nil  -- force icon/color rebuild
+            W._stickyClassCache = false; W._stickySpecCache = nil  -- false forces initialization even when the source class is nil
         end
         bar.row:Show()
         -- Icon + color: only when class changes
@@ -3895,7 +3895,7 @@ local function CreateDMWindow(winIdx)
             W._stickySpecCache = specIcon
             local iconOffset = showIcon and ResolveIcon(src, bar.classIcon, barH) or 0
             if not showIcon then bar.classIcon:Hide() end
-            if bar._iconBorderFrame then bar._iconBorderFrame:SetShown(bar.classIcon:IsShown()) end
+            if bar._iconBorderFrame then bar._iconBorderFrame:SetShown(c.customIconBorder and (c.iconBorderSize or 0) > 0 and bar.classIcon:IsShown()) end
             bar.fill:SetPoint("TOPLEFT", bar.row, "TOPLEFT", iconOffset, 0)
             bar.fill:SetPoint("TOPRIGHT", bar.row, "TOPRIGHT", 0, 0)
             if showClassColor then
@@ -3989,6 +3989,11 @@ local function CreateDMWindow(winIdx)
             W._barSources = sources  -- share with sticky (may be reversed for Deaths)
             local maxAmt = isDeaths and 1 or (sources[1] and sources[1].totalAmount or 1)
             count = math.min(#sources, BAR_POOL_SIZE)
+            -- Clamp the old segment's scroll offset and settle the pinned row BEFORE
+            -- deciding which rows to populate. Otherwise a shorter segment can reveal
+            -- rows whose contents were skipped, leaving just their empty borders.
+            RecalcViewport(count)
+            W.UpdateSticky(sources, count)
             -- Cache key: detects settings changes that require full bar rebuild
             local iconStyle = c.iconStyle or "spec"
             local cacheKey = leftFS .. "|" .. rightFS .. "|" .. texPath .. "|" .. iconStyle .. "|" .. tostring(showClassColor) .. "|" .. tostring(c.barColorUseAccent) .. "|" .. barH .. "|" .. barSp .. "|" .. tostring(c.hideNumbers) .. "|" .. tostring(c.leftTextUseClassColor) .. "|" .. tostring(c.rightTextUseClassColor) .. "|" .. tostring(c.barFillAlpha) .. "|" .. tostring(c.classIconZoom)
@@ -4001,6 +4006,9 @@ local function CreateDMWindow(winIdx)
             -- Visible range calculation
             local scrollOff = viewport:GetVerticalScroll() or 0
             local viewH = viewport:GetHeight() or 200
+            -- Initial frame layout may not have resolved yet. Populate the small pool
+            -- once in that case so the first visible frame has complete rows.
+            if viewH <= 0 then viewH = count * stride end
             local visFirst = math.floor(scrollOff / stride) + 1
             local visLast = math.min(count, math.ceil((scrollOff + viewH) / stride))
 
@@ -4028,8 +4036,8 @@ local function CreateDMWindow(winIdx)
                         else
                             bar.pos:SetText(RANK_STRINGS[i] or (i .. "."))
                         end
-                        -- Invalidate icon + color caches so they rebuild
-                        bar._cachedClass = nil; bar._cachedSpecIcon = nil; bar._cachedColorClass = nil
+                        -- nil is a valid source class; false forces the initial layout/color pass.
+                        bar._cachedClass = false; bar._cachedSpecIcon = nil; bar._cachedColorClass = false
                     end
 
                     -- Per-tick content: only for visible bars
@@ -4047,10 +4055,10 @@ local function CreateDMWindow(winIdx)
                             bar._cachedSpecIcon = specIcon
                             local iconOffset = showIcon and ResolveIcon(src, bar.classIcon, barH) or 0
                             if not showIcon then bar.classIcon:Hide() end
-                            if bar._iconBorderFrame then bar._iconBorderFrame:SetShown(bar.classIcon:IsShown()) end
+                            if bar._iconBorderFrame then bar._iconBorderFrame:SetShown(c.customIconBorder and (c.iconBorderSize or 0) > 0 and bar.classIcon:IsShown()) end
                             bar.fill:SetPoint("TOPLEFT", bar.row, "TOPLEFT", iconOffset, 0)
                             bar.fill:SetPoint("TOPRIGHT", bar.row, "TOPRIGHT", 0, 0)
-                            bar._cachedColorClass = nil
+                            bar._cachedColorClass = false
                             -- Repaint class-colored background for the new class (no-op when off); bar._class set here so ApplyBg reads the current class
                             bar._class = classFile
                             if c.barBgUseClassColor then bar.ApplyBg() end
@@ -4144,14 +4152,11 @@ local function CreateDMWindow(winIdx)
 
         else
             for i = 1, BAR_POOL_SIZE do W.rowPool[i].row:Hide() end
+            W._barSources = nil; W.cachedSources = nil
+            RecalcViewport(0)
+            W.UpdateSticky(nil, 0)
         end
         W.visibleCount = count
-
-        W.UpdateSticky(W._barSources, count)
-
-
-
-        RecalcViewport(count)
 
         W.UpdateTimerText()
         local isOverall = (not W.curSessionID and W.curSession == Enum.DamageMeterSessionType.Overall)
@@ -4950,7 +4955,7 @@ _G._EDM_Rescale = ns.Rescale
 -- recolor live without a /reload (color is cached keyed only on classFile, which the palette edit doesn't change).
 ns.RefreshColors = function()
     for _, w in ipairs(_windows) do
-        w._stickyClassCache = nil; w._stickySpecCache = nil
+        w._stickyClassCache = false; w._stickySpecCache = nil
         w._barCacheKey = nil
         if w.rowPool then
             for _, bar in ipairs(w.rowPool) do bar._cachedColorClass = nil end
