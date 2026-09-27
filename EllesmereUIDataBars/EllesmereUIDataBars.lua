@@ -13,7 +13,8 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --
 -- Block factories (clock, fps, ms, location, coords, gold, xprep, spec,
 -- profession, travel, micromenu, currency, spacer) live in
--- EllesmereUIDataBars_Blocks.lua and attach themselves to ns.BlockFactories.
+-- Blocks\*.lua (one file per block, shared helpers in Blocks\Shared.lua) and
+-- attach themselves to ns.BlockFactories.
 --
 -- API HANDOFF (everything the options file may call; nothing else):
 --   ns.GetProfile() -> profile
@@ -255,7 +256,7 @@ ns.BLOCK_DEFAULTS = {
     spacer     = {},
 }
 
--- Factories are registered by EllesmereUIDataBars_Blocks.lua.
+-- Factories are registered by Blocks\*.lua.
 ns.BlockFactories = {}
 
 -- WoW Forever has no Great Vault: the block leaves the picker (BLOCK_TYPES),
