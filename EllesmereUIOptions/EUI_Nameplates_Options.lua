@@ -1198,7 +1198,7 @@ initFrame:SetScript("OnEvent", function(self)
                     -- Front of Nameplates: both draw the same single outline).
                     ns.NP_SetWrapSeam(pcb, cast, DBVal("wrapBorderCastbar") == true
                         and DBVal("wrapBorderSeam") == true,
-                        ctex, csz, cpx, ccol.r, ccol.g, ccol.b, ca)
+                        ctex, csz, cpx, ccol.r, ccol.g, ccol.b, ca, health)
                     -- The mock cast bar sits above this border's frame: lift the seam over its
                     -- fill, under its text (cast + 5), as it draws on a live plate.
                     if pcb._cbSeamHost then pcb._cbSeamHost:SetFrameLevel(cast:GetFrameLevel() + 3) end
@@ -4801,9 +4801,12 @@ initFrame:SetScript("OnEvent", function(self)
             -- Border = Custom (the Border setter rebuilds the page).
             if DBVal("customBorderEnabled") then
                 wrapRows[#wrapRows + 1] = { type="toggle", label="Show Seam Line",
-                  tooltip="Draws the border style's seam line between the health and cast bars.",
-                  disabled=function() return DBVal("wrapBorderCastbar") ~= true end,
-                  disabledTooltip="Wrap Around Castbar",
+                  tooltip="Draws the Pixels or Pixels Textured separator across the full health bar width, using the custom border's color and opacity.",
+                  disabled=function()
+                    return DBVal("wrapBorderCastbar") ~= true
+                        or not ns.NP_CanShowWrapSeam(DBVal("customBorderTexture") or defaults.customBorderTexture)
+                  end,
+                  disabledTooltip="Requires Wrap Around Castbar and the Pixels or Pixels Textured border style",
                   get=function() return DBVal("wrapBorderSeam") == true end,
                   set=function(v)
                     DB().wrapBorderSeam = v
