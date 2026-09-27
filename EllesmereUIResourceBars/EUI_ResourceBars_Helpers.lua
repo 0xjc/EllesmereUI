@@ -100,7 +100,7 @@ ns.ERB_SimpleOverrideOverlay = function(parent, topY, botY, sectionKey)
 		p.barDisplayMode = "advanced"
 		EllesmereUI:RefreshPage(true)
 		-- Clicking to edit navigates to the top of the Advanced page
-		if EllesmereUI.ScrollToTop then EllesmereUI:ScrollToTop() end
+		EllesmereUI:ScrollToTop()
 	end)
 end
 
@@ -116,7 +116,11 @@ ns.IsEntryBarType = function(entry)
 end
 local SpecName = function(specID)
 	if specID == 0 then return "All Specs" end
-	local _, name, _, _, _, _, className = GetSpecializationInfoByID(specID)
+	-- The by-id lookup has no namespaced form and is absent on WoW Forever.
+	local _, name, className
+	if GetSpecializationInfoByID then
+		_, name, _, _, _, _, className = GetSpecializationInfoByID(specID)
+	end
 	if name and className then return name .. " " .. className end
 	return name or ("Spec " .. specID)
 end
@@ -131,11 +135,14 @@ end
 -- Helper: returns true if the current class/spec uses a bar-type secondary (no pips)
 ns.IsBarTypeSecondary = function()
 	local _, cf = UnitClass("player")
-	local spec = GetSpecialization()
+	local spec = C_SpecializationInfo.GetSpecialization()
 	local gsr = _G._ERB_GetSecondaryResource
 	local info = gsr and gsr()
 	if info and info.power == "IRONFUR_BAR" then return true end            -- Guardian Ironfur bar
 	if info and info.power == "IGNOREPAIN_BAR" then return true end         -- Prot Warrior Ignore Pain bar
+	-- WoW Forever: no bar-type class resource exists there (the runtime never
+	-- builds one), so the retail spec positions below do not apply.
+	if EllesmereUI.IS_FOREVER then return false end
 	if cf == "DRUID" and spec == 1 then return true end                     -- Balance (Astral Power bar)
 	if cf == "SHAMAN" and spec == 1 then return true end                    -- Elemental
 	if cf == "PRIEST" and spec == 3 then return true end                    -- Shadow
