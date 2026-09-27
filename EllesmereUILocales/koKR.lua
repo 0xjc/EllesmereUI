@@ -4000,6 +4000,7 @@ L["This spec doesn't have this spell."] = "이 전문화에는 이 주문이 없
 L["Per-spell settings are not part of the override system."] = "주문별 설정은 재정의 대상이 아닙니다."
 L["This is the spec you're syncing from -- it's always included."] = "동기화의 기준 전문화입니다 - 항상 포함됩니다."
 L["How extra columns grow when the second column appears or disappears. Grow Right keeps the left column in place, Grow Left keeps the right column in place, Grow Centered keeps the bar centered."] = "두 번째 열이 생기거나 없어질 때 열이 늘어나는 방향입니다. 오른쪽 확장은 왼쪽 열을, 왼쪽 확장은 오른쪽 열을 제자리에 두고, 가운데 확장은 바를 가운데에 둡니다."
+L["Prevents icons from shifting as buffs appear or disappear. Grow Right keeps the left icon in place, Grow Left keeps the right icon in place, Grow Centered keeps the row centered."] = "버프가 생기거나 사라질 때 아이콘 위치가 밀리지 않도록 고정합니다. '오른쪽 확장'은 왼쪽 아이콘을, '왼쪽 확장'은 오른쪽 아이콘을 제자리에 고정하고, '중앙 기준 성장'은 가운데 정렬을 유지합니다."
 L["Not available while a spell on this bar uses a Cooldown State Shift Icons setting"] = "이 바의 주문이 재사용 대기 상태 아이콘 이동 설정을 쓰는 동안에는 쓸 수 없습니다"
 L["When the current spec has no bars in this group, keeps elements anchored to the group in place and shifts them up or down by one bar height (tune with the cog's Extra Y Offset) to cover its empty slot."] = "현재 전문화에 이 그룹의 바가 없으면, 그룹에 고정된 요소를 제자리에 두되 바 하나 높이만큼 위나 아래로 옮겨 빈 자리를 메웁니다 (톱니바퀴의 추가 Y 위치로 조정)."
 L["This replaces %d existing value(s) for this setting across your specs."] = "모든 전문화에서 이 설정의 기존 값 %d개를 바꿉니다."

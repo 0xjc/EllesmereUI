@@ -718,6 +718,12 @@ local function GetBarGrowDirActual(barKey)
         if EllesmereUI.GetTotemGrowDir then return (EllesmereUI.GetTotemGrowDir()) end
         return "RIGHT"
     end
+    if barKey == "EABR_Reminders" then
+        if EllesmereUI.GetAuraBuffGrowDir then
+            return EllesmereUI.GetAuraBuffGrowDir() or "CENTER"
+        end
+        return "CENTER"
+    end
     if barKey:sub(1, 4) == "CDM_" then
         local rawKey = barKey:sub(5)
         local cdm = EllesmereUI.Lite.GetAddon("EllesmereUICooldownManager", true)
@@ -752,6 +758,12 @@ local function GetBarGrowDir(barKey)
         local g = EllesmereUI.GetTotemGrowDir()
         if g == "CENTER" then return nil end   -- centered = no direction indicator
         return g
+    end
+    if barKey == "EABR_Reminders" then
+        if not EllesmereUI.GetAuraBuffGrowDir then return nil end
+        local g = EllesmereUI.GetAuraBuffGrowDir()
+        if g and g ~= "CENTER" then return g end
+        return nil
     end
     if barKey:sub(1, 4) == "CDM_" then
         local rawKey = barKey:sub(5)
@@ -6386,6 +6398,9 @@ EllesmereUI._unlockSetGrowDirection = function(barKey, val)
         if tb then tb.growDirection = val end
         if EllesmereUI.LayoutTotemBar then EllesmereUI.LayoutTotemBar() end
         EllesmereUI.RecenterBarAnchor(barKey)
+    elseif barKey == "EABR_Reminders" then
+        if EllesmereUI.SetAuraBuffGrowDir then EllesmereUI.SetAuraBuffGrowDir(val) end
+        EllesmereUI.RecenterBarAnchor(barKey)
     elseif barKey:sub(1, 4) == "PAB_" then
         local euf = EllesmereUI.Lite.GetAddon("EllesmereUIUnitFrames", true)
         if euf and euf.SetGrowDirectionForBar then
@@ -6994,6 +7009,7 @@ local function CreateMover(barKey)
         Bar5 = true, Bar6 = true, Bar7 = true, Bar8 = true,
         StanceBar = true, PetBar = true,
         ERB_TotemBar = true,   -- totem bar: align active icons left/right/center
+        EABR_Reminders = true, -- aura buff reminders: align icons left/right/center
     }
     local canGrow = _GROW_KEYS[barKey] or barKey:sub(1, 4) == "CDM_" or barKey:sub(1, 4) == "PAB_"
 
@@ -7751,6 +7767,8 @@ local function CreateMover(barKey)
             -- layout does or it would highlight an option that is not offered.
             currentVal = EllesmereUI.GetTotemGrowDir and EllesmereUI.GetTotemGrowDir()
                 or (isVert and "DOWN" or "RIGHT")
+        elseif barKey == "EABR_Reminders" then
+            currentVal = (EllesmereUI.GetAuraBuffGrowDir and EllesmereUI.GetAuraBuffGrowDir()) or "CENTER"
         elseif barKey:sub(1, 4) == "PAB_" then
             local euf4 = EllesmereUI.Lite.GetAddon("EllesmereUIUnitFrames", true)
             currentVal = (euf4 and euf4.GetGrowDirectionForBar and euf4:GetGrowDirectionForBar(barKey)) or "LEFT"
