@@ -336,6 +336,14 @@ local defaults = {
             detachedPortraitUnitColorDark = false,
             detachedPortraitOuterRing = "none",
             detachedPortraitInnerShadow = false,
+            detachedPortraitWinglessDragon = false,
+            detachedPortraitWinglessDragonClassColor = false,
+            detachedPortraitWinglessDragonScale = 100,
+            detachedPortraitWinglessDragonX = 0,
+            detachedPortraitWinglessDragonY = 0,
+            detachedPortraitWinglessDragonFlip = false,
+            detachedPortraitWinglessDragonStrata = "inherit",
+            detachedPortraitWinglessDragonLevel = 1,
             healthBarOpacity = 90,
             powerBarOpacity = 100,
             showPlayerAbsorb = "none",
@@ -669,7 +677,12 @@ local defaults = {
             eliteIndicatorX = 0,
             eliteIndicatorY = 0,
             eliteIndicatorShowInInstances = false,
-            eliteIndicatorStyle = "badge",  -- "badge" | "pixelsDragon"
+            eliteIndicatorStyle = "badge",  -- "badge" | "pixelsDragon" | "wingless"
+            eliteIndicatorWinglessClassColor = false,
+            eliteIndicatorWinglessScale = 100,
+            eliteIndicatorWinglessFlip = false,
+            eliteIndicatorWinglessStrata = "inherit",
+            eliteIndicatorWinglessLevel = 1,
             factionIndicatorMode = "off",
             factionIndicatorStyle = "pvp",
             factionIndicatorPlayersOnly = false,
@@ -4118,7 +4131,40 @@ ns.MASK_INSETS      = MASK_INSETS
 ns.UF_UNMASKED_RING = { pixelsCircle = 4 }
 -- Round shapes: the only ones that take the Outer Ring and the Inner Shadow.
 ns.UF_ROUND_SHAPES = { circle = true, pixelsCircle = true }
+-- Shapes the Wingless Dragon can wrap.
+ns.UF_DRAGON_SHAPES = { circle = true, pixelsCircle = true, square = true, csquare = true }
 ns.UF_PORTRAIT_INNER_SHADOW = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\pixels_inner_shadow.tga"
+
+-- Wingless dragon atlases from the stock target frame. Blizzard draws them at
+-- atlas size with their top-right corner 15px right of and 11px above its
+-- 58px portrait's; this scales that placement to the host's height, then by
+-- scale (percent) around the portrait's centre, then shifts it by x/y. The
+-- player's dragon is mirrored, the target's faces the stock way.
+ns.UF_WINGLESS_GOLD   = "UI-HUD-UnitFrame-Target-PortraitOn-Boss-Gold"
+ns.UF_WINGLESS_SILVER = "ui-hud-unitframe-target-portraiton-boss-rare-silver"
+function ns.UF_PlaceWinglessDragon(tex, host, atlas, mirrored, classColor, scale, x, y)
+    local info = C_Texture.GetAtlasInfo(atlas)
+    if not info then tex:Hide(); return end
+    -- The atlas's file with its coordinates, not SetAtlas: after SetAtlas,
+    -- SetTexCoord crops within the atlas region instead of the file.
+    tex:SetTexture(info.file or info.filename)
+    local l, r = info.leftTexCoord, info.rightTexCoord
+    if mirrored then l, r = r, l end
+    tex:SetTexCoord(l, r, info.topTexCoord, info.bottomTexCoord)
+    local h = host:GetHeight()
+    local k = (h < 1 and 46 or h) / 58
+    local w, th = info.width * k, info.height * k
+    local cx, cy = 44 * k - w / 2, 40 * k - th / 2
+    if mirrored then cx = -cx end
+    local s = (scale or 100) / 100
+    tex:SetSize(w * s, th * s)
+    tex:ClearAllPoints()
+    tex:SetPoint("CENTER", host, "CENTER", cx * s + (x or 0), cy * s + (y or 0))
+    local cc = classColor and RAID_CLASS_COLORS[select(2, UnitClass("player"))]
+    tex:SetDesaturated(cc ~= nil)
+    if cc then tex:SetVertexColor(cc.r, cc.g, cc.b) else tex:SetVertexColor(1, 1, 1) end
+    tex:Show()
+end
 
 -- Outer Ring art for a detachedPortraitOuterRing value, or nil (nothing to
 -- draw). "border" follows the frame's Border Style (frameTex): its ring
@@ -4132,9 +4178,10 @@ function ns.UF_OuterRingPath(ringKey, frameTex)
     return nil
 end
 
--- Outer Ring + Inner Shadow on a round detached portrait. host = the portrait
--- backdrop (or the options preview frame, same field names), s = the unit's
--- settings, shape = its resolved shape; s == nil hides both. Nothing exists
+-- Outer Ring and Inner Shadow on a round detached portrait, and the Wingless
+-- Dragon on a round or square one. host = the portrait backdrop (or the options preview frame, same field
+-- names), s = the unit's settings, shape = its resolved shape; s == nil hides
+-- all three. Nothing exists
 -- until a first non-default value. The ring is laid out from the host size
 -- (Outer Ring Size percent, minus a 4px inset, edges snapped by PP.Point) and
 -- tinted with the frame border colour, which the hover path recolours in
@@ -4206,6 +4253,29 @@ function ns.UF_PortraitExtras(host, s, shape)
         shadow:Show()
     elseif shadow then
         shadow:Hide()
+    end
+
+    -- The dragon sits on its own frame so its strata and level can be raised
+    -- above the portrait's shape border.
+    local holder = host._winglessHolder
+    if s and ns.UF_DRAGON_SHAPES[shape] and s.detachedPortraitWinglessDragon then
+        if not holder then
+            holder = CreateFrame("Frame", nil, host)
+            holder:SetAllPoints(host)
+            host._winglessHolder = holder
+            host._winglessDragon = holder:CreateTexture(nil, "OVERLAY")
+        end
+        -- The options preview sits in a DIALOG window, so a lower strata would hide it.
+        local strata = not host._isPreview and s.detachedPortraitWinglessDragonStrata or "inherit"
+        holder:SetFrameStrata(strata == "inherit" and host:GetFrameStrata() or strata)
+        holder:SetFrameLevel(host:GetFrameLevel() + (s.detachedPortraitWinglessDragonLevel or 1))
+        holder:Show()
+        ns.UF_PlaceWinglessDragon(host._winglessDragon, host, ns.UF_WINGLESS_GOLD,
+            not s.detachedPortraitWinglessDragonFlip,
+            s.detachedPortraitWinglessDragonClassColor, s.detachedPortraitWinglessDragonScale,
+            s.detachedPortraitWinglessDragonX, s.detachedPortraitWinglessDragonY)
+    elseif holder then
+        holder:Hide()
     end
 end
 
@@ -4303,7 +4373,7 @@ local function ApplyDetachedPortraitShape(backdrop, uSettings, unitToken)
             PP.Point(backdrop._3d, "TOPLEFT", backdrop, "TOPLEFT", 0, 0)
             PP.Point(backdrop._3d, "BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", 0, 0)
         end
-        if backdrop._outerRing or backdrop._innerShadow then ns.UF_PortraitExtras(backdrop, nil) end
+        if backdrop._outerRing or backdrop._innerShadow or backdrop._winglessDragon then ns.UF_PortraitExtras(backdrop, nil) end
         return
     end
 
@@ -4341,7 +4411,7 @@ local function ApplyDetachedPortraitShape(backdrop, uSettings, unitToken)
             PP.Point(backdrop._3d, "TOPLEFT", backdrop, "TOPLEFT", 0, 0)
             PP.Point(backdrop._3d, "BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", 0, 0)
         end
-        if backdrop._outerRing or backdrop._innerShadow then ns.UF_PortraitExtras(backdrop, nil) end
+        if backdrop._outerRing or backdrop._innerShadow or backdrop._winglessDragon then ns.UF_PortraitExtras(backdrop, nil) end
         return
     end
     if backdrop._bg then backdrop._bg:Show() end
@@ -15889,6 +15959,11 @@ function InitializeFrames()
             end
         end
 
+        local _winglessAtlas = {
+            elite = ns.UF_WINGLESS_GOLD, worldboss = ns.UF_WINGLESS_GOLD,
+            rare = ns.UF_WINGLESS_SILVER, rareelite = ns.UF_WINGLESS_SILVER,
+        }
+
         local _eliteFrames = {}
         local eliteEvents
 
@@ -15896,15 +15971,31 @@ function InitializeFrames()
             local s = uf and uf._eliteSettings
             if not (uf and uf._eliteIndicator and s) then return end
             local tex = uf._eliteIndicator
-            -- Pixels Dragon texture: exists only once that style was first used.
-            local dragon = uf._eliteDragon
-            if s.eliteIndicatorEnabled ~= true then
-                tex:Hide(); if dragon then dragon:Hide() end; return
-            end
-            if not s.eliteIndicatorShowInInstances and IsInInstance() then
-                tex:Hide(); if dragon then dragon:Hide() end; return
+            -- Dragon textures: each exists only once its style was first used.
+            local dragon, wingless = uf._eliteDragon, uf._eliteWingless
+            if s.eliteIndicatorEnabled ~= true
+                or (not s.eliteIndicatorShowInInstances and IsInInstance()) then
+                tex:Hide()
+                if dragon then dragon:Hide() end
+                if wingless then wingless:Hide() end
+                return
             end
             local c = UnitClassification(uf._euiUnit)
+            if wingless and not uf._eliteWinglessOn then wingless:Hide() end
+            if uf._eliteWinglessOn then
+                tex:Hide()
+                if dragon then dragon:Hide() end
+                local atlas = not issecretvalue(c) and _winglessAtlas[c]
+                if atlas then
+                    ns.UF_PlaceWinglessDragon(wingless, uf.Portrait.backdrop, atlas,
+                        s.eliteIndicatorWinglessFlip == true,
+                        s.eliteIndicatorWinglessClassColor, s.eliteIndicatorWinglessScale,
+                        s.eliteIndicatorX, s.eliteIndicatorY)
+                else
+                    wingless:Hide()
+                end
+                return
+            end
             if uf._eliteDragonOn then
                 -- Classification art, or the Player art on a player target;
                 -- both probes are secrecy-checked before any use.
@@ -15992,26 +16083,43 @@ function InitializeFrames()
                 -- and sized from the portrait. Needs a shown portrait; without
                 -- one, and under a stock style, the badge above stands in.
                 -- Built on first use.
+                -- Style "wingless" shares that holder; its atlas and placement
+                -- follow the classification, so the refresh lays it out.
                 local bd = uf.Portrait and uf.Portrait.backdrop
-                local useDragon = settings.eliteIndicatorStyle == "pixelsDragon"
-                    and settings.eliteIndicatorEnabled == true and not ns.UF_Blizz()
+                local style = settings.eliteIndicatorStyle
+                local onPortrait = settings.eliteIndicatorEnabled == true and not ns.UF_Blizz()
                     and bd and bd:IsShown()
+                local useDragon = onPortrait and style == "pixelsDragon"
+                local useWingless = onPortrait and style == "wingless"
+                if useDragon or useWingless then
+                    local holder = uf._eliteDragonHolder
+                    if not holder then
+                        holder = CreateFrame("Frame", nil, bd)
+                        holder:SetAllPoints(bd)
+                        uf._eliteDragonHolder = holder
+                    end
+                    local strata = useWingless and settings.eliteIndicatorWinglessStrata or "inherit"
+                    holder:SetFrameStrata(strata == "inherit" and bd:GetFrameStrata() or strata)
+                    holder:SetFrameLevel(bd:GetFrameLevel()
+                        + (useWingless and settings.eliteIndicatorWinglessLevel or 1))
+                end
                 if useDragon then
                     local dragon = uf._eliteDragon
                     if not dragon then
-                        local holder = CreateFrame("Frame", nil, bd)
-                        holder:SetAllPoints(bd)
-                        dragon = holder:CreateTexture(nil, "OVERLAY")
+                        dragon = uf._eliteDragonHolder:CreateTexture(nil, "OVERLAY")
                         dragon:SetPoint("CENTER", bd, "CENTER", 0, 0)
                         dragon:Hide()
                         uf._eliteDragon = dragon
-                        uf._eliteDragonHolder = holder
                     end
-                    uf._eliteDragonHolder:SetFrameLevel(bd:GetFrameLevel() + 1)
                     local d = bd:GetHeight() * ns.UF_ELITE_DRAGON_SCALE
                     dragon:SetSize(d, d)
                 end
+                if useWingless and not uf._eliteWingless then
+                    uf._eliteWingless = uf._eliteDragonHolder:CreateTexture(nil, "OVERLAY")
+                    uf._eliteWingless:Hide()
+                end
                 uf._eliteDragonOn = useDragon and true or false
+                uf._eliteWinglessOn = useWingless and true or false
                 _eliteArmEvents()
                 _eliteRefresh(uf)
             end
@@ -16342,6 +16450,14 @@ function InitializeFrames()
             -- above the text overlay so the marker is never hidden behind name/health text.
             if frame._raidMarkerHolder and frame._textOverlay then
                 frame._raidMarkerHolder:SetFrameLevel(frame._textOverlay:GetFrameLevel() + 5)
+            end
+            -- Same for the Wingless Dragon holders, which carry their own strata and level.
+            local bd = frame.Portrait and frame.Portrait.backdrop
+            if us and bd and bd._winglessHolder and bd._winglessHolder:IsShown() then
+                ns.UF_PortraitExtras(bd, us, us.detachedPortraitShape or "portrait")
+            end
+            if frame._eliteDragonHolder and frame._applyEliteIndicator then
+                frame._applyEliteIndicator()
             end
         end
     end

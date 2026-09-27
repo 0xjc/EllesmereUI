@@ -1375,7 +1375,8 @@ initFrame:SetScript("OnEvent", function(self)
         -- frame, so the detached preview stops clipping (every layout
         -- branch of Update sets its clip again first).
         ns.UF_PortraitExtras(pFrame, s, shape)
-        if ringInset or (pFrame._outerRing and pFrame._outerRing:IsShown()) then
+        if ringInset or (pFrame._outerRing and pFrame._outerRing:IsShown())
+            or (pFrame._winglessHolder and pFrame._winglessHolder:IsShown()) then
             pFrame:SetClipsChildren(false)
         end
     end
@@ -1863,6 +1864,7 @@ initFrame:SetScript("OnEvent", function(self)
                 end
             end
             portraitFrame._applyMode = ApplyPortraitMode
+            portraitFrame._isPreview = true
             portraitFrame._previewTex = portraitTex
             portraitFrame._previewModel = portraitModel
             ApplyPortraitMode()
@@ -5497,7 +5499,14 @@ initFrame:SetScript("OnEvent", function(self)
                 local et = pf._pvElite
                 if et then
                     if unitKey == "target" and eyes.elite and s.eliteIndicatorEnabled == true then
-                        if s.eliteIndicatorStyle == "pixelsDragon" and portraitFrame and sp and not blizzG then
+                        et:SetDesaturated(false)
+                        et:SetVertexColor(1, 1, 1)
+                        if s.eliteIndicatorStyle == "wingless" and portraitFrame and sp and not blizzG then
+                            ns.UF_PlaceWinglessDragon(et, portraitFrame, ns.UF_WINGLESS_GOLD,
+                                s.eliteIndicatorWinglessFlip == true,
+                                s.eliteIndicatorWinglessClassColor, s.eliteIndicatorWinglessScale,
+                                s.eliteIndicatorX, s.eliteIndicatorY)
+                        elseif s.eliteIndicatorStyle == "pixelsDragon" and portraitFrame and sp and not blizzG then
                             -- Pixels Dragon (Elite sample) around the portrait, as live
                             -- (the stock styles draw the Badge).
                             local d = portraitFrame:GetHeight() * ns.UF_ELITE_DRAGON_SCALE
@@ -7525,7 +7534,7 @@ initFrame:SetScript("OnEvent", function(self)
         -- Cog on Shape Border for border settings
         if not EllesmereUI._prebuilding then
             local borderRgn = sharedShapeBorderRow._rightRegion
-            EllesmereUI.BuildInlineCog(borderRgn, {
+            local borderCog = {
                 disabled = function() return SVal("portraitStyle", "attached") ~= "detached" end,
                 disabledTooltip = "This option is only available when Portrait Mode is Detached.",
                 title = "Shape Border Settings",
@@ -7595,7 +7604,61 @@ initFrame:SetScript("OnEvent", function(self)
                       get=function() return SVal("detachedPortraitInnerShadow", false) end,
                       set=function(v) SSet("detachedPortraitInnerShadow", v); UpdatePreview() end },
                 },
-            })
+            }
+            -- The target frame's dragon is an Elite/Rare Indicator style instead.
+            if selectedUnit == "player" then
+                local shapeTip = "This option requires a Circle, Pixels Circle, Square or Rounded Square Shape."
+                local function badShape() return not ns.UF_DRAGON_SHAPES[SVal("detachedPortraitShape", "portrait")] end
+                local function dragonOff() return badShape() or not SVal("detachedPortraitWinglessDragon", false) end
+                local rows = borderCog.rows
+                rows[#rows + 1] = { type="toggle", label="Wingless Dragon",
+                  tooltip="Curls a gold dragon around the portrait.",
+                  disabled=badShape, disabledTooltip=shapeTip, rawTooltip=true,
+                  get=function() return SVal("detachedPortraitWinglessDragon", false) end,
+                  set=function(v) SSet("detachedPortraitWinglessDragon", v); UpdatePreview() end }
+                rows[#rows + 1] = { type="toggle", label="Use My Class Color",
+                  tooltip="Tints the Wingless Dragon with your class color instead of gold.",
+                  disabled=dragonOff,
+                  disabledTooltip=function()
+                      if badShape() then return shapeTip end
+                      return "This option requires the Wingless Dragon."
+                  end,
+                  rawTooltip=true,
+                  get=function() return SVal("detachedPortraitWinglessDragonClassColor", false) end,
+                  set=function(v) SSet("detachedPortraitWinglessDragonClassColor", v); UpdatePreview() end }
+                rows[#rows + 1] = { type="slider", label="Dragon Size", min=50, max=200, step=1,
+                  tooltip="Size of the Wingless Dragon, as a percent of its fit around the portrait.",
+                  disabled=dragonOff, disabledTooltip="This option requires the Wingless Dragon.",
+                  get=function() return SVal("detachedPortraitWinglessDragonScale", 100) end,
+                  set=function(v) SSet("detachedPortraitWinglessDragonScale", v); UpdatePreview() end }
+                rows[#rows + 1] = { type="slider", label="Dragon X Offset", min=-100, max=100, step=1,
+                  disabled=dragonOff, disabledTooltip="This option requires the Wingless Dragon.",
+                  get=function() return SVal("detachedPortraitWinglessDragonX", 0) end,
+                  set=function(v) SSet("detachedPortraitWinglessDragonX", v); UpdatePreview() end }
+                rows[#rows + 1] = { type="slider", label="Dragon Y Offset", min=-100, max=100, step=1,
+                  disabled=dragonOff, disabledTooltip="This option requires the Wingless Dragon.",
+                  get=function() return SVal("detachedPortraitWinglessDragonY", 0) end,
+                  set=function(v) SSet("detachedPortraitWinglessDragonY", v); UpdatePreview() end }
+                rows[#rows + 1] = { type="toggle", label="Flip Dragon",
+                  tooltip="Turns the Wingless Dragon to face the other way around the portrait.",
+                  disabled=dragonOff, disabledTooltip="This option requires the Wingless Dragon.",
+                  get=function() return SVal("detachedPortraitWinglessDragonFlip", false) end,
+                  set=function(v) SSet("detachedPortraitWinglessDragonFlip", v); UpdatePreview() end }
+                rows[#rows + 1] = { type="dropdown", label="Dragon Strata",
+                  values={ inherit = "Match Frame", BACKGROUND = "Background", LOW = "Low",
+                      MEDIUM = "Medium", HIGH = "High", DIALOG = "Dialog" },
+                  order={ "inherit", "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG" },
+                  tooltip="Match Frame draws the dragon with the portrait. A higher strata draws it over the rest of the frame, border included.",
+                  disabled=dragonOff, disabledTooltip="This option requires the Wingless Dragon.",
+                  get=function() return SVal("detachedPortraitWinglessDragonStrata", "inherit") end,
+                  set=function(v) SSet("detachedPortraitWinglessDragonStrata", v); UpdatePreview() end }
+                rows[#rows + 1] = { type="slider", label="Dragon Frame Level", min=0, max=30, step=1,
+                  tooltip="Raises the dragon within its strata. Higher values draw it over more of the frame.",
+                  disabled=dragonOff, disabledTooltip="This option requires the Wingless Dragon.",
+                  get=function() return SVal("detachedPortraitWinglessDragonLevel", 1) end,
+                  set=function(v) SSet("detachedPortraitWinglessDragonLevel", v); UpdatePreview() end }
+            end
+            EllesmereUI.BuildInlineCog(borderRgn, borderCog)
         end
         -- Sync icons: Shape (left) and Shape Border (right)
         if not EllesmereUI._prebuilding then
@@ -14494,8 +14557,15 @@ initFrame:SetScript("OnEvent", function(self)
             -- Pixels Dragon sits on the portrait: Size, Position and the offsets
             -- apply to the Badge style only. The stock styles always draw the Badge.
             local function eliteDragon()
+                return SValSupported("eliteIndicatorStyle", "badge") ~= "badge"
+                    and not EllesmereUI.BlizzStyle.Get("unitframes")
+            end
+            local function pixelsDragon()
                 return SValSupported("eliteIndicatorStyle", "badge") == "pixelsDragon"
                     and not EllesmereUI.BlizzStyle.Get("unitframes")
+            end
+            local function notWingless()
+                return SValSupported("eliteIndicatorStyle", "badge") ~= "wingless"
             end
             local eliteRow
             eliteRow, h = W:DualRow(parent, y,
@@ -14528,14 +14598,18 @@ initFrame:SetScript("OnEvent", function(self)
                 })
             end
             if not EllesmereUI._prebuilding then
+                local dragonStrataValues = { inherit = "Match Frame", BACKGROUND = "Background", LOW = "Low",
+                    MEDIUM = "Medium", HIGH = "High", DIALOG = "Dialog" }
+                local dragonStrataOrder = { "inherit", "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG" }
                 local elitePosValues = { ["topleft"]="Top Left", ["topright"]="Top Right", ["bottomleft"]="Bottom Left", ["bottomright"]="Bottom Right", ["portrait"]="Portrait" }
                 local elitePosOrder = { "topleft", "topright", "bottomleft", "bottomright", "portrait" }
                 EllesmereUI.BuildInlineCog(eliteRow._rightRegion, { disabled = eliteIndOff, disabledTooltip = "Elite/Rare Indicator",
                     title = "Elite/Rare Indicator Settings",
                     rows = {
                         { type="dropdown", label="Style",
-                          tooltip="Badge shows a small icon; Pixels Dragon wraps the portrait in classification art.",
-                          values={ badge = "Badge", pixelsDragon = "Pixels Dragon" }, order={ "badge", "pixelsDragon" },
+                          tooltip="Badge shows a small icon; Pixels Dragon wraps the portrait in classification art; Wingless Dragon curls the gold or silver dragon around it.",
+                          values={ badge = "Badge", pixelsDragon = "Pixels Dragon", wingless = "Wingless Dragon" },
+                          order={ "badge", "pixelsDragon", "wingless" },
                           disabled=function() return EllesmereUI.BlizzStyle.Get("unitframes") end,
                           disabledTooltip=function() return EllesmereUI.BlizzStyle.Label("unitframes") end,
                           requireState="disabled",
@@ -14547,13 +14621,43 @@ initFrame:SetScript("OnEvent", function(self)
                           get=function() return SValSupported("eliteIndicatorPosition", "topleft") end,
                           set=function(v) SSetSupported("eliteIndicatorPosition", v) end },
                         { type="slider", label="X Offset", min=-200, max=200, step=1,
-                          disabled=eliteDragon, disabledTooltip="This option only applies to the Badge style.",
+                          disabled=pixelsDragon, disabledTooltip="This option does not apply to the Pixels Dragon style.",
                           get=function() return SValSupported("eliteIndicatorX", 0) end,
                           set=function(v) SSetSupported("eliteIndicatorX", v) end },
                         { type="slider", label="Y Offset", min=-200, max=200, step=1,
-                          disabled=eliteDragon, disabledTooltip="This option only applies to the Badge style.",
+                          disabled=pixelsDragon, disabledTooltip="This option does not apply to the Pixels Dragon style.",
                           get=function() return SValSupported("eliteIndicatorY", 0) end,
                           set=function(v) SSetSupported("eliteIndicatorY", v) end },
+                        { type="slider", label="Dragon Size", min=50, max=200, step=1,
+                          tooltip="Size of the Wingless Dragon, as a percent of its fit around the portrait.",
+                          disabled=notWingless,
+                          disabledTooltip="This option only applies to the Wingless Dragon style.",
+                          get=function() return SValSupported("eliteIndicatorWinglessScale", 100) end,
+                          set=function(v) SSetSupported("eliteIndicatorWinglessScale", v) end },
+                        { type="toggle", label="Flip Dragon",
+                          tooltip="Turns the Wingless Dragon to face the other way around the portrait.",
+                          disabled=notWingless,
+                          disabledTooltip="This option only applies to the Wingless Dragon style.",
+                          get=function() return SValSupported("eliteIndicatorWinglessFlip", false) == true end,
+                          set=function(v) SSetSupported("eliteIndicatorWinglessFlip", v) end },
+                        { type="dropdown", label="Dragon Strata", values=dragonStrataValues, order=dragonStrataOrder,
+                          tooltip="Match Frame draws the dragon with the portrait. A higher strata draws it over the rest of the frame, border included.",
+                          disabled=notWingless,
+                          disabledTooltip="This option only applies to the Wingless Dragon style.",
+                          get=function() return SValSupported("eliteIndicatorWinglessStrata", "inherit") end,
+                          set=function(v) SSetSupported("eliteIndicatorWinglessStrata", v) end },
+                        { type="slider", label="Dragon Frame Level", min=0, max=30, step=1,
+                          tooltip="Raises the dragon within its strata. Higher values draw it over more of the frame.",
+                          disabled=notWingless,
+                          disabledTooltip="This option only applies to the Wingless Dragon style.",
+                          get=function() return SValSupported("eliteIndicatorWinglessLevel", 1) end,
+                          set=function(v) SSetSupported("eliteIndicatorWinglessLevel", v) end },
+                        { type="toggle", label="Use My Class Color",
+                          tooltip="Tints the Wingless Dragon with your class color instead of gold or silver.",
+                          disabled=notWingless,
+                          disabledTooltip="This option only applies to the Wingless Dragon style.",
+                          get=function() return SValSupported("eliteIndicatorWinglessClassColor", false) == true end,
+                          set=function(v) SSetSupported("eliteIndicatorWinglessClassColor", v) end },
                     },
                 })
             end
