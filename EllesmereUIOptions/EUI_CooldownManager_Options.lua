@@ -3782,6 +3782,138 @@ initFrame:SetScript("OnEvent", function(self)
             end
             UpdateDDLabel()
 
+            -- Right-click a bar row: Audio on Buff Gain / Loss for that bar, the
+            -- tracking-bar twin of the CDM icon menu's two audio rows. Opens beside the
+            -- clicked row; each row flies out the shared sound list (search, scroll,
+            -- preview speaker) from BuildSoundDropdownValues. Same keys and sound
+            -- catalogue as the icon menu; playback lives in EllesmereUICdmBuffBars.
+            local function OpenBarSoundMenu(idx, anchorRow)
+                local t = ns.GetTrackedBuffBars()
+                local cfg = t.bars and t.bars[idx]
+                if not cfg then return end
+                if ddBtn._tbbSndMenu then ddBtn._tbbSndMenu:Hide() end
+                local W = 240
+                local sm = CreateFrame("Frame", nil, UIParent)
+                sm:SetFrameStrata("FULLSCREEN_DIALOG")
+                -- Above the bar menu it opens from (300), which stays open underneath.
+                sm:SetFrameLevel(320)
+                sm:SetClampedToScreen(true)
+                sm:EnableMouse(true)
+                sm:SetSize(W, 8 + ITEM_H * 2)
+                local smBg = sm:CreateTexture(nil, "BACKGROUND")
+                smBg:SetAllPoints(); smBg:SetColorTexture(mBgR, mBgG, mBgB, mBgHA)
+                EllesmereUI.MakeBorder(sm, 1, 1, 1, mBrdA, EllesmereUI.PP)
+                -- A fixed spot, as the CDM icon menu sits under its icon: beside the clicked
+                -- row, just outside the bar menu, so it covers no other bar.
+                sm:SetPoint("TOPLEFT", anchorRow, "TOPRIGHT", 4, 0)
+                local ar, ag, ab = EllesmereUI.GetAccentColor()
+                local names = ns.FOCUSKICK_SOUND_NAMES or {}
+                local flyouts = {}
+
+                local function MakeSoundRow(i, label, field)
+                    local row = CreateFrame("Button", nil, sm)
+                    row:SetHeight(ITEM_H)
+                    row:SetPoint("TOPLEFT", sm, "TOPLEFT", 1, -4 - (i - 1) * ITEM_H)
+                    row:SetPoint("TOPRIGHT", sm, "TOPRIGHT", -1, -4 - (i - 1) * ITEM_H)
+                    row:SetFrameLevel(sm:GetFrameLevel() + 2)
+                    local lbl = row:CreateFontString(nil, "OVERLAY")
+                    lbl:SetFont(FONT_PATH, 11, GetCDMOptOutline())
+                    lbl:SetPoint("LEFT", row, "LEFT", 10, 0)
+                    lbl:SetText(EllesmereUI.L(label))
+                    local arrow = row:CreateTexture(nil, "ARTWORK")
+                    arrow:SetSize(10, 10)
+                    arrow:SetPoint("RIGHT", row, "RIGHT", -8, 0)
+                    arrow:SetTexture(MEDIA .. "icons\\right-arrow.png")
+                    arrow:SetAlpha(0.7)
+                    local val = row:CreateFontString(nil, "OVERLAY")
+                    val:SetFont(FONT_PATH, 10, GetCDMOptOutline())
+                    val:SetPoint("LEFT", lbl, "RIGHT", 8, 0)
+                    val:SetPoint("RIGHT", arrow, "LEFT", -6, 0)
+                    val:SetJustifyH("RIGHT")
+                    val:SetWordWrap(false); val:SetMaxLines(1)
+                    val:SetTextColor(tDimR, tDimG, tDimB, tDimA)
+                    local hl = row:CreateTexture(nil, "ARTWORK")
+                    hl:SetAllPoints(); hl:SetColorTexture(1, 1, 1, 1); hl:SetAlpha(0)
+
+                    local function Get() return cfg[field] or "none" end
+                    -- Accent label while a sound is chosen, like the icon menu's rows.
+                    local function Paint()
+                        local k = cfg[field]
+                        if k and k ~= "none" then
+                            lbl:SetTextColor(ar, ag, ab, 1)
+                        else
+                            lbl:SetTextColor(tDimR, tDimG, tDimB, tDimA)
+                        end
+                        val:SetText(names[Get()] or Get())
+                    end
+                    Paint()
+                    local function Set(v)
+                        cfg[field] = (v ~= "none" and v) or nil
+                        if cfg[field] then
+                            -- Flip the 0-cost gate live and hook the bar frames already
+                            -- out of the pool, so the next edge plays without a reload.
+                            ns._cdmAnyBuffSound = true
+                            if ns.EnsureTBBSoundHooks then ns.EnsureTBBSoundHooks() end
+                        end
+                        Paint()
+                    end
+                    local function ShowFlyout()
+                        hl:SetAlpha(hlA)
+                        for f, fly in pairs(flyouts) do
+                            if f ~= field then fly:Hide() end
+                        end
+                        local fly = flyouts[field]
+                        if not fly then
+                            local values, order = EllesmereUI.BuildSoundDropdownValues(
+                                ns.FOCUSKICK_SOUND_PATHS, names, ns.FOCUSKICK_SOUND_ORDER)
+                            values._menuOpts.anchor = "RIGHT"
+                            -- Match the CDM icon menu's flyouts: the CDM options font at 11 and
+                            -- the speaker atlas in its own colour.
+                            values._menuOpts.labelFont = { FONT_PATH, 11, GetCDMOptOutline() }
+                            values._menuOpts.iconNativeColor = true
+                            local refresh
+                            fly, _, refresh = EllesmereUI.BuildDropdownMenu(row, 200, order, values, Get, Set, val, "regular")
+                            -- BuildDropdownMenu creates it at FULLSCREEN_DIALOG 200, under both menus.
+                            fly:SetFrameStrata(sm:GetFrameStrata())
+                            fly:SetFrameLevel(sm:GetFrameLevel() + 30)
+                            fly._refresh = refresh
+                            flyouts[field] = fly
+                        end
+                        if not fly:IsShown() then
+                            if fly._refresh then fly._refresh() end
+                            fly:Show()
+                        end
+                    end
+                    row:SetScript("OnEnter", ShowFlyout)
+                    row:SetScript("OnClick", ShowFlyout)
+                    row:SetScript("OnLeave", function() hl:SetAlpha(0) end)
+                end
+                MakeSoundRow(1, "Audio on Buff Gain", "buffActiveSoundKey")
+                MakeSoundRow(2, "Audio on Buff Loss", "buffLostSoundKey")
+
+                local function OverAny()
+                    if sm:IsMouseOver() then return true end
+                    for _, fly in pairs(flyouts) do
+                        if fly:IsShown() and fly:IsMouseOver() then return true end
+                    end
+                    return false
+                end
+                sm:SetScript("OnUpdate", function(m)
+                    if (IsMouseButtonDown("LeftButton") or IsMouseButtonDown("RightButton"))
+                       and not OverAny() then
+                        m:Hide()
+                    end
+                end)
+                sm:HookScript("OnHide", function(m)
+                    m:SetScript("OnUpdate", nil)
+                    for _, fly in pairs(flyouts) do fly:Hide() end
+                end)
+                -- The bar menu underneath asks this before dismissing itself on a click.
+                sm._overAny = OverAny
+                ddBtn._tbbSndMenu = sm
+                sm:Show()
+            end
+
             -- Custom dropdown menu: bars organized by group with quick-add actions inside
             -- each, an independent section, and new-group/independent-bar creation at the bottom.
             local ddMenu
@@ -4043,6 +4175,21 @@ initFrame:SetScript("OnEvent", function(self)
                     delBtn:SetAlpha(0.75)
                     iLbl:SetPoint("RIGHT", delBtn, "LEFT", -4, 0)
 
+                    -- Speaker mark: this bar has an Audio on Buff Gain/Loss sound
+                    -- (set from the row's right-click menu).
+                    local gainKey, lossKey = b.buffActiveSoundKey, b.buffLostSoundKey
+                    if (gainKey and gainKey ~= "none") or (lossKey and lossKey ~= "none") then
+                        local sndMark = item:CreateTexture(nil, "OVERLAY")
+                        sndMark:SetSize(ICON_SZ, ICON_SZ)
+                        sndMark:SetPoint("RIGHT", delBtn, "LEFT", -6, 0)
+                        sndMark:SetAtlas("common-icon-sound")
+                        sndMark:SetAlpha(0.8)
+                        iLbl:SetPoint("RIGHT", sndMark, "LEFT", -4, 0)
+                    end
+                    -- Sounds follow a buff: cooldown-tracking bars and bars with no
+                    -- buff assigned yet have no right-click menu.
+                    local soundable = not unassigned and b.trackType ~= "cooldown"
+
                     delBtn:SetScript("OnEnter", function() delBtn:SetAlpha(1); iLbl:SetTextColor(1,1,1,1); iHl:SetAlpha(hlA) end)
                     delBtn:SetScript("OnLeave", function()
                         if item:IsMouseOver() then return end
@@ -4063,7 +4210,14 @@ initFrame:SetScript("OnEvent", function(self)
 
                     item:SetScript("OnEnter", function() iLbl:SetTextColor(1,1,1,1); iHl:SetAlpha(hlA); delBtn:SetAlpha(1) end)
                     item:SetScript("OnLeave", function() iLbl:SetTextColor(tDimR,tDimG,tDimB,tDimA); iHl:SetAlpha(idx == _tbbSelectedBar and selA or 0); delBtn:SetAlpha(0.75) end)
-                    item:SetScript("OnClick", function()
+                    item:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+                    item:SetScript("OnClick", function(_, mouseButton)
+                        if mouseButton == "RightButton" then
+                            if not soundable then return end
+                            -- The bar menu stays open underneath, like the CDM icon menu.
+                            OpenBarSoundMenu(idx, item)
+                            return
+                        end
                         menu:Hide()
                         if unassigned then
                             -- No buff yet: go straight to the buff picker.
@@ -4213,6 +4367,21 @@ initFrame:SetScript("OnEvent", function(self)
                     dragHint:SetText(EllesmereUI.L("Drag a bar to move it into another group"))
                     mH = mH + 20
                 end
+                -- Discoverability for the row right-click (Audio on Buff Gain/Loss): shown
+                -- while any bar can take a sound (a buff assigned, not cooldown tracking).
+                local anySoundable = false
+                for _, b in ipairs(t.bars) do
+                    local assigned = (b.spellID and b.spellID > 0) or b.glowBased
+                    if assigned and b.trackType ~= "cooldown" then anySoundable = true; break end
+                end
+                if anySoundable then
+                    local soundHint = inner:CreateFontString(nil, "OVERLAY")
+                    soundHint:SetFont(FONT_PATH, 10, GetCDMOptOutline())
+                    soundHint:SetTextColor(1, 1, 1, 0.35)
+                    soundHint:SetPoint("TOP", inner, "TOP", 0, -mH - 4)
+                    soundHint:SetText(EllesmereUI.L("Right-click a bar to set its sounds"))
+                    mH = mH + 20
+                end
 
                 local totalH = mH + 4
                 inner:SetHeight(totalH)
@@ -4235,11 +4404,17 @@ initFrame:SetScript("OnEvent", function(self)
                 menu:SetScript("OnUpdate", function(m)
                     -- Never dismiss mid-drag: dragging naturally leaves the menu bounds with the button held down.
                     if m._dragActive then return end
+                    -- A click in the row's sound menu or its flyouts is not a click outside.
+                    local snd = ddBtn._tbbSndMenu
+                    if snd and snd:IsShown() and snd._overAny and snd._overAny() then return end
                     if not m:IsMouseOver() and not ddBtn:IsMouseOver() and IsMouseButtonDown("LeftButton") then
                         m:Hide()
                     end
                 end)
-                menu:HookScript("OnHide", function(m) m:SetScript("OnUpdate", nil) end)
+                menu:HookScript("OnHide", function(m)
+                    m:SetScript("OnUpdate", nil)
+                    if ddBtn._tbbSndMenu then ddBtn._tbbSndMenu:Hide() end
+                end)
                 menu:Show()
                 ddMenu = menu
             end
@@ -4256,7 +4431,10 @@ initFrame:SetScript("OnEvent", function(self)
                 end
                 if ddMenu and ddMenu:IsShown() then ddMenu:Hide() else BuildDDMenu() end
             end)
-            ddBtn:HookScript("OnHide", function() if ddMenu then ddMenu:Hide() end end)
+            ddBtn:HookScript("OnHide", function()
+                if ddMenu then ddMenu:Hide() end
+                if ddBtn._tbbSndMenu then ddBtn._tbbSndMenu:Hide() end
+            end)
 
             -- Keep the label current when settings refresh in place (e.g. a group rename commits without a full page rebuild).
             EllesmereUI.RegisterWidgetRefresh(UpdateDDLabel)
