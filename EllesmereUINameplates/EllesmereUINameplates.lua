@@ -225,6 +225,7 @@ local defaults = {
     friendlyClickThrough = false,
     friendlyShowDefaultNames = false,
     classColorFriendly = true,
+    friendlyNameClassColor = false,
     friendlyBarColor = { r = 0.314, g = 0.800, b = 0.408 },
     friendlyNPCColor = { r = 0, g = 1, b = 0 },
     friendlyNPCNameColor = { r = 0, g = 1, b = 0 },
