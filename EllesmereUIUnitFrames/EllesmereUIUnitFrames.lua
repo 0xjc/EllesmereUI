@@ -210,6 +210,14 @@ local defaults = {
         playerThreatBorderEnabled  = false,
         playerThreatHasAggroColor  = { r = 1.00, g = 0.50, b = 0.00 },
         playerThreatNearAggroColor = { r = 0.81, g = 0.72, b = 0.19 },
+        -- Threat % text on the target and focus frames (Forever only, set from the
+        -- Forever Essentials Threat page); global, default off.
+        threatPctEnabled  = false,
+        threatPctPosition = "RIGHT",
+        threatPctColorByThreat = true,
+        threatPctSize     = 12,
+        threatPctXOffset  = 0,
+        threatPctYOffset  = 0,
         -- Custom enemy reaction colors (empty = use Blizzard FACTION_BAR_COLORS).
         -- Keys: hostile (reactions 1-3), neutral (4), friendly (5-8), tapped.
         enemyColors = {},
@@ -7760,6 +7768,118 @@ function ns.SetPlayerThreatEnabled(on)
     else
         if _ptWatcher then _ptWatcher:UnregisterAllEvents() end
         PT_Hide()
+    end
+end
+
+-------------------------------------------------------------------------------
+--  Threat % text on the target and focus frames. Forever only: retail restricts
+--  threat values in instanced content. Same shape as the threat border above:
+--  nothing is created or registered until the option is on.
+-------------------------------------------------------------------------------
+do
+    local POS = {
+        RIGHT  = { point = "RIGHT",  x = -4 },
+        LEFT   = { point = "LEFT",   x = 4 },
+        CENTER = { point = "CENTER", x = 0 },
+    }
+    local watcher
+
+    local function Layout(frame, fs)
+        local p = db.profile
+        local posKey = POS[p.threatPctPosition] and p.threatPctPosition or "RIGHT"
+        local size = p.threatPctSize
+        local x, y = p.threatPctXOffset, p.threatPctYOffset
+        local font = GetSelectedFont()
+        local outline = EllesmereUI.GetFontOutlineFlag("unitFrames")
+        if frame._tpPos == posKey and frame._tpSize == size and frame._tpX == x and frame._tpY == y
+            and frame._tpFont == font and frame._tpOutline == outline then
+            return
+        end
+        frame._tpPos, frame._tpSize, frame._tpX, frame._tpY = posKey, size, x, y
+        frame._tpFont, frame._tpOutline = font, outline
+        local pos = POS[posKey]
+        SetFSFont(fs, size)
+        fs:ClearAllPoints()
+        PP.Point(fs, pos.point, frame.Health, pos.point, pos.x + x, y)
+        fs:SetJustifyH(pos.point)
+    end
+
+    local function UpdateUnit(unit)
+        local frame = frames[unit]
+        if not (frame and frame._textOverlay) then return end
+        local fs = frame._threatPctText
+        if db.profile.threatPctEnabled and EllesmereUI.IS_FOREVER then
+            -- The percent can come back secret (Forever does for nameplate units), so it
+            -- goes straight to SetFormattedText and is never read.
+            local isTanking, status, pct = UnitDetailedThreatSituation("player", unit)
+            if type(pct) == "number" then
+                if not fs then
+                    fs = frame._textOverlay:CreateFontString(nil, "OVERLAY")
+                    fs:SetWordWrap(false)
+                    frame._threatPctText = fs
+                end
+                Layout(frame, fs)
+                fs:SetFormattedText("%.0f%%", pct)
+                local fold = C_CurveUtil and C_CurveUtil.EvaluateColorValueFromBoolean
+                if not db.profile.threatPctColorByThreat then
+                    fs:SetTextColor(1, 1, 1)
+                elseif type(status) == "number" and not (issecretvalue and issecretvalue(status)) then
+                    fs:SetTextColor(GetThreatStatusColor(status))
+                elseif fold and type(isTanking) == "boolean" then
+                    -- Status is secret too; the tanking flag can only pick has-aggro vs low threat.
+                    local ar, ag, ab = GetThreatStatusColor(3)
+                    local lr, lg, lb = GetThreatStatusColor(0)
+                    fs:SetTextColor(fold(isTanking, ar, lr), fold(isTanking, ag, lg), fold(isTanking, ab, lb))
+                else
+                    fs:SetTextColor(1, 1, 1)
+                end
+                fs:Show()
+                return
+            end
+        end
+        if fs then fs:Hide() end
+    end
+
+    local function UpdateAll()
+        UpdateUnit("target")
+        UpdateUnit("focus")
+    end
+
+    local function OnEvent(_, event, unit)
+        if event == "UNIT_THREAT_LIST_UPDATE" then
+            UpdateUnit(unit)
+        elseif event == "PLAYER_TARGET_CHANGED" then
+            UpdateUnit("target")
+        elseif event == "PLAYER_FOCUS_CHANGED" then
+            UpdateUnit("focus")
+        else
+            UpdateAll()
+        end
+    end
+
+    function ns.SetThreatPctEnabled(on)
+        if on and EllesmereUI.IS_FOREVER then
+            if not watcher then
+                watcher = CreateFrame("Frame")
+                watcher:SetScript("OnEvent", OnEvent)
+            end
+            watcher:RegisterUnitEvent("UNIT_THREAT_LIST_UPDATE", "target", "focus")
+            watcher:RegisterEvent("PLAYER_TARGET_CHANGED")
+            watcher:RegisterEvent("PLAYER_FOCUS_CHANGED")
+            watcher:RegisterEvent("PLAYER_REGEN_ENABLED")
+        elseif watcher then
+            watcher:UnregisterAllEvents()
+        end
+        UpdateAll()
+    end
+
+    -- Position/size changes from the options page.
+    function ns.RefreshThreatPct()
+        for _, unit in ipairs({ "target", "focus" }) do
+            local frame = frames[unit]
+            if frame then frame._tpPos = nil end
+        end
+        UpdateAll()
     end
 end
 
@@ -16698,6 +16818,9 @@ local function EnableBody()
         -- (zero cost otherwise -- nothing is registered when off).
         if db and db.profile and db.profile.playerThreatBorderEnabled and ns.SetPlayerThreatEnabled then
             ns.SetPlayerThreatEnabled(true)
+        end
+        if EllesmereUI.IS_FOREVER and db and db.profile and db.profile.threatPctEnabled then
+            ns.SetThreatPctEnabled(true)
         end
     end)
 end
