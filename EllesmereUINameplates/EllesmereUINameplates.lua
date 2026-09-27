@@ -2102,7 +2102,7 @@ function ns.LayoutCastBar(plate, footprintW, castH)
     local w = footprintW
     local classic = ns.NP_Classic()
     -- Cast Bar Y Offset: + up, - down; `or` fallback only fires when nil (0 is truthy in Lua).
-    local offsetY = (p and p.castBarOffsetY) or defaults.castBarOffsetY
+    local offsetY = ns.GetCastBarOffsetY()
     if classic then
         -- Classic WoW UI: the vanilla cast border hangs under the health
         -- border with its icon plate under the health border's plain end,
@@ -2818,6 +2818,11 @@ function ns.GetWrapBorderCastbar()
     local v = p and p.wrapBorderCastbar
     if v == nil then return defaults.wrapBorderCastbar end
     return v
+end
+-- Wrapping keeps the bars flush without overwriting the user's saved offset.
+function ns.GetCastBarOffsetY()
+    if ns.GetWrapBorderCastbar() then return 0 end
+    return (p and p.castBarOffsetY) or defaults.castBarOffsetY
 end
 local function GetAuraSlots()
     local ds = (p and p.debuffSlot) or defaults.debuffSlot

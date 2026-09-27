@@ -1477,7 +1477,7 @@ initFrame:SetScript("OnEvent", function(self)
             local pIconW = 0
             local pShiftX = 0
             local pCastW = barW
-            local pCastY = (DBVal("castBarOffsetY") or defaults.castBarOffsetY)
+            local pCastY = ns.GetCastBarOffsetY()
             if previewGlow.classic and ns.NP_ClassicCastLayout then
                 -- Classic WoW UI, as live (ns.LayoutCastBar): the vanilla cast border
                 -- hangs under the health border, plate under plain end, the stock gap lower.
@@ -4792,9 +4792,10 @@ initFrame:SetScript("OnEvent", function(self)
                   end,
                   set=function(v)
                     DB().wrapBorderCastbar = v
-                    -- Unconditional re-apply so toggling OFF also unwraps any plate mid-cast and wrapped.
-                    if ns.ApplyBorderWrapToAll then ns.ApplyBorderWrapToAll() end
+                    -- Re-layout before wrapping/unwrapping, and invalidate pooled plates too.
+                    ns.RefreshAllSettings()
                     UpdatePreview()
+                    EllesmereUI:RefreshPage()
                   end },
             }
             -- Show Seam Line: the custom border's wrap only, so it is built only while
@@ -7230,8 +7231,11 @@ initFrame:SetScript("OnEvent", function(self)
               end },
             { type="slider", text="Cast Bar Y Offset", min=-25, max=75, step=1,
               tooltip="Nudge the cast bar up or down from its default spot under the health bar.",
-              getValue=function() return DBVal("castBarOffsetY") or defaults.castBarOffsetY end,
+              disabled=function() return ns.GetWrapBorderCastbar() end,
+              disabledTooltip="Disable Wrap Around Castbar to adjust this offset. Your saved offset is restored when wrapping is disabled.",
+              getValue=function() return ns.GetCastBarOffsetY() end,
               setValue=function(v)
+                if ns.GetWrapBorderCastbar() then return end
                 DB().castBarOffsetY = v
                 local barW = ns.GetHealthBarWidth()
                 local castH = ns.GetCastBarHeight()
