@@ -370,7 +370,16 @@ initFrame:SetScript("OnEvent", function(self)
         local spacing = d and d.iconSpacing or 8
         local count = #_previewIcons
         local totalW = (count * sz) + ((count - 1) * spacing)
-        local startX = -(totalW / 2) + (sz / 2)
+        local growDir = d and d.growDirection or "CENTER"
+        local PREVIEW_BOX_W = 340
+        local startX
+        if growDir == "RIGHT" then
+            startX = -(PREVIEW_BOX_W / 2) + (sz / 2)
+        elseif growDir == "LEFT" then
+            startX = (PREVIEW_BOX_W / 2) - totalW + (sz / 2)
+        else
+            startX = -(totalW / 2) + (sz / 2)
+        end
         for i, pIcon in ipairs(_previewIcons) do
             local btn = pIcon.frame
             if btn then
@@ -486,12 +495,21 @@ initFrame:SetScript("OnEvent", function(self)
         wipe(_previewIcons)
         local count = #icons
         local totalW = (count * sz) + ((count - 1) * spacing)
+        local growDir = d and d.growDirection or "CENTER"
+        local PREVIEW_BOX_W = 340
+        local startX
+        if growDir == "RIGHT" then
+            startX = -(PREVIEW_BOX_W / 2) + (sz / 2)
+        elseif growDir == "LEFT" then
+            startX = (PREVIEW_BOX_W / 2) - totalW + (sz / 2)
+        else
+            startX = -(totalW / 2) + (sz / 2)
+        end
 
         for i, iconData in ipairs(icons) do
             local btn = CreateFrame("Button", nil, container)
             btn:SetSize(sz, sz)
             btn:EnableMouse(true)
-            local startX = -(totalW / 2) + (sz / 2)
             btn:SetPoint("TOP", container, "TOP", startX + (i - 1) * (sz + spacing), 0)
             btn:SetAlpha(opacity)
 
@@ -620,6 +638,12 @@ initFrame:SetScript("OnEvent", function(self)
         { key="othersMissing", label="Others are missing my buff" },
         { key="iAmMissing",    label="I am missing others' buffs" },
     }
+    local GROW_DIR_VALUES = {
+        CENTER = (EllesmereUI.L and EllesmereUI.L("Grow Centered")) or "Grow Centered",
+        LEFT   = (EllesmereUI.L and EllesmereUI.L("Grow Left")) or "Grow Left",
+        RIGHT  = (EllesmereUI.L and EllesmereUI.L("Grow Right")) or "Grow Right",
+    }
+    local GROW_DIR_ORDER  = { "CENTER", "LEFT", "RIGHT" }
 
     -- Values are stored explicitly (true/false) rather than nil-for-on: the
     -- SavedVariables layer re-merges default keys on load, so an absent
@@ -1338,12 +1362,21 @@ initFrame:SetScript("OnEvent", function(self)
               end }
         );  y = y - h
 
-        -- Inline DIRECTIONS cog on Icon Spacing (left of row 3) for Y offset
+        -- Inline DIRECTIONS cog on Icon Spacing (left of row 3) for Layout Settings
         if not EllesmereUI._prebuilding then
             local rgn = rowSliders._leftRegion
             EllesmereUI.BuildInlineCog(rgn, { icon = EllesmereUI.DIRECTIONS_ICON,
                 title = "Layout Settings",
                 rows = {
+                    { type="dropdown", label="Grow Direction",
+                      values=GROW_DIR_VALUES, order=GROW_DIR_ORDER,
+                      get=function() local d = DDB(); return d and d.growDirection or "CENTER" end,
+                      set=function(v)
+                          local d = DDB(); if not d then return end; d.growDirection = v
+                          if EllesmereUI.SetAuraBuffGrowDir then EllesmereUI.SetAuraBuffGrowDir(v) end
+                          RefreshAll()
+                          RelayoutPreviewIcons()
+                      end },
                     { type="slider", label="Y Offset", min=-600, max=600, step=1,
                       get=function() local d = DDB(); return d and d.yOffset or 0 end,
                       set=function(v) local d = DDB(); if not d then return end; d.yOffset = v
@@ -1390,6 +1423,30 @@ initFrame:SetScript("OnEvent", function(self)
                   RefreshAll(); UpdatePreviewHeader()
               end }
         );  y = y - h
+
+        -- Row 7: Grow Direction
+        local growRow, h
+        growRow, h = W:DualRow(parent, y,
+            { type="dropdown", text="Grow Direction",
+              values=GROW_DIR_VALUES, order=GROW_DIR_ORDER,
+              tooltip=(EllesmereUI.L and EllesmereUI.L("Prevents icons from shifting as buffs appear or disappear. Grow Right keeps the left icon in place, Grow Left keeps the right icon in place, Grow Centered keeps the row centered."))
+                  or "Prevents icons from shifting as buffs appear or disappear. Grow Right keeps the left icon in place, Grow Left keeps the right icon in place, Grow Centered keeps the row centered.",
+              getValue=function() local d = DDB(); return d and d.growDirection or "CENTER" end,
+              setValue=function(v)
+                  local d = DDB(); if not d then return end; d.growDirection = v
+                  if EllesmereUI.SetAuraBuffGrowDir then EllesmereUI.SetAuraBuffGrowDir(v) end
+                  RefreshAll()
+                  RelayoutPreviewIcons()
+              end },
+            { type="label", text="" }
+        );  y = y - h
+        if growRow and growRow._leftRegion then
+            for _, child in ipairs({ growRow._leftRegion:GetChildren() }) do
+                if child.GetObjectType and child:GetObjectType() == "Button" and child._ttText then
+                    child._ttText = nil
+                end
+            end
+        end
 
         _, h = W:Spacer(parent, y, 20);  y = y - h
 
