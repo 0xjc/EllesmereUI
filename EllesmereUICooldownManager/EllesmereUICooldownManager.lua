@@ -1374,6 +1374,26 @@ function ns.GetSpellCdStateEffect(frame, settings)
     return settings and settings.cdStateEffect
 end
 
+-- CD Ready glow style (CDM saved numbering), read from the same settings table as
+-- the effect: the explicit pick, else what the effect name implies (pixel* =
+-- Pixel Glow, button* = Action Button Glow), so older settings render unchanged.
+function ns.CdReadyGlowStyle(cse, settings)
+    local st = settings and settings.cdStateGlowStyle
+    if type(st) == "number" and st >= 1 and st <= #ns.GLOW_STYLES then return st end
+    if cse == "pixelGlowReady" or cse == "pixelGlowReadyUsable" then return 1 end
+    return 3
+end
+
+-- CD Ready glow color: the icon's pick, else white for the drawn styles (their
+-- long-standing look) and nil for FlipBooks (the atlas's own untinted look).
+function ns.CdReadyGlowColor(style, settings)
+    local r, g, b = ns.ResolveGlowColor(settings)
+    if r then return r, g, b end
+    local e = ns.GLOW_STYLES[style]
+    if e and not (e.procedural or e.buttonGlow or e.autocast or e.shapeGlow) then return nil end
+    return 1, 1, 1
+end
+
 -- Does this icon have a custom Cooldown State Effect (preset cd-state)? Appearance refresh
 -- uses this so it doesn't clear a preset's _cdStateHidden flag: presets store cdState in customActiveStates, not per-bar spellSettings.
 function ns.PresetHasCdState(frame)
@@ -2207,16 +2227,10 @@ ns.UpdateAllCDMBorders = UpdateAllCDMBorders
 --  wrappers that handle CDM-specific shape glow (icon masks/borders).
 -------------------------------------------------------------------------------
 local _G_Glows = EllesmereUI.Glows
-local GLOW_STYLES = {
-    { name = "Pixel Glow",           procedural = true },
-    { name = "Shape Glow",           shapeGlow = true },
-    { name = "Action Button Glow",   buttonGlow = true },
-    { name = "Auto-Cast Shine",      autocast = true },
-    { name = "GCD",                  atlas = "RotationHelper_Ants_Flipbook", texPadding = 1.6 },
-    { name = "Modern WoW Glow",      atlas = "UI-HUD-ActionBar-Proc-Loop-Flipbook", texPadding = 1.4 },
-    { name = "Classic WoW Glow",     texture = "Interface\\SpellActivationOverlay\\IconAlertAnts",
-      rows = 5, columns = 5, frames = 25, duration = 0.3, frameW = 48, frameH = 48, texPadding = 1.25 },
-}
+-- CDM saved glow numbering (1 Pixel, 2 Shape, 3 Action Button, 4 Auto-Cast,
+-- 5 GCD, 6 Modern, 7 Classic) as a view over the shared style table.
+ns.GLOW_VIEW = _G_Glows.MakeView({ 1, 4, 2, 3, 5, 6, 7 })
+local GLOW_STYLES = ns.GLOW_VIEW.list
 ns.GLOW_STYLES = GLOW_STYLES
 
 -------------------------------------------------------------------------------
@@ -2260,7 +2274,9 @@ local function PG_NameplateIndexFromName(name)
     return 1  -- Pixel Glow (covers Blizzard Default / anything unsupported)
 end
 
--- Tracked Buff Bars render as rectangles: only Pixel(1)/Auto-Cast(4) work there.
+-- Tracked Buff Bars render as rectangles: Pixel Glow and Auto-Cast Shine only
+-- (the texture styles stretch on a bar, see Glows.RECT_EXCLUDES). Anything
+-- else, Blizzard Default included, coerces to Pixel.
 local function PG_TbbIndexFromName(name)
     return (name == "Auto-Cast Shine") and 4 or 1
 end
@@ -2268,6 +2284,7 @@ end
 local function PG_TbbEffectiveStyle(dst)
     return (dst.pandemicGlowStyle == 4) and 4 or 1
 end
+ns.PG_TbbEffectiveStyle = PG_TbbEffectiveStyle
 
 local function PG_GetNPProfile()
     if not EllesmereUIDB or not EllesmereUIDB.profiles then return nil end
@@ -2281,6 +2298,8 @@ local function PG_Write(dst, payload, indexFromName)
     dst.pandemicGlow          = payload.on
     dst.pandemicGlowStyle     = indexFromName(payload.styleName or "Pixel Glow")
     dst.pandemicGlowColor     = payload.color and CopyTable(payload.color) or nil
+    -- Color mode travels with the color (Default/Custom/Class); nil = Default.
+    dst.pandemicGlowMode      = payload.mode
     dst.pandemicGlowLines     = payload.lines
     dst.pandemicGlowThickness = payload.thickness
     dst.pandemicGlowSpeed     = payload.speed
@@ -2296,6 +2315,7 @@ local function PG_Matches(dst, payload, indexFromName, actualStyleFn)
     if not payload.on then return true end
     local actual = actualStyleFn and actualStyleFn(dst) or (dst.pandemicGlowStyle or 1)
     if actual ~= indexFromName(payload.styleName or "Pixel Glow") then return false end
+    if (dst.pandemicGlowMode or "default") ~= (payload.mode or "default") then return false end
     local dc = dst.pandemicGlowColor or {}
     local pc = payload.color or {}
     if (dc.r or 1) ~= (pc.r or 1) or (dc.g or 1) ~= (pc.g or 1) or (dc.b or 0) ~= (pc.b or 0) then return false end
@@ -2317,6 +2337,7 @@ function EllesmereUI.PandemicPayloadFromCdmBar(bd)
         on        = bd.pandemicGlow == true,
         styleName = PG_CdmNameFromIndex(bd.pandemicGlowStyle or 1),
         color     = bd.pandemicGlowColor,
+        mode      = bd.pandemicGlowMode,
         lines     = bd.pandemicGlowLines,
         thickness = bd.pandemicGlowThickness,
         speed     = bd.pandemicGlowSpeed,
@@ -2330,8 +2351,9 @@ end
 function EllesmereUI.PandemicPayloadFromRectBar(bd)
     return {
         on        = bd.pandemicGlow == true,
-        styleName = (bd.pandemicGlowStyle == 4) and "Auto-Cast Shine" or "Pixel Glow",
+        styleName = GLOW_STYLES[PG_TbbEffectiveStyle(bd)].name,
         color     = bd.pandemicGlowColor,
+        mode      = bd.pandemicGlowMode,
         lines     = bd.pandemicGlowLines,
         thickness = bd.pandemicGlowThickness,
         speed     = bd.pandemicGlowSpeed,
@@ -2358,7 +2380,9 @@ end
 -- Nameplates), best-effort. opts.skipCdmKey/opts.skipNameplates exclude the source surface; opts.skipTbbBar excludes one TBB (its source bar table).
 function EllesmereUI.ApplyPandemicGlowToAll(payload, opts)
     opts = opts or {}
-    if not opts.skipNameplates then
+    -- Nameplate auras have no pandemic renderer right now (their options are
+    -- hidden too), so the sync leaves that surface out while the flag is off.
+    if not opts.skipNameplates and EllesmereUI.NameplatePandemicGlowRendered then
         local np = PG_GetNPProfile()
         if np and EllesmereUI.NameplatePandemicGlowStyles then
             PG_Write(np, payload, PG_NameplateIndexFromName)
@@ -2389,7 +2413,7 @@ end
 -- True when every (non-skipped) surface already matches the payload.
 function EllesmereUI.IsPandemicGlowSyncedToAll(payload, opts)
     opts = opts or {}
-    if not opts.skipNameplates then
+    if not opts.skipNameplates and EllesmereUI.NameplatePandemicGlowRendered then
         local np = PG_GetNPProfile()
         if np and EllesmereUI.NameplatePandemicGlowStyles
            and not PG_Matches(np, payload, PG_NameplateIndexFromName) then
@@ -2556,6 +2580,8 @@ StartNativeGlow = function(overlay, style, cr, cg, cb, opts)
                 end
             end
         end
+        -- Options previews (opts.panel): draw the pixels the live glow shows.
+        if opts and opts.panel and _G_Glows.PanelThickness then th = _G_Glows.PanelThickness(th) end
         local lineLen = math.floor((pW + pH) * (2 / N - 0.1))
         lineLen = math.min(lineLen, math.min(pW, pH))
         if lineLen < 1 then lineLen = 1 end
@@ -6107,9 +6133,8 @@ local function RefreshCDMIconAppearance(barKey)
                             end
                         end
                         if isUsable == true then
-                            local gr, gg, gb = ResolveGlowColor(ss)
-                            local isPixel = (cse == "pixelGlowReady" or cse == "pixelGlowReadyUsable")
-                            StartNativeGlow(glowOv, isPixel and 1 or 3, gr or 1, gg or 1, gb or 1)
+                            local style = ns.CdReadyGlowStyle(cse, ss)
+                            StartNativeGlow(glowOv, style, ns.CdReadyGlowColor(style, ss))
                             ifd._cdStateGlowOn = true
                         end
                     end
@@ -6201,9 +6226,8 @@ local function RefreshCDMIconAppearance(barKey)
                                 end
                             end
                             if isUsable == true then
-                                local gr, gg, gb = ResolveGlowColor(csSs)
-                                local isPixel = (cse == "pixelGlowReady" or cse == "pixelGlowReadyUsable")
-                                StartNativeGlow(glowOv, isPixel and 1 or 3, gr or 1, gg or 1, gb or 1)
+                                local style = ns.CdReadyGlowStyle(cse, csSs)
+                                StartNativeGlow(glowOv, style, ns.CdReadyGlowColor(style, csSs))
                                 if ifd then ifd._cdStateGlowOn = true end
                             end
                         end
@@ -10252,7 +10276,9 @@ local function _rotResolveColor(cfg)
                cfg.rotationAssistColorG or 0,
                cfg.rotationAssistColorB or 0
     end
-    return 1.0, 0.788, 0.137
+    -- Default: no tint request, like every other glow site (gold for the drawn
+    -- styles via StartNativeGlow, the atlas's own look for FlipBooks).
+    return nil
 end
 
 local function _rotHide(icon)
@@ -10305,12 +10331,21 @@ local function _rotShow(icon)
             local safe = EllesmereUI.Glows and EllesmereUI.Glows.RestrictionSafeStyle
             if safe then glowStyle = safe(glowStyle) end
         end
-        local cfgKey = table.concat({ style, cr, cg, cb, thickness, outset, glowStyle or 0 }, ":")
+        -- Pixel Glow lines/speed/background (unset = the engine defaults).
+        local lines, speed = cfg.rotationAssistLines or 8, cfg.rotationAssistSpeed or 4
+        local bgc = cfg.rotationAssistBackground and cfg.rotationAssistBackgroundColor
+        -- One reused key table (this runs on every suggestion update in combat).
+        local kt = ns._rotKeyScratch
+        if not kt then kt = {}; ns._rotKeyScratch = kt end
+        kt[1], kt[2], kt[3], kt[4], kt[5], kt[6], kt[7] = style, cr or -1, cg or -1, cb or -1, thickness, outset, glowStyle or 0
+        kt[8], kt[9], kt[10] = lines, speed, cfg.rotationAssistBackground and 1 or 0
+        kt[11], kt[12], kt[13] = bgc and bgc.r or 0, bgc and bgc.g or 0, bgc and bgc.b or 0
+        local cfgKey = table.concat(kt, ":", 1, 13)
         if overlay._rotCfgKey ~= cfgKey or not overlay._glowActive then
             overlay._rotCfgKey = cfgKey
             if style == "solid" then
                 StopNativeGlow(overlay)
-                _rotSolidBorder(overlay, thickness, cr, cg, cb)
+                _rotSolidBorder(overlay, thickness, cr or 1.0, cg or 0.788, cb or 0.137)
                 overlay._glowActive = true
                 overlay:SetAlpha(1)
             else
@@ -10318,7 +10353,10 @@ local function _rotShow(icon)
                 local w = (icon:GetWidth() or 36) + outset * 2
                 local h = (icon:GetHeight() or 36) + outset * 2
                 StartNativeGlow(overlay, glowStyle, cr, cg, cb, {
-                    th = thickness,
+                    N = lines, th = thickness, period = speed,
+                    bg = cfg.rotationAssistBackground and {
+                        r = (bgc and bgc.r) or 0, g = (bgc and bgc.g) or 0, b = (bgc and bgc.b) or 0,
+                    } or nil,
                     width = w,
                     height = h,
                 })

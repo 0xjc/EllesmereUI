@@ -4300,9 +4300,8 @@ local function DecorateFrame(frame, barData)
                         -- explicit gate that replaces the old accidental one).
                         if fd.glowOverlay and not fd._cdStateGlowOn
                             and not fd.procGlowActive then
-                            local style = cse == "pixelGlowReady" and 1 or 3
-                            local gr, gg, gb = ns.ResolveGlowColor(ss2)
-                            ns.StartNativeGlow(fd.glowOverlay, style, gr or 1, gg or 1, gb or 1)
+                            local style = ns.CdReadyGlowStyle(cse, ss2)
+                            ns.StartNativeGlow(fd.glowOverlay, style, ns.CdReadyGlowColor(style, ss2))
                             fd._cdStateGlowOn = true
                         end
                     elseif fd._cdStateGlowOn then
@@ -4362,9 +4361,8 @@ local function DecorateFrame(frame, barData)
                                 -- overlay -- never start over a live proc.
                                 if fd.glowOverlay and not fd._cdStateGlowOn
                                     and not fd.procGlowActive then
-                                    local style = self.cse == "pixelGlowReadyUsable" and 1 or 3
-                                    local gr, gg, gb = ns.ResolveGlowColor(self.ss2)
-                                    ns.StartNativeGlow(fd.glowOverlay, style, gr or 1, gg or 1, gb or 1)
+                                    local style = ns.CdReadyGlowStyle(self.cse, self.ss2)
+                                    ns.StartNativeGlow(fd.glowOverlay, style, ns.CdReadyGlowColor(style, self.ss2))
                                     fd._cdStateGlowOn = true
                                 end
                             elseif fd._cdStateGlowOn then
@@ -5021,9 +5019,8 @@ do
                         -- never start over a live proc; StopProcGlow queues
                         -- this flush again once the proc ends.
                         if not fd._cdStateGlowOn and not fd.procGlowActive then
-                            local style = (cse2 == "pixelGlowReady" or cse2 == "pixelGlowReadyUsable") and 1 or 3
-                            local gr, gg, gb = ns.ResolveGlowColor(ss2)
-                            ns.StartNativeGlow(fd.glowOverlay, style, gr or 1, gg or 1, gb or 1)
+                            local style = ns.CdReadyGlowStyle(cse2, ss2)
+                            ns.StartNativeGlow(fd.glowOverlay, style, ns.CdReadyGlowColor(style, ss2))
                             fd._cdStateGlowOn = true
                         end
                     elseif fd._cdStateGlowOn then
