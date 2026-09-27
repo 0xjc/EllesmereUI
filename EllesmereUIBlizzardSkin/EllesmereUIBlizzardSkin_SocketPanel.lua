@@ -1241,7 +1241,8 @@ local function CreateSeasonIcon(isFolio)
     if isFolio then
         btn.icon:SetAtlas("midnight-landingbutton-up")
     else
-        btn.icon:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\micromenu\\menu-vault.png")
+        -- Thalassian Token of Merit, shared by Midnight seasons 1 and 2.
+        btn.icon:SetTexture("Interface\\Icons\\INV_Misc_AzsharaCoin2")
     end
     if STOCK then
         btn.qualityBorder:SetVertexColor(0.75, 0.75, 0.75, 1)
