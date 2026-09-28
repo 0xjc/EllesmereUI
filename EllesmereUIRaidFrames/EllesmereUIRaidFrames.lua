@@ -317,6 +317,8 @@ local defaults = {
         visibleGroups    = { true, true, true, true, true, true, false, false },
         hideEmptyGroups  = true,     -- collapse subgroups with no members (raid only, real frames)
         excludeHiddenGroupsFromSize = true, -- hidden Show Groups don't count toward the raid-size breakpoint
+        instanceGroupsEnabled = false, -- Groups by Instance: per-instance "groups 1-N" limit replaces Show Groups
+        instanceGroupLimits = { mythicRaid = 4, raid = 0, lfr = 0, pvp = 0 }, -- 0 = use Show Groups
 
         -- Visibility
         showWhenSolo     = false,
@@ -1344,6 +1346,71 @@ ns._GetRaidSizeFrameDimensions = function(groupSize)
     return baseW, baseH
 end
 
+-------------------------------------------------------------------------------
+--  Groups by Instance: an opt-in per-instance limit ("show groups 1-N") that
+--  REPLACES Show Groups while the player is inside a matching instance.
+--  ns._instGroupCtx caches the context key (nil outside a matching instance)
+--  and is refreshed on login, zone-in and difficulty changes. Every Show
+--  Groups reader goes through ns._VisibleGroups so sizing, layout, sorting
+--  and group labels always agree on one set.
+-------------------------------------------------------------------------------
+ns._instGroupCtx = nil
+-- Returns true when the context changed (callers reload only then).
+ns._RefreshInstanceGroupCtx = function()
+    local ctx
+    local _, instanceType, difficultyID = GetInstanceInfo()
+    if instanceType == "raid" then
+        if difficultyID == 16 then
+            ctx = "mythicRaid"
+        elseif difficultyID == 17 then
+            ctx = "lfr"
+        else
+            ctx = "raid"  -- Normal / Heroic / Timewalking
+        end
+    elseif instanceType == "pvp" then
+        ctx = "pvp"
+    end
+    local changed = ctx ~= ns._instGroupCtx
+    ns._instGroupCtx = ctx
+    return changed
+end
+
+-- Zero cost while off: the difficulty event is registered, and the instance
+-- context tracked, only while Groups by Instance is enabled. Runs at the top
+-- of every ReloadFrames (the toggle's write path included), mirroring
+-- ns.UpdateCombatEventRegistration.
+ns.UpdateInstanceGroupsRegistration = function()
+    if not (db and db.profile) then return end
+    if db.profile.instanceGroupsEnabled then
+        eventFrame:RegisterEvent("PLAYER_DIFFICULTY_CHANGED")
+        ns._RefreshInstanceGroupCtx()
+    else
+        eventFrame:UnregisterEvent("PLAYER_DIFFICULTY_CHANGED")
+        ns._instGroupCtx = nil
+    end
+end
+
+-- The effective Show Groups set. Limit tables are cached per N and shared, so
+-- callers must treat the result as read-only (all current readers do).
+ns._instGroupCache = {}
+ns._VisibleGroups = function()
+    local s = db.profile
+    local vg = s.visibleGroups
+    if not s.instanceGroupsEnabled then return vg end
+    local ctx = ns._instGroupCtx
+    local limits = s.instanceGroupLimits
+    local n = ctx and limits and limits[ctx]
+    if type(n) ~= "number" or n < 1 then return vg end
+    if n > 8 then n = 8 end
+    local t = ns._instGroupCache[n]
+    if not t then
+        t = {}
+        for g = 1, 8 do t[g] = g <= n end
+        ns._instGroupCache[n] = t
+    end
+    return t
+end
+
 -- Effective raid head count for size breakpoints. With "Exclude Hidden Groups
 -- from Size" on (default), members of subgroups hidden via Show Groups are not
 -- counted, so the breakpoint reflects visible members only. Explicitly off:
@@ -1355,7 +1422,7 @@ ns._GetEffectiveRaidSize = function()
     if s.excludeHiddenGroupsFromSize == false then return n end
     -- Subgroups only exist in a raid; party/solo has nothing to exclude.
     if not IsInRaid() then return n end
-    local vg = s.visibleGroups
+    local vg = ns._VisibleGroups()
     if not vg then return n end
     -- Skip the roster walk entirely when no group is actually hidden.
     local anyHidden = false
@@ -6224,7 +6291,7 @@ FB.Anchor = function(owner)
             -- The boss group slots in before the first / after the last group that is BOTH enabled
             -- in Show Groups AND populated. With none populated (not in a raid yet), fall back to
             -- the Show Groups bounds alone.
-            local vg = s.visibleGroups or {}
+            local vg = ns._VisibleGroups() or {}
             local occupied = {}
             for ri = 1, GetNumGroupMembers() or 0 do
                 local _, _, sub = GetRaidRosterInfo(ri)
@@ -7746,14 +7813,14 @@ local function ApplySortToHeaders()
         -- the same whole-raid list shape; Group + Class alone runs native.
         local mergedList
         if fsRank then
-            mergedList = ns._BuildFrameSortRaidLists(fsRank, true, s.visibleGroups)
+            mergedList = ns._BuildFrameSortRaidLists(fsRank, true, ns._VisibleGroups())
         end
         if not mergedList and (classLists or (classNative and selfOn)) then
-            mergedList = ns._BuildRaidClassLists(true, s.visibleGroups, sortByRole, roleOrder,
+            mergedList = ns._BuildRaidClassLists(true, ns._VisibleGroups(), sortByRole, roleOrder,
                 s.classOrder, s.showSelfFirst, selfLast)
         end
         if not mergedList and selfOn then
-            mergedList = ns._BuildMergedSelfNameList(sortByRole, roleOrder, selfLast, s.visibleGroups)
+            mergedList = ns._BuildMergedSelfNameList(sortByRole, roleOrder, selfLast, ns._VisibleGroups())
         end
         if mergedList then
             applySortTo(ns._flatHeader, nil, "NAMELIST", "", mergedList, nil)
@@ -7990,7 +8057,7 @@ function ns._UpdateGroupNumbers()
     local unitGrowth = s.unitGrowth or "DOWN"
     local activeOv = ns._activeTierOverride
     if activeOv and activeOv.unitGrowth then unitGrowth = activeOv.unitGrowth end
-    local vg = s.visibleGroups or { true, true, true, true, true, true, false, false }
+    local vg = ns._VisibleGroups() or { true, true, true, true, true, true, false, false }
     local size = s.groupNumberSize or 10
     local gc = s.groupNumberColor or {}
     local ox = s.groupNumberOffsetX or 0
@@ -8076,7 +8143,7 @@ ns._LayoutGroupsImpl = function()
     end
 
     -- Build visible groups filter string from settings
-    local vg = s.visibleGroups or { true, true, true, true, true, true, false, false }
+    local vg = ns._VisibleGroups() or { true, true, true, true, true, true, false, false }
 
     if merged then
         ---------------------------------------------------------------
@@ -8336,6 +8403,9 @@ local function ReloadFrames(skipButtons)
     -- Keep UNIT_FLAGS registration in lockstep with the combat-icon toggle so a
     -- disabled option listens for nothing (runs no event code).
     if ns.UpdateCombatEventRegistration then ns.UpdateCombatEventRegistration() end
+    -- Groups by Instance: event + instance context only while enabled. Must run
+    -- before the tier math below, which reads the effective Show Groups set.
+    ns.UpdateInstanceGroupsRegistration()
     -- Rebuild dispel-color curves so custom-color edits take effect immediately.
     if ns._RebuildDispelCurves then ns._RebuildDispelCurves() end
     -- Recalculate active tier from current group size + overrides
@@ -10012,6 +10082,17 @@ local function OnEvent(self, event, arg1, ...)
             end
             if ns._UpdateRoleIcons then ns._UpdateRoleIcons() end
         end
+    elseif event == "PLAYER_DIFFICULTY_CHANGED" then
+        -- Groups by Instance: a difficulty switch inside the instance (e.g. a
+        -- Heroic -> Mythic raid reset) can change the active group limit.
+        -- Registered only while the feature is enabled.
+        if ns._RefreshInstanceGroupCtx() then
+            if InCombatLockdown() then
+                ns._sizeTierDirtyInCombat = true  -- REGEN runs the full reload
+            elseif framesVisible then
+                ReloadFrames()
+            end
+        end
     elseif event == "PLAYER_ENTERING_WORLD" then
         -- Re-sync the boss-combat flag on load. IsEncounterInProgress() still
         -- reports an active encounter after a mid-fight /reload or zone (where
@@ -10023,6 +10104,11 @@ local function OnEvent(self, event, arg1, ...)
         -- same guid.
         if ns._ptModelEv and ns.RF_PtRepaintAll then ns.RF_PtRepaintAll("PLAYER_ENTERING_WORLD") end
         C_Timer.After(0.5, function()
+            -- Groups by Instance: re-resolve the instance context first so both the
+            -- combat-deferred reload and the tier check below see the new set.
+            -- Skipped entirely while the feature is off.
+            local instGroupsChanged = db.profile.instanceGroupsEnabled
+                and ns._RefreshInstanceGroupCtx()
             -- Zoning in mid-combat (e.g. into a raid where trash is already
             -- pulled) must NOT run the reload here: ReloadFrames calls SetSize on
             -- the protected SecureGroupHeader buttons, which Blizzard blocks in
@@ -10054,7 +10140,9 @@ local function OnEvent(self, event, arg1, ...)
                     local _, newOv = ns._RFResolveTierOverride(numMembers)
                     if newOv ~= ns._activeTierOverride then tierChanged = true end
                 end
-                if tierChanged then
+                -- A Groups by Instance switch changes which headers show and the
+                -- sort lists even when the tier holds, so it needs the full reload.
+                if tierChanged or instGroupsChanged then
                     ReloadFrames()
                 else
                     RangeUpdate()
