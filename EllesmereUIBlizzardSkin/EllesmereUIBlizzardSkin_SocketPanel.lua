@@ -1234,9 +1234,9 @@ local function OpenSeasonShortcut(self)
         if not C_AddOns.IsAddOnLoaded("Blizzard_WeeklyRewards") then
             C_AddOns.LoadAddOn("Blizzard_WeeklyRewards")
         end
-        -- Show directly so UIPanel management does not close the character sheet.
+        -- Toggle directly so UIPanel management does not close the character sheet.
         local vault = _G.WeeklyRewardsFrame
-        if vault then vault:Show() end
+        if vault then vault:SetShown(not vault:IsShown()) end
     end
 end
 
