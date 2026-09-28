@@ -127,9 +127,10 @@ local L = {
     AUDIO_MUSIC          = "Music",
     AUDIO_AMBIENCE       = "Ambience",
     AUDIO_DIALOG         = "Dialog",
-    AUDIO_SET_HINT       = "Set Volume",
-    AUDIO_SCROLL_HINT    = "Adjust Volume",
+    AUDIO_MUTE_HINT      = "Toggle Mute",
+    AUDIO_SCROLL_HINT    = "Adjust Volume (Shift: 10%)",
     AUDIO_INPUT_HINT     = "Set Exact Volume",
+    AUDIO_MUTED          = "Muted",
     SCROLL_WHEEL         = "|cffFFFFFFScroll:|r",
     CHANGE_LOADOUT       = "Change Loadout",
     OPEN_PROFESSION      = "Open Profession",
@@ -913,6 +914,8 @@ do
             b:SetScript("OnClick", nil)
             b:SetScript("OnEnter", nil)
             b:SetScript("OnLeave", nil)
+            b:SetScript("OnMouseWheel", nil)
+            b:EnableMouseWheel(false)
         end
         activeClicks = 0
     end
@@ -1010,6 +1013,7 @@ do
         d.actionMacro = nil
         d._padBand = nil
         d.onClick = nil
+        d.onWheel = nil
         d.ncols = nil
         return true
     end
@@ -1041,6 +1045,7 @@ do
         d.actionMacro = nil
         d._padBand = nil
         d.onClick = nil
+        d.onWheel = nil
         d.ncols = nil
         return true
     end
@@ -1069,6 +1074,7 @@ do
         d.actionMacro = nil
         d._padBand = nil
         d.onClick = nil
+        d.onWheel = nil
         -- nil, never 0: Tip_Show tests `if d.ncols`, and 0 is true in Lua, so a
         -- token-less row would reserve the right column and pad the tip by
         -- COL_GAP for content that never renders.
@@ -1131,6 +1137,14 @@ do
     function ns.Tip_AddClickableColumns(left, tokens, onClick, lr, lg, lb)
         if ns.Tip_AddColumns(left, tokens, lr, lg, lb) and onClick then
             data[dataCount].onClick = onClick
+        end
+    end
+
+    -- Give the clickable row just added a mouse wheel handler, onWheel(delta).
+    -- Same unprotected-only contract as Tip_AddClickable's onClick.
+    function ns.Tip_SetRowWheel(onWheel)
+        if tip and dataCount > 0 and data[dataCount].onClick then
+            data[dataCount].onWheel = onWheel
         end
     end
 
@@ -1357,6 +1371,11 @@ do
                 local cb = d.onClick
                 PlaceRowOverlay(b, i, innerW)
                 b:SetScript("OnClick", function(_, mouseButton) cb(mouseButton) end)
+                local wcb = d.onWheel
+                if wcb then
+                    b:EnableMouseWheel(true)
+                    b:SetScript("OnMouseWheel", function(_, delta) wcb(delta) end)
+                end
             end
         end
 
