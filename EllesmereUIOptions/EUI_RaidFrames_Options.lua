@@ -5589,12 +5589,53 @@ initFrame:SetScript("OnEvent", function(self)
             rgn._control = cbDD
             rgn._lastInline = nil
             EllesmereUI.RegisterWidgetRefresh(cbDDRefresh)
-            local cogShow
-            local cogRows = {
+
+            -- Groups by Instance: one "groups 1-N" dropdown per instance type,
+            -- stored as numbers in db.profile.instanceGroupLimits (0 = keep Show
+            -- Groups). String keys for the dropdown; converted on write.
+            local function InstanceLimitRow(ctx, label, tip)
+                local values = { ["0"] = "Show Groups", ["1"] = "Group 1" }
+                local order = { "0", "1" }
+                for n = 2, 8 do
+                    values[tostring(n)] = "Groups 1-" .. n
+                    order[#order + 1] = tostring(n)
+                end
+                return { type="dropdown", label=label, tooltip=tip,
+                    values=values, order=order,
+                    get=function()
+                        local t = db.profile.instanceGroupLimits
+                        return tostring((t and t[ctx]) or 0)
+                    end,
+                    set=function(v)
+                        if type(db.profile.instanceGroupLimits) ~= "table" then
+                            db.profile.instanceGroupLimits = {}
+                        end
+                        db.profile.instanceGroupLimits[ctx] = tonumber(v) or 0
+                        ReloadAndUpdate()
+                    end,
+                    disabled=function() return not SVal("instanceGroupsEnabled", false) end,
+                    disabledTooltip="Enable Groups by Instance to use this", rawTooltip=true }
+            end
+
+            local _, cogShow = EllesmereUI.BuildCogPopup({
+                title = "Show Groups",
+                rows = {
                     { type="toggle", label="Hide Empty Groups",
                       tooltip="Collapse subgroups that have no members so the remaining groups close ranks. For example, if only groups 1, 2, 3 and 6 have players, they show with no gaps instead of leaving empty space where groups 4 and 5 would be. Real raid frames only.",
                       get=function() return SVal("hideEmptyGroups", true) end,
                       set=function(v) SSet("hideEmptyGroups", v) end },
+                    { type="toggle", label="Groups by Instance",
+                      tooltip="Show a different set of groups depending on the instance you are in. For example, show only groups 1-4 in a Mythic raid, where only 20 players can take part. While inside a matching instance, the limit below replaces Show Groups; everywhere else Show Groups applies as normal.",
+                      get=function() return SVal("instanceGroupsEnabled", false) end,
+                      set=function(v) SSet("instanceGroupsEnabled", v) end },
+                    InstanceLimitRow("mythicRaid", "Mythic Raid",
+                        "Groups shown inside a Mythic raid."),
+                    InstanceLimitRow("raid", "Normal & Heroic Raid",
+                        "Groups shown inside a Normal, Heroic or Timewalking raid."),
+                    InstanceLimitRow("lfr", "Raid Finder",
+                        "Groups shown inside a Raid Finder (LFR) raid."),
+                    InstanceLimitRow("pvp", "Battleground",
+                        "Groups shown inside a battleground."),
                     { type="toggle", label="Exclude Hidden from Size",
                       tooltip="When using custom raid sizes, don't count members in hidden groups toward the raid-size breakpoint. For example, if you hide groups 7 and 8, a full 40-man raid is sized as if it were 24-man instead of jumping to the 30-man frame size. Has no effect unless you have custom raid sizes set up.",
                       get=function() return SVal("excludeHiddenGroupsFromSize", true) end,
