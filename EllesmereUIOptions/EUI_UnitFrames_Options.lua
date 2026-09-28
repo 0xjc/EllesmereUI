@@ -3817,6 +3817,13 @@ initFrame:SetScript("OnEvent", function(self)
                 and ns.UF_LayoutAspectOK ~= nil and ns.UF_LayoutAspectOK() == true
             -- The strip the bar takes under the art (plus the stock text box).
             local cbStrip = 0
+            -- Preview-only clearance for the Pixels cast border's outer art.
+            local cbGap = 0
+            if castbar and ch > 0 and not blizzG and s.castBorderCustom == true
+               and (s.castBorderSize or 1) > 0
+               and (s.castBorderStyle == "pixels" or s.castBorderStyle == "pixels-textured") then
+                cbGap = 6
+            end
             local bh = hh + pvPpExtra
             -- Class power "above" position adds height above health bar ("top" floats outside)
             local cpStyle = (unitKey == "player") and (s.classPowerStyle or "none") or "none"
@@ -4500,7 +4507,7 @@ initFrame:SetScript("OnEvent", function(self)
                     -- Icon-in-width: shift the narrowed bar half an icon width toward
                     -- the icon-free side (left icon -> right, right icon -> left) so the
                     -- footprint stays flush under the frame, as on the real frame.
-                    PP.Point(castbar, "TOP", cbAnchorFrame, "BOTTOM", cbAnchorOff + (ciInWidth and (ciOnRight and -(ciIconW / 2) or (ciIconW / 2)) or 0), 0)
+                    PP.Point(castbar, "TOP", cbAnchorFrame, "BOTTOM", cbAnchorOff + (ciInWidth and (ciOnRight and -(ciIconW / 2) or (ciIconW / 2)) or 0), -cbGap)
                 else
                     castbar:Hide()
                     if castIconFrame then castIconFrame:Hide() end
@@ -5206,7 +5213,7 @@ initFrame:SetScript("OnEvent", function(self)
             end
 
             local btbExtra = (btbFrame and s.bottomTextBar and btbIsAtt) and (s.bottomTextBarHeight or 16) or 0
-            local th = bh2 + btbExtra + (ch > 0 and ch or 0)
+            local th = bh2 + btbExtra + (ch > 0 and ch + cbGap or 0)
             -- Blizzard Style: the visible art (its transparent rows trimmed) plus
             -- the cast bar strip (no text bar) -- unless the bar hangs below the
             -- auras, when the strip is reserved under them instead (auraExtra).
@@ -5254,9 +5261,6 @@ initFrame:SetScript("OnEvent", function(self)
                     PP.Point(castFill, "TOPLEFT", castbar, "TOPLEFT", 1, 0)
                     PP.Point(castFill, "BOTTOMLEFT", castbar, "BOTTOMLEFT", 1, 1)
                 end
-                -- Custom Border Style: the live cast bar's own helper, after the
-                -- scale change (nothing while the opt-in is off).
-                ns.UF_ApplyCastBorder(castbar, s, EllesmereUI.BlizzStyle.Get("unitframes"))
             end
             if castIconFrame then
                 PP.SetBorderSize(castIconFrame, 1)
@@ -5269,6 +5273,11 @@ initFrame:SetScript("OnEvent", function(self)
                 -- through the live helper (nil hands it back to the bar).
                 ns.UF_CastIconPortraitLayout(castIconFrame, castIconFrame._iconTex,
                     (portraitFrame and ns.UF_CastIconOnPortrait(unitKey, s)) and portraitFrame or nil, s)
+            end
+            -- Share border geometry, icon decoration and seam cleanup with live
+            -- frames, after the scale and portrait placement have been applied.
+            if castbar then
+                ns.UF_ApplyCastBorder(castbar, s, EllesmereUI.BlizzStyle.Get("unitframes"), unitKey, castIconFrame)
             end
 
             -- Re-apply PixelUtil sizing to every element so it stays pixel-perfect at
@@ -10611,6 +10620,16 @@ initFrame:SetScript("OnEvent", function(self)
             EllesmereUI.BuildInlineCog(rgn, {
                 title = "Cast Icon",
                 rows = {
+                    { type = "toggle", label = "Icon Border",
+                      tooltip = "Use the cast bar's border style, size and color around the icon.",
+                      disabled = function() return EllesmereUI.BlizzStyle.Get("unitframes") or not GetShowIcon() or IconOnPortrait() end,
+                      disabledTooltip = "Requires Show Icon beside the cast bar and the EllesmereUI style.",
+                      requireState = "disabled",
+                      get = function() return UNIT_DB_MAP[selectedUnit]().castIconBorder == true end,
+                      set = function(v)
+                          UNIT_DB_MAP[selectedUnit]().castIconBorder = v
+                          ReloadAndUpdate(); UpdatePreview()
+                      end },
                     { type = "toggle", label = "Make Icon Part of the Bar",
                       tooltip = "This makes it so the width of the cast bar includes the icon, rather than placing it to the left of the cast bars width.",
                       -- The stock styles count a shown icon as part of the bar
@@ -10634,6 +10653,19 @@ initFrame:SetScript("OnEvent", function(self)
                           else
                               UNIT_DB_MAP[selectedUnit]().castbarIconInWidth = v
                           end
+                          ReloadAndUpdate(); UpdatePreview()
+                      end },
+                    { type = "toggle", label = "Vertical Separator",
+                      tooltip = "Draw a divider between the integrated icon and the bar, using the cast bar's border appearance.",
+                      disabled = function()
+                          return EllesmereUI.BlizzStyle.Get("unitframes")
+                              or not ns.UF_CastIconInWidth(selectedUnit, UNIT_DB_MAP[selectedUnit]())
+                      end,
+                      disabledTooltip = "Requires Show Icon and Make Icon Part of the Bar, with the EllesmereUI style.",
+                      requireState = "disabled",
+                      get = function() return UNIT_DB_MAP[selectedUnit]().castIconSeparator == true end,
+                      set = function(v)
+                          UNIT_DB_MAP[selectedUnit]().castIconSeparator = v
                           ReloadAndUpdate(); UpdatePreview()
                       end },
                     { type = "toggle", label = "Show Icon on Right",
@@ -18018,6 +18050,13 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUI.BuildInlineCog(growthRow._leftRegion, {
                     title = "Cast Icon",
                     rows = {
+                        { type = "toggle", label = "Icon Border",
+                          tooltip = "Use the cast bar's border style, size and color around the icon.",
+                          disabled = function() return EllesmereUI.BlizzStyle.Get("unitframes") or B.showCastIcon == false end,
+                          disabledTooltip = "Requires Show Icon and the EllesmereUI style.",
+                          requireState = "disabled",
+                          get = function() return B.castIconBorder == true end,
+                          set = function(v) B.castIconBorder = v; ReloadAndUpdate() end },
                         { type = "toggle", label = "Make Icon Part of the Bar",
                           tooltip = "This makes it so the width of the cast bar includes the icon, rather than placing it to the left of the cast bars width.",
                           -- The stock styles count a shown icon as part of the bar
@@ -18030,6 +18069,15 @@ initFrame:SetScript("OnEvent", function(self)
                               return B.castbarIconInWidth ~= false
                           end,
                           set = function(v) B.castbarIconInWidth = v; ReloadAndUpdate() end },
+                        { type = "toggle", label = "Vertical Separator",
+                          tooltip = "Draw a divider between the integrated icon and the bar, using the cast bar's border appearance.",
+                          disabled = function()
+                              return EllesmereUI.BlizzStyle.Get("unitframes") or not ns.UF_CastIconInWidth("boss", B)
+                          end,
+                          disabledTooltip = "Requires Show Icon and Make Icon Part of the Bar, with the EllesmereUI style.",
+                          requireState = "disabled",
+                          get = function() return B.castIconSeparator == true end,
+                          set = function(v) B.castIconSeparator = v; ReloadAndUpdate() end },
                         { type = "toggle", label = "Show Icon on Right",
                           tooltip = "Place the cast icon on the right side of the bar instead of the left.",
                           get = function() return B.castbarIconRight == true end,
