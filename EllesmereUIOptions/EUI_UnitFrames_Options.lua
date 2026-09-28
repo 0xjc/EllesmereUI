@@ -1294,6 +1294,13 @@ initFrame:SetScript("OnEvent", function(self)
         local useClassColor = s.detachedPortraitClassColor or false
         local rawBorderSize = s.detachedPortraitBorderSize or 7
         local bExp = 7 - rawBorderSize  -- scale border UP; mask clips inner portion
+        -- Use the resolved art mode so NPC fallbacks keep their own zoom.
+        local classInset
+        if pFrame._previewMode == "class" then
+            local bh = pFrame:GetHeight()
+            if bh < 1 then bh = 46 end
+            classInset = math.floor(bh * 0.08)
+        end
 
         local bR, bG, bB = borderColor.r, borderColor.g, borderColor.b
         if useClassColor then
@@ -1320,9 +1327,14 @@ initFrame:SetScript("OnEvent", function(self)
             end
             -- Reset texture positions to default (detached mode expands them for mask fill)
             if pFrame._previewTex then
-                pFrame._previewTex:ClearAllPoints()
-                pFrame._previewTex:SetPoint("TOPLEFT", pFrame, "TOPLEFT", 0, 0)
-                pFrame._previewTex:SetPoint("BOTTOMRIGHT", pFrame, "BOTTOMRIGHT", 0, 0)
+                if classInset then
+                    ns.UF_SetClassPortraitPoints(pFrame._previewTex, pFrame,
+                        s.portraitClassZoom, classInset, classInset)
+                else
+                    pFrame._previewTex:ClearAllPoints()
+                    pFrame._previewTex:SetPoint("TOPLEFT", pFrame, "TOPLEFT", 0, 0)
+                    pFrame._previewTex:SetPoint("BOTTOMRIGHT", pFrame, "BOTTOMRIGHT", 0, 0)
+                end
             end
             if pFrame._previewModel then
                 pFrame._previewModel:ClearAllPoints()
@@ -1346,9 +1358,14 @@ initFrame:SetScript("OnEvent", function(self)
                 for _, t in ipairs(pFrame._sqBorderTexs) do t:Hide() end
             end
             if pFrame._previewTex then
-                pFrame._previewTex:ClearAllPoints()
-                pFrame._previewTex:SetPoint("TOPLEFT", pFrame, "TOPLEFT", 0, 0)
-                pFrame._previewTex:SetPoint("BOTTOMRIGHT", pFrame, "BOTTOMRIGHT", 0, 0)
+                if classInset then
+                    ns.UF_SetClassPortraitPoints(pFrame._previewTex, pFrame,
+                        s.portraitClassZoom, classInset, classInset)
+                else
+                    pFrame._previewTex:ClearAllPoints()
+                    pFrame._previewTex:SetPoint("TOPLEFT", pFrame, "TOPLEFT", 0, 0)
+                    pFrame._previewTex:SetPoint("BOTTOMRIGHT", pFrame, "BOTTOMRIGHT", 0, 0)
+                end
             end
             if pFrame._previewModel then
                 pFrame._previewModel:ClearAllPoints()
@@ -1423,9 +1440,14 @@ initFrame:SetScript("OnEvent", function(self)
         local oT =  (expand * bh2)
         local oB = -(expand * bh2)
         if pFrame._previewTex then
-            pFrame._previewTex:ClearAllPoints()
-            PP.Point(pFrame._previewTex, "TOPLEFT", pFrame, "TOPLEFT", oL, oT)
-            PP.Point(pFrame._previewTex, "BOTTOMRIGHT", pFrame, "BOTTOMRIGHT", oR, oB)
+            if classInset then
+                ns.UF_SetClassPortraitPoints(pFrame._previewTex, pFrame,
+                    s.portraitClassZoom, classInset + oL, classInset - oT)
+            else
+                pFrame._previewTex:ClearAllPoints()
+                PP.Point(pFrame._previewTex, "TOPLEFT", pFrame, "TOPLEFT", oL, oT)
+                PP.Point(pFrame._previewTex, "BOTTOMRIGHT", pFrame, "BOTTOMRIGHT", oR, oB)
+            end
         end
         if pFrame._previewModel then
             -- 3D models ignore SetClipsChildren, so pin them to the frame bounds.
@@ -1882,6 +1904,13 @@ initFrame:SetScript("OnEvent", function(self)
                 _lastAppliedStyle = style
                 _lastAppliedZoom = zoom
                 _lastAppliedMirror = mirror
+                portraitFrame._previewMode = mode
+                -- The preview reuses one texture for class art and 2D portraits.
+                if mode ~= "class" and portraitTex._classZoomMasked then
+                    portraitTex:RemoveMaskTexture(portraitTex._classZoomMask)
+                    portraitTex._classZoomMask:Hide()
+                    portraitTex._classZoomMasked = nil
+                end
                 if mode == "3d" then
                     portraitFrame:Show()
                     portraitTex:Hide()
@@ -1903,7 +1932,7 @@ initFrame:SetScript("OnEvent", function(self)
                     -- Use current portrait frame height for inset (not captured barH)
                     local curBH = portraitFrame:GetHeight()
                     if curBH < 1 then curBH = barH end
-                    local inset = math.floor(curBH * 0.10)
+                    local inset = math.floor(curBH * 0.08)
                     portraitTex:ClearAllPoints()
                     PP.Point(portraitTex, "TOPLEFT", portraitFrame, "TOPLEFT", inset, -inset)
                     PP.Point(portraitTex, "BOTTOMRIGHT", portraitFrame, "BOTTOMRIGHT", -inset, inset)
@@ -7481,6 +7510,12 @@ initFrame:SetScript("OnEvent", function(self)
                     { type="slider", label="3D Zoom", min=100, max=300, step=1,
                       get=function() return SVal("portrait3dZoom", 100) end,
                       set=function(v) SSet("portrait3dZoom", v); UpdatePreview() end },
+                    { type="slider", label="Class Zoom", min=50, max=200, step=1,
+                      disabled=function() return EllesmereUI.BlizzStyle.Get("unitframes") end,
+                      disabledTooltip=function() return EllesmereUI.BlizzStyle.Label("unitframes") end,
+                      requireState="disabled",
+                      get=function() return SVal("portraitClassZoom", 100) end,
+                      set=function(v) SSet("portraitClassZoom", v); UpdatePreview() end },
                     -- 2D and class art only; the stock styles keep their full art.
                     { type="toggle", label="Mirror Portrait",
                       tooltip="Flips the portrait horizontally so it faces the other way.",

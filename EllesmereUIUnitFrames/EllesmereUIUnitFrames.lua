@@ -4366,6 +4366,42 @@ function ns.UF_PortraitExtras(host, s, shape)
     end
 end
 
+-- Scale class art around its center, retaining the existing inset and mask fill
+-- at 100%. Shared with the preview; sprite coordinates and borders stay intact.
+function ns.UF_SetClassPortraitPoints(tex, host, zoom, insetX, insetY)
+    local clip = false
+    if zoom and zoom ~= 100 and not ns.UF_Blizz() then
+        local scale = zoom / 100
+        local halfW, halfH = host:GetWidth() * 0.5, host:GetHeight() * 0.5
+        insetX = halfW - (halfW - insetX) * scale
+        insetY = halfH - (halfH - insetY) * scale
+        clip = zoom > 100
+    end
+    -- Clip only the enlarged class texture, never the portrait's decorations.
+    -- Nothing is created for the default zoom or for zooming out.
+    local mask = tex._classZoomMask
+    if clip then
+        if not mask then
+            mask = host:CreateMaskTexture()
+            mask:SetAllPoints(host)
+            mask:SetTexture("Interface\\Buttons\\WHITE8X8", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+            tex._classZoomMask = mask
+        end
+        if not tex._classZoomMasked then
+            tex:AddMaskTexture(mask)
+            mask:Show()
+            tex._classZoomMasked = true
+        end
+    elseif tex._classZoomMasked then
+        tex:RemoveMaskTexture(mask)
+        mask:Hide()
+        tex._classZoomMasked = nil
+    end
+    tex:ClearAllPoints()
+    PP.Point(tex, "TOPLEFT", host, "TOPLEFT", insetX, -insetY)
+    PP.Point(tex, "BOTTOMRIGHT", host, "BOTTOMRIGHT", -insetX, insetY)
+end
+
 -- Apply a detached portrait shape (mask + border overlay) to a portrait backdrop;
 -- creates the mask/border textures on first call, then updates them.
 --   backdrop  : the portrait backdrop frame
@@ -4448,12 +4484,11 @@ local function ApplyDetachedPortraitShape(backdrop, uSettings, unitToken)
             PP.Point(backdrop._2d, "BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", 0, 0)
         end
         if backdrop._class then
-            backdrop._class:ClearAllPoints()
             local bh2 = backdrop:GetHeight()
             if bh2 < 1 then bh2 = 46 end
             local classInset = math.floor(bh2 * 0.08)
-            PP.Point(backdrop._class, "TOPLEFT", backdrop, "TOPLEFT", classInset, -classInset)
-            PP.Point(backdrop._class, "BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", -classInset, classInset)
+            ns.UF_SetClassPortraitPoints(backdrop._class, backdrop,
+                uSettings and uSettings.portraitClassZoom, classInset, classInset)
         end
         if backdrop._3d then
             backdrop._3d:ClearAllPoints()
@@ -4486,12 +4521,11 @@ local function ApplyDetachedPortraitShape(backdrop, uSettings, unitToken)
             PP.Point(backdrop._2d, "BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", 0, 0)
         end
         if backdrop._class then
-            backdrop._class:ClearAllPoints()
             local bh2 = backdrop:GetHeight()
             if bh2 < 1 then bh2 = 46 end
             local classInset = math.floor(bh2 * 0.08)
-            PP.Point(backdrop._class, "TOPLEFT", backdrop, "TOPLEFT", classInset, -classInset)
-            PP.Point(backdrop._class, "BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", -classInset, classInset)
+            ns.UF_SetClassPortraitPoints(backdrop._class, backdrop,
+                uSettings and uSettings.portraitClassZoom, classInset, classInset)
         end
         if backdrop._3d then
             backdrop._3d:ClearAllPoints()
@@ -4587,10 +4621,9 @@ local function ApplyDetachedPortraitShape(backdrop, uSettings, unitToken)
         PP.Point(backdrop._2d, "BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", oR, oB)
     end
     if backdrop._class then
-        backdrop._class:ClearAllPoints()
         local classInset = math.floor(bh2 * 0.08)
-        PP.Point(backdrop._class, "TOPLEFT", backdrop, "TOPLEFT", classInset + oL, -classInset + oT)
-        PP.Point(backdrop._class, "BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", -classInset + oR, classInset + oB)
+        ns.UF_SetClassPortraitPoints(backdrop._class, backdrop,
+            uSettings and uSettings.portraitClassZoom, classInset + oL, classInset - oT)
     end
     if backdrop._3d then
         -- 3D models ignore SetClipsChildren, so keep them inside the backdrop
@@ -7379,8 +7412,8 @@ local function CreatePortrait(frame, side, frameHeight, unit)
     -- first dispatch.
     local texClass = backdrop:CreateTexture(nil, "ARTWORK")
     local classInset = math.floor(portraitHeight * 0.08)
-    PP.Point(texClass, "TOPLEFT", backdrop, "TOPLEFT", classInset, -classInset)
-    PP.Point(texClass, "BOTTOMRIGHT", backdrop, "BOTTOMRIGHT", -classInset, classInset)
+    ns.UF_SetClassPortraitPoints(texClass, backdrop,
+        uSettings and uSettings.portraitClassZoom, classInset, classInset)
     texClass:SetAlpha(0.8)
     if unit and UnitIsPlayer(unit) then
         ns.UF_PaintClassIcon(texClass, unit, (uSettings and uSettings.classThemeStyle) or "modern",
