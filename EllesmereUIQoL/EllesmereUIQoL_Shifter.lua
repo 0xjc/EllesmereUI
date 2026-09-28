@@ -5,6 +5,7 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --  Ctrl+drag for a temporary move that resets when the panel closes.
 -------------------------------------------------------------------------------
 local GetFFD = EllesmereUI._GetFFD
+local ns = select(2, ...)
 
 -- Temporary positions (per-frame, cleared on hide, not persisted)
 local tempPos = {}
@@ -1001,8 +1002,8 @@ end
 --  only because their subtrees never touch secrets.
 --
 --  SecureSetPoint bails in combat, and Blizzard re-anchors this container
---  exactly then (widgets spawn mid-fight) -- missed re-asserts set a dirty
---  flag and re-apply on PLAYER_REGEN_ENABLED.
+--  exactly then (widgets spawn mid-fight) -- missed re-asserts defer a
+--  re-apply to the module's combat queue.
 -------------------------------------------------------------------------------
 local TOPBAR_NAME = "UIWidgetTopCenterContainerFrame"
 local TOPBAR_KEY, TOPBAR_LABEL = "EUI_TopBarEventText", "Top Bar Event Text"
@@ -1010,8 +1011,6 @@ local TOPBAR_DEFW, TOPBAR_DEFH, TOPBAR_DEFY = 400, 60, -120
 
 local topBarProxy
 local topBarHooked = false
-local topBarDirty  = false
-local topBarRegen
 
 local function TopBarEnabled()
     return EllesmereUIDB and EllesmereUIDB.shifterTopBarUnlock or false
@@ -1047,7 +1046,7 @@ local function ApplyTopBarPos()
     frame.ignoreFramePositionManager = true
     -- SECURE write only (see block comment); false = in combat, defer.
     if not SecureSetPoint(frame, pos.point, pos.relPoint, pos.x, pos.y) then
-        topBarDirty = true
+        ns.CombatQueue.Defer("ShifterTopBar", ApplyTopBarPos)
     end
     ffd._shTopBarIgnoreSP = false
 end
@@ -1063,14 +1062,6 @@ local function HookTopBar()
     end)
     frame:HookScript("OnShow", function()
         ApplyTopBarPos()
-    end)
-    topBarRegen = CreateFrame("Frame")
-    topBarRegen:RegisterEvent("PLAYER_REGEN_ENABLED")
-    topBarRegen:SetScript("OnEvent", function()
-        if topBarDirty then
-            topBarDirty = false
-            ApplyTopBarPos()
-        end
     end)
 end
 
