@@ -1230,8 +1230,13 @@ local function OpenSeasonShortcut(self)
             if not page:IsShown() then page:RefreshExpansionOverlay() end
             ToggleExpansionLandingPage()
         end
-    elseif WeeklyRewards_ShowUI then
-        WeeklyRewards_ShowUI()
+    else
+        if not C_AddOns.IsAddOnLoaded("Blizzard_WeeklyRewards") then
+            C_AddOns.LoadAddOn("Blizzard_WeeklyRewards")
+        end
+        -- Show directly so UIPanel management does not close the character sheet.
+        local vault = _G.WeeklyRewardsFrame
+        if vault then vault:Show() end
     end
 end
 
