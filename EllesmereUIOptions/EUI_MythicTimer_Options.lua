@@ -522,15 +522,24 @@ initFrame:SetScript("OnEvent", function(self)
         if not EllesmereUI._prebuilding then
         EllesmereUI.BuildInlineCog(row._leftRegion, { icon = EllesmereUI.RESIZE_ICON, title = "Bar Height Options", gap = 6, rows = {
             { type="slider", label="Expanded Height", min=8, max=40, step=1,
+              tooltip="Minimum height of the timer bar while the timer is inside it. The larger of this and Bar Height is used.",
               get=function() return Cfg("barHeightExpanded") or 22 end,
               set=function(v) Set("barHeightExpanded", v); Refresh() end },
             { type="slider", label="Expanded Fill", min=0, max=1, step=0.05,
+              tooltip="Opacity of the bar fill while the timer is inside it. Lower values keep the timer text easier to read.",
               get=function() return Cfg("barFillAlphaExpanded") or 0.85 end,
               set=function(v) Set("barFillAlphaExpanded", v); Refresh() end },
             { type="toggle", label="Left Text",
+              tooltip="Align the timer text to the left edge of the bar instead of centering it.",
               get=function() return Cfg("timerInBarLeftText") == true end,
               set=function(v) Set("timerInBarLeftText", v); Refresh() end },
-        }, disabled = function() return Cfg("enabled") == false or Cfg("showTimerBar") == false end, disabledTooltip = ModuleOr("Show Timer Bar") })
+        -- These rows only affect the in-bar timer, so the cog also requires Move Timer Inside Bar.
+        }, disabled = function() return Cfg("enabled") == false or Cfg("showTimerBar") == false or Cfg("timerInBar") ~= true end,
+           disabledTooltip = function()
+               if Cfg("enabled") == false then return "the module" end
+               if Cfg("showTimerBar") == false then return "Show Timer Bar" end
+               return "Move Timer Inside Bar"
+           end })
         end
         y = y - h
 
