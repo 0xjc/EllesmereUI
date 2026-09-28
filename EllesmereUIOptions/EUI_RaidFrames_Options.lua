@@ -5617,9 +5617,8 @@ initFrame:SetScript("OnEvent", function(self)
                     disabledTooltip="Enable Groups by Instance to use this", rawTooltip=true }
             end
 
-            local _, cogShow = EllesmereUI.BuildCogPopup({
-                title = "Show Groups",
-                rows = {
+            local cogShow
+            local cogRows = {
                     { type="toggle", label="Hide Empty Groups",
                       tooltip="Collapse subgroups that have no members so the remaining groups close ranks. For example, if only groups 1, 2, 3 and 6 have players, they show with no gaps instead of leaving empty space where groups 4 and 5 would be. Real raid frames only.",
                       get=function() return SVal("hideEmptyGroups", true) end,

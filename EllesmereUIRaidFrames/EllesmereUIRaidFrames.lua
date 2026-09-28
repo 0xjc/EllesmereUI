@@ -6792,7 +6792,9 @@ FB.Anchor = function(owner)
             -- in Show Groups AND populated. With none populated (not in a raid yet), fall back to
             -- the Show Groups bounds alone.
             local vg = ns._VisibleGroups() or {}
-            local occupied = {}
+            -- One reused set across calls (the roster edges anchor every group).
+            local occupied = FB.occ
+            if occupied then wipe(occupied) else occupied = {}; FB.occ = occupied end
             for ri = 1, GetNumGroupMembers() or 0 do
                 local _, _, sub = GetRaidRosterInfo(ri)
                 if sub then occupied[sub] = true end
@@ -8613,7 +8615,7 @@ end
 -- Show Groups as a groupFilter: nil with every group on, one cached string per group set.
 PF.gf = {}
 PF.RaidGroupFilter = function()
-    local vg = db.profile.visibleGroups
+    local vg = ns._VisibleGroups()  -- Groups by Instance aware (read-only)
     if not vg then return nil end
     local mask = 0
     for gi = 1, 8 do
@@ -12231,6 +12233,8 @@ local function OnEvent(self, event, arg1, ...)
         -- same guid.
         if ns._ptModelEv and ns.RF_PtRepaintAll then ns.RF_PtRepaintAll("PLAYER_ENTERING_WORLD") end
         C_Timer.After(0.5, function()
+            -- Pet frames: flushed at the end of this settle, or at combat end.
+            ns.PF_MarkDirty()
             -- Groups by Instance: re-resolve the instance context first so both the
             -- combat-deferred reload and the tier check below see the new set.
             -- Skipped entirely while the feature is off.
