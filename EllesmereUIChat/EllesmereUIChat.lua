@@ -4465,13 +4465,12 @@ local function SkinChatFrame(cf)
                 HideSidebarIconTooltip(self)
             end)
 
-            local fcLast, fcDirty
+            local fcLast
             local function UpdateFriendsCount()
                 if InCombatLockdown() then
-                    fcDirty = true
+                    ns.CombatQueue.Defer(UpdateFriendsCount, UpdateFriendsCount)
                     return
                 end
-                fcDirty = nil
                 local _, numOnline = BNGetNumFriends()
                 local wowOnline = C_FriendList.GetNumOnlineFriends() or 0
                 local total = numOnline + wowOnline
@@ -4489,22 +4488,15 @@ local function SkinChatFrame(cf)
             fcEvents:RegisterEvent("PLAYER_ENTERING_WORLD")
             fcEvents:RegisterEvent("BN_CONNECTED")
             fcEvents:RegisterEvent("BN_DISCONNECTED")
-            fcEvents:RegisterEvent("PLAYER_REGEN_ENABLED")
             -- Recount inline on the exact edges -- the narrow account
             -- online/offline pair (the same field-proven set the DataBars
             -- micromenu count uses), NOT the BN_FRIEND_INFO_CHANGED presence
             -- firehose, so nothing fires between real login/logout edges.
             -- Two cached count reads plus one compare, no timers, and the
             -- label only rewrites when the number changed. In combat nothing
-            -- recounts at all -- events mark the count dirty and the regen
-            -- edge settles it once.
-            fcEvents:SetScript("OnEvent", function(_, event)
-                if event == "PLAYER_REGEN_ENABLED" then
-                    if fcDirty then UpdateFriendsCount() end
-                    return
-                end
-                UpdateFriendsCount()
-            end)
+            -- recounts at all -- the count defers itself once to the combat
+            -- queue and settles on the regen edge.
+            fcEvents:SetScript("OnEvent", UpdateFriendsCount)
 
             CFD(cf).friendsCount = friendsCount
             -- A count inside its button (the stock QuickJoin plate) is not a
