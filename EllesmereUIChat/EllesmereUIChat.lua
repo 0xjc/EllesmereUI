@@ -15,8 +15,9 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --    - Copy Chat button + session history (own message store)
 -------------------------------------------------------------------------------
 local addonName, ns = ...
-if not (EllesmereUI and EllesmereUI._ModuleNS) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring
+if not (EllesmereUI and EllesmereUI._ModuleNS and EllesmereUI.NewCombatQueue) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring
 EllesmereUI._ModuleNS[addonName] = ns  -- LOD options files read this module ns via the registry
+ns.CombatQueue = EllesmereUI.NewCombatQueue(CreateFrame("Frame"))
 local EUI = _G.EllesmereUI
 if not EUI then return end
 
@@ -3235,21 +3236,16 @@ end
 -- CURRENT intended passthrough state whole; the delta gate makes the pass
 -- idempotent (everything that already landed is skipped, only the refused
 -- writes replay). Fires before the visibility dispatcher's deferred
--- refresh, so a post-combat reveal starts from a clean slate. The event is
--- registered only while armed: zero idle cost.
-local _chatPMRegenFrame
-ArmChatPMRegen = function()
-    if not _chatPMRegenFrame then
-        _chatPMRegenFrame = CreateFrame("Frame")
-        _chatPMRegenFrame:SetScript("OnEvent", function(self)
-            self:UnregisterEvent("PLAYER_REGEN_ENABLED")
-            PassthroughFrames(_chatPassthrough)
-            if _chatPassthrough and not _visChatVisible then
-                SetChatStackShown(false)
-            end
-        end)
+-- refresh, so a post-combat reveal starts from a clean slate. Runs through
+-- the module combat queue: zero idle cost.
+local function ChatPMRegenReapply()
+    PassthroughFrames(_chatPassthrough)
+    if _chatPassthrough and not _visChatVisible then
+        SetChatStackShown(false)
     end
-    _chatPMRegenFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+end
+ArmChatPMRegen = function()
+    ns.CombatQueue.Defer("ChatPassthroughReapply", ChatPMRegenReapply)
 end
 
 local function SetChatMousePassthrough(on)
