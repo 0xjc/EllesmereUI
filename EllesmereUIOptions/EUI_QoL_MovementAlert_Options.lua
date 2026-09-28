@@ -369,7 +369,7 @@ local function BuildMovementAlertPage(pageName, parent, yOffset)
         local btn = select(1, previewBtnFrame:GetChildren())
         if btn then
             local regions = { btn:GetRegions() }
-            for i = 1, btn:GetNumRegions() do
+            for i = 1, #regions do
                 local rgn = regions[i]
                 if rgn and rgn.GetText and rgn:GetText() then previewBtnLbl = rgn; break end
             end

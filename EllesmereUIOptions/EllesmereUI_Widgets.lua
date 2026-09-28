@@ -7369,7 +7369,7 @@ local function BuildCursorAnchorRow(opts)
         suffix:SetText(EllesmereUI.L("(Applies on Window Close)"))
         local anchorLabel
         local regions = { row._leftRegion:GetRegions() }
-        for i = 1, row._leftRegion:GetNumRegions() do
+        for i = 1, #regions do
             local reg = regions[i]
             if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Anchor to Cursor" then
                 anchorLabel = reg; break

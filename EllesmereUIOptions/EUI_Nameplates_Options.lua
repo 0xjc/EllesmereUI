@@ -3843,7 +3843,7 @@ initFrame:SetScript("OnEvent", function(self)
                 suffixFS:SetTextColor(1, 1, 1, 0.35)
                 local sliderLabel
                 local regions = { rightFrame:GetRegions() }
-                for i = 1, rightFrame:GetNumRegions() do
+                for i = 1, #regions do
                     local reg = regions[i]
                     if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Hash Line Location" then
                         sliderLabel = reg
@@ -3921,7 +3921,7 @@ initFrame:SetScript("OnEvent", function(self)
                 suffixFS:SetTextColor(1, 1, 1, 0.35)
                 local sliderLabel
                 local regions = { leftFrame:GetRegions() }
-                for i = 1, leftFrame:GetNumRegions() do
+                for i = 1, #regions do
                     local reg = regions[i]
                     if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Scale Target Nameplate" then
                         sliderLabel = reg
@@ -3988,7 +3988,7 @@ initFrame:SetScript("OnEvent", function(self)
                 suffixFS:SetTextColor(1, 1, 1, 0.35)
                 local sliderLabel
                 local regions = { leftFrame:GetRegions() }
-                for i = 1, leftFrame:GetNumRegions() do
+                for i = 1, #regions do
                     local reg = regions[i]
                     if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Focus Cast Height" then
                         sliderLabel = reg
@@ -4145,7 +4145,7 @@ initFrame:SetScript("OnEvent", function(self)
                 suffixFS:SetTextColor(1, 1, 1, 0.35)
                 local sliderLabel
                 local regions = { leftFrame:GetRegions() }
-                for i = 1, leftFrame:GetNumRegions() do
+                for i = 1, #regions do
                     local reg = regions[i]
                     if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Scale Nameplate On Cast" then
                         sliderLabel = reg

@@ -448,9 +448,8 @@ local function SkinInspectSheet()
     -- are theirs to draw (see WSkin.IsForeignFrame).
     local IsForeign = ns.WSkin and ns.WSkin.IsForeignFrame
     if InspectPVPFrame then
-        local numChildren = InspectPVPFrame:GetNumChildren()
         local children = { InspectPVPFrame:GetChildren() }
-        for i = 1, numChildren do
+        for i = 1, #children do
             local child = children[i]
             if child and not child:GetName()
                and not (IsForeign and IsForeign(child, InspectPVPFrame)) then
@@ -461,9 +460,8 @@ local function SkinInspectSheet()
 
     -- Hide Guild Frame background elements
     if InspectGuildFrame then
-        local numChildren = InspectGuildFrame:GetNumChildren()
         local children = { InspectGuildFrame:GetChildren() }
-        for i = 1, numChildren do
+        for i = 1, #children do
             local child = children[i]
             if child and not child:GetName()
                and not (IsForeign and IsForeign(child, InspectGuildFrame)) then
@@ -473,9 +471,8 @@ local function SkinInspectSheet()
     end
 
     -- Hide unnamed decoration frames in main InspectFrame
-    local numChildren = frame:GetNumChildren()
     local children = { frame:GetChildren() }
-    for i = 1, numChildren do
+    for i = 1, #children do
         local child = children[i]
         if child and not child:GetName() and child:GetObjectType() == "Frame"
            and not (IsForeign and IsForeign(child, frame)) then
@@ -548,7 +545,7 @@ local function SkinInspectSheet()
             local IsForeignBtn = ns.WSkin and ns.WSkin.IsForeignFrame
             local talentsBtn = paperDollItemsFrame.InspectTalents
             local children2 = { paperDollItemsFrame:GetChildren() }
-            for i = 1, paperDollItemsFrame:GetNumChildren() do
+            for i = 1, #children2 do
                 local child = children2[i]
                 if child and child:GetObjectType() == "Button" and not child:GetName()
                    and child ~= talentsBtn
@@ -579,9 +576,8 @@ local function SkinInspectSheet()
             slot:Show()
 
             -- Hide ALL unnamed Texturen in den Slots (die Dekoration)
-            local numRegions = slot:GetNumRegions()
             local regions = { slot:GetRegions() }
-            for i = 1, numRegions do
+            for i = 1, #regions do
                 local region = regions[i]
                 if region and region:IsObjectType("Texture") then
                     local regionName = region:GetName()
@@ -964,7 +960,7 @@ local function SkinInspectSheet()
         frame.TitleContainer:SetPoint("TOP", frame, "TOP", 0, 0)
 
         local children2 = { frame.TitleContainer:GetChildren() }
-        for i = 1, frame.TitleContainer:GetNumChildren() do
+        for i = 1, #children2 do
             local child = children2[i]
             if child and child:GetObjectType() == "FontString" then
                 child:SetJustifyH("CENTER")

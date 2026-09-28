@@ -49,7 +49,7 @@ do
             local btn = select(1, activateBtnFrame:GetChildren())
             if btn then
                 local regions = { btn:GetRegions() }
-                for i = 1, btn:GetNumRegions() do
+                for i = 1, #regions do
                     local rgn = regions[i]
                     if rgn and rgn.GetText and rgn:GetText() then
                         activateBtnLbl = rgn
@@ -399,7 +399,7 @@ do
                 suffix:SetTextColor(1, 1, 1, 0.35)
                 local durLabel
                 local regions = { durFrame:GetRegions() }
-                for i = 1, durFrame:GetNumRegions() do
+                for i = 1, #regions do
                     local reg = regions[i]
                     if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Auto Celebration Duration" then
                         durLabel = reg
@@ -430,7 +430,7 @@ do
                 -- Find the label and slider control regions
                 local durLabel, durControl
                 local regions = { durFrame:GetRegions() }
-                for i = 1, durFrame:GetNumRegions() do
+                for i = 1, #regions do
                     local reg = regions[i]
                     if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Auto Celebration Duration" then
                         durLabel = reg
@@ -500,7 +500,7 @@ do
                 suffix:SetTextColor(1, 1, 1, 0.35)
                 local cdLabel
                 local regions = { cdFrame:GetRegions() }
-                for i = 1, cdFrame:GetNumRegions() do
+                for i = 1, #regions do
                     local reg = regions[i]
                     if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Random Celebrations Minimum Cooldown" then
                         cdLabel = reg
@@ -528,7 +528,7 @@ do
             do
                 local cdLabel
                 local regions = { cdFrame:GetRegions() }
-                for i = 1, cdFrame:GetNumRegions() do
+                for i = 1, #regions do
                     local reg = regions[i]
                     if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Random Celebrations Minimum Cooldown" then
                         cdLabel = reg

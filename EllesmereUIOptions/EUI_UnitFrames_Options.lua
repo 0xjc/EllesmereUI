@@ -6837,7 +6837,7 @@ initFrame:SetScript("OnEvent", function(self)
             suffix:SetText(EllesmereUI.L("(Applies to All Units)"))
             local lbl
             local regions = { decRow._leftRegion:GetRegions() }
-            for i = 1, decRow._leftRegion:GetNumRegions() do
+            for i = 1, #regions do
                 local reg = regions[i]
                 if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Show Decimal on Health Text" then
                     lbl = reg; break
@@ -16700,7 +16700,7 @@ initFrame:SetScript("OnEvent", function(self)
             activateBtn = select(1, activateBtnFrame:GetChildren())
             if activateBtn then
                 local regions = { activateBtn:GetRegions() }
-                for i = 1, activateBtn:GetNumRegions() do
+                for i = 1, #regions do
                     local rgn = regions[i]
                     if rgn and rgn.GetText and rgn:GetText() then
                         activateBtnLbl = rgn; break

@@ -737,7 +737,7 @@ initFrame:SetScript("OnEvent", function(self)
             suffix:SetTextColor(1, 1, 1, 0.35)
             local found
             local regions = { rgn:GetRegions() }
-            for i = 1, rgn:GetNumRegions() do
+            for i = 1, #regions do
                 local reg = regions[i]
                 if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == labelText then
                     found = reg; break

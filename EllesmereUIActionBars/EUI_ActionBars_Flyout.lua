@@ -206,7 +206,7 @@ local function OnBlizzardFlyoutShow(flyout)
     -- in the button's record).
     local classic = ns.AB_Style() == "classic"
     local children = { flyout:GetChildren() }
-    for i = 1, flyout:GetNumChildren() do
+    for i = 1, #children do
         local child = children[i]
         if child and child:IsShown() and child.icon then
             if classic then
