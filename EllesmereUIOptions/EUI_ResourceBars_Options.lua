@@ -3069,12 +3069,9 @@ initFrame:SetScript("OnEvent", function(self)
         return Update
     end
 
-    -- Shared, context-aware HEALTH section builder; both Simple and the Advanced
-    -- per-spec page render through this. ctx.cfg() -> health config table (DB().health
-    -- on Simple, the per-spec copy-on-unsync override on Advanced). ctx.advanced hides
-    -- controls that only make sense globally (a synced section falls back to Simple).
-    -- Returns the y after the rendered rows. Assigned to ns (not local) so the separate
-    -- Advanced .lua file, sharing this addon ns, can call it too.
+    -- Shared, context-aware HEALTH section builder. ctx.cfg() -> health config table
+    -- (DB().health). Returns the y after the rendered rows. ctx.advanced is always
+    -- false: the Advanced per-spec page was retired.
     function ns.ERB_BuildHealthSection(parent, y, ctx)
         local W = EllesmereUI.Widgets
         local _, h
@@ -3085,29 +3082,7 @@ initFrame:SetScript("OnEvent", function(self)
         hdr, h = W:SectionHeader(parent, "HEALTH BAR", y);  y = y - h
         y = EllesmereUI.BlizzStyle.Note(parent, y, "resourcebars")
 
-        -- Advanced: Synced/Re-sync toggle; controls always built, overlaid when synced (built at the end) so the section height stays constant.
         local _advTop = y  -- content top; also used by the Simple override overlay
-        if ctx.advanced then
-            local EGc  = EllesmereUI.ELLESMERE_GREEN or { r = 0.05, g = 0.82, b = 0.62 }
-            local syncBtn = CreateFrame("Button", nil, hdr)
-            syncBtn:SetSize(92, 22)
-            syncBtn:SetPoint("BOTTOMRIGHT", hdr, "BOTTOMRIGHT", 0, 6)
-            syncBtn:SetFrameLevel(hdr:GetFrameLevel() + 60)
-            local sbg  = EllesmereUI.SolidTex(syncBtn, "BACKGROUND", 0.10, 0.10, 0.11, 0.9)
-            local sbrd = EllesmereUI.MakeBorder(syncBtn, 1, 1, 1, 0.22, EllesmereUI.PanelPP)
-            local slbl = EllesmereUI.MakeFont(syncBtn, 11, nil, 1, 1, 1)
-            slbl:SetPoint("CENTER")
-            if ctx.synced then
-                slbl:SetText(EllesmereUI.L("Synced")); slbl:SetTextColor(1, 1, 1, 0.5)
-            else
-                slbl:SetText(EllesmereUI.L("Re-sync")); slbl:SetTextColor(EGc.r, EGc.g, EGc.b, 1)
-            end
-            syncBtn:SetScript("OnEnter", function() if sbrd and sbrd.SetColor then sbrd:SetColor(EGc.r, EGc.g, EGc.b, 0.7) end end)
-            syncBtn:SetScript("OnLeave", function() if sbrd and sbrd.SetColor then sbrd:SetColor(1, 1, 1, 0.22) end end)
-            syncBtn:SetScript("OnClick", function() if ctx.onToggleSync then ctx.onToggleSync() end end)
-            _advTop = y
-        end
-
         -- Row 1: Show Health Bar | Orientation
         local healthEnableRow
         healthEnableRow, h = W:DualRow(parent, y,
@@ -3712,48 +3687,7 @@ initFrame:SetScript("OnEvent", function(self)
               end },
             { type = "label", text = "Threshold Settings" }
         );  y = y - h
-        -- Threshold Settings popup. Simple edits DB().health (multi-spec, with the spec
-        -- dropdown). Advanced edits the per-spec override cfg() in singleSpec mode: collapse
-        -- thresholdSpecs to ONE implied-spec entry, seeded from Simple's resolution for this
-        -- spec, else defaults.
-        if ctx.advanced and ctx.specID then
-            local c = cfg()
-            local ts = c and c.thresholdSpecs
-            local normalized = ts and #ts == 1 and ts[1].specIDs and #ts[1].specIDs == 1 and ts[1].specIDs[1] == 0
-            if c and not normalized then
-                local match, allM
-                if ts then
-                    for _, e in ipairs(ts) do
-                        if e.specIDs then
-                            for _, sid in ipairs(e.specIDs) do
-                                if sid == ctx.specID then match = e end
-                                if sid == 0 then allM = e end
-                            end
-                        end
-                    end
-                end
-                local src = match or allM
-                local single = {}
-                if src then
-                    for k, v in pairs(src) do
-                        if type(v) == "table" then
-                            local t = {}
-                            for k2, v2 in pairs(v) do
-                                if type(v2) == "table" then
-                                    local r = {}; for k3, v3 in pairs(v2) do r[k3] = v3 end; t[k2] = r
-                                else t[k2] = v2 end
-                            end
-                            single[k] = t
-                        else single[k] = v end
-                    end
-                else
-                    single.thresholdEnabled = false; single.thresholdPct = 30
-                    single.thresholdR = 1; single.thresholdG = 0.2; single.thresholdB = 0.2; single.thresholdA = 1
-                end
-                single.specIDs = { 0 }
-                c.thresholdSpecs = { single }
-            end
-        end
+        -- Threshold Settings popup: edits DB().health (multi-spec, with the spec dropdown).
 
         if not EllesmereUI._prebuilding then
         local _thrNoticeH   -- assigned below: the notice badge lives on the button itself
@@ -3790,26 +3724,6 @@ initFrame:SetScript("OnEvent", function(self)
         end
         end   -- close Health Bar hidden-while-disabled gate
 
-        -- Synced overlay covers the fully-built content (near-opaque) so the section height stays constant either way.
-        if ctx.advanced and ctx.synced and _advTop then
-            local EGc  = EllesmereUI.ELLESMERE_GREEN or { r = 0.05, g = 0.82, b = 0.62 }
-            local CPAD = EllesmereUI.CONTENT_PAD or 45
-            local ov = CreateFrame("Button", nil, parent)
-            ov:SetPoint("TOPLEFT", parent, "TOPLEFT", CPAD, _advTop)
-            ov:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -CPAD, _advTop)
-            ov:SetHeight(math.max(1, _advTop - y))
-            ov:SetFrameLevel(parent:GetFrameLevel() + 50)
-            local obg = ov:CreateTexture(nil, "BACKGROUND"); obg:SetAllPoints()
-            obg:SetColorTexture(13 / 255, 17 / 255, 25 / 255, 0.96)
-            local olbl = EllesmereUI.MakeFont(ov, 12, nil, 1, 1, 1); olbl:SetPoint("CENTER")
-            olbl:SetTextColor(1, 1, 1, 0.56)
-            olbl:SetText(EllesmereUI.L("Synced with Simple Mode") .. "   —   " .. EllesmereUI.L("click to customise"))
-            ov:SetScript("OnEnter", function() olbl:SetTextColor(EGc.r, EGc.g, EGc.b, 1) end)
-            ov:SetScript("OnLeave", function() olbl:SetTextColor(1, 1, 1, 0.56) end)
-            ov:SetScript("OnClick", function() if ctx.onToggleSync then ctx.onToggleSync() end end)
-            ns.ERB_OverlayHealOnShow(ov, obg, olbl)
-        end
-
         -- Simple page: cover these controls when the current spec overrides Health in Advanced, so edits here aren't silently ignored.
         if not ctx.advanced then ns.ERB_SimpleOverrideOverlay(parent, _advTop, y, "health") end
 
@@ -3827,29 +3741,7 @@ initFrame:SetScript("OnEvent", function(self)
         local hdr
         hdr, h = W:SectionHeader(parent, "POWER BAR", y);  y = y - h
 
-        -- Advanced: Synced/Re-sync toggle; controls always built, overlaid when synced (built at the end) so the section height stays constant.
         local _advTop = y  -- content top; also used by the Simple override overlay
-        if ctx.advanced then
-            local EGc  = EllesmereUI.ELLESMERE_GREEN or { r = 0.05, g = 0.82, b = 0.62 }
-            local syncBtn = CreateFrame("Button", nil, hdr)
-            syncBtn:SetSize(92, 22)
-            syncBtn:SetPoint("BOTTOMRIGHT", hdr, "BOTTOMRIGHT", 0, 6)
-            syncBtn:SetFrameLevel(hdr:GetFrameLevel() + 60)
-            local sbg  = EllesmereUI.SolidTex(syncBtn, "BACKGROUND", 0.10, 0.10, 0.11, 0.9)
-            local sbrd = EllesmereUI.MakeBorder(syncBtn, 1, 1, 1, 0.22, EllesmereUI.PanelPP)
-            local slbl = EllesmereUI.MakeFont(syncBtn, 11, nil, 1, 1, 1)
-            slbl:SetPoint("CENTER")
-            if ctx.synced then
-                slbl:SetText(EllesmereUI.L("Synced")); slbl:SetTextColor(1, 1, 1, 0.5)
-            else
-                slbl:SetText(EllesmereUI.L("Re-sync")); slbl:SetTextColor(EGc.r, EGc.g, EGc.b, 1)
-            end
-            syncBtn:SetScript("OnEnter", function() if sbrd and sbrd.SetColor then sbrd:SetColor(EGc.r, EGc.g, EGc.b, 0.7) end end)
-            syncBtn:SetScript("OnLeave", function() if sbrd and sbrd.SetColor then sbrd:SetColor(1, 1, 1, 0.22) end end)
-            syncBtn:SetScript("OnClick", function() if ctx.onToggleSync then ctx.onToggleSync() end end)
-            _advTop = y
-        end
-
         -- Row 1: Show Power Bar | Orientation
         local powerEnableRow
         powerEnableRow, h = W:DualRow(parent, y,
@@ -4524,47 +4416,6 @@ initFrame:SetScript("OnEvent", function(self)
             })
             AddFormTextBtn(rgn, cogBtn, cfg, RefreshPower)
         end
-        -- Threshold Settings popup. Advanced => singleSpec on the per-spec override:
-        -- normalize cfg().thresholdSpecs to one implied-spec entry. Form-specific mode holds
-        -- three per-form entries and manages its own list, so it's skipped.
-        if ctx.advanced and ctx.specID and not (cfg() and cfg().thresholdFormMode) then
-            local c = cfg()
-            local ts = c and c.thresholdSpecs
-            local normalized = ts and #ts == 1 and ts[1].specIDs and #ts[1].specIDs == 1 and ts[1].specIDs[1] == 0
-            if c and not normalized then
-                local match, allM
-                if ts then
-                    for _, e in ipairs(ts) do
-                        if e.specIDs then
-                            for _, sid in ipairs(e.specIDs) do
-                                if sid == ctx.specID then match = e end
-                                if sid == 0 then allM = e end
-                            end
-                        end
-                    end
-                end
-                local src = match or allM
-                local single = {}
-                if src then
-                    for k, v in pairs(src) do
-                        if type(v) == "table" then
-                            local t = {}
-                            for k2, v2 in pairs(v) do
-                                if type(v2) == "table" then
-                                    local r = {}; for k3, v3 in pairs(v2) do r[k3] = v3 end; t[k2] = r
-                                else t[k2] = v2 end
-                            end
-                            single[k] = t
-                        else single[k] = v end
-                    end
-                else
-                    single.thresholdEnabled = false; single.thresholdPct = 30
-                    single.thresholdR = 1; single.thresholdG = 0.2; single.thresholdB = 0.2; single.thresholdA = 1
-                end
-                single.specIDs = { 0 }
-                c.thresholdSpecs = { single }
-            end
-        end
         if not EllesmereUI._prebuilding then
         local _thrNoticeP   -- assigned below: the notice badge lives on the button itself
         local powerSettingsBtn = BuildThresholdSettingsButton({
@@ -4600,26 +4451,6 @@ initFrame:SetScript("OnEvent", function(self)
                 "Thresholds have their own per-spec system and can't be edited while editing a spec group")
         end
         end   -- close Power Bar hidden-while-disabled gate
-
-        -- Synced overlay covers the built content so the height stays constant
-        if ctx.advanced and ctx.synced and _advTop then
-            local EGc  = EllesmereUI.ELLESMERE_GREEN or { r = 0.05, g = 0.82, b = 0.62 }
-            local CPAD = EllesmereUI.CONTENT_PAD or 45
-            local ov = CreateFrame("Button", nil, parent)
-            ov:SetPoint("TOPLEFT", parent, "TOPLEFT", CPAD, _advTop)
-            ov:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -CPAD, _advTop)
-            ov:SetHeight(math.max(1, _advTop - y))
-            ov:SetFrameLevel(parent:GetFrameLevel() + 50)
-            local obg = ov:CreateTexture(nil, "BACKGROUND"); obg:SetAllPoints()
-            obg:SetColorTexture(13 / 255, 17 / 255, 25 / 255, 0.96)
-            local olbl = EllesmereUI.MakeFont(ov, 12, nil, 1, 1, 1); olbl:SetPoint("CENTER")
-            olbl:SetTextColor(1, 1, 1, 0.56)
-            olbl:SetText(EllesmereUI.L("Synced with Simple Mode") .. "   —   " .. EllesmereUI.L("click to customise"))
-            ov:SetScript("OnEnter", function() olbl:SetTextColor(EGc.r, EGc.g, EGc.b, 1) end)
-            ov:SetScript("OnLeave", function() olbl:SetTextColor(1, 1, 1, 0.56) end)
-            ov:SetScript("OnClick", function() if ctx.onToggleSync then ctx.onToggleSync() end end)
-            ns.ERB_OverlayHealOnShow(ov, obg, olbl)
-        end
 
         -- Simple page: cover these controls when the current spec overrides Power in Advanced, so edits here aren't silently ignored.
         if not ctx.advanced then ns.ERB_SimpleOverrideOverlay(parent, _advTop, y, "primary") end
@@ -4707,34 +4538,11 @@ initFrame:SetScript("OnEvent", function(self)
         hdr, h = W:SectionHeader(parent, "CLASS RESOURCE BAR", y);  y = y - h
 
         local _advTop = y  -- content top; also used by the Simple override overlay
-        if ctx.advanced then
-            local EGc = EllesmereUI.ELLESMERE_GREEN or { r = 0.05, g = 0.82, b = 0.62 }
-            local syncBtn = CreateFrame("Button", nil, hdr)
-            syncBtn:SetSize(92, 22)
-            syncBtn:SetPoint("BOTTOMRIGHT", hdr, "BOTTOMRIGHT", 0, 6)
-            syncBtn:SetFrameLevel(hdr:GetFrameLevel() + 60)
-            local sbg  = EllesmereUI.SolidTex(syncBtn, "BACKGROUND", 0.10, 0.10, 0.11, 0.9)
-            local sbrd = EllesmereUI.MakeBorder(syncBtn, 1, 1, 1, 0.22, EllesmereUI.PanelPP)
-            local slbl = EllesmereUI.MakeFont(syncBtn, 11, nil, 1, 1, 1)
-            slbl:SetPoint("CENTER")
-            if ctx.synced then
-                slbl:SetText(EllesmereUI.L("Synced")); slbl:SetTextColor(1, 1, 1, 0.5)
-            else
-                slbl:SetText(EllesmereUI.L("Re-sync")); slbl:SetTextColor(EGc.r, EGc.g, EGc.b, 1)
-            end
-            syncBtn:SetScript("OnEnter", function() if sbrd and sbrd.SetColor then sbrd:SetColor(EGc.r, EGc.g, EGc.b, 0.7) end end)
-            syncBtn:SetScript("OnLeave", function() if sbrd and sbrd.SetColor then sbrd:SetColor(1, 1, 1, 0.22) end end)
-            syncBtn:SetScript("OnClick", function() if ctx.onToggleSync then ctx.onToggleSync() end end)
-            _advTop = y
-        end
-
         -- Guardian Ironfur + Prot Ignore Pain special bars stay global at runtime (stored on
-        -- DB().secondary, not per-spec), but the row shows in both Simple and Advanced for
-        -- the relevant spec. Advanced gates on the configured spec, Simple on the active one.
+        -- DB().secondary, not per-spec); the row shows for the active spec.
         -- Retail only: WoW Forever has none of these specs.
         if not EllesmereUI.IS_FOREVER then
             local function _IsGuardianDruid()
-                if ctx.advanced then return ctx.specID == 104 end
                 local _, cf = UnitClass("player")
                 if cf ~= "DRUID" then return false end
                 local s = C_SpecializationInfo.GetSpecialization()
@@ -4764,7 +4572,6 @@ initFrame:SetScript("OnEvent", function(self)
                 );  y = y - hh
             end
             local function _IsProtWarrior()
-                if ctx.advanced then return ctx.specID == 73 end
                 local _, cf = UnitClass("player")
                 if cf ~= "WARRIOR" then return false end
                 local s = C_SpecializationInfo.GetSpecialization()
@@ -4810,7 +4617,6 @@ initFrame:SetScript("OnEvent", function(self)
                 IPControlTip(ipRow._rightRegion, ipHashTip)
             end
             local function _IsArmsWarrior()
-                if ctx.advanced then return ctx.specID == 71 end
                 local _, cf = UnitClass("player")
                 if cf ~= "WARRIOR" then return false end
                 local s = C_SpecializationInfo.GetSpecialization()
@@ -7454,9 +7260,8 @@ initFrame:SetScript("OnEvent", function(self)
             end
             -- Retail only: WoW Forever has no Enhancement spec.
             if playerClass == "SHAMAN" and not EllesmereUI.IS_FOREVER then
-                -- Enhance 5-bar applies to Enhancement (specID 263) only. Advanced gates on the configured spec, Simple on the active spec
+                -- Enhance 5-bar applies to Enhancement (specID 263) only, gated on the active spec
                 local function _enhSpecOK()
-                    if ctx.advanced then return ctx.specID == 263 end
                     return C_SpecializationInfo.GetSpecialization() == 2
                 end
                 local enhRow
@@ -7503,26 +7308,6 @@ initFrame:SetScript("OnEvent", function(self)
             end
         end
         end   -- close Class Resource hidden-while-disabled gate
-
-        -- Synced overlay covers the built content
-        if ctx.advanced and ctx.synced and _advTop then
-            local EGc  = EllesmereUI.ELLESMERE_GREEN or { r = 0.05, g = 0.82, b = 0.62 }
-            local CPAD = EllesmereUI.CONTENT_PAD or 45
-            local ov = CreateFrame("Button", nil, parent)
-            ov:SetPoint("TOPLEFT", parent, "TOPLEFT", CPAD, _advTop)
-            ov:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -CPAD, _advTop)
-            ov:SetHeight(math.max(1, _advTop - y))
-            ov:SetFrameLevel(parent:GetFrameLevel() + 50)
-            local obg = ov:CreateTexture(nil, "BACKGROUND"); obg:SetAllPoints()
-            obg:SetColorTexture(13 / 255, 17 / 255, 25 / 255, 0.96)
-            local olbl = EllesmereUI.MakeFont(ov, 12, nil, 1, 1, 1); olbl:SetPoint("CENTER")
-            olbl:SetTextColor(1, 1, 1, 0.56)
-            olbl:SetText(EllesmereUI.L("Synced with Simple Mode") .. "   —   " .. EllesmereUI.L("click to customise"))
-            ov:SetScript("OnEnter", function() olbl:SetTextColor(EGc.r, EGc.g, EGc.b, 1) end)
-            ov:SetScript("OnLeave", function() olbl:SetTextColor(1, 1, 1, 0.56) end)
-            ov:SetScript("OnClick", function() if ctx.onToggleSync then ctx.onToggleSync() end end)
-            ns.ERB_OverlayHealOnShow(ov, obg, olbl)
-        end
 
         -- Simple page: cover these controls when the current spec overrides the Class Resource in Advanced, so edits here aren't silently ignored.
         if not ctx.advanced then ns.ERB_SimpleOverrideOverlay(parent, _advTop, y, "secondary") end
@@ -8379,16 +8164,12 @@ initFrame:SetScript("OnEvent", function(self)
                     UpdatePowerTypeRow()
                 end
             end
-            -- WoW Forever: Mana Regen Spark (EllesmereUI_ManaRegenSpark.lua)
-            -- and Spell Cost Prediction (EllesmereUI_SpellCostPrediction.lua),
-            -- the section's last rows; warriors and rogues have no mana, so no
-            -- rows, and every other class but the druid pairs the two. A
-            -- druid's Power Type shares the spark's row: one choice for every
-            -- form, stored under a string key so it can never meet a retail
-            -- spec ID in the table. A druid then gets Mana Bar while
-            -- Shapeshifted, and Spell Cost Prediction closes the section. The
-            -- cost row needs its engine loaded (SCP): the swatch reads its
-            -- color rule.
+            -- WoW Forever: Mana Regen Spark and Spell Cost Prediction close the
+            -- section (none for warriors and rogues). Other classes pair the two;
+            -- a druid's spark shares its row with Power Type (one choice for all
+            -- forms, stored under a string key so it never meets a retail spec
+            -- ID), then Mana Bar while Shapeshifted, then Spell Cost Prediction.
+            -- The cost row needs its engine loaded: the swatch reads its color rule.
             if EllesmereUI.IS_FOREVER then
                 local SCP = EllesmereUI.SpellCostPrediction
                 local sparkCfg = { type="toggle", text="Mana Regen Spark",
