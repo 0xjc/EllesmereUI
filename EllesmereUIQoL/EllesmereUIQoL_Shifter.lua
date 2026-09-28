@@ -16,9 +16,6 @@ local tempScale = {}
 -- Every hooked frame, for the scroll-wheel overlay's mouseover targeting
 local hookedFrames = {}
 
--- Frames that loaded during combat and need SetMovable/SetClampedToScreen deferred
-local deferredMovable = {}
-
 -- Forward-declare; created in the event-driven initialization section below
 local eventFrame
 
@@ -1210,14 +1207,6 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1)
         end
     elseif event == "MODIFIER_STATE_CHANGED" then
         UpdateWheelOverlay()
-    elseif event == "PLAYER_REGEN_ENABLED" then
-        self:UnregisterEvent("PLAYER_REGEN_ENABLED")
-        for i = 1, #deferredMovable do
-            local f = deferredMovable[i]
-            f:SetMovable(true)
-            f:SetClampedToScreen(true)
-        end
-        wipe(deferredMovable)
     end
 end)
 
