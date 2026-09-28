@@ -1,7 +1,20 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  ResourceBars\HealthSection.lua
+--  Resource Bars options: HEALTH BAR section builder. Definitions only; the shared
+--  helpers come from ns._ERB_OptEnv (filled by EUI_ResourceBars_Options.lua).
+-------------------------------------------------------------------------------
+local ns = EllesmereUI._ModuleNS["EllesmereUIResourceBars"]
+if not ns then return end  -- module disabled: no options page
+
 -- Shared, context-aware HEALTH section builder. ctx.cfg() -> health config table
 -- (DB().health). Returns the y after the rendered rows. ctx.advanced is always
 -- false: the Advanced per-spec page was retired.
 function ns.ERB_BuildHealthSection(parent, y, ctx)
+    local env = ns._ERB_OptEnv
+    local DB, PP, Refresh, SmoothRefresh = env.DB, env.PP, env.Refresh, env.SmoothRefresh
+    local RefreshHealth, RebuildHealth, AddFormBarBtn, AddFormTextBtn = env.RefreshHealth, env.RebuildHealth, env.AddFormBarBtn, env.AddFormTextBtn
+    local AttachThresholdNotice, BuildHashCog, BuildThresholdSettingsButton = env.AttachThresholdNotice, env.BuildHashCog, env.BuildThresholdSettingsButton
     local W = EllesmereUI.Widgets
     local _, h
     local function cfg() return ctx.cfg() end

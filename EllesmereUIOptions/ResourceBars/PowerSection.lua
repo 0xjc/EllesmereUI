@@ -1,5 +1,18 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  ResourceBars\PowerSection.lua
+--  Resource Bars options: POWER BAR section builder. Definitions only; the shared
+--  helpers come from ns._ERB_OptEnv (filled by EUI_ResourceBars_Options.lua).
+-------------------------------------------------------------------------------
+local ns = EllesmereUI._ModuleNS["EllesmereUIResourceBars"]
+if not ns then return end  -- module disabled: no options page
+
 -- Shared, context-aware POWER section builder; mirrors the health one. ctx.cfg() -> power table (DB().primary Simple, per-spec override Advanced).
 function ns.ERB_BuildPowerSection(parent, y, ctx)
+    local env = ns._ERB_OptEnv
+    local DB, PP, Refresh, SmoothRefresh = env.DB, env.PP, env.Refresh, env.SmoothRefresh
+    local RefreshPower, RebuildPower, AddFormBarBtn, AddFormTextBtn = env.RefreshPower, env.RebuildPower, env.AddFormBarBtn, env.AddFormTextBtn
+    local AttachThresholdNotice, BuildHashCog, BuildThresholdSettingsButton = env.AttachThresholdNotice, env.BuildHashCog, env.BuildThresholdSettingsButton
     local W = EllesmereUI.Widgets
     local _, h
     local function cfg() return ctx.cfg() end

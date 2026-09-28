@@ -49,6 +49,14 @@ EUI_QuestTracker_Options.lua
 EUI_Quickdraw_Options.lua
 EUI_RaidFrames_ManagerPages.lua
 EUI_RaidFrames_Options.lua
+ResourceBars\HealthSection.lua
+ResourceBars\PowerSection.lua
+ResourceBars\ClassResourceSection.lua
+ResourceBars\BarDisplayPage.lua
+ResourceBars\CastBarPage.lua
+ResourceBars\TotemBarPage.lua
+ResourceBars\GCDBarPage.lua
+ResourceBars\SwingTimerPage.lua
 EUI_ResourceBars_Options.lua
 EUI_UnitFrames_Options.lua
 EUI_PlayerAuraBars_ManagerPages.lua

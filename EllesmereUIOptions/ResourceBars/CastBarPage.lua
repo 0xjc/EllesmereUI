@@ -1,12 +1,24 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  ResourceBars\CastBarPage.lua
+--  Resource Bars options: Cast Bar page. Definitions only; the shared
+--  helpers come from ns._ERB_OptEnv (filled by EUI_ResourceBars_Options.lua).
+-------------------------------------------------------------------------------
+local ns = EllesmereUI._ModuleNS["EllesmereUIResourceBars"]
+if not ns then return end  -- module disabled: no options page
+
 -- Cast Bar page
-local function BuildCastBarPage(pageName, parent, yOffset)
+function ns.ERB_BuildCastBarPage(pageName, parent, yOffset)
+    local env = ns._ERB_OptEnv
+    local DB, PP, CLASS_COLORS, _clickMappings = env.DB, env.PP, env.CLASS_COLORS, env._clickMappings
+    local ShuffleCastBarIcons, UpdateCastBarPreview, _castBarPreviewBuilder = env.ShuffleCastBarIcons, env.UpdateCastBarPreview, env._castBarPreviewBuilder
     local W = EllesmereUI.Widgets
     local y = yOffset
     local _, h
 
     parent._showRowDivider = true
 
-    _castBarPreviewFill = math.random(30, 85) / 100
+    env.SetCastBarPreviewFill(math.random(30, 85) / 100)
     ShuffleCastBarIcons()
     EllesmereUI:SetContentHeader(_castBarPreviewBuilder)
 

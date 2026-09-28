@@ -1,5 +1,16 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  ResourceBars\TotemBarPage.lua
+--  Resource Bars options: Totem Bar page. Definitions only; the shared
+--  helpers come from ns._ERB_OptEnv (filled by EUI_ResourceBars_Options.lua).
+-------------------------------------------------------------------------------
+local ns = EllesmereUI._ModuleNS["EllesmereUIResourceBars"]
+if not ns then return end  -- module disabled: no options page
+
 -- Totem Bar options page
-local function BuildTotemBarPage(pageName, parent, yOffset)
+function ns.ERB_BuildTotemBarPage(pageName, parent, yOffset)
+    local env = ns._ERB_OptEnv
+    local DB, PP, _clickMappings = env.DB, env.PP, env._clickMappings
     local W = EllesmereUI.Widgets
     local y = yOffset
     local _, h

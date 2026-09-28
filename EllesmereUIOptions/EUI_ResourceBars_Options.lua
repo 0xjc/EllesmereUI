@@ -3723,6 +3723,29 @@ initFrame:SetScript("OnEvent", function(self)
         return TOTAL_H
     end
 
+    -- Shared helpers for the section and page builders under ResourceBars\
+    -- (loaded before this file, read when a page builds). Preview state stays
+    -- here; the pages write it through the two setters.
+    ns._ERB_OptEnv = {
+        DB = DB, PP = PP, Refresh = Refresh,
+        SmoothRefresh = SmoothRefresh, RefreshHealth = RefreshHealth, RebuildHealth = RebuildHealth,
+        AddFormBarBtn = AddFormBarBtn, AddFormTextBtn = AddFormTextBtn, AttachThresholdNotice = AttachThresholdNotice,
+        BuildHashCog = BuildHashCog, BuildThresholdSettingsButton = BuildThresholdSettingsButton, RefreshPower = RefreshPower,
+        RebuildPower = RebuildPower, RefreshClass = RefreshClass, RebuildClass = RebuildClass,
+        ShowBandEditor = ShowBandEditor, ShowBuffEditor = ShowBuffEditor, ShowSpenderEditor = ShowSpenderEditor,
+        BAND_HELP_TIP = BAND_HELP_TIP, BAND_REPLACES_TIP = BAND_REPLACES_TIP, BUFF_HELP_TIP = BUFF_HELP_TIP,
+        SPENDER_HELP_TIP = SPENDER_HELP_TIP, STAGGER_PCT_TIP = STAGGER_PCT_TIP, CLASS_COLORS = CLASS_COLORS,
+        SIDE_PAD = SIDE_PAD, THR_BORDER_WHITE = THR_BORDER_WHITE, PAGE_DISPLAY = PAGE_DISPLAY,
+        _clickMappings = _clickMappings, _previewHeaderBuilder = _previewHeaderBuilder, CLASSIC_SYNC_KEYS = CLASSIC_SYNC_KEYS,
+        CLASSIC_MATCH_KEYS = CLASSIC_MATCH_KEYS, ShuffleCastBarIcons = ShuffleCastBarIcons, UpdateCastBarPreview = UpdateCastBarPreview,
+        _castBarPreviewBuilder = _castBarPreviewBuilder,
+        SetDisplayPreviewValues = function(pipCount, fillPct)
+            _previewPipCount = pipCount
+            _previewBarFillPct = fillPct
+        end,
+        SetCastBarPreviewFill = function(v) _castBarPreviewFill = v end,
+    }
+
     -- Register the module
     EllesmereUI:RegisterModule("EllesmereUIResourceBars", {
         title       = "Resource Bars",
@@ -3732,15 +3755,15 @@ initFrame:SetScript("OnEvent", function(self)
             or  { PAGE_DISPLAY, PAGE_CASTBAR, PAGE_GCD, PAGE_TOTEM },
         buildPage   = function(pageName, parent, yOffset)
             if pageName == PAGE_DISPLAY then
-                return BuildBarDisplayPage(pageName, parent, yOffset)
+                return ns.ERB_BuildBarDisplayPage(pageName, parent, yOffset)
             elseif pageName == PAGE_CASTBAR then
-                return BuildCastBarPage(pageName, parent, yOffset)
+                return ns.ERB_BuildCastBarPage(pageName, parent, yOffset)
             elseif pageName == PAGE_GCD then
-                return BuildGCDBarPage(pageName, parent, yOffset)
+                return ns.ERB_BuildGCDBarPage(pageName, parent, yOffset)
             elseif pageName == PAGE_SWING then
-                return BuildSwingTimerPage(pageName, parent, yOffset)
+                return ns.ERB_BuildSwingTimerPage(pageName, parent, yOffset)
             elseif pageName == PAGE_TOTEM then
-                return BuildTotemBarPage(pageName, parent, yOffset)
+                return ns.ERB_BuildTotemBarPage(pageName, parent, yOffset)
             end
         end,
         getHeaderBuilder = function(pageName)

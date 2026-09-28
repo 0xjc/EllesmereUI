@@ -1,3 +1,12 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  ResourceBars\ClassResourceSection.lua
+--  Resource Bars options: CLASS RESOURCE BAR section builder. Definitions only; the shared
+--  helpers come from ns._ERB_OptEnv (filled by EUI_ResourceBars_Options.lua).
+-------------------------------------------------------------------------------
+local ns = EllesmereUI._ModuleNS["EllesmereUIResourceBars"]
+if not ns then return end  -- module disabled: no options page
+
 -- Blizzard Class Resource Art stands in for the class resource bar: the CLASS
 -- RESOURCE BAR controls that only style our own bar (texture, colours, pips,
 -- text, borders) grey out and are blocked with a disabled tooltip while it
@@ -42,6 +51,13 @@ end
 -- relevant spec (global storage). The Hide-Power cog is Simple-only. Threshold
 -- (bespoke popup) is appended in a later chunk.
 function ns.ERB_BuildClassResourceSection(parent, y, ctx)
+    local env = ns._ERB_OptEnv
+    local DB, PP, SmoothRefresh, RefreshClass = env.DB, env.PP, env.SmoothRefresh, env.RefreshClass
+    local RebuildClass, RebuildPower, AddFormBarBtn, AddFormTextBtn = env.RebuildClass, env.RebuildPower, env.AddFormBarBtn, env.AddFormTextBtn
+    local AttachThresholdNotice, ShowBandEditor, ShowBuffEditor, ShowSpenderEditor = env.AttachThresholdNotice, env.ShowBandEditor, env.ShowBuffEditor, env.ShowSpenderEditor
+    local BAND_HELP_TIP, BAND_REPLACES_TIP, BUFF_HELP_TIP, SPENDER_HELP_TIP = env.BAND_HELP_TIP, env.BAND_REPLACES_TIP, env.BUFF_HELP_TIP, env.SPENDER_HELP_TIP
+    local STAGGER_PCT_TIP, CLASS_COLORS, SIDE_PAD, THR_BORDER_WHITE = env.STAGGER_PCT_TIP, env.CLASS_COLORS, env.SIDE_PAD, env.THR_BORDER_WHITE
+    local PAGE_DISPLAY = env.PAGE_DISPLAY
     -- Every half-row this section builds is recorded (a thin wrapper over the
     -- widget factory) so Blizzard Class Resource Art can block the controls
     -- that only style our own bar while it stands in (ns.ERB_BlizzArtBlockRegions).

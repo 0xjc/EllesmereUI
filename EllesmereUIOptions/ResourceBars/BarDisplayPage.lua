@@ -1,5 +1,18 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  ResourceBars\BarDisplayPage.lua
+--  Resource Bars options: Class, Power and Health Bars page. Definitions only; the shared
+--  helpers come from ns._ERB_OptEnv (filled by EUI_ResourceBars_Options.lua).
+-------------------------------------------------------------------------------
+local ns = EllesmereUI._ModuleNS["EllesmereUIResourceBars"]
+if not ns then return end  -- module disabled: no options page
+
 -- Bar Display page
-local function BuildBarDisplayPage(pageName, parent, yOffset)
+function ns.ERB_BuildBarDisplayPage(pageName, parent, yOffset)
+    local env = ns._ERB_OptEnv
+    local DB, PP, Refresh, SmoothRefresh = env.DB, env.PP, env.Refresh, env.SmoothRefresh
+    local RebuildClass, RebuildPower, RebuildHealth, _clickMappings = env.RebuildClass, env.RebuildPower, env.RebuildHealth, env._clickMappings
+    local _previewHeaderBuilder, CLASSIC_SYNC_KEYS, CLASSIC_MATCH_KEYS = env._previewHeaderBuilder, env.CLASSIC_SYNC_KEYS, env.CLASSIC_MATCH_KEYS
     local W = EllesmereUI.Widgets
     local y = yOffset
     local _, h
@@ -47,8 +60,7 @@ local function BuildBarDisplayPage(pageName, parent, yOffset)
     -- Randomize the preview fill on every visit to this page
     local minPips = math.floor(5 * 0.50 + 0.5)
     local maxPips = math.floor(5 * 0.75 + 0.5)
-    _previewPipCount = math.random(minPips, maxPips)
-    _previewBarFillPct = math.random(30, 80)
+    env.SetDisplayPreviewValues(math.random(minPips, maxPips), math.random(30, 80))
 
     EllesmereUI:SetContentHeader(_previewHeaderBuilder)
 

@@ -1,7 +1,18 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  ResourceBars\SwingTimerPage.lua
+--  Resource Bars options: Swing Timer page. Definitions only; the shared
+--  helpers come from ns._ERB_OptEnv (filled by EUI_ResourceBars_Options.lua).
+-------------------------------------------------------------------------------
+local ns = EllesmereUI._ModuleNS["EllesmereUIResourceBars"]
+if not ns then return end  -- module disabled: no options page
+
 -- Swing Timer page (WoW Forever only: the page exists only where the client
 -- has C_SwingTimer; see EUI_ResourceBars_SwingTimer.lua). Same widget set as
 -- the GCD Bar page, plus the row/text/range rows the swing timer adds.
-local function BuildSwingTimerPage(pageName, parent, yOffset)
+function ns.ERB_BuildSwingTimerPage(pageName, parent, yOffset)
+    local env = ns._ERB_OptEnv
+    local DB, PP = env.DB, env.PP
     local W = EllesmereUI.Widgets
     local y = yOffset
     local _, h

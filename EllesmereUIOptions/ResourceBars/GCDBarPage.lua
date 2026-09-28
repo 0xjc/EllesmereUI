@@ -1,5 +1,16 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  ResourceBars\GCDBarPage.lua
+--  Resource Bars options: GCD Bar page. Definitions only; the shared
+--  helpers come from ns._ERB_OptEnv (filled by EUI_ResourceBars_Options.lua).
+-------------------------------------------------------------------------------
+local ns = EllesmereUI._ModuleNS["EllesmereUIResourceBars"]
+if not ns then return end  -- module disabled: no options page
+
 -- GCD Bar page
-local function BuildGCDBarPage(pageName, parent, yOffset)
+function ns.ERB_BuildGCDBarPage(pageName, parent, yOffset)
+    local env = ns._ERB_OptEnv
+    local DB, PP, CLASS_COLORS = env.DB, env.PP, env.CLASS_COLORS
     local W = EllesmereUI.Widgets
     local y = yOffset
     local _, h
