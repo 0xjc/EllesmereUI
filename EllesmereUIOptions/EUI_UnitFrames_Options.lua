@@ -5301,6 +5301,10 @@ initFrame:SetScript("OnEvent", function(self)
             if power then
                 ns.UpdatePowerSeam(power, s, EllesmereUI.BlizzStyle.Get("unitframes"), true)
             end
+            if s.portraitSeparator or pf._portraitSeparator then
+                ns.UpdatePortraitSeparator(pf, portraitFrame, s, effectiveSide,
+                    sp and isAttached, EllesmereUI.BlizzStyle.Get("unitframes"), true)
+            end
 
             -- Re-snap BTB
             if btbFrame and s.bottomTextBar and btbIsAtt then
@@ -7277,11 +7281,32 @@ initFrame:SetScript("OnEvent", function(self)
                 },
             })
         end
-        -- Cog on Portrait Mode: the Non-Player Portrait opt-in (its toggle
-        -- rebuilds the page to show or drop that row below).
+        -- Portrait settings; the separator is offered only for attached portraits.
         if not EllesmereUI._prebuilding then
+            local rows = {
+                { type="toggle", label="Custom Non-Player Portrait",
+                  tooltip="Pick what NPCs show in Class art instead of their 2D portrait.",
+                  get=function() return SVal("portraitNonPlayerOn", false) end,
+                  set=function(v)
+                      SSet("portraitNonPlayerOn", v or nil)
+                      EllesmereUI:RefreshPage(true)
+                  end },
+            }
+            if SVal("portraitStyle", "attached") == "attached" then
+                rows[#rows + 1] = { type="toggle", label="Vertical Border Separator",
+                    tooltip="Draws the selected border style between the attached portrait and the bars.",
+                    disabled=function()
+                        return SVal("borderSize", 1) <= 0
+                            or not EllesmereUI.GetBorderCompanion(SGet("borderTexture") or "solid", "sepV")
+                    end,
+                    disabledTooltip="This option requires the Pixels or Pixels Textured border style and a Border Size above 0.",
+                    rawTooltip=true,
+                    get=function() return SVal("portraitSeparator", false) end,
+                    set=function(v) SSet("portraitSeparator", v or nil) end,
+                }
+            end
             EllesmereUI.BuildInlineCog(sharedPortraitModeRow._leftRegion, {
-                title = "Non-Player Portrait",
+                title = "Portrait Settings",
                 disabled = function()
                     return EllesmereUI.BlizzStyle.Get("unitframes") or SVal("portraitStyle", "attached") == "none"
                 end,
@@ -7291,15 +7316,7 @@ initFrame:SetScript("OnEvent", function(self)
                 end,
                 rawTooltip = function() return not EllesmereUI.BlizzStyle.Get("unitframes") end,
                 requireState = "disabled",
-                rows = {
-                    { type="toggle", label="Custom Non-Player Portrait",
-                      tooltip="Pick what NPCs show in Class art instead of their 2D portrait.",
-                      get=function() return SVal("portraitNonPlayerOn", false) end,
-                      set=function(v)
-                          SSet("portraitNonPlayerOn", v or nil)
-                          EllesmereUI:RefreshPage(true)
-                      end },
-                },
+                rows = rows,
             })
         end
         -- Sync icon: Portrait Mode (Art Style)
