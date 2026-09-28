@@ -7147,8 +7147,11 @@ local function HideBlizzardFrame(nameplate, unit)
     -- -- parking the whole frame under a hidden holder flips every plate's content to
     -- IsVisible()==false and breaks click target selection between overlapping plates in packs.
     -- Exclusions: kept-live frames, plus protected/forbidden children (alpha 0 hides them).
-    for i = 1, uf:GetNumChildren() do
-        local child = select(i, uf:GetChildren())
+    -- Walk a snapshot: each SetParent below removes that child from uf's list, so re-reading
+    -- uf:GetChildren() per index shifted the rest down and skipped every child after a moved one.
+    local children = { uf:GetChildren() }
+    for i = 1, #children do
+        local child = children[i]
         if child and child ~= uf.WidgetContainer and child ~= uf.AurasFrame
         and child ~= uf.SoftTargetFrame
            and not child:IsForbidden() and not child:IsProtected() then
@@ -7259,8 +7262,12 @@ local function RestoreBlizzardFrame(nameplate)
     if not uf then return end
     -- Return this UnitFrame's parked children from the hidden holder (shared by every plate,
     -- filter by recorded owner), then re-home the kept-live frames.
-    for i = npOffscreenParent:GetNumChildren(), 1, -1 do
-        local child = select(i, npOffscreenParent:GetChildren())
+    -- One snapshot instead of select(i, GetChildren()) per index: the holder is shared by
+    -- every plate, so re-reading it per step was quadratic in all parked children.
+    -- Backwards only to keep the order children return to uf in.
+    local children = { npOffscreenParent:GetChildren() }
+    for i = #children, 1, -1 do
+        local child = children[i]
         if child and storedParents[child] == uf then
             child:SetParent(uf)
             storedParents[child] = nil
