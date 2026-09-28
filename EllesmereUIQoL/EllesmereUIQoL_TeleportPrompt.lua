@@ -64,7 +64,7 @@ local pendingHide          -- hide requested in combat; hide on PLAYER_REGEN_ENA
 -- Forward declarations (closures reference each other)
 local BuildPopup, ShowPrompt, HidePrompt, ClearPending
 local ApplyTeleportPrompt  -- live enable/disable entry point (defined in the events section)
-local UpdateButtonVisuals, ResolveDungeon
+local UpdateButtonVisuals, ResolveDungeon, ResolveActiveEntry, ResolveActivity
 local SavePosition, ApplySavedPosition, ApplyDisableVisibility
 
 -------------------------------------------------------------------------------
@@ -286,24 +286,12 @@ UpdateButtonVisuals = function()
 end
 
 -------------------------------------------------------------------------------
---  Resolve the accepted dungeon -> teleport spell via a CLEAN string chain.
---  resultID is only ever passed as a function argument (safe even if secret).
+--  Resolve a known LFG activity -> teleport spell via a CLEAN string chain.
 -------------------------------------------------------------------------------
-ResolveDungeon = function(resultID)
-    if not (C_LFGList and C_LFGList.GetSearchResultInfo) then return end
-    -- Called from LFG_LIST_JOINED_GROUP, where the search result is readable (the
-    -- secrecy that applies while browsing/applying is lifted once you have joined).
-    -- Still wrapped in pcall and guarded with issecretvalue as defense in depth:
-    -- if any needed field is secret, it bails gracefully (no prompt) rather than
-    -- erroring. Capture is synchronous because the result can expire after joining.
+ResolveActivity = function(activityID)
+    if not (C_LFGList and C_LFGList.GetActivityInfoTable)
+        or issecretvalue(activityID) or type(activityID) ~= "number" then return end
     pcall(function()
-        local info = C_LFGList.GetSearchResultInfo(resultID)
-        if type(info) ~= "table" then return end
-        local activityID = info.activityID
-        if activityID == nil and info.activityIDs and not issecretvalue(info.activityIDs) then
-            activityID = info.activityIDs[1]
-        end
-        if issecretvalue(activityID) or activityID == nil then return end
         local act = C_LFGList.GetActivityInfoTable(activityID)
         if type(act) ~= "table" then return end
         local fullName = act.fullName
@@ -313,8 +301,35 @@ ResolveDungeon = function(resultID)
             pendingSpellID = spellID
             -- Display only the dungeon name, not the trailing difficulty suffix
             -- (e.g. "Skyreach (Mythic Keystone)" -> "Skyreach").
-            pendingName    = (fullName:gsub("%s*%b()%s*$", ""))
+            pendingName = (fullName:gsub("%s*%b()%s*$", ""))
         end
+    end)
+end
+
+-- Search results are readable when accepting an invite. Capture immediately:
+-- they can expire shortly after joining.
+ResolveDungeon = function(resultID)
+    if not (C_LFGList and C_LFGList.GetSearchResultInfo) then return end
+    pcall(function()
+        local info = C_LFGList.GetSearchResultInfo(resultID)
+        if type(info) ~= "table" then return end
+        local activityID = info.activityID
+        if activityID == nil and info.activityIDs and not issecretvalue(info.activityIDs) then
+            activityID = info.activityIDs[1]
+        end
+        ResolveActivity(activityID)
+    end)
+end
+
+-- A leader creates or updates an active listing without receiving
+-- LFG_LIST_JOINED_GROUP. Its activityIDs are documented NeverSecret, which also
+-- lets an already-formed LFG group receive the reminder after a reload.
+ResolveActiveEntry = function()
+    if not (C_LFGList and C_LFGList.GetActiveEntryInfo) then return end
+    pcall(function()
+        local entry = C_LFGList.GetActiveEntryInfo()
+        if type(entry) ~= "table" or issecretvalue(entry.activityIDs) then return end
+        ResolveActivity(entry.activityIDs[1])
     end)
 end
 
@@ -386,6 +401,7 @@ local ev = CreateFrame("Frame")
 local function SyncEvents()
     if IsEnabled() then
         ev:RegisterEvent("LFG_LIST_JOINED_GROUP")
+        ev:RegisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
         ev:RegisterEvent("GROUP_ROSTER_UPDATE")
         ev:RegisterEvent("PLAYER_ENTERING_WORLD")
         ev:RegisterEvent("ZONE_CHANGED_NEW_AREA")
@@ -393,6 +409,7 @@ local function SyncEvents()
         ev:RegisterEvent("PLAYER_REGEN_ENABLED")
     else
         ev:UnregisterEvent("LFG_LIST_JOINED_GROUP")
+        ev:UnregisterEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE")
         ev:UnregisterEvent("GROUP_ROSTER_UPDATE")
         ev:UnregisterEvent("PLAYER_ENTERING_WORLD")
         ev:UnregisterEvent("ZONE_CHANGED_NEW_AREA")
@@ -433,6 +450,11 @@ ev:SetScript("OnEvent", function(self, event, arg1, arg2)
         if IsEnabled() then
             BuildPopup()
             SyncEvents()
+            -- Covers loading/reloading while already leading or belonging to an
+            -- active LFG listing, where no join event fires in this session.
+            ClearPending()
+            ResolveActiveEntry()
+            if pendingSpellID then ShowPrompt() end
         end
         return
     elseif event == "PLAYER_REGEN_ENABLED" then
@@ -472,13 +494,16 @@ ev:SetScript("OnEvent", function(self, event, arg1, arg2)
     end
 
     if event == "LFG_LIST_JOINED_GROUP" then
-        -- arg1 = searchResultID. This fires the moment the player joins a Group
-        -- Finder group (i.e. accepted the invite). Unlike the browse/apply phase,
-        -- the search result info is readable here, so the dungeon can be resolved.
-        -- Capture immediately; the search result can expire shortly after joining.
+        -- arg1 = searchResultID. This fires when an applicant accepts an invite.
         ClearPending()
         ResolveDungeon(arg1)
         if pendingSpellID then ShowPrompt() end
+    elseif event == "LFG_LIST_ACTIVE_ENTRY_UPDATE" then
+        -- Fires when the group leader creates/updates/removes the listing. Read
+        -- the active entry so leaders receive the same prompt as applicants.
+        ClearPending()
+        ResolveActiveEntry()
+        if pendingSpellID then ShowPrompt() else HidePrompt() end
     elseif event == "GROUP_ROSTER_UPDATE" then
         if not IsInGroup() then
             ClearPending(); HidePrompt()
