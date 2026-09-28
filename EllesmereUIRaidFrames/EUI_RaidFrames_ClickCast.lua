@@ -2556,7 +2556,7 @@ function ns.CC_BuildPage(pageName, parent, yOffset)
             if C_Texture.GetAtlasInfo("common-icon-delete") then
                 delTex:SetAtlas("common-icon-delete")
             else
-                delTex:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-close.png")
+                delTex:SetTexture(EllesmereUI.ICONS_PATH .. "common-icon-delete.png")
             end
             delTex:SetDesaturated(true)
             delTex:SetVertexColor(0.75, 0.75, 0.75)
