@@ -3684,6 +3684,90 @@ local function AssignFramesToConfigs(bars)
 end
 ns.AssignTBBFramesToConfigs = AssignFramesToConfigs
 
+-------------------------------------------------------------------------------
+--  Audio on Buff Gain / Loss for Tracking Bars
+--
+--  Same two keys as the CDM buff icons (buffActiveSoundKey / buffLostSoundKey,
+--  nil = silent), stored per bar config, and the same pipeline. Blizzard-tracked
+--  bars need no hook of their own: InstallBuffFrameHooks already puts the
+--  apply/remove alert hooks on BuffBarCooldownViewer frames, and RecordBuffEdge
+--  falls back to ns.FindTBBSoundKey when no CDM setting owns the spell. The
+--  self-timed presets have no Blizzard alert, so their timer edges call
+--  ns.TBBPresetSoundEdge. Everything here is ns.* on purpose: this file's local
+--  budget is nearly spent. Gated 0-cost on ns._cdmAnyBuffSound.
+-------------------------------------------------------------------------------
+
+-- Sound key for the tracking bar that owns this Blizzard frame / spell id.
+-- The current pairing names the exact bar (Eclipse-style shared slots); an id
+-- match covers a frame the pairing has not seen yet (its first activation).
+function ns.FindTBBSoundKey(frame, sid, field)
+    if not (ECME and ECME.db) then ECME = ns.ECME end
+    local p = ECME and ECME.db and ECME.db.profile
+    if not p or (p.cdmBars and p.cdmBars.useBlizzardBuffBars) then return nil end
+    local tbb = ns.GetTrackedBuffBars()
+    local bars = tbb and tbb.bars
+    if not bars then return nil end
+    local cfg
+    if frame and _tbbAssignedFor == bars then
+        for c, f in pairs(_tbbAssignment) do
+            if f == frame then cfg = c; break end
+        end
+    end
+    if not cfg then
+        for _, c in ipairs(bars) do
+            if c.enabled ~= false and not c.popularKey and CfgWantsSID(c, sid) then
+                cfg = c; break
+            end
+        end
+    end
+    local key = cfg and cfg[field]
+    if key and key ~= "none" then return key end
+    return nil
+end
+
+-- Any tracking bar in any spec of this profile with a gain or loss sound
+-- (feeds ns.RescanBuffSoundFlag).
+function ns.TBBAnyBuffSound()
+    local sp = ns.GetActiveSpecProfiles and ns.GetActiveSpecProfiles()
+    if not sp then return false end
+    for _, prof in pairs(sp) do
+        local tbb = type(prof) == "table" and prof.trackedBuffBars
+        if type(tbb) == "table" and type(tbb.bars) == "table" then
+            for _, c in ipairs(tbb.bars) do
+                local g, l = c.buffActiveSoundKey, c.buffLostSoundKey
+                if (g and g ~= "none") or (l and l ~= "none") then return true end
+            end
+        end
+    end
+    return false
+end
+
+-- Pool Acquire only hooks frames while the gate is already on, so turning the
+-- first sound on at runtime hooks the frames that are out of the pool now.
+function ns.EnsureTBBSoundHooks()
+    local viewer = _G.BuffBarCooldownViewer
+    local pool = viewer and viewer.itemFramePool
+    if not (pool and ns.EnsureBuffSoundHook) then return end
+    for frame in pool:EnumerateActive() do ns.EnsureBuffSoundHook(frame) end
+end
+
+-- Self-timed preset edge. The gain comes from the event that (re)starts the
+-- window (Sated rise, Time Spiral glow, potion cast), so a refresh cues again.
+-- The loss comes from the bar's own tick when the window runs out on screen
+-- (_UpdateSelfTimedBar), or from the glow hide when Time Spiral is consumed.
+-- Every enabled bar of that preset plays its own key.
+function ns.TBBPresetSoundEdge(popularKey, gainEdge)
+    if not ns._cdmAnyBuffSound or not popularKey then return end
+    local tbb = ns.GetTrackedBuffBars()
+    local field = gainEdge and "buffActiveSoundKey" or "buffLostSoundKey"
+    for _, cfg in ipairs(tbb and tbb.bars or {}) do
+        if cfg.enabled ~= false and cfg.popularKey == popularKey then
+            local key = cfg[field]
+            if key and key ~= "none" then ns.PlayBuffSoundEdge(key, "tbb:" .. popularKey, gainEdge) end
+        end
+    end
+end
+
 --- Frame-based check: is a spellID present in BuffBarCooldownViewer? Iterates the tiny pool
 --- (~3-5 frames), matching via MatchesSID across all fields (overrideSpellID, spellID, linkedSpellIDs).
 function ns.IsSpellInBuffBarViewer(spellID)
@@ -4212,6 +4296,7 @@ local function _ensureLustListener(enable)
                 if present and not _satedPresent and not isFull
                     and GetTime() >= _lustZoneGuard then
                     _lustExpiry = GetTime() + 40  -- rising edge: lust just went out
+                    ns.TBBPresetSoundEdge("bloodlust", true)
                     _satedSince = GetTime()
                     _tbbWake.Wake()  -- lust can come from other players: no local cast/aura edge is guaranteed
                     -- Drive Custom Auras (icon) lust displays sharing this edge.
@@ -4269,7 +4354,15 @@ local _smoothBuffs, _smoothCooldowns = true, false
 local function _UpdateSelfTimedBar(bar, cfg, expiry, duration)
     local remaining = expiry - GetTime()
     if remaining <= 0 then
-        if bar:IsShown() then bar:Hide() end
+        if bar:IsShown() then
+            bar:Hide()
+            -- Audio on Buff Loss: the window just ran out while on screen. The age
+            -- check keeps a stale window (e.g. a preview placeholder being cleared)
+            -- silent; a consumed Time Spiral (expiry 0) cues from its glow hide.
+            if ns._cdmAnyBuffSound and expiry > 0 and remaining > -1 then
+                ns.TBBPresetSoundEdge(cfg.popularKey, false)
+            end
+        end
         return
     end
     local wasShown = bar:IsShown()
@@ -4382,6 +4475,7 @@ local function _ensureTimeSpiralListener(enable)
                     if not TIME_SPIRAL_TRIGGERS[sid] then return end
                     if GetTime() < _ts.suppressUntil then return end
                     _ts.expiry = GetTime() + TIME_SPIRAL_DURATION  -- free move just granted
+                    ns.TBBPresetSoundEdge("timespiral", true)
                     _tbbWake.Wake()  -- glow edge is outside the sleeper's wake events
                     -- Drive Custom Auras (icon) displays sharing this edge.
                     if ns.SignalTimeSpiralCast then ns.SignalTimeSpiralCast() end
@@ -4393,6 +4487,7 @@ local function _ensureTimeSpiralListener(enable)
                     -- so an unrelated trigger's hide cannot fire spuriously.
                     if _ts.expiry > GetTime() then
                         _ts.expiry = 0
+                        ns.TBBPresetSoundEdge("timespiral", false)
                         if ns.SignalTimeSpiralEnd then ns.SignalTimeSpiralEnd() end
                     end
                 elseif event == "UNIT_SPELLCAST_SENT" then
@@ -4470,6 +4565,7 @@ local function _ensurePotionCastListener(enable)
                 local key = spellID and _potionTrigger[spellID]
                 if not key then return end
                 _potionExpiry[key] = GetTime() + (_potionDur[key] or 30)
+                ns.TBBPresetSoundEdge(key, true)
             end)
         end
         if not _potionActive then

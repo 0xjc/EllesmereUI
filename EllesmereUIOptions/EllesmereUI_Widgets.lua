@@ -458,6 +458,10 @@ local function BuildDropdownMenu(ddBtn, menuW, order, values, getValue, setValue
     local _moMaxTextPct = _menuOpts and _menuOpts.maxTextWidthPct
     local _moOnItemHover = _menuOpts and _menuOpts.onItemHover
     local _moOnItemLeave = _menuOpts and _menuOpts.onItemLeave
+    -- Caption font override ({ path, size, flags }) and native atlas icon colours, so a
+    -- menu can match the UI it opens from (e.g. the CDM options' own flyouts).
+    local _moLabelFont = _menuOpts and _menuOpts.labelFont
+    local _moIconNative = _menuOpts and _menuOpts.iconNativeColor
     -- Optional in-menu search box (_menuOpts.searchable): filter field hides non-matching items and repositions the rest. Flat lists only (no subnav, no dividers).
     local _moSearchable = _menuOpts and _menuOpts.searchable
     local SEARCH_H = 26
@@ -493,7 +497,7 @@ local function BuildDropdownMenu(ddBtn, menuW, order, values, getValue, setValue
 
     if _moSearchable then
         -- Options panel is Expressway-locked by design; EllesmereUI.EXPRESSWAY is locale-aware (CJK/Cyrillic get the system glyph font). The user's global font intentionally never restyles the settings UI.
-        local fontPath = EllesmereUI.EXPRESSWAY or "Fonts\\FRIZQT__.TTF"
+        local fontPath = (_moLabelFont and _moLabelFont[1]) or EllesmereUI.EXPRESSWAY or "Fonts\\FRIZQT__.TTF"
         searchEdit = CreateFrame("EditBox", nil, menu)
         searchEdit:SetSize(menuW - 16, SEARCH_H)
         searchEdit:SetPoint("TOP", menu, "TOP", 0, -4)
@@ -739,6 +743,7 @@ local function BuildDropdownMenu(ddBtn, menuW, order, values, getValue, setValue
                 end
             end
             local iLbl = MakeFont(item, 13, nil, TEXT_DIM_R, TEXT_DIM_G, TEXT_DIM_B, TEXT_DIM_A)
+            if _moLabelFont then iLbl:SetFont(_moLabelFont[1], _moLabelFont[2] or 13, _moLabelFont[3] or "") end
             if itemFont then iLbl:SetFont(itemFont, 13, "") end
             iLbl:SetAlpha(1)
             iLbl:SetPoint("LEFT", item, "LEFT", isWide and 12 or 10, 0)
@@ -773,22 +778,25 @@ local function BuildDropdownMenu(ddBtn, menuW, order, values, getValue, setValue
                             iconBtn:SetPushedAtlas(pressedAtlas)
                         end
                         iconBtn:SetHighlightAtlas(_haveAtlas)
-                        -- Atlas icons carry an intrinsic colour; SetVertexColor only scales it, so desaturate first, then tint to #929292.
+                        -- Atlas icons carry an intrinsic colour; SetVertexColor only scales it, so desaturate first, then tint to #929292
+                        -- (skipped when the menu keeps native colours).
                         local _nr, _ng, _nb = 0.573, 0.573, 0.573
                         local nrmTex = iconBtn:GetNormalTexture()
-                        if nrmTex then
+                        if nrmTex and not _moIconNative then
                             if nrmTex.SetDesaturated then nrmTex:SetDesaturated(true) end
                             nrmTex:SetVertexColor(_nr, _ng, _nb, 1)
                         end
                         local psdTex = iconBtn:GetPushedTexture()
-                        if psdTex then
+                        if psdTex and not _moIconNative then
                             if psdTex.SetDesaturated then psdTex:SetDesaturated(true) end
                             psdTex:SetVertexColor(_nr, _ng, _nb, 1)
                         end
                         local hlTex = iconBtn:GetHighlightTexture()
                         if hlTex then
-                            if hlTex.SetDesaturated then hlTex:SetDesaturated(true) end
-                            hlTex:SetVertexColor(_nr, _ng, _nb, 1)
+                            if not _moIconNative then
+                                if hlTex.SetDesaturated then hlTex:SetDesaturated(true) end
+                                hlTex:SetVertexColor(_nr, _ng, _nb, 1)
+                            end
                             hlTex:SetAlpha(0.4)
                         end
                     else

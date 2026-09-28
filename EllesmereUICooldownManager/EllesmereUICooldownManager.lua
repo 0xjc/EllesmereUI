@@ -1447,6 +1447,11 @@ function ns.RescanBuffSoundFlag()
             return true
         end
     end)
+    -- Tracking Bars keep the same two keys on their bar configs, which the
+    -- settings-block walk above never visits.
+    if not ns._cdmAnyBuffSound and ns.TBBAnyBuffSound and ns.TBBAnyBuffSound() then
+        ns._cdmAnyBuffSound = true
+    end
 end
 
 -- Resolve the configured buff gain/loss sound key for a spell id in the CURRENT
@@ -6672,9 +6677,12 @@ do
     local SOUND_MIN_GAP = 0.3
 
     -- Per-spell tier then bar tier, for one setting key. nil = silent.
-    local function PickBuffSoundKey(ss, sid, field)
+    -- Tracking Bars come last: Blizzard files a buff under icons OR bars, never
+    -- both, so a tracking-bar config only answers when no CDM setting exists.
+    local function PickBuffSoundKey(ss, sid, field, f)
         local k = ss and ss[field]
         if not k then k = ns.FindBuffSoundKey and ns.FindBuffSoundKey(sid, field) end
+        if not k and ns.FindTBBSoundKey then k = ns.FindTBBSoundKey(f, sid, field) end
         if not k or k == "none" then return nil end
         return k
     end
@@ -6687,6 +6695,16 @@ do
         throttle[sid] = now
         local path = FOCUSKICK_SOUND_PATHS[key]
         if path then PlaySoundFile(path, "Master") end
+    end
+
+    -- Edge entry point for Tracking Bars' self-timed presets (Bloodlust, Time
+    -- Spiral, potions). They never fire a Blizzard aura alert, so their own timer
+    -- start/stop hands the cue here: same loading-screen suppression, same 0.3s
+    -- overlap guard (id is a "tbb:<preset>" string, clear of spell ids).
+    function ns.PlayBuffSoundEdge(key, id, gainEdge)
+        if not key or key == "none" then return end
+        if ns._cdmSoundSuppressed and ns._cdmSoundSuppressed() then return end
+        PlayThrottled(key, id, gainEdge and _soundThrottle or _soundThrottleLost)
     end
 
     local function FlushBuffEdges()
@@ -6736,8 +6754,8 @@ do
         end
         -- A silent edge still has to be recorded so it can cancel its partner, but only
         -- when the OTHER edge has a cue -- so the second lookup runs only on that path.
-        local key = PickBuffSoundKey(ss, sid, gainEdge and "buffActiveSoundKey" or "buffLostSoundKey")
-        if not key and not PickBuffSoundKey(ss, sid, gainEdge and "buffLostSoundKey" or "buffActiveSoundKey") then
+        local key = PickBuffSoundKey(ss, sid, gainEdge and "buffActiveSoundKey" or "buffLostSoundKey", f)
+        if not key and not PickBuffSoundKey(ss, sid, gainEdge and "buffLostSoundKey" or "buffActiveSoundKey", f) then
             return
         end
         -- A new frame closes the previous batch: pairing must never reach across the
