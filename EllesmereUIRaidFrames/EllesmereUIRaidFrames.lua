@@ -340,8 +340,7 @@ local defaults = {
         visibleGroups    = { true, true, true, true, true, true, false, false },
         hideEmptyGroups  = true,     -- collapse subgroups with no members (raid only, real frames)
         excludeHiddenGroupsFromSize = true, -- hidden Show Groups don't count toward the raid-size breakpoint
-        instanceGroupsEnabled = false, -- Groups by Instance: per-instance "groups 1-N" limit replaces Show Groups
-        instanceGroupLimits = { mythicRaid = 4, raid = 0, lfr = 0, pvp = 0 }, -- 0 = use Show Groups
+        mythicRaidHideGroups = false, -- Hide Groups 5-8 in Mythic Raid (on top of Show Groups)
 
         -- Visibility
         showWhenSolo     = false,
@@ -1438,66 +1437,49 @@ ns._GetRaidSizeFrameDimensions = function(groupSize)
 end
 
 -------------------------------------------------------------------------------
---  Groups by Instance: an opt-in per-instance limit ("show groups 1-N") that
---  REPLACES Show Groups while the player is inside a matching instance.
---  ns._instGroupCtx caches the context key (nil outside a matching instance)
---  and is refreshed on login, zone-in and difficulty changes. Every Show
---  Groups reader goes through ns._VisibleGroups so sizing, layout, sorting
---  and group labels always agree on one set.
+--  Hide Groups 5-8 in Mythic Raid: opt-in. Inside a Mythic raid (20 players,
+--  groups 1-4) groups 5-8 are hidden ON TOP OF Show Groups; groups 1-4 keep
+--  their Show Groups state. ns._inMythicRaid is refreshed on login, zone-in
+--  and difficulty changes. Every Show Groups reader goes through
+--  ns._VisibleGroups so sizing, layout, sorting and group labels always agree
+--  on one set.
 -------------------------------------------------------------------------------
-ns._instGroupCtx = nil
--- Returns true when the context changed (callers reload only then).
-ns._RefreshInstanceGroupCtx = function()
-    local ctx
+ns._inMythicRaid = false
+-- Returns true when the state changed (callers reload only then).
+ns._RefreshMythicRaidState = function()
     local _, instanceType, difficultyID = GetInstanceInfo()
-    if instanceType == "raid" then
-        if difficultyID == 16 then
-            ctx = "mythicRaid"
-        elseif difficultyID == 17 then
-            ctx = "lfr"
-        else
-            ctx = "raid"  -- Normal / Heroic / Timewalking
-        end
-    elseif instanceType == "pvp" then
-        ctx = "pvp"
-    end
-    local changed = ctx ~= ns._instGroupCtx
-    ns._instGroupCtx = ctx
+    local inMythic = (instanceType == "raid" and difficultyID == 16) or false
+    local changed = inMythic ~= ns._inMythicRaid
+    ns._inMythicRaid = inMythic
     return changed
 end
 
--- Zero cost while off: the difficulty event is registered, and the instance
--- context tracked, only while Groups by Instance is enabled. Runs at the top
--- of every ReloadFrames (the toggle's write path included), mirroring
+-- Zero cost while off: the difficulty event is registered, and the Mythic
+-- state tracked, only while the toggle is on. Runs at the top of every
+-- ReloadFrames (the toggle's write path included), mirroring
 -- ns.UpdateCombatEventRegistration.
-ns.UpdateInstanceGroupsRegistration = function()
+ns.UpdateMythicGroupsRegistration = function()
     if not (db and db.profile) then return end
-    if db.profile.instanceGroupsEnabled then
+    if db.profile.mythicRaidHideGroups then
         eventFrame:RegisterEvent("PLAYER_DIFFICULTY_CHANGED")
-        ns._RefreshInstanceGroupCtx()
+        ns._RefreshMythicRaidState()
     else
         eventFrame:UnregisterEvent("PLAYER_DIFFICULTY_CHANGED")
-        ns._instGroupCtx = nil
+        ns._inMythicRaid = false
     end
 end
 
--- The effective Show Groups set. Limit tables are cached per N and shared, so
--- callers must treat the result as read-only (all current readers do).
-ns._instGroupCache = {}
+-- The effective Show Groups set. The Mythic set is ONE reused table refilled
+-- per call (no allocation), so callers must treat the result as read-only and
+-- not hold it across calls (all current readers use it immediately).
+ns._mythicGroups = {}
 ns._VisibleGroups = function()
     local s = db.profile
     local vg = s.visibleGroups
-    if not s.instanceGroupsEnabled then return vg end
-    local ctx = ns._instGroupCtx
-    local limits = s.instanceGroupLimits
-    local n = ctx and limits and limits[ctx]
-    if type(n) ~= "number" or n < 1 then return vg end
-    if n > 8 then n = 8 end
-    local t = ns._instGroupCache[n]
-    if not t then
-        t = {}
-        for g = 1, 8 do t[g] = g <= n end
-        ns._instGroupCache[n] = t
+    if not (s.mythicRaidHideGroups and ns._inMythicRaid) then return vg end
+    local t = ns._mythicGroups
+    for g = 1, 8 do
+        t[g] = g <= 4 and not (vg and vg[g] == false)
     end
     return t
 end
@@ -8615,7 +8597,7 @@ end
 -- Show Groups as a groupFilter: nil with every group on, one cached string per group set.
 PF.gf = {}
 PF.RaidGroupFilter = function()
-    local vg = ns._VisibleGroups()  -- Groups by Instance aware (read-only)
+    local vg = ns._VisibleGroups()  -- Mythic 5-8 aware (read-only)
     if not vg then return nil end
     local mask = 0
     for gi = 1, 8 do
@@ -10495,9 +10477,9 @@ local function ReloadFrames(skipButtons)
     -- Keep UNIT_FLAGS registration in lockstep with the combat-icon toggle so a
     -- disabled option listens for nothing (runs no event code).
     if ns.UpdateCombatEventRegistration then ns.UpdateCombatEventRegistration() end
-    -- Groups by Instance: event + instance context only while enabled. Must run
-    -- before the tier math below, which reads the effective Show Groups set.
-    ns.UpdateInstanceGroupsRegistration()
+    -- Hide Groups 5-8 in Mythic Raid: event + Mythic state only while enabled.
+    -- Must run before the tier math below, which reads the effective Show Groups set.
+    ns.UpdateMythicGroupsRegistration()
     -- Rebuild dispel-color curves so custom-color edits take effect immediately.
     if ns._RebuildDispelCurves then ns._RebuildDispelCurves() end
     -- Recalculate active tier from current group size + overrides
@@ -12212,10 +12194,9 @@ local function OnEvent(self, event, arg1, ...)
             if ns._UpdateRoleIcons then ns._UpdateRoleIcons() end
         end
     elseif event == "PLAYER_DIFFICULTY_CHANGED" then
-        -- Groups by Instance: a difficulty switch inside the instance (e.g. a
-        -- Heroic -> Mythic raid reset) can change the active group limit.
-        -- Registered only while the feature is enabled.
-        if ns._RefreshInstanceGroupCtx() then
+        -- Hide Groups 5-8 in Mythic Raid: a difficulty switch inside the raid
+        -- (e.g. Heroic -> Mythic) can flip it. Registered only while enabled.
+        if ns._RefreshMythicRaidState() then
             if InCombatLockdown() then
                 ns._sizeTierDirtyInCombat = true  -- REGEN runs the full reload
             elseif framesVisible then
@@ -12235,11 +12216,11 @@ local function OnEvent(self, event, arg1, ...)
         C_Timer.After(0.5, function()
             -- Pet frames: flushed at the end of this settle, or at combat end.
             ns.PF_MarkDirty()
-            -- Groups by Instance: re-resolve the instance context first so both the
-            -- combat-deferred reload and the tier check below see the new set.
+            -- Hide Groups 5-8 in Mythic Raid: re-check the Mythic state first so both
+            -- the combat-deferred reload and the tier check below see the new set.
             -- Skipped entirely while the feature is off.
-            local instGroupsChanged = db.profile.instanceGroupsEnabled
-                and ns._RefreshInstanceGroupCtx()
+            local mythicGroupsChanged = db.profile.mythicRaidHideGroups
+                and ns._RefreshMythicRaidState()
             -- Zoning in mid-combat (e.g. into a raid where trash is already
             -- pulled) must NOT run the reload here: ReloadFrames calls SetSize on
             -- the protected SecureGroupHeader buttons, which Blizzard blocks in
@@ -12271,9 +12252,10 @@ local function OnEvent(self, event, arg1, ...)
                     local _, newOv = ns._RFResolveTierOverride(numMembers)
                     if newOv ~= ns._activeTierOverride then tierChanged = true end
                 end
-                -- A Groups by Instance switch changes which headers show and the
-                -- sort lists even when the tier holds, so it needs the full reload.
-                if tierChanged or instGroupsChanged then
+                -- Entering/leaving a Mythic raid with the toggle on changes which
+                -- headers show and the sort lists even when the tier holds, so it
+                -- needs the full reload.
+                if tierChanged or mythicGroupsChanged then
                     ReloadFrames()
                 else
                     RangeUpdate()
