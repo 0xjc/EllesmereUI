@@ -30,16 +30,13 @@ ns.barTextureOrder = barTextureOrder
 ns.barTextureNames = barTextureNames
 
 local function AppendSharedMediaBarTextures()
-    if EllesmereUI and EllesmereUI.AppendSharedMediaTextures then
-        EllesmereUI.AppendSharedMediaTextures(barTextureNames, barTextureOrder, nil, barTextures)
-    end
+    EllesmereUI.AppendSharedMediaTextures(barTextureNames, barTextureOrder, nil, barTextures)
 end
 ns.AppendSharedMediaBarTextures = AppendSharedMediaBarTextures
 
 local function ApplyBarTexture(tex, texKey, r, g, b, a)
     if not tex then return end
-    local path = EllesmereUI and EllesmereUI.ResolveTexturePath
-        and EllesmereUI.ResolveTexturePath(barTextures, texKey or "none", nil)
+    local path = EllesmereUI.ResolveTexturePath(barTextures, texKey or "none", nil)
     if path then
         tex:SetTexture(path)
         tex:SetVertexColor(r, g, b, a)
@@ -217,6 +214,10 @@ local DB_DEFAULTS = {
         frameWidth        = 260,
         barWidth          = 210,
         barHeight         = 8,
+        -- enemyBarHeight: intentionally unset so the forces bar falls back to
+        -- barHeight. A default here would change the forces bar of every user
+        -- who customized barHeight. Written once either bar height slider is
+        -- changed (the timer slider pins it to the old height first).
         barHeightExpanded = 22,
         barTexture        = "none",
         barBgTexture      = "none",
@@ -374,49 +375,7 @@ local DB_DEFAULTS = {
 }
 
 -- Per-addon border texture defaults (same as resourcebars/cdm)
-do
-    local function AllSizes(ox, oy, sx, sy)
-        local t = {}
-        for k = 0, 4 do t[k] = { offsetX = ox, offsetY = oy, shiftX = sx, shiftY = sy } end
-        return t
-    end
-    EllesmereUI.RegisterBorderDefaults("MythicPlus", {
-        ["glow"] = {
-            defaultSize = 1,
-            sizes = AllSizes(0, 0, 0, 0),
-        },
-        ["blizz"] = {
-            defaultSize = 3,
-            sizes = {
-                [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                [1] = { offsetX = 2, offsetY = 1, shiftX = 0, shiftY = 0 },
-                [2] = { offsetX = 3, offsetY = 2, shiftX = 1, shiftY = 0 },
-                [3] = { offsetX = 4, offsetY = 2, shiftX = 1, shiftY = 0 },
-                [4] = { offsetX = 4, offsetY = 2, shiftX = 1, shiftY = 0 },
-            },
-        },
-        ["dialog"] = {
-            defaultSize = 1,
-            sizes = {
-                [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                [1] = { offsetX = 3, offsetY = 3, shiftX = 0, shiftY = 0 },
-                [2] = { offsetX = 3, offsetY = 5, shiftX = 0, shiftY = 0 },
-                [3] = { offsetX = 3, offsetY = 5, shiftX = 0, shiftY = 0 },
-                [4] = { offsetX = 5, offsetY = 10, shiftX = 0, shiftY = 0 },
-            },
-        },
-        ["sm:Blizzard Achievement Wood"] = {
-            defaultSize = 1,
-            sizes = {
-                [0] = { offsetX = 0, offsetY = 0, shiftX = 0, shiftY = 0 },
-                [1] = { offsetX = 1, offsetY = 1, shiftX = 0, shiftY = 0 },
-                [2] = { offsetX = 1, offsetY = 1, shiftX = 0, shiftY = 0 },
-                [3] = { offsetX = 1, offsetY = 6, shiftX = 0, shiftY = 0 },
-                [4] = { offsetX = 1, offsetY = 8, shiftX = 0, shiftY = 0 },
-            },
-        },
-    })
-end
+EllesmereUI.RegisterBorderDefaults("MythicPlus", EllesmereUI.BORDER_DEFAULTS_BARS)
 
 -- State
 local db
@@ -693,7 +652,7 @@ local function BuildSplitCompareText(referenceTime, currentTime, deltaOnly, fast
     local cR, cG, cB = GetColor(color, 0.4, 1, 0.4)
     local diffPrefix = diff < 0 and "-" or "+"
     local diffText = diff == 0 and "0:00" or FormatTime(abs(diff))
-    local colorHex = format("|cff%02x%02x%02x", floor(cR * 255), floor(cG * 255), floor(cB * 255))
+    local colorHex = EllesmereUI.HexColor(cR, cG, cB)
 
     if deltaOnly then
         return format("  %s(%s%s)|r", colorHex, diffPrefix, diffText)
@@ -1096,11 +1055,6 @@ local function ResetRun()
     NotifyRefresh()
 end
 
-local function CheckForActiveRun()
-    local mapID = C_ChallengeMode.GetActiveChallengeMapID()
-    if mapID then StartRun() end
-end
-
 -- Preview data
 local PREVIEW_RUN = {
     active        = true,
@@ -1364,11 +1318,11 @@ local function SetTimerFS(fs, size, flags)
 end
 local function ApplyShadow(fs)
     if not fs then return end
-    local useShadow = EllesmereUI.GetFontUseShadow and EllesmereUI.GetFontUseShadow("mythicTimer")
+    local useShadow = EllesmereUI.GetFontUseShadow("mythicTimer")
     -- Font is set elsewhere (SetFS) and ApplyShadow runs after it, so capture
     -- and restore the current font around PrimeFontShadow's SetFontObject.
     local _pf, _ps, _pfl = fs:GetFont()
-    if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(fs, useShadow) end
+    EllesmereUI.PrimeFontShadow(fs, useShadow)
     if _pf then fs:SetFont(_pf, _ps, _pfl) end
 end
 
@@ -1551,8 +1505,7 @@ do
             r, g, b = GetColor(p.pullBarColor, 1, 0.55, 0.1)
         end
         local a = p.pullBarAlpha or 0.35
-        local texPath = EllesmereUI.ResolveTexturePath
-            and EllesmereUI.ResolveTexturePath(barTextures, p.enemyBarTexture or "none", nil)
+        local texPath = EllesmereUI.ResolveTexturePath(barTextures, p.enemyBarTexture or "none", nil)
             or "Interface\\Buttons\\WHITE8X8"
 
         if f._pullTex ~= texPath or f._pullR ~= r or f._pullG ~= g or f._pullB ~= b
@@ -1901,8 +1854,11 @@ local function RenderStandalone()
     local TBAR_PAD = 0
     local configuredTimerBarH = p.barHeight or 8
     local expandedH = p.barHeightExpanded or 22
-    local TBAR_H = p.timerInBar and max(configuredTimerBarH, expandedH) or configuredTimerBarH
-    local ENEMY_BAR_H = p.barHeight or 8
+    -- The in-bar timer only exists while the bar is shown; otherwise fall back
+    -- to the standalone clock instead of hiding the timer entirely.
+    local timerInBar = p.timerInBar and p.showTimerBar ~= false
+    local TBAR_H = timerInBar and max(configuredTimerBarH, expandedH) or configuredTimerBarH
+    local ENEMY_BAR_H = p.enemyBarHeight or p.barHeight or 8
     local ROW_GAP = p.rowGap or 6
     local OBJ_GAP = p.objectiveGap or 4
 
@@ -1959,12 +1915,9 @@ local function RenderStandalone()
             local titleText
             if p.showDungeonName == false then
                 -- Show only the key level number, not the dungeon name.
-                titleText = format("|cff%02x%02x%02x+%d|r",
-                    floor(tR * 255), floor(tG * 255), floor(tB * 255), run.level)
+                titleText = format("%s+%d|r", EllesmereUI.HexColor(tR, tG, tB), run.level)
             else
-                titleText = format("|cff%02x%02x%02x+%d  %s|r",
-                    floor(tR * 255), floor(tG * 255), floor(tB * 255),
-                    run.level, run.mapName or "Mythic+")
+                titleText = format("%s+%d  %s|r", EllesmereUI.HexColor(tR, tG, tB), run.level, run.mapName or "Mythic+")
             end
             f._titleFS:SetJustifyH(titleAlign)
             f._titleFS:SetTextColor(1, 1, 1)
@@ -2152,8 +2105,7 @@ local function RenderStandalone()
                 local diff = threshTime - elapsed
                 if diff >= 0 then
                     local cR, cG, cB = GetColor(color, 0.3, 0.8, 1)
-                    return format("|cff%02x%02x%02x%s|r",
-                        floor(cR * 255), floor(cG * 255), floor(cB * 255), FormatTime(diff))
+                    return format("%s%s|r", EllesmereUI.HexColor(cR, cG, cB), FormatTime(diff))
                 end
                 return format("|cff999999%s|r", FormatTime(threshTime))
             end
@@ -2506,7 +2458,7 @@ local function RenderStandalone()
     end
 
     -- Timer text (with optional inline detail rendered as one combined block)
-    if not p.timerInBar then
+    if not timerInBar then
         local timerAlign = _ra(p.timerAlign or "CENTER")
         SetTimerFS(f._timerFS, p.timerTextSize or 20)
         ApplyShadow(f._timerFS)
@@ -2677,7 +2629,7 @@ local function RenderStandalone()
     if titleAffixBelowTimer then
         local timerGap = p.titleAffixTimerGap or p.titleAffixSandwichGap or defaultSandwichGap
         local barGap = p.titleAffixBarGap or p.titleAffixSandwichGap or defaultSandwichGap
-        if p.timerInBar then
+        if timerInBar then
             y = y - timerGap
         else
             y = y - (timerGap - defaultSandwichGap)
@@ -2724,7 +2676,7 @@ local function RenderStandalone()
         f._barFill:ClearAllPoints()
         f._barFill:SetPoint("TOPLEFT", barClip, "TOPLEFT", 0, 0)
         f._barFill:SetSize(fillW, clipH)
-        local _fillA = p.timerInBar and (p.barFillAlphaExpanded or 0.85) or 0.85
+        local _fillA = timerInBar and (p.barFillAlphaExpanded or 0.85) or 0.85
         ApplyBarTexture(f._barFill, p.barTexture, timerBarR, timerBarG, timerBarB, _fillA)
         f._barFill:Show()
 
@@ -2864,7 +2816,7 @@ local function RenderStandalone()
             f._seg2:Show()
         end
 
-        if p.timerInBar then
+        if timerInBar then
             if not f._barTimerFS then
                 f._barTimerFS = f:CreateFontString(nil, "OVERLAY")
                 f._barTimerFS:SetParent(f._emtTextLayer)
@@ -2954,8 +2906,7 @@ local function RenderStandalone()
                 local timeStr = ""
                 if p.showObjectiveTimes ~= false and obj.completed and obj.elapsed and obj.elapsed > 0 then
                     local cR, cG, cB = GetColor(p.objectiveCompletedColor, 0.3, 0.8, 0.3)
-                    timeStr = format("|cff%02x%02x%02x%s|r",
-                        floor(cR * 255), floor(cG * 255), floor(cB * 255), FormatTime(obj.elapsed))
+                    timeStr = format("%s%s|r", EllesmereUI.HexColor(cR, cG, cB), FormatTime(obj.elapsed))
                 end
                 local compareMode = p.objectiveCompareMode or COMPARE_NONE
                 local compareSuffix = ""

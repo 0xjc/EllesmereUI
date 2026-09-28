@@ -26,9 +26,6 @@
 -- at ns.db.profile.dmDebuff (shared raid/party/extra, absent = off = zero cost), all keys NEW/additive as a
 -- nondestructive view over the existing debuff display keys (size/spacing/cap/position); legacy debuffFilter is
 -- untouched and resumes control if the manager is disabled.
---
--- Also owns BUFF MANAGER effective-state accessors (base grid + custom indicators render together; legacy
--- bmDisplayMode never written, only shimmed).
 
 local _, ns = ...
 local EllesmereUI = _G.EllesmereUI
@@ -58,26 +55,6 @@ local function FlowDir(token)
     if token == "UP" then return FD.Up end
     if token == "DOWN" then return FD.Down end
     return FD.Right
-end
-
--------------------------------------------------------------------------------
--- Buff Manager effective-state accessors (coexistence shims). Legacy bmDisplayMode is read ONLY here as the
--- default for older profiles; new keys are written only by the options page. Base grid and custom indicators enable independently and render together.
--------------------------------------------------------------------------------
-function ns.BM_BaseActive()
-    local p = ns.db and ns.db.profile
-    if not p then return false end
-    local v = p.bmBaseEnabled
-    if v == nil then return p.bmDisplayMode == "simple" end
-    return v == true
-end
-
-function ns.BM_CustomActive()
-    local p = ns.db and ns.db.profile
-    if not p then return false end
-    local v = p.bmIndicatorsEnabled
-    if v == nil then return (p.bmDisplayMode or "custom") == "custom" end
-    return v == true
 end
 
 -------------------------------------------------------------------------------
@@ -451,7 +428,7 @@ local function TileStyleFP(t)
 end
 
 -- EFFECTS: per-filter blocks (fxList). Each entry: a filters set + optional
--- Icon Glow (glowType/glowClassColor/glowR/G/B), Border override (borderSize/
+-- Icon Glow (glow* prefix keys, EllesmereUI.Glows.PrefixKeys), Border override (borderSize/
 -- borderColor), and Size for matched categories (0/nil = base grid size).
 -- ACTIVE = filters checked and at least one payload; FIRST matching block
 -- wins per button category. Declared ABOVE the config fingerprint (its caller).
@@ -485,7 +462,11 @@ local function FxListFP(list)
         parts[#parts + 1] = table.concat({
             table.concat(keys, "+"),
             tostring(e.glowType or 0), e.glowClassColor and "cc" or "-",
+            ns.RF_GlowClassFP(e.glowColorMode, e.glowClassColor),
             string.format("%.2f,%.2f,%.2f", e.glowR or 1, e.glowG or 0.776, e.glowB or 0.376),
+            tostring(e.glowColorMode), tostring(e.glowLines), tostring(e.glowThickness),
+            tostring(e.glowSpeed), tostring(e.glowBackground),
+            string.format("%.2f,%.2f,%.2f", e.glowBackgroundR or 0, e.glowBackgroundG or 0, e.glowBackgroundB or 0),
             tostring(e.borderSize or 0),
             string.format("%.2f,%.2f,%.2f", bc.r or 0, bc.g or 0, bc.b or 0),
             tostring(e.size or 0),
@@ -596,13 +577,13 @@ local function ParkEater(e)
 end
 
 -- Is any debuff display actually in the "Shown on Modifier" mode? Base row
--- plus enabled icon tiles' overrides (nil override inherits the base).
+-- plus enabled grid tiles' overrides (nil override inherits the base).
 local function TipModeInUse()
     local p = ns.db and ns.db.profile
     if not p then return false end
     if p.debuffHideTooltips == "modifier" then return true end
-    local dm = DM()
-    local tiles = dm and dm.tiles
+    -- The tiles the current spec renders (every bucket), as the apply pass sees them.
+    local tiles = ns.DM_ActiveTiles()
     if tiles then
         for i = 1, #tiles do
             local t = tiles[i]
@@ -744,6 +725,8 @@ end
 -- reload re-runs this ensure. An unchanged eater costs a few compares and
 -- never touches the frame.
 local tipEaterCount = 0
+-- Ensure-pass stamp: a tile eater the current pass did not ensure is parked at its end.
+local tipPass = 0
 local function EnsureEater(d, slot, host, container, active, pinHost, point, corner, offX, offY, w, h)
     local map = d.tipModEaters
     local e = map and map[slot]
@@ -791,7 +774,7 @@ local function EnsureEater(d, slot, host, container, active, pinHost, point, cor
         -- secure unit menu. Click-cast re-writes these when it is enabled.
         e:SetAttribute("type1", "target")
         e:SetAttribute("*type1", "target")
-        if EllesmereUI.AttachSecureUnitMenu then EllesmereUI.AttachSecureUnitMenu(e) end
+        EllesmereUI.AttachSecureUnitMenu(e)
         -- HookScript, not SetScript: the click-cast header wraps these same
         -- script slots securely, and a hook never displaces a wrap. The Lua
         -- side forwards the unit button's own hover (highlight, unit tooltip).
@@ -824,7 +807,7 @@ end
 -- Per-unit ensure, called from the containers reload loop and from the tail
 -- of every DM_ApplyDebuffConfig (fresh footprint inputs; tile containers
 -- built on the deferred lanes re-enter through that apply): base container
--- plus every icon tile whose effective tooltip mode (own override, else the
+-- plus every rendered grid tile whose effective tooltip mode (own override, else the
 -- base mode) is "modifier". Cheap when the feature is off -- a few reads and
 -- existing eaters just park hidden.
 function ns.DM_TipModEnsure(button, d, s)
@@ -849,18 +832,19 @@ function ns.DM_TipModEnsure(button, d, s)
         EnsureEater(d, "base", button, d.rfcDebuffs, active and point ~= nil,
             pinHost, point, corner, offX, offY, w, h)
     end
+    tipPass = tipPass + 1
     local hosts = d.dmTiles
     if hosts then
-        local dm = DM()
-        local list = dm and dm.tiles
+        local list = ns.DM_ActiveTiles()
         if list then
             for i = 1, #list do
                 local t = list[i]
                 local c = hosts[t.id]
-                if c and t.type == "icons" then
+                if c and (t.type == "icons" or t.type == "square") and c._dmType == t.type then
                     local eff = t.hideTooltips
                     if eff == nil then eff = baseMode end
-                    local active = t.enabled ~= false and eff == "modifier"
+                    -- IsShown: the apply hides a grid tile with no records, so nothing renders under the eater.
+                    local active = t.enabled ~= false and eff == "modifier" and c:IsShown()
                     local point, corner, offX, offY, w, h
                     if active and pinHost then
                         point, corner, offX, offY = TilePin(t, s, d)
@@ -872,7 +856,18 @@ function ns.DM_TipModEnsure(button, d, s)
                     end
                     EnsureEater(d, t.id, button, c, active and point ~= nil,
                         pinHost, point, corner, offX, offY, w, h)
+                    local e = d.tipModEaters and d.tipModEaters[t.id]
+                    if e then e._euiPass = tipPass end
                 end
+            end
+        end
+    end
+    -- Tile eaters this pass did not reach (tile deleted, disabled for this spec, or its id now another type) park.
+    local map = d.tipModEaters
+    if map then
+        for slot, e in pairs(map) do
+            if slot ~= "base" and e._euiActive and e._euiPass ~= tipPass then
+                if InCombatLockdown() then d.rfcBmPending = true else ParkEater(e) end
             end
         end
     end
@@ -949,6 +944,9 @@ function ns.DM_CfgFP()
                     t.color.r or 1, t.color.g or 1, t.color.b or 1, t.color.a or 1) or "-",
                 tostring(t.glowType), tostring(t.glowLines), tostring(t.glowThickness),
                 tostring(t.glowSpeed), tostring(t.glowColorMode), tostring(t.opacity),
+                ns.RF_GlowClassFP(t.glowColorMode),
+                tostring(t.glowBackground), t.glowBackgroundColor and string.format("%.2f,%.2f,%.2f",
+                    t.glowBackgroundColor.r or 0, t.glowBackgroundColor.g or 0, t.glowBackgroundColor.b or 0) or "-",
                 tostring(t.orientation), tostring(t.reverseFill),
                 tostring(t.barFullWidth), tostring(t.barFullHeight),
                 tostring(t.barColorOpacity), tostring(t.barBgOpacity),
@@ -1876,20 +1874,21 @@ local fxRefs = setmetatable({}, { __mode = "k" })
 -- health), the dispel-overlay/BmEffectInit precedent. FxHideAll hides every effect visual on one slot button
 -- (shared by filter-gated slots and teardown paths).
 local function FxHideAll(dd)
-    local Glows = EllesmereUI.Glows
     if dd.dmFxGlow then
-        if dd.dmFxGlow._euiGlowActive and Glows and Glows.StopGlow then
-            Glows.StopGlow(dd.dmFxGlow)
-        end
+        if dd.dmFxGlow._euiGlowActive then EllesmereUI.Glows.StopGlow(dd.dmFxGlow) end
         dd.dmFxGlow:Hide()
     end
     if dd.dmFxHcFrame then dd.dmFxHcFrame:Hide() end
     if dd.dmFxGeoF then dd.dmFxGeoF:Hide() end
 end
 
+-- Frame Glow tiles draw Pixel only: their prewarm builds the animated ants alone.
+local TILE_GLOW_NEED = { ants = true }
+
 -- Creation-window builder: one kind-specific visual set per effect slot, parked hidden until the applier arms it.
 -- Runs in extraInit inside a CreateFrameBatch: an error here kills the whole slot declaration, hence the pcall-degraded engine binding.
-local function FxCreateVisuals(button, dd, kind, hostBtn, health)
+-- owner: the tile container, which keys its Health Bar Color overlays in the bar's tint registry (the stale sweep drops only its own).
+local function FxCreateVisuals(button, dd, kind, hostBtn, health, owner)
     if not dd then return end
     if kind == "glow" then
         local g = CreateFrame("Frame", nil, button)
@@ -1900,20 +1899,22 @@ local function FxCreateVisuals(button, dd, kind, hostBtn, health)
         g:EnableMouse(false)
         g:Hide()
         dd.dmFxGlow = g
+        -- Every region a later colour/parameter/background change can need, created here in the window.
+        EllesmereUI.Glows.PrewarmEngineHost(g, 24, 24, TILE_GLOW_NEED)
     elseif kind == "healthcolor" then
         -- BM healthcolor parity via an owned wrapper: level-tied WITH (not above) the health frame so the tint
         -- sorts against health's ARTWORK sublevels (above fill=0, below heal absorb/prediction=+1, shields=+3);
-        -- anchored to the FILL texture so it covers only the filled portion. Wrapper is ours, so the level tie stays legal.
+        -- anchored to the current-health area (the fill texture, or the rest of the bar under Inverted Fill) so it
+        -- covers only current health. Wrapper is ours, so the level tie stays legal.
         local f = CreateFrame("Frame", nil, button)
-        local fill = health.GetStatusBarTexture and health:GetStatusBarTexture()
-        f:SetAllPoints(fill or health)
+        ns.RF_AnchorCurHealth(f, health, health.GetStatusBarTexture and health:GetStatusBarTexture())
         f:SetFrameLevel(health:GetFrameLevel())
         local tex = f:CreateTexture(nil, "ARTWORK", nil, 2)
         tex:SetAllPoints(f)
         f:Hide()
         dd.dmFxHcFrame = f
         dd.dmFxHc = tex
-        ns.RF_RegisterBarTint(health, tex, f, "dm")
+        ns.RF_RegisterBarTint(health, tex, f, owner)
     elseif kind == "square" then
         local f = CreateFrame("Frame", nil, button)
         f:SetPoint("CENTER", health, "CENTER")
@@ -1942,33 +1943,28 @@ local function FxCreateVisuals(button, dd, kind, hostBtn, health)
     end
 end
 
+local FX_GLOW_SPEC = {}
 local function FxApplyInner(button, dd, refs, fx)
     if fx.kind == "glow" then
         local Glows = EllesmereUI.Glows
         local host = dd.dmFxGlow
-        if not (Glows and host) then return end -- created in extraInit
+        if not host then return end -- created in extraInit
         host:Show()
-        -- Color mode: default = proc gold, class = player class, custom = fx.r/g/b.
-        local cr, cg, cb = fx.r or 1, fx.g or 0.78, fx.b or 0.38
-        local mode = fx.glowMode or "default"
-        if mode == "class" then
-            local _, classFile = UnitClass("player")
-            local ccc = classFile and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classFile]
-            if ccc then cr, cg, cb = ccc.r, ccc.g, ccc.b end
-        elseif mode == "default" then
-            cr, cg, cb = 1.0, 0.788, 0.137
-        end
+        -- Tile color mode: nil has always meant default here (proc gold).
+        local spec = FX_GLOW_SPEC
+        spec.style = fx.glowType or 1
+        spec.excludes = Glows.RECT_EXCLUDES
+        spec.r, spec.g, spec.b = Glows.ResolveColor(fx.glowMode or "default", fx.r, fx.g, fx.b, 1, 0.78, 0.38)
+        spec.lines, spec.thickness, spec.speed = fx.glowLines, fx.glowThickness, fx.glowSpeed
+        spec.bg, spec.bgR, spec.bgG, spec.bgB = fx.glowBg, fx.glowBgR, fx.glowBgG, fx.glowBgB
         -- Size from the unit frame's REAL rect (refs.host is ours, outside the forbidden subtree, so the read is legal here).
         local rect = (refs.health and refs.health._euiKitRef) or refs.host
         local gw = rect:GetWidth() or 0
         local gh = rect:GetHeight() or 0
         if gw < 1 then gw = 24 end
         if gh < 1 then gh = gw end
-        -- One style only: the animation-driven pixel march (driver-ticked glows freeze on the forbidden slot subtree; this runs C-side).
-        if Glows.StartAnimatedAnts then
-            Glows.StartAnimatedAnts(host, fx.glowLines or 8, fx.glowThickness or 2,
-                fx.glowSpeed or 4, cr, cg, cb, gw, gh)
-        end
+        -- Engine host: C-side styles only (driver-ticked glows freeze on the forbidden slot subtree).
+        Glows.StartSpecGlow(host, spec, gw, gh, "engine")
 
     elseif fx.kind == "healthcolor" then
         local f = dd.dmFxHcFrame
@@ -1978,6 +1974,10 @@ local function FxApplyInner(button, dd, refs, fx)
         -- The bar itself is OURS and outside that subtree, so the tint can read its
         -- fill texture here and keep the health bar's shading instead of flattening it.
         ns.RF_TintOverBarFill(tex, refs.health, fx.r or 1, fx.g or 0.2, fx.b or 0.2, fx.a or 0.5)
+        -- Re-anchored to the bar's current fill direction on every restyle as well: a
+        -- container back from the stale sweep missed the registry's re-anchor.
+        ns.RF_AnchorCurHealth(f, refs.health,
+            refs.health.GetStatusBarTexture and refs.health:GetStatusBarTexture())
         f:Show()
 
     elseif fx.kind == "square" then
@@ -2184,7 +2184,7 @@ local function EnsureTileStyle(d, s, t, szOv, szCat)
     local st = dmTileFP[key]
     if not st then st = {}; dmTileFP[key] = st end
 
-    local font = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or ""
+    local font = (EllesmereUI.GetFontPath("raidFrames")) or ""
     local v
     if isGrid then
         -- Rebuild handles for DM_RefreshSizedStyles (base-style edits re-derive this key without an apply pass).
@@ -2201,6 +2201,9 @@ local function EnsureTileStyle(d, s, t, szOv, szCat)
         end
         v = table.concat({ tostring(t.type), tostring(t.glowType), tostring(t.glowLines),
             tostring(t.glowThickness), tostring(t.glowSpeed), tostring(t.glowColorMode),
+            ns.RF_GlowClassFP(t.glowColorMode),
+            tostring(t.glowBackground), t.glowBackgroundColor and string.format("%.2f,%.2f,%.2f",
+                t.glowBackgroundColor.r or 0, t.glowBackgroundColor.g or 0, t.glowBackgroundColor.b or 0) or "-",
             tostring(t.opacity), tostring(t.size),
             tostring(t.width), tostring(t.height), tostring(t.position),
             tostring(t.offsetX), tostring(t.offsetY),
@@ -2226,6 +2229,10 @@ local function EnsureTileStyle(d, s, t, szOv, szCat)
                     glowType = t.glowType or 1, glowLines = t.glowLines,
                     glowThickness = t.glowThickness, glowSpeed = t.glowSpeed,
                     glowMode = t.glowColorMode,
+                    glowBg = t.glowBackground == true or nil,
+                    glowBgR = t.glowBackgroundColor and t.glowBackgroundColor.r,
+                    glowBgG = t.glowBackgroundColor and t.glowBackgroundColor.g,
+                    glowBgB = t.glowBackgroundColor and t.glowBackgroundColor.b,
                     size = t.size,
                     w = t.width or 10, h = t.height or 10,
                     corner = CORNERS[t.position or "center"] or "CENTER",
@@ -2259,7 +2266,7 @@ local function EnsureBaseSizeStyle(d, s, cat, size)
     if not st then st = { cls = cls, cat = cat }; dmSizeFP[key] = st end
     st.rawSize = size
     size = EffectiveIconSizeForClass(size, cls)
-    local font = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or ""
+    local font = (EllesmereUI.GetFontPath("raidFrames")) or ""
     local v = ((ns.RFC_DebuffStyleFP and ns.RFC_DebuffStyleFP(s, font)) or "")
         .. "|" .. tostring(size)
     if st.style ~= v and ns.RFC_BuildDebuffStyle then
@@ -2283,7 +2290,7 @@ function ns.DM_RefreshSizedStyles(baseStyleKey, s)
     if not AK then return end
     local cls = baseStyleKey:match("^rf:debuff:(.+)$")
     if not cls then return end
-    local font = (EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("raidFrames")) or ""
+    local font = (EllesmereUI.GetFontPath("raidFrames")) or ""
     for key, st in pairs(dmSizeFP) do
         if st.cls == cls and st.style and st.rawSize then
             local size = EffectiveIconSizeForClass(st.rawSize, cls)
@@ -2321,10 +2328,33 @@ end
 
 -- Ensures one tile's container exists for this button (queued: container shells are combat-illegal). Effect tiles
 -- declare their single slot at build; icon tiles get record groups from the apply pass (combat-legal adds on existing containers).
+-- A container is built for one tile TYPE (effect slots vs record groups) and carries its own declared keys (_dmDecl).
+-- Override layers fork the whole tile list, so a tile id can come back as another type: the built container parks
+-- hidden (dmTilesParked[id][type]) and a parked container of the right type is restored before anything is built.
 local function EnsureTileContainer(d, t)
     local tiles = d.dmTiles
     if not tiles then tiles = {}; d.dmTiles = tiles end
-    if tiles[t.id] then return tiles[t.id] end
+    local c = tiles[t.id]
+    if c then
+        if c._dmType == t.type then return c end
+        c:Hide()
+        local parked = d.dmTilesParked
+        if not parked then parked = {}; d.dmTilesParked = parked end
+        local byType = parked[t.id]
+        if not byType then byType = {}; parked[t.id] = byType end
+        byType[c._dmType] = c
+        tiles[t.id] = nil
+        -- Its bar tints stay registered: parked containers are bounded (one per id and type) and come back as they were.
+    end
+    local byType = d.dmTilesParked and d.dmTilesParked[t.id]
+    local back = byType and byType[t.type]
+    if back then
+        byType[t.type] = nil
+        tiles[t.id] = back
+        -- A stale-tile sweep may have dropped its healthcolor tints meanwhile; the apply restyles it once.
+        if back._dmType == "healthcolor" then back._dmRestyle = true end
+        return back
+    end
     local pend = d.dmTilePend
     if not pend then pend = {}; d.dmTilePend = pend end
     if pend[t.id] then return nil end
@@ -2350,6 +2380,16 @@ local function EnsureTileContainer(d, t)
         if not t2 then return end
         local s2 = SettingsFor(d)
         if not s2 then return end
+        -- A container parked for this type (the tile flipped back while this job waited) is restored, not rebuilt.
+        local parkedT = d.dmTilesParked and d.dmTilesParked[tileId]
+        local back = parkedT and parkedT[t2.type]
+        if back then
+            parkedT[t2.type] = nil
+            d.dmTiles[tileId] = back
+            if back._dmType == "healthcolor" then back._dmRestyle = true end
+            if d.rfcDebuffs then ns.DM_ApplyDebuffConfig(d.rfcDebuffs, d, s2, StyleKeyFor(d)) end
+            return
+        end
         -- EffectFilterFor below reads dm (dispelMode); the active-union
         -- re-resolve above no longer carries it.
         local dm2 = DM() or {}
@@ -2365,14 +2405,13 @@ local function EnsureTileContainer(d, t)
         else
             container:SetFrameLevel(button:GetFrameLevel() + (ns.LVL_AURA or 13))
         end
+        local tDecl = {}
+        container._dmType = t2.type
+        container._dmDecl = tDecl
         if t2.type ~= "icons" and t2.type ~= "square" then
             -- One slot PER checked filter category; later checks add slots on the live lane, gate silences unchecked ones.
             local host = button
             local hp = health
-            local tGroups = d.dmTileGroups
-            if not tGroups then tGroups = {}; d.dmTileGroups = tGroups end
-            local tDecl = tGroups[tileId]
-            if not tDecl then tDecl = {}; tGroups[tileId] = tDecl end
             local tileKind = t2.type
             local cs = EffectCatSet(t2)
             if cs then
@@ -2391,7 +2430,7 @@ local function EnsureTileContainer(d, t)
                             fxRefs[slotButton] = { host = host, health = hp }
                             slotButton:SetPoint("CENTER", hp, "CENTER")
                             slotButton:SetMouseMotionEnabled(false)
-                            FxCreateVisuals(slotButton, d2, tileKind, host, hp)
+                            FxCreateVisuals(slotButton, d2, tileKind, host, hp, container)
                             if style then FxApply(slotButton, d2, style) end
                         end,
                     })
@@ -2630,10 +2669,19 @@ function ns.DM_ApplyDebuffConfig(container, d, s, styleKey)
                 local tc = EnsureTileContainer(d, t)
                 if tc then
                     local tStyleKey = EnsureTileStyle(d, s, t)
-                    local tGroups = d.dmTileGroups
-                    if not tGroups then tGroups = {}; d.dmTileGroups = tGroups end
-                    local tDecl = tGroups[t.id]
-                    if not tDecl then tDecl = {}; tGroups[t.id] = tDecl end
+                    -- Back from the stale sweep: its overlays left the bar's registry and
+                    -- missed any fill swap or fill direction change meanwhile.
+                    if tc._dmSwept then
+                        tc._dmSwept = nil
+                        tc._dmRestyle = true
+                    end
+                    if tc._dmRestyle then
+                        -- Restored healthcolor container: repaint re-registers its overlays on the bar
+                        -- and re-anchors them to the current fill direction (FxApplyInner).
+                        tc._dmRestyle = nil
+                        AK.RestyleSoon(tStyleKey)
+                    end
+                    local tDecl = tc._dmDecl
 
                     if isEffect then
                         -- One live-settable slot PER CHECKED category: filter setter takes the NORMALIZED string,
@@ -2666,8 +2714,8 @@ function ns.DM_ApplyDebuffConfig(container, d, s, styleKey)
                                 AK.QueueLiveBuildJob(function()
                                     d.dmTilePend[pendKey] = nil
                                     local tc2 = d.dmTiles and d.dmTiles[tileId]
-                                    local decl2 = d.dmTileGroups and d.dmTileGroups[tileId]
-                                    if not (tc2 and decl2 and ns.DM_Active()) then return end
+                                    local decl2 = tc2 and tc2._dmDecl
+                                    if not (decl2 and ns.DM_Active()) then return end
                                     local s2 = SettingsFor(d)
                                     local dm2 = DM() or {}
                                     if not s2 then return end
@@ -2683,7 +2731,10 @@ function ns.DM_ApplyDebuffConfig(container, d, s, styleKey)
                                     end
                                     local host = d.dmHost
                                     local hp = d.rfcHealth
-                                    if not (t2 and host and hp) then return end
+                                    -- Effect slots only ever go on an effect container of the tile's current type; a flip
+                                    -- to a grid tile (its icons container restored meanwhile) was configured by that apply.
+                                    if not (t2 and host and hp and tc2._dmType == t2.type) then return end
+                                    if t2.type == "icons" or t2.type == "square" then return end
                                     local styleKey2 = EnsureTileStyle(d, s2, t2)
                                     local tileKind = t2.type
                                     local cs2 = EffectCatSet(t2)
@@ -2702,7 +2753,7 @@ function ns.DM_ApplyDebuffConfig(container, d, s, styleKey)
                                                     fxRefs[slotButton] = { host = host, health = hp }
                                                     slotButton:SetPoint("CENTER", hp, "CENTER")
                                                     slotButton:SetMouseMotionEnabled(false)
-                                                    FxCreateVisuals(slotButton, d2, tileKind, host, hp)
+                                                    FxCreateVisuals(slotButton, d2, tileKind, host, hp, tc2)
                                                     if style then FxApply(slotButton, d2, style) end
                                                 end,
                                             })
@@ -2724,7 +2775,7 @@ function ns.DM_ApplyDebuffConfig(container, d, s, styleKey)
                             if not tDecl[r.gkey] then tMissing = true end
                         end
                         for k in pairs(tDecl) do
-                            if tWanted[k] == nil and k ~= "fxFilter" then
+                            if tWanted[k] == nil then
                                 tc:SetAuraGroupMaxFrameCount(k, 0)
                             end
                         end
@@ -2786,15 +2837,15 @@ function ns.DM_ApplyDebuffConfig(container, d, s, styleKey)
                                 AK.QueueLiveBuildJob(function()
                                     d.dmTilePend[pendKey] = nil
                                     local tc2 = d.dmTiles and d.dmTiles[tileId]
-                                    local decl2 = d.dmTileGroups and d.dmTileGroups[tileId]
-                                    if not (tc2 and decl2 and ns.DM_Active()) then return end
+                                    local decl2 = tc2 and tc2._dmDecl
+                                    if not (decl2 and ns.DM_Active()) then return end
                                     local s2 = SettingsFor(d)
                                     local dm2 = DM() or {}
                                     if not s2 then return end
                                     local recs2 = BuildRecords(s2, dm2)
                                     for ri = 1, #recs2 do
                                         local r = recs2[ri]
-                                        if r.tile and r.tile.id == tileId then
+                                        if r.tile and r.tile.id == tileId and r.tile.type == tc2._dmType then
                                             local gkey = GroupKey(AK, r)
                                             if not decl2[gkey] then
                                                 local catKey = r.cats or r.key
@@ -2864,15 +2915,21 @@ function ns.DM_ApplyDebuffConfig(container, d, s, styleKey)
         if dmTiles then
             for i = 1, #dmTiles do present[dmTiles[i].id] = true end
         end
-        local stale = false
         for id, c in pairs(live) do
-            if not present[id] then c:Hide(); stale = true end
+            if not present[id] then
+                c:Hide()
+                -- A parked container keeps its slot buttons, so a healthcolor tile's
+                -- overlays would stay registered on the health bar and every later
+                -- layout pass would walk them for the session. Only this container's
+                -- own are dropped (they are keyed to it): live tiles stay registered,
+                -- so a fill swap or fill direction change still re-anchors them. It
+                -- restyles once if it comes back (_dmSwept, the tile loop above).
+                if c._dmType == "healthcolor" then
+                    if d.rfcHealth then ns.RF_ClearBarTints(d.rfcHealth, c) end
+                    c._dmSwept = true
+                end
+            end
         end
-        -- A parked container keeps its slot buttons, so any healthcolor overlay it
-        -- built stays registered on the health bar and every later layout pass
-        -- walks it. Nothing releases these, so without this they accumulate for
-        -- the session. Live tiles re-register on their next paint.
-        if stale and d.rfcHealth then ns.RF_ClearBarTints(d.rfcHealth, "dm") end
     end
 
     -- Party Frames kit: the lowest seat the debuffs reach below the frame
@@ -2909,7 +2966,9 @@ function ns.DM_DeadEdge(d, unit)
     local dead = UnitIsDeadOrGhost(unit) and true or false
     if d.dmDead == dead then return end
     d.dmDead = dead
-    local c = swap.tileId and (d.dmTiles and d.dmTiles[swap.tileId]) or d.rfcDebuffs
+    -- A tile swap never falls back to the base container: its keys are tile group keys.
+    local c
+    if swap.tileId then c = d.dmTiles and d.dmTiles[swap.tileId] else c = d.rfcDebuffs end
     if not c then return end
     if dead then
         for k in pairs(swap.park) do c:SetAuraGroupMaxFrameCount(k, 0) end
@@ -3026,6 +3085,45 @@ local function SpecBucket(dm, key, create)
     return b
 end
 
+-- WoW Forever: a class acts as the first of its retail specs (class order)
+-- whose "spec<ID>" bucket holds data (tiles, per-spec disables or Base
+-- Icons off), else its first spec. Class rows edit that same bucket.
+function ns.DM_BucketHasData(id, st)
+    local b = st and st["spec" .. id]
+    if b == nil then return false end
+    if (b.tiles and #b.tiles > 0) or b.baseOff == true then return true end
+    local dis = b.inhDis
+    if not (dis and next(dis) ~= nil) then return false end
+    if not EllesmereUI.IS_FOREVER then return true end
+    -- WoW Forever renders All Specs and the class's own bucket only, so only
+    -- a disable of an All Specs tile counts. Scans dm.tiles in place and
+    -- never creates it.
+    local dm = DM()
+    local base = dm and dm.tiles
+    for i = 1, (base and #base or 0) do
+        if dis[base[i].id] then return true end
+    end
+    return false
+end
+-- While a spec override's Debuff Manager fork is live (outside a
+-- conditional's editing session), the player's class acts as the spec that
+-- fork serves instead (published by Spec Overrides, seeded from the saved
+-- pointer at the first read).
+function ns.DM_ForeverSpecID(token)
+    if not EllesmereUI._SO_DmForkSeeded then EllesmereUI._SO_SeedForkSpec(true) end
+    local fk = EllesmereUI.SpecOverrides_DmForkSpecID
+    if fk and not EllesmereUI._dmSessionGid
+       and (token == nil or token == EllesmereUI.SpecClassOf(fk)) then
+        return fk
+    end
+    local dm = DM()
+    return EllesmereUI.ForeverClassSpec(token, ns.DM_BucketHasData, dm and dm.specTiles)
+end
+function ns.DM_ForeverKey(token)
+    local sid = ns.DM_ForeverSpecID(token)
+    return sid and ("spec" .. sid) or nil
+end
+
 -- Bucket tile array for an EDITED view ("allspecs"/nil = the legacy array).
 function ns.DM_BucketTiles(key, create)
     if not key or key == "allspecs" then return ns.DM_Tiles() end
@@ -3076,6 +3174,7 @@ function ns.DM_CurrentSpecBaseOff()
     if not st then return false end
     local idx = GetSpecialization and GetSpecialization()
     local sid = idx and GetSpecializationInfo and GetSpecializationInfo(idx) or nil
+    if EllesmereUI.IS_FOREVER then sid = ns.DM_ForeverSpecID() end
     local b = sid and st["spec" .. sid] or nil
     return (b and b.baseOff) and true or false
 end
@@ -3103,6 +3202,7 @@ function ns.DM_ActiveTiles()
     do
         local idx = GetSpecialization and GetSpecialization()
         sid = idx and GetSpecializationInfo and GetSpecializationInfo(idx) or nil
+        if EllesmereUI.IS_FOREVER then sid = ns.DM_ForeverSpecID() end
     end
     local con = st and sid and st["spec" .. sid] or nil
     local dis = con and con.inhDis or nil
@@ -3123,7 +3223,9 @@ function ns.DM_ActiveTiles()
                 if not (filtered and dis and dis[t.id]) then out[#out + 1] = t end
             end
         end
-        if not (ns.BM_SpecKeyForSpecID and ns.BM_SpecKeyForSpecID(sid)) then
+        -- WoW Forever: a class renders All Specs and its own bucket only
+        -- (group buckets are not offered there).
+        if not EllesmereUI.IS_FOREVER and not (ns.BM_SpecKeyForSpecID and ns.BM_SpecKeyForSpecID(sid)) then
             AddBucket("nonhealer", true)
         end
         local roleKey = ns.BM_RoleBucketForSpecID and ns.BM_RoleBucketForSpecID(sid)
@@ -3213,14 +3315,8 @@ function ns.DM_CopyTile(src, bucketKey)
     local t = ns.DM_AddTile(src.type, bucketKey)
     if not t then return nil end
     local keep = t.id
-    local function Copy(v)
-        if type(v) ~= "table" then return v end
-        local o = {}
-        for k, v2 in pairs(v) do o[k] = Copy(v2) end
-        return o
-    end
     for k in pairs(t) do t[k] = nil end
-    for k, v in pairs(src) do t[k] = Copy(v) end
+    for k, v in pairs(CopyTable(src)) do t[k] = v end
     t.id = keep
     return t
 end
@@ -3257,13 +3353,6 @@ end
 -- Both hooks run EnsureMigrated first, so the one-shot preset mapping always precedes any fork traffic.
 -------------------------------------------------------------------------------
 
-local function DmLayerCopy(v)
-    if type(v) ~= "table" then return v end
-    local t = {}
-    for k, x in pairs(v) do t[k] = DmLayerCopy(x) end
-    return t
-end
-
 -- Snapshot of the live Debuff Manager config for layer harvests.
 function _G._ERF_DMHarvestFork()
     local p = ns.db and ns.db.profile
@@ -3271,7 +3360,7 @@ function _G._ERF_DMHarvestFork()
     EnsureMigrated()
     local dm = p.dmDebuff
     if type(dm) ~= "table" then return nil end
-    return DmLayerCopy(dm)
+    return CopyTable(dm)
 end
 
 -- Applies a SpecOverrides DM layer into the live profile (wipe + refill in place: open manager pages capture
@@ -3284,7 +3373,7 @@ function _G._ERF_DMApplyLayer(dm, noPageRefresh)
     local live = p.dmDebuff
     if type(live) ~= "table" then live = {}; p.dmDebuff = live end
     wipe(live)
-    for k, v in pairs(dm) do live[k] = DmLayerCopy(v) end
+    for k, v in pairs(CopyTable(dm)) do live[k] = v end
     if ns.RFC_ReloadAll then ns.RFC_ReloadAll() end
     if not noPageRefresh and ns._dmRoot and EllesmereUI and EllesmereUI.RefreshPage then
         EllesmereUI:RefreshPage(true)

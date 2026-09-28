@@ -241,7 +241,9 @@ local function BuildScrollbar(win)
     track:SetFrameLevel(win.smf:GetFrameLevel() + 2)
     track:Hide()
     local thumb = track:CreateTexture(nil, "ARTWORK")
-    thumb:SetColorTexture(1, 1, 1, 0.27)
+    -- WoW Forever: a bronze thumb to match the kit's frame.
+    local fc = ns.ChatForever() and ECHAT.FV.thumb
+    if fc then thumb:SetColorTexture(fc[1], fc[2], fc[3], fc[4]) else thumb:SetColorTexture(1, 1, 1, 0.27) end
     thumb:SetWidth(4)
     thumb:SetPoint("BOTTOM", track, "BOTTOM", 0, 0)
     win.track, win.thumb = track, thumb
@@ -1160,7 +1162,7 @@ ECHAT.EngineQueueRebuildAll = QueueRebuildAll
 -- lines received while dormant. No-op while the state is unchanged, so the
 -- PEW edge and the per-message probe cost one comparison.
 EngineUpdateProtectedState = function()
-    local prot = (EUI.InProtectedInstance and EUI.InProtectedInstance()) and true or false
+    local prot = (EUI.InProtectedInstance()) and true or false
     if prot == _protActive then return end
     _protActive = prot
     QueueRebuildAll()
@@ -1271,12 +1273,6 @@ function ECHAT.EngineBackfillLine(cf, text, r, g, b, id)
     cf:BackFillMessage(display, r, g, b, id)
     win.smf:BackFillMessage(display, r, g, b, id)
     return true
-end
-
-function ECHAT.EngineNumMessages(cf)
-    local win = WINS[cf]
-    if not win then return 0 end
-    return win.smf:GetNumMessages()
 end
 
 -- Full-hide passthrough support: our display simply hides (a hidden frame

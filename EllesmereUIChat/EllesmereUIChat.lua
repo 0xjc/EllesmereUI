@@ -35,20 +35,18 @@ local ECHAT = ns.ECHAT
 -- Chat uses the same tuned Blizzard-border offsets as other rectangular EUI
 -- panels. Without this registration the shared engine's lookup resolves to
 -- zero, clipping the border texture into the panel.
-if EUI.RegisterBorderDefaults then
-    EUI.RegisterBorderDefaults("chat", {
-        ["blizz"] = {
-            defaultSize = "heavy",
-            sizes = {
-                none   = { offsetX=0, offsetY=0, shiftX=0, shiftY=0 },
-                thin   = { offsetX=2, offsetY=1, shiftX=0, shiftY=0 },
-                normal = { offsetX=3, offsetY=2, shiftX=0, shiftY=0 },
-                heavy  = { offsetX=4, offsetY=2, shiftX=1, shiftY=0 },
-                strong = { offsetX=4, offsetY=2, shiftX=2, shiftY=0 },
-            },
+EUI.RegisterBorderDefaults("chat", {
+    ["blizz"] = {
+        defaultSize = "heavy",
+        sizes = {
+            none   = { offsetX=0, offsetY=0, shiftX=0, shiftY=0 },
+            thin   = { offsetX=2, offsetY=1, shiftX=0, shiftY=0 },
+            normal = { offsetX=3, offsetY=2, shiftX=0, shiftY=0 },
+            heavy  = { offsetX=4, offsetY=2, shiftX=1, shiftY=0 },
+            strong = { offsetX=4, offsetY=2, shiftX=2, shiftY=0 },
         },
-    })
-end
+    },
+})
 
 local min, max, floor, ceil, abs = min, max, floor, ceil, math.abs
 
@@ -230,17 +228,44 @@ function ns.ChatStyle()
         if not c then return "eui" end
         v = (c.useClassicStyle and "classic") or (c.useBlizzardStyle and "blizzard") or "eui"
         ns._chatStyle = v
+        -- The WoW Forever variant of Blizzard Style, latched with it: the
+        -- Forever client, Blizzard Style, and the sibling useForeverStyle
+        -- flag set together with the Blizzard one (_chatForeverFlag). Unlike
+        -- the other modules' Forever latches it also needs the kit's frame
+        -- art (EllesmereUI.ForeverBorder): a client without it renders plain
+        -- Blizzard Style.
+        ns._chatForeverFlag = v == "blizzard" and EllesmereUI.IS_FOREVER == true
+            and c.useForeverStyle == true
+        ns._chatForever = ns._chatForeverFlag and EllesmereUI.ForeverBorderOK()
     end
     return v
+end
+-- WoW Forever variant: ChatStyle() still reads "blizzard" (every stock site
+-- stays as it is); this gates the Forever-only pieces. False off Forever.
+function ns.ChatForever()
+    if ns._chatStyle == nil then ns.ChatStyle() end
+    return ns._chatForever == true
+end
+-- The variant as the profile flags latched it, art or not: what a profile
+-- flag comparison must read (ChatForever() stays false where the art is
+-- missing, so comparing it to profile flags would never settle).
+function ns.ChatForeverFlag()
+    if ns._chatStyle == nil then ns.ChatStyle() end
+    return ns._chatForeverFlag == true
 end
 -- Both stock styles: Blizzard's own chat frame art and input box are revealed
 -- in place (only the suppression is skipped); our panel paint, borders and
 -- input chrome stand down. The display engine and every text feature run as
 -- in the EllesmereUI look.
 function ns.ChatStock() return ns.ChatStyle() ~= "eui" end
+-- Blizzard's own chat frame art and input box revealed: the stock styles
+-- minus WoW Forever, which strips them like the EllesmereUI look and draws
+-- its bronze kit on our panel instead (options still gate as Blizzard Style).
+function ns.ChatStockArt() return ns.ChatStock() and not ns.ChatForever() end
 -- Blizzard Style only: Blizzard's real tab strip is revealed as well. Classic
--- keeps the ghost tabs over the invisible strip, painted with the vanilla sheet.
-function ns.ChatBlizzTabs() return ns.ChatStyle() == "blizzard" end
+-- and WoW Forever keep the ghost tabs over the invisible strip, painted with
+-- their own tab art.
+function ns.ChatBlizzTabs() return ns.ChatStyle() == "blizzard" and not ns.ChatForever() end
 -- Stock-aware reads of the EllesmereUI-only layout settings (the band behind
 -- the tabs, input on top, the panel and sidebar borders).
 function ECHAT.ExtendBgBehindTabs(cfg) return cfg.extendBgBehindTabs == true and not ns.ChatStock() end
@@ -287,20 +312,20 @@ local function GetFont()
     local cfg = ECHAT.DB()
     local fontKey = cfg.font or "__global"
     if fontKey == "__global" then
-        return (EUI.GetFontPath and EUI.GetFontPath("chat")) or STANDARD_TEXT_FONT
+        return (EUI.GetFontPath("chat")) or STANDARD_TEXT_FONT
     end
-    return (EUI.ResolveFontName and EUI.ResolveFontName(fontKey)) or STANDARD_TEXT_FONT
+    return (EUI.ResolveFontName(fontKey)) or STANDARD_TEXT_FONT
 end
 
 local function GetOutlineFlag()
     local cfg = ECHAT.DB()
     local mode = cfg.outlineMode or "__global"
     if mode == "__global" then
-        return (EUI.GetFontOutlineFlag and EUI.GetFontOutlineFlag("chat")) or ""
+        return (EUI.GetFontOutlineFlag("chat")) or ""
     end
     -- Chat-specific outline override; still slug-gated by "Never Show Slug".
-    if mode == "outline" then return (EUI.SlugFlag and EUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG" end
-    if mode == "thick" then return (EUI.SlugFlag and EUI.SlugFlag("THICKOUTLINE, SLUG")) or "THICKOUTLINE, SLUG" end
+    if mode == "outline" then return (EUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG" end
+    if mode == "thick" then return (EUI.SlugFlag("THICKOUTLINE, SLUG")) or "THICKOUTLINE, SLUG" end
     return ""
 end
 
@@ -345,14 +370,6 @@ local function GetTabHeight()
     return cfg.tabHeight or TAB_STRIP_H
 end
 
-local function GetTabFont()
-    local cfg = ECHAT.DB()
-    local fontKey = cfg.tabFont or "__global"
-    if fontKey == "__global" then
-        return (EUI.GetFontPath and EUI.GetFontPath("chat")) or STANDARD_TEXT_FONT
-    end
-    return (EUI.ResolveFontName and EUI.ResolveFontName(fontKey)) or STANDARD_TEXT_FONT
-end
 local function GetTabPadding()
     local cfg = ECHAT.DB()
     if ECHAT.ExtendBgBehindTabs(cfg) then return 0 end
@@ -360,22 +377,6 @@ local function GetTabPadding()
 end
 local function GetTabAreaHeight()
     return GetTabHeight() + GetTabPadding()
-end
-
--- Batch cursor check: read cursor position once per frame, test against the
--- cached raw coords instead of calling GetCursorPosition repeatedly.
-local _rawCX, _rawCY = 0, 0
-local function RefreshCursorPos()
-    _rawCX, _rawCY = GetCursorPosition()
-end
-local function IsCursorOverCached(frame)
-    if not frame or not frame:IsVisible() then return false end
-    local ok, left, bottom, width, height = pcall(frame.GetRect, frame)
-    if not ok or not left then return false end
-    if issecretvalue and issecretvalue(left) then return false end
-    local scale = frame:GetEffectiveScale()
-    local cx, cy = _rawCX / scale, _rawCY / scale
-    return cx >= left and cx <= left + width and cy >= bottom and cy <= bottom + height
 end
 
 local BG_R, BG_G, BG_B, BG_A = 0.03, 0.045, 0.05, 0.70
@@ -409,9 +410,9 @@ local function GetEditBoxFont()
     local key = ECHAT.DB().editBoxFont
     if not key or key == "__chat" then return GetFont() end
     if key == "__global" then
-        return (EUI.GetFontPath and EUI.GetFontPath("chat")) or STANDARD_TEXT_FONT
+        return (EUI.GetFontPath("chat")) or STANDARD_TEXT_FONT
     end
-    return (EUI.ResolveFontName and EUI.ResolveFontName(key)) or GetFont()
+    return (EUI.ResolveFontName(key)) or GetFont()
 end
 local function GetEditBoxFontSize(id)
     return ECHAT.DB().editBoxFontSize or GetFrameFontSize(id)
@@ -427,10 +428,8 @@ ns.chatBgTextures, ns.chatBgTextureNames, ns.chatBgTextureOrder =
 -- Refresh from SharedMedia (idempotent; registers the late-registration
 -- callback on first call, same as the other modules).
 function ECHAT.RefreshBgTextureCatalogue()
-    if EllesmereUI.AppendSharedMediaTextures then
-        EllesmereUI.AppendSharedMediaTextures(
-            ns.chatBgTextureNames, ns.chatBgTextureOrder, nil, ns.chatBgTextures)
-    end
+    EllesmereUI.AppendSharedMediaTextures(
+        ns.chatBgTextureNames, ns.chatBgTextureOrder, nil, ns.chatBgTextures)
 end
 
 -- Apply background settings from DB to all skinned chat frames
@@ -476,6 +475,8 @@ function ECHAT.ApplyBackground()
             end
         end
     end
+    -- WoW Forever: the colour and texture fill the kit's framed boxes instead.
+    if ns.ChatForever() then ECHAT.FV_PaintFills(texPath, BG_R, BG_G, BG_B, BG_A) end
     local cf1 = _G.ChatFrame1
     if cf1 and CFD(cf1).sidebar then
         local sbBg = CFD(cf1).sidebar:GetRegions()
@@ -692,9 +693,7 @@ function ECHAT.ApplyExtendedBackground()
                 end
             end
         else
-            if EllesmereUI.ApplyBorderStyle then
-                EllesmereUI.ApplyBorderStyle(border, 0, 1, 1, 1, 0, cfg.panelBorderTexture or "solid")
-            end
+            EllesmereUI.ApplyBorderStyle(border, 0, 1, 1, 1, 0, cfg.panelBorderTexture or "solid")
             border:Hide()
         end
     end
@@ -1172,6 +1171,11 @@ local function EnsureChatClampInsets()
     if ns.ChatStock() then
         local x = (ECHAT.STOCK_BG_X or 8) + 4
         wl, wr, wt, wb = -x, x, ECHAT.STOCK_CLAMP_TOP, -ECHAT.STOCK_CLAMP_BOTTOM
+        -- WoW Forever: the kit's frame reaches FV.X past each side and its
+        -- own input box further down.
+        if ns.ChatForever() then
+            wl, wr, wb = -ECHAT.FV.X, ECHAT.FV.X, -ECHAT.FV_PanelDrop(GetEditBoxHeight())
+        end
     end
     local l, r, t, b = cf1:GetClampRectInsets()
     if l ~= wl or r ~= wr or t ~= wt or b ~= wb then
@@ -1251,9 +1255,12 @@ end
 -- State sync for what the panels lost by no longer being chat frame children,
 -- plus two Blizzard buttons hidden by alpha: Blizzard fades ButtonFrame /
 -- ScrollToBottomButton back in on hover (UIFrameFadeIn drives only their
--- alpha) and re-levels chat frames on dock passes. Runs from the interaction
--- follower and the deferred event passes. The stack-hidden gate keeps the
--- shown-follow from re-showing panels the full-hide put away.
+-- alpha) and re-levels chat frames on dock passes. ButtonFrame's minimize
+-- button keeps its own art and inherits its alpha, so DOCKED ONLY below:
+-- undocked, Blizzard's own hover fade owns that alpha and this would fight
+-- it every pass. Runs from the interaction follower and the deferred event
+-- passes. The stack-hidden gate keeps the shown-follow from re-showing
+-- panels the full-hide put away.
 function ECHAT.SyncChatFrameState()
     if ECHAT.SuppressChatEditModeSelection then ECHAT.SuppressChatEditModeSelection() end
     EnsureChatClampInsets()
@@ -1316,16 +1323,21 @@ function ECHAT.SyncChatFrameState()
     -- and the text frame it hosts -- runs one strata up, in MEDIUM, where the
     -- tab strip and the panel border already live; it takes no mouse, so
     -- hyperlink hit zones are unaffected. The EllesmereUI look keeps the
-    -- chat frame's strata, one level below it.
-    local stockLvl = ns.ChatStock()
+    -- chat frame's strata, one level below it, and so does WoW Forever
+    -- (Blizzard's art stripped; the hosted combat log must draw over ours).
+    local stockLvl = ns.ChatStockArt()
     for i = 1, 20 do
         local cf = _G["ChatFrame" .. i]
         if cf then
             local shown = cf:IsShown()
             if shown then
-                -- GetAlpha reads secret on chat-roleset widgets in lockdown;
-                -- a secret skips the compare and re-asserts.
-                local bf = _G["ChatFrame" .. i .. "ButtonFrame"]
+                -- Docked only: undocked, Blizzard's own hover fade owns this
+                -- alpha (0.2 idle, 1 on hover), and re-asserting here would
+                -- fight it every pass -- the minimize button, its child, kept
+                -- flickering with that fight even after btnFrame's own art was
+                -- emptied. GetAlpha reads secret on chat-roleset widgets in
+                -- lockdown; a secret skips the compare and re-asserts.
+                local bf = cf.isDocked and _G["ChatFrame" .. i .. "ButtonFrame"]
                 local bfA = bf and bf:GetAlpha()
                 if bfA and ((issecretvalue and issecretvalue(bfA)) or bfA ~= 0) then bf:SetAlpha(0) end
                 local sb = cf.ScrollToBottomButton
@@ -1502,42 +1514,6 @@ do
     end
 end
 
--- Visibility ONLY: the SetShown half of ApplySidebarIcons, without its
--- ClearAllPoints/SetPoint chain. Re-anchoring here is taint-risky (also skipped at init
--- and in _ECHAT_RefreshAll): tab passes fire right after a whisper opens a temp window,
--- and re-anchoring then would land while Blizzard's dock pass is still resolving -- the
--- collision that poisons ChatFrame.isLocked. Fade only needs shown/hidden; re-anchoring
--- stays on paths that actually change the chain (icon order, spacing, free-move).
-function ECHAT.ApplySidebarIconVisibility()
-    local cfg = ECHAT.DB()
-    local cf1 = _G.ChatFrame1
-    local sbd = cf1 and CFD(cf1)
-    if not (cfg and sbd and sbd.sidebar) then return end
-    local sbMode = cfg.sidebarVisibility or "always"
-    local sbHidden = sbMode == "never"
-        or (sbMode == "mouseover" and _sidebarFadeTarget == 0 and _sidebarFadeAlpha == 0)
-        or ns._chatPassthrough == true
-    local PAIRS = {
-        { "showFriends", "friendsBtn", "friendsCount" },
-        { "showGuild", "guildBtn", "guildCount" },
-        { "showDurability", "durabilityBtn", "durabilityPct" },
-        { "showCopy", "copyBtn" },
-        { "showPortals", "portalBtn" },
-        { "showVoice", "voiceBtn" },
-        { "showSettings", "settingsBtn" },
-    }
-    for i = 1, #PAIRS do
-        local key, btnKey, tailKey = PAIRS[i][1], PAIRS[i][2], PAIRS[i][3]
-        local btn = sbd[btnKey]
-        if btn then
-            local shown = cfg[key] ~= false and not sbHidden
-            if btn:IsShown() ~= shown then btn:SetShown(shown) end
-            local tail = tailKey and sbd[tailKey]
-            if tail and tail:IsShown() ~= shown then tail:SetShown(shown) end
-        end
-    end
-end
-
 -- Show/hide individual sidebar icons and re-anchor visible ones to close gaps
 -- Chain refs for ApplySidebarIcons (static: that pass runs on every sidebar
 -- fade edge).
@@ -1649,6 +1625,14 @@ local SIDEBAR_ICON_REFS = {
 local SIDEBAR_CHAIN_KEYS = {
     "showFriends", "showGuild", "showDurability", "showCopy", "showPortals", "showVoice", "showSettings",
 }
+-- No keystones on Forever, so no season portals (the Minimap button is never
+-- built there either): the M+ Portals icon leaves the chain, which also drops
+-- it from creation and from the options icon list. Every button reader guards.
+if EllesmereUI.IS_FOREVER then
+    for i = #SIDEBAR_CHAIN_KEYS, 1, -1 do
+        if SIDEBAR_CHAIN_KEYS[i] == "showPortals" then table.remove(SIDEBAR_CHAIN_KEYS, i) end
+    end
+end
 local SIDEBAR_FALLBACK_ORDER = {
     showFriends = -20, showGuild = -15, showDurability = -10,
     showCopy = 1, showPortals = 2, showVoice = 3, showSettings = 4,
@@ -2704,340 +2688,19 @@ function ECHAT.ApplyIconFreeMove()
     end
 end
 
--- Portal flyout: dungeon portal spell buttons, built from the shared season
--- list (EllesmereUI.SEASON_PORTALS) -- one place to update per season.
-local PORTAL_SPELLS, PORTAL_SHORT = {}, {}
-for _, e in ipairs(EllesmereUI.SEASON_PORTALS) do
-    PORTAL_SPELLS[#PORTAL_SPELLS + 1] = e.spellID
-    PORTAL_SHORT[e.spellID] = e.short
-end
-
-local _portalFlyout, _portalBtns
-
-local function RefreshPortalButtons()
-    if not _portalBtns then return end
-    for _, btn in ipairs(_portalBtns) do
-        local spellID = btn.spellID
-        local known = IsPlayerSpell(spellID)
-        if btn._lastKnown ~= known then
-            btn._lastKnown = known
-            btn.icon:SetDesaturated(not known)
-            btn.icon:SetAlpha(known and 1 or 0.4)
-        end
-        if known then
-            local cdInfo = C_Spell.GetSpellCooldown(spellID)
-            if cdInfo and cdInfo.startTime and cdInfo.duration and cdInfo.duration > 0 then
-                btn.cooldown:SetCooldown(cdInfo.startTime, cdInfo.duration)
-            else
-                btn.cooldown:Clear()
-            end
-        else
-            btn.cooldown:Clear()
-        end
-    end
-end
-
-local function CreatePortalFlyout()
-    if _portalFlyout then return _portalFlyout end
-
-    local BTN_SIZE = 32
-    local SPACING = 1
-    local PADDING = 2
-    local COLS = 4
-    local ROWS = ceil(#PORTAL_SPELLS / COLS)
-
-    local portalW = PADDING * 2 + BTN_SIZE * COLS + SPACING * (COLS - 1)
-    local flyH = PADDING * 2 + BTN_SIZE * ROWS + SPACING * (ROWS - 1)
-    local HS_COUNT = 3
-    local HS_H = floor((flyH - PADDING * 2 - SPACING * (HS_COUNT - 1)) / HS_COUNT)
-    local hsX = PADDING + COLS * BTN_SIZE + (COLS - 1) * SPACING + SPACING
-    local flyW = hsX + HS_H + PADDING
-
-    local flyout = CreateFrame("Frame", "EUIChatPortalFlyout", UIParent)
-    flyout:SetSize(flyW, flyH)
-    flyout:SetFrameStrata("DIALOG")
-    flyout:SetFrameLevel(100)
-    flyout:Hide()
-
-    local bg = flyout:CreateTexture(nil, "BACKGROUND")
-    bg:SetAllPoints()
-    bg:SetColorTexture(BG_R, BG_G, BG_B, 0.95)
-
-    if PP and PP.CreateBorder then
-        PP.CreateBorder(flyout, 1, 1, 1, 0.06, 1, "OVERLAY", 7)
-    end
-
-    -- Close in combat
-    local guard = CreateFrame("Frame")
-    guard:RegisterEvent("PLAYER_REGEN_DISABLED")
-    guard:SetScript("OnEvent", function()
-        flyout:Hide()
-    end)
-
-    -- Spell buttons
-    _portalBtns = {}
-    for i, spellID in ipairs(PORTAL_SPELLS) do
-        local col = (i - 1) % COLS
-        local row = floor((i - 1) / COLS)
-
-        local btn = CreateFrame("Button", "EUIChatPortal" .. i, flyout, "SecureActionButtonTemplate")
-        btn:SetSize(BTN_SIZE, BTN_SIZE)
-        btn:SetPoint("TOPLEFT", flyout, "TOPLEFT",
-            PADDING + col * (BTN_SIZE + SPACING),
-            -(PADDING + row * (BTN_SIZE + SPACING)))
-
-        btn.spellID = spellID
-
-        local icon = btn:CreateTexture(nil, "ARTWORK")
-        icon:SetAllPoints()
-        icon:SetTexCoord(6/64, 58/64, 6/64, 58/64)
-        local spellInfo = C_Spell.GetSpellInfo(spellID)
-        if spellInfo then icon:SetTexture(spellInfo.iconID) end
-        btn.icon = icon
-
-        -- 1px black border
-        if PP and PP.CreateBorder then
-            PP.CreateBorder(btn, 0, 0, 0, 1, 1, "OVERLAY", 7)
-        end
-
-        local cd = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
-        cd:SetAllPoints()
-        cd:SetHideCountdownNumbers(true)
-        cd:SetDrawSwipe(true)
-        cd:SetDrawBling(false)
-        cd:SetDrawEdge(false)
-        btn.cooldown = cd
-
-        local short = PORTAL_SHORT[spellID]
-        if short then
-            local labelFrame = CreateFrame("Frame", nil, btn)
-            labelFrame:SetAllPoints()
-            labelFrame:SetFrameLevel(cd:GetFrameLevel() + 2)
-            local label = labelFrame:CreateFontString(nil, "OVERLAY", nil)
-            if EllesmereUI and EllesmereUI.PrimeFontShadow then EllesmereUI.PrimeFontShadow(label, true) end
-            label:SetFont(GetFont(), 8, (EUI.SlugFlag and EUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG")
-            label:SetPoint("BOTTOM", btn, "BOTTOM", 0, 2)
-            label:SetTextColor(1, 1, 1, 0.9)
-            label:SetText((EllesmereUI and EllesmereUI.L and EllesmereUI.L(short)) or short)
-        end
-
-        -- Hover highlight (HIGHLIGHT layer auto-shows on mouseover)
-        local hover = btn:CreateTexture(nil, "HIGHLIGHT")
-        hover:SetAllPoints()
-        hover:SetColorTexture(1, 1, 1, 0.20)
-
-        -- Casting highlight overlay
-        local castHL = btn:CreateTexture(nil, "OVERLAY", nil, 1)
-        castHL:SetAllPoints()
-        castHL:SetColorTexture(1, 1, 1, 0.4)
-        castHL:Hide()
-        btn._castHL = castHL
-
-        btn:RegisterForClicks("AnyUp", "AnyDown")
-        btn:SetAttribute("type", "spell")
-        btn:SetAttribute("spell", spellID)
-
-        btn:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:SetSpellByID(self.spellID)
-            GameTooltip:Show()
-        end)
-        btn:SetScript("OnLeave", function()
-            GameTooltip:Hide()
-        end)
-
-        _portalBtns[i] = btn
-    end
-
-    -- Hearthstone column: 3 icons stacked vertically as a 5th column on the
-    -- right side, separated by a thin vertical divider.
-    local _hearthBtns = {}
-    for i = 1, HS_COUNT do
-        local btn = CreateFrame("Button", "EUIChatHearth" .. i, flyout, "SecureActionButtonTemplate")
-        btn:SetSize(HS_H, HS_H)
-        btn:SetPoint("TOPLEFT", flyout, "TOPLEFT",
-            hsX,
-            -(PADDING + (i - 1) * (HS_H + SPACING)))
-
-        local icon = btn:CreateTexture(nil, "ARTWORK")
-        icon:SetAllPoints()
-        icon:SetTexCoord(6/64, 58/64, 6/64, 58/64)
-        btn.icon = icon
-
-        if PP and PP.CreateBorder then
-            PP.CreateBorder(btn, 0, 0, 0, 1, 1, "OVERLAY", 7)
-        end
-
-        local cd = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
-        cd:SetAllPoints()
-        cd:SetHideCountdownNumbers(true)
-        cd:SetDrawSwipe(true)
-        cd:SetDrawBling(false)
-        cd:SetDrawEdge(false)
-        btn.cooldown = cd
-
-        local hover = btn:CreateTexture(nil, "HIGHLIGHT")
-        hover:SetAllPoints()
-        hover:SetColorTexture(1, 1, 1, 0.20)
-
-        btn:RegisterForClicks("AnyUp", "AnyDown")
-
-        btn:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            if self._hsType == "spell" then
-                GameTooltip:SetSpellByID(self._hsID)
-            elseif self._hsType == "item" then
-                if self._hsID ~= 6948 and PlayerHasToy and PlayerHasToy(self._hsID) then
-                    GameTooltip:SetToyByItemID(self._hsID)
-                else
-                    GameTooltip:SetItemByID(self._hsID)
-                end
-            elseif self._hsType == "housing" then
-                GameTooltip:AddLine(EUI.L("Housing Dashboard"))
-            end
-            GameTooltip:Show()
-        end)
-        btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        -- Casting highlight overlay (same as portal buttons)
-        local castHL = btn:CreateTexture(nil, "OVERLAY", nil, 1)
-        castHL:SetAllPoints()
-        castHL:SetColorTexture(1, 1, 1, 0.4)
-        castHL:Hide()
-        btn._castHL = castHL
-
-        btn:HookScript("PostClick", function(self)
-            if self._hsType == "housing" then
-                if HousingFramesUtil and HousingFramesUtil.ToggleHousingDashboard then
-                    HousingFramesUtil.ToggleHousingDashboard()
-                end
-                if _portalFlyout then _portalFlyout:Hide() end
-            else
-                self._castHL:Show()
-            end
-        end)
-
-        _hearthBtns[i] = btn
-    end
-
-
-    -- Swipe-only refresh (SPELL_UPDATE_COOLDOWN); never re-resolves toys.
-    local function RefreshHearthCooldowns()
-        for _, btn in ipairs(_hearthBtns) do
-            local aType, id = btn._hsType, btn._hsID
-            if aType == "spell" and C_Spell and C_Spell.GetSpellCooldown then
-                local cdInfo = C_Spell.GetSpellCooldown(id)
-                if cdInfo and cdInfo.startTime and cdInfo.duration and cdInfo.duration > 0 then
-                    btn.cooldown:SetCooldown(cdInfo.startTime, cdInfo.duration)
-                else
-                    btn.cooldown:Clear()
-                end
-            elseif aType == "item" and GetItemCooldown then
-                local ok, start, dur = pcall(GetItemCooldown, id)
-                if ok and start and dur and dur > 0 then
-                    btn.cooldown:SetCooldown(start, dur)
-                else
-                    btn.cooldown:Clear()
-                end
-            else
-                btn.cooldown:Clear()
-            end
-        end
-    end
-
-    -- Full resolve (random toy, icon/macro/attributes). Show only, never on
-    -- cooldown events; attribute writes are combat-illegal, hence the gate.
-    local function ResolveHearthButtons()
-        if InCombatLockdown() then return end
-        local EUI = EllesmereUI
-        local resolvers = {
-            EUI.ResolveHearthSlot,
-            EUI.ResolveDalaranSlot,
-            EUI.ResolveHousingSlot,
-        }
-        for i, btn in ipairs(_hearthBtns) do
-            local aType, id, iconTex = resolvers[i]()
-            btn._hsType = aType
-            btn._hsID = id
-            btn.icon:SetTexture(iconTex)
-            btn.icon:SetTexCoord(aType == "housing" and 0 or 6/64,
-                                 aType == "housing" and 1 or 58/64,
-                                 aType == "housing" and 0 or 6/64,
-                                 aType == "housing" and 1 or 58/64)
-            if aType == "housing" then
-                btn:SetAttribute("type", nil)
-                btn:SetAttribute("macrotext", nil)
-            elseif aType == "spell" then
-                btn:SetAttribute("type", "macro")
-                local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(id)
-                local name = info and info.name or ""
-                btn:SetAttribute("macrotext", "/cast " .. name)
-            else
-                btn:SetAttribute("type", "macro")
-                if id == 6948 then
-                    btn:SetAttribute("macrotext", "/use item:" .. id)
-                else
-                    local toyName
-                    if C_ToyBox and C_ToyBox.GetToyInfo then
-                        local _, tn = C_ToyBox.GetToyInfo(id)
-                        toyName = tn
-                    end
-                    btn:SetAttribute("macrotext", toyName and ("/use " .. toyName) or ("/use item:" .. id))
-                end
-            end
-        end
-        RefreshHearthCooldowns()
-    end
-
-    -- Events live only while shown: cooldown + cast highlight refresh.
-    flyout:SetScript("OnShow", function(self)
-        self:RegisterEvent("SPELL_UPDATE_COOLDOWN")
-        self:RegisterEvent("UNIT_SPELLCAST_START")
-        self:RegisterEvent("UNIT_SPELLCAST_STOP")
-        self:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
-        self:RegisterEvent("UNIT_SPELLCAST_FAILED")
-        self:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
-        RefreshPortalButtons()
-        ResolveHearthButtons()
-    end)
-    flyout:SetScript("OnHide", function(self)
-        self:UnregisterAllEvents()
-        for _, btn in ipairs(_portalBtns) do
-            if btn._castHL then btn._castHL:Hide() end
-        end
-        for _, btn in ipairs(_hearthBtns) do
-            if btn._castHL then btn._castHL:Hide() end
-        end
-    end)
-    flyout:SetScript("OnEvent", function(self, event, unit, castGUID, spellID)
-        if event == "SPELL_UPDATE_COOLDOWN" then
-            RefreshPortalButtons()
-            RefreshHearthCooldowns()
-        elseif unit == "player" then
-            local casting = (event == "UNIT_SPELLCAST_START") and spellID or nil
-            for _, btn in ipairs(_portalBtns) do
-                if btn._castHL then
-                    btn._castHL:SetShown(casting and casting == btn.spellID)
-                end
-            end
-            -- Cast end clears hearthstone highlights
-            if not casting then
-                for _, btn in ipairs(_hearthBtns) do
-                    if btn._castHL then btn._castHL:Hide() end
-                end
-            end
-        end
-    end)
-
-    -- Escape to close
-    EllesmereUI.RegisterEscapeClose(flyout)
-
-    _portalFlyout = flyout
-    return flyout
-end
+-- Portal flyout: EllesmereUI.CreatePortalFlyout, built on first open.
+local _portalFlyout
 
 function ECHAT.TogglePortalFlyout(anchorBtn)
     if InCombatLockdown() then return end
-    local flyout = CreatePortalFlyout()
+    if not _portalFlyout then
+        _portalFlyout = EUI.CreatePortalFlyout({
+            -- unitEvents: the cast events it watches only ever matter for the player.
+            name = "EUIChat", bg = { BG_R, BG_G, BG_B }, labelFont = GetFont(), unitEvents = true,
+            labelFlags = (EUI.SlugFlag("OUTLINE, SLUG")) or "OUTLINE, SLUG",
+        })
+    end
+    local flyout = _portalFlyout
     -- Visibility, not the shown flag: leaving the house editor hides our host
     -- out from under a flyout that is still flagged shown, and a stale flag
     -- would eat the next click.
@@ -3156,6 +2819,9 @@ function ECHAT.ApplyInputPosition()
     -- the sidebar sits flush against Blizzard's border.
     local stock = ns.ChatStock()
     local stockX = ECHAT.STOCK_BG_X + 4
+    -- WoW Forever: our input box in its own bronze frame under the message
+    -- frame (EllesmereUIChat_Forever.lua records the panel insets).
+    local fv = ns.ChatForever()
 
     for i = 1, 20 do
         local cf = _G["ChatFrame" .. i]
@@ -3166,7 +2832,11 @@ function ECHAT.ApplyInputPosition()
             local bg = CFD(cf).bg
             local div = CFD(cf).inputDiv
 
-            if stock then
+            if fv then
+                ECHAT.FV_SeatInput(cf, eb, inputHeight)
+                ECHAT.ApplyInputTopStrip(cf)
+                if ECHAT.PositionChatPanel then ECHAT.PositionChatPanel(cf) end
+            elseif stock then
                 CFD(cf)._bgIns = { l = -stockX, r = stockX, t = 7, b = -10 }
                 ECHAT.ApplyInputTopStrip(cf)
                 if ECHAT.PositionChatPanel then ECHAT.PositionChatPanel(cf) end
@@ -3903,7 +3573,7 @@ local function ShowCopyPopup(text)
         textBox:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -20, 60)
 
         local editBox = textBox:GetEditBox()
-        editBox:SetFont(GetFont(), 12, EUI.GetFontOutlineFlag and EUI.GetFontOutlineFlag("chat") or "")
+        editBox:SetFont(GetFont(), 12, EUI.GetFontOutlineFlag("chat") or "")
         editBox:SetTextColor(1, 1, 1, 0.75)
         editBox:SetScript("OnEscapePressed", function(self)
             self:ClearFocus()
@@ -4068,7 +3738,7 @@ local _urlSubstitution
 local function _GetUrlSubstitution()
     if not _urlSubstitution then
         local eg = EUI.ELLESMERE_GREEN or { r = 0.05, g = 0.82, b = 0.61 }
-        local hex = string.format("|cff%02x%02x%02x", eg.r * 255, eg.g * 255, eg.b * 255)
+        local hex = EllesmereUI.HexColor(eg.r, eg.g, eg.b)
         _urlSubstitution = hex .. "|H" .. addonName .. "url:%1|h[%1]|h|r"
     end
     return _urlSubstitution
@@ -4377,8 +4047,9 @@ local function SkinEditBox(cf)
 
     -- Stock styles keep Blizzard's own input box: its art (and the chat-type
     -- focus border), anchors, height and text insets are left alone; only
-    -- the font follows the chat's, like the chat text itself.
-    if not ns.ChatStock() then
+    -- the font follows the chat's, like the chat text itself. WoW Forever
+    -- hides that art like the EllesmereUI look and seats the box in its kit.
+    if not ns.ChatStockArt() then
     for _, texName in ipairs({
         name .. "EditBoxLeft", name .. "EditBoxMid", name .. "EditBoxRight",
         name .. "EditBoxFocusLeft", name .. "EditBoxFocusMid", name .. "EditBoxFocusRight",
@@ -4391,18 +4062,22 @@ local function SkinEditBox(cf)
     if eb.focusRight then eb.focusRight:SetAlpha(0) end
 
     -- Flush below the chat frame, for ALL frames including temp 11+.
+    if ns.ChatForever() then
+        ECHAT.FV_PlaceEditBox(cf, eb, GetEditBoxHeight())
+    else
     eb:ClearAllPoints()
     eb:SetPoint("TOPLEFT", cf, "BOTTOMLEFT", -10, -8)
     eb:SetPoint("TOPRIGHT", cf, "BOTTOMRIGHT", 5, -8)
     eb:SetHeight(GetEditBoxHeight())
-    end -- not stock
+    end
+    end -- not stock art
 
     -- Same outline as the chat frames and ECHAT.ApplyFonts (both read
     -- GetOutlineFlag), so the input box always matches the rest of chat --
     -- hardcoding "" here leaves it un-outlined with the drop shadow showing.
     local ebSize = GetEditBoxFontSize(cf:GetID())
     eb:SetFont(GetEditBoxFont(), ebSize, GetOutlineFlag())
-    if not ns.ChatStock() then eb:SetTextInsets(8, 8, 0, 0) end
+    if not ns.ChatStockArt() then eb:SetTextInsets(8, 8, 0, 0) end
 
     -- Custom font for the header ("Say:", "Party:", ...) and suffix. Called at
     -- skin time and on focus-gained (covers chat-type switches). NEVER call
@@ -4626,14 +4301,15 @@ local function SkinChatFrame(cf)
         -- Stock styles: one strata above the chat frame, whose revealed
         -- background would otherwise draw over our text (see
         -- SyncChatFrameState); the chat frame's own strata otherwise.
-        bg:SetFrameStrata(ns.ChatStock() and "MEDIUM" or cf:GetFrameStrata())
-        bg:SetFrameLevel(ns.ChatStock() and (cf:GetFrameLevel() + 1) or max(0, cf:GetFrameLevel() - 1))
+        bg:SetFrameStrata(ns.ChatStockArt() and "MEDIUM" or cf:GetFrameStrata())
+        bg:SetFrameLevel(ns.ChatStockArt() and (cf:GetFrameLevel() + 1) or max(0, cf:GetFrameLevel() - 1))
         bg:SetShown(cf:IsShown())
 
         local bgTex = bg:CreateTexture(nil, "BACKGROUND")
         bgTex._euiOwned = true
         bgTex:SetAllPoints()
-        -- Unpainted under the stock styles (Blizzard's own background shows).
+        -- Unpainted under the stock styles (Blizzard's own background shows;
+        -- WoW Forever fills its own framed boxes).
         bgTex:SetColorTexture(BG_R, BG_G, BG_B, ns.ChatStock() and 0 or BG_A)
 
         -- NO cf:HookScript("OnShow") to mirror visibility: FCF_OpenTemporary- Window
@@ -4642,6 +4318,8 @@ local function SkinChatFrame(cf)
         -- by reload with a whisper open) that closure would run INSIDE the open and
         -- taint the rest of it. The state watcher carries shown-state instead.
         CFD(cf).bg = bg
+        -- WoW Forever: the bronze message and input frames, on our panel.
+        if ns.ChatForever() then ECHAT.FV_BuildPanel(cf, bg, GetEditBoxHeight()) end
     end
 
     -- Sidebar: icon panel beside the main chat frame. Parented to UIParent so it
@@ -4950,7 +4628,8 @@ local function SkinChatFrame(cf)
             end)
 
             CFD(cf).durabilityPct = durabilityPct
-            anchor = durabilityPct
+            -- A percent inside its button is not a tail (as friends above).
+            anchor = durabilityBtn._sbTailInside and durabilityBtn or durabilityPct
         end
 
         -- Friends/Guild/Durability have bespoke creators (count or percent text
@@ -5067,7 +4746,8 @@ local function SkinChatFrame(cf)
         settingsBtn:SetScript("OnClick", function()
             if InCombatLockdown() then return end
             local mf = EUI._mainFrame
-            if mf and mf:IsShown() and EUI:GetActiveModule() == "EllesmereUIChat" then
+            -- Folded to the mini window: fall through to ShowModule, which unfolds it.
+            if mf and mf:IsShown() and not EUI._panelCollapsed and EUI:GetActiveModule() == "EllesmereUIChat" then
                 mf:Hide()
             else
                 EUI:ShowModule("EllesmereUIChat")
@@ -5187,13 +4867,24 @@ local function SkinChatFrame(cf)
     -- the button frame to ours would put Blizzard manipulating an insecure-owned frame
     -- mid-dock, tainting the rest of that dock -- that one field feeds both reported
     -- error classes: FCF_Tab_SetupMenu (tab menu) and FCF_UpdateResizeButton
-    -- (temp-window open) both read it. Blizzard drives this frame's alpha on hover
-    -- (UIFrameFadeIn/Out), so the zero is re-asserted by the state watcher rather than
-    -- set once -- same idiom as the scroll buttons and minimize button below.
+    -- (temp-window open) both read it. On an undocked window FCF_FadeIn/OutChatFrame
+    -- animate this frame's alpha every frame (to 1 on hover, 0.2 after), which no
+    -- alpha assert outpaces, and a SetAlpha hook would run inside those fades and
+    -- the dock pass. Blizzard never re-textures the frame or its minimize button, so
+    -- their art is emptied once instead: the fades then have nothing to draw.
     local btnFrame = _G[name .. "ButtonFrame"]
     if btnFrame then
         btnFrame:SetAlpha(0)
         btnFrame:EnableMouse(false)
+        -- Empty the border/background textures so btnFrame's own hover/undock
+        -- alpha fades (0.2-1, never fully off) have nothing left to draw. The
+        -- minimize button is left alone: a separate child object, Blizzard
+        -- fades it in with btnFrame's alpha on hover the same as any other
+        -- chat window, and its own alpha/mouse state were never touched here.
+        for i = 1, select("#", btnFrame:GetRegions()) do
+            local region = select(i, btnFrame:GetRegions())
+            if region:IsObjectType("Texture") then region:SetTexture("") end
+        end
     end
 
     -- Restyle Blizzard's resize button to align with our bg (undocked-capable
@@ -5207,8 +4898,9 @@ local function SkinChatFrame(cf)
         -- against the chat frame inside Blizzard's dock pass, tainting it.
         C_Timer.After(0, function()
             -- Stock styles keep Blizzard's own size grabber (art, anchor and
-            -- alpha); only the follower arming below applies.
-            local stock = ns.ChatStock()
+            -- alpha); only the follower arming below applies. WoW Forever
+            -- strips Blizzard's frame art, so it takes ours.
+            local stock = ns.ChatStockArt()
             if not stock then
             resizeBtn:SetSize(18, 18)
             resizeBtn:ClearAllPoints()
@@ -5271,14 +4963,12 @@ local function SkinChatFrame(cf)
         sb:Hide()
     end
 
-    local minBtn = _G[name .. "MinimizeButton"]
-    if minBtn then minBtn:SetAlpha(0); minBtn:EnableMouse(false) end
-
     -- Strip ALL Blizzard textures from the chat frame. Texture objects only, and
     -- skips anything we created (marked with _euiOwned). The stock styles skip
     -- the strip: that art -- the chat background and border Blizzard's own
-    -- hover fade animates -- IS their look (a pure skip, no new write).
-    local stockArt = ns.ChatStock()
+    -- hover fade animates -- IS their look (a pure skip, no new write). WoW
+    -- Forever strips it (its bronze frames are ours).
+    local stockArt = ns.ChatStockArt()
     if cf.GetRegions and not stockArt then
         for i = 1, select("#", cf:GetRegions()) do
             local region = select(i, cf:GetRegions())
@@ -5309,6 +4999,9 @@ local function SkinChatFrame(cf)
         local qbf = _G.CombatLogQuickButtonFrame_Custom
         if qbf and not CFD(qbf).skinned then
             CFD(qbf).skinned = true
+            -- WoW Forever: the bar keeps Blizzard's seat, inside the kit's
+            -- frame round the combat log (ApplyInputPosition), on its fill.
+            local fv = ns.ChatForever()
 
             if qbf.GetRegions then
                 for i = 1, select("#", qbf:GetRegions()) do
@@ -5321,6 +5014,7 @@ local function SkinChatFrame(cf)
 
             -- Flush: filter bar bottom meets bg top (cf top + 3), width matches
             -- the panel.
+            if not fv then
             qbf:ClearAllPoints()
             qbf:SetPoint("BOTTOMLEFT", cf, "TOPLEFT", -10, 3)
             qbf:SetPoint("BOTTOMRIGHT", cf, "TOPRIGHT", 10, 3)
@@ -5329,6 +5023,7 @@ local function SkinChatFrame(cf)
             local qbfBg = qbf:CreateTexture(nil, "BACKGROUND")
             qbfBg:SetAllPoints()
             qbfBg:SetColorTexture(BG_R, BG_G, BG_B, 1)
+            end
 
 
             -- Bottom divider separating filter tabs from messages
@@ -5349,7 +5044,11 @@ local function SkinChatFrame(cf)
                     local fs = btn:GetFontString()
                     if not fs then return end
                     local isActive = btn.GetChecked and btn:GetChecked()
-                    if isActive then
+                    if fv then
+                        -- WoW Forever: the kit's gold and tan.
+                        local c = isActive and ECHAT.FV.gold or ECHAT.FV.tan
+                        fs:SetTextColor(c[1], c[2], c[3], isActive and 1 or 0.8)
+                    elseif isActive then
                         local eg = EUI.ELLESMERE_GREEN or EG
                         fs:SetTextColor(eg.r, eg.g, eg.b, 1)
                     else
@@ -5379,9 +5078,7 @@ local function SkinChatFrame(cf)
                 end
             end
             UpdateCLFilterColors()
-            if EUI.RegAccent then
-                EUI.RegAccent({ type = "callback", fn = UpdateCLFilterColors })
-            end
+            EUI.RegAccent({ type = "callback", fn = UpdateCLFilterColors })
 
             -- One-time alpha set. NEVER hooksecurefunc SetAlpha here -- that
             -- taints execution during whisper/tab processing.
@@ -5873,14 +5570,47 @@ initFrame:SetScript("OnEvent", function(self)
             ECHAT.WHISPER_SOUND_NAMES = WHISPER_SOUND_NAMES
             ECHAT.WHISPER_SOUND_ORDER = WHISPER_SOUND_ORDER
 
+            -- "none" (the stored default) keeps Blizzard's own whisper sound;
+            -- "mute" silences it and plays nothing; any sound replaces it.
+            WHISPER_SOUND_NAMES.none = "Blizzard Default"
+            WHISPER_SOUND_NAMES.mute = "None"
+            table.insert(WHISPER_SOUND_ORDER, 2, "mute")
+
             -- Append SharedMedia sounds
-            if EllesmereUI.AppendSharedMediaSounds then
-                EllesmereUI.AppendSharedMediaSounds(
-                    WHISPER_SOUND_PATHS,
-                    WHISPER_SOUND_NAMES,
-                    WHISPER_SOUND_ORDER
-                )
+            EllesmereUI.AppendSharedMediaSounds(
+                WHISPER_SOUND_PATHS,
+                WHISPER_SOUND_NAMES,
+                WHISPER_SOUND_ORDER
+            )
+
+            -- Blizzard's whisper sound (SOUNDKIT.TELL_MESSAGE plays this one
+            -- file), muted while a non-default choice is set. A mute outlives
+            -- /reload and relog (not a client restart), so the account-wide
+            -- chatTellMuted flag remembers that the mute is ours: a character
+            -- on Blizzard Default unmutes only a mute we made, never another
+            -- addon's. Runs at init, from the setting and from
+            -- _ECHAT_RefreshAll (profile swaps, imports, spec overrides).
+            local TELL_SOUND_FILE = 567421
+            local _tellMuted = false
+            function ECHAT.ApplyWhisperMute()
+                if not MuteSoundFile then return end
+                local cfg = ECHAT.DB()
+                local key = cfg and cfg.whisperSoundKey
+                local want = key ~= nil and key ~= "none"
+                local db = EllesmereUIDB
+                if want then
+                    if not _tellMuted then
+                        MuteSoundFile(TELL_SOUND_FILE)
+                        _tellMuted = true
+                        if db then db.chatTellMuted = true end
+                    end
+                elseif _tellMuted or (db and db.chatTellMuted) then
+                    UnmuteSoundFile(TELL_SOUND_FILE)
+                    _tellMuted = false
+                    if db then db.chatTellMuted = nil end
+                end
             end
+            ECHAT.ApplyWhisperMute()
 
             local _whisperThrottle = 0
             local whisperFrame = CreateFrame("Frame")
@@ -5890,7 +5620,7 @@ initFrame:SetScript("OnEvent", function(self)
                 OnActiveMessage()
                 local cfg = ECHAT.DB()
                 local key = cfg and cfg.whisperSoundKey
-                if not key or key == "none" then return end
+                if not key or key == "none" or key == "mute" then return end
                 local now = GetTime()
                 if now - _whisperThrottle < 5 then return end
                 _whisperThrottle = now
@@ -5913,7 +5643,10 @@ initFrame:SetScript("OnEvent", function(self)
             if over and not _idleMouseOver then
                 _idleMouseOver = true
                 CancelIdleFade()
-            elseif not over and _idleMouseOver then
+            elseif not over and (_idleMouseOver or not (idleTimer or _idleFadeActive)) then
+                -- Also re-arm when nothing is armed: a hover that began while
+                -- faded is cleared by the reveal (ApplyIdleFadeHoverMotion),
+                -- so its leave would otherwise find no edge and no timer.
                 _idleMouseOver = false
                 ECHAT.ResetIdleTimer()
             end
@@ -6023,9 +5756,7 @@ initFrame:SetScript("OnEvent", function(self)
     ---------------------------------------------------------------------------
     --  7. Accent color + timestamps
     ---------------------------------------------------------------------------
-    if EUI.RegAccent then
-        EUI.RegAccent({ type = "callback", fn = UpdateTabColors })
-    end
+    EUI.RegAccent({ type = "callback", fn = UpdateTabColors })
 
     -- Enable scroll-to-scroll chat (Blizzard disables by default)
     if SetCVar then SetCVar("chatMouseScroll", 1) end
@@ -6081,8 +5812,9 @@ initFrame:SetScript("OnEvent", function(self)
                 ECHAT.ApplyBorders()
                 -- Stock styles: the Blizzard chat art re-seat rides the same
                 -- deferred cadence (see SeatStockBackground); later windows
-                -- are seated by the state sync.
-                if ns.ChatStock() then
+                -- are seated by the state sync. Not under WoW Forever: its
+                -- input box is placed like the EllesmereUI look's.
+                if ns.ChatStockArt() then
                     ECHAT._stockSeatArmed = true
                     for i = 1, 20 do
                         local cf = _G["ChatFrame" .. i]
@@ -6159,6 +5891,7 @@ initFrame:SetScript("OnEvent", function(self)
         -- A profile swap or import re-points db.profile, so the bubbles feature has to
         -- re-read enabled/channels and re-assert Blizzard's CVars against the new values.
         if ns.ChatBubbles then ns.ChatBubbles.Refresh() end
+        ECHAT.ApplyWhisperMute()
     end
 
     ---------------------------------------------------------------------------
@@ -6349,20 +6082,16 @@ initFrame:SetScript("OnEvent", function(self)
     -- the committed or reverted position lands composed in the same
     -- execution (the drift heal is suspended for the session and would
     -- otherwise be the first thing to notice, one tick later).
-    if EUI.RegisterUnlockModeListener then
-        EUI:RegisterUnlockModeListener("EllesmereUIChat", function(active)
-            if ECHAT.FollowArmUnlock then ECHAT.FollowArmUnlock(active) end
-            if ECHAT.ApplyChatPosition then ECHAT.ApplyChatPosition() end
-        end)
-    end
+    EUI:RegisterUnlockModeListener("EllesmereUIChat", function(active)
+        if ECHAT.FollowArmUnlock then ECHAT.FollowArmUnlock(active) end
+        if ECHAT.ApplyChatPosition then ECHAT.ApplyChatPosition() end
+    end)
 
     ---------------------------------------------------------------------------
     --  13. Visibility system registration
     ---------------------------------------------------------------------------
     ECHAT.RefreshVisibility()
-    if EUI.RegisterVisibilityUpdater then
-        EUI.RegisterVisibilityUpdater(ECHAT.RefreshVisibility)
-    end
+    EUI.RegisterVisibilityUpdater(ECHAT.RefreshVisibility)
 
     ---------------------------------------------------------------------------
     --  13b. Edit Mode chat-size migration: one-shot after login. On-delta

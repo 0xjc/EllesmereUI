@@ -45,10 +45,6 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 -------------------------------------------------------------------------------
 local ADDON_NAME, ns = ...
 local EQD = EllesmereUI.Lite.NewAddon(ADDON_NAME)
--- The palettes are secure handlers end to end: the enable drain stands the
--- module down where snippets cannot compile (WoW Forever beta); ns.Refresh
--- carries the same guard for the toggles (EllesmereUI.SecureSnippetsOK).
-EQD.requiresSecureSnippets = true
 if not (EllesmereUI and EllesmereUI._ModuleNS) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring
 EllesmereUI._ModuleNS[ADDON_NAME] = select(2, ...)  -- LOD options files read this module ns via the registry
 
@@ -638,14 +634,6 @@ local APPEARANCE_KEYS = {
 }
 ns.APPEARANCE_KEYS = APPEARANCE_KEYS
 
--- The overrides table for a palette, created on demand. Only the options page
--- writes here; everything else reads through the view below.
-function ns.PaletteAppearance(palette, create)
-    if not palette then return nil end
-    if not palette.appearance and create then palette.appearance = {} end
-    return palette.appearance
-end
-
 -- One READ-ONLY view per palette, with that palette's overrides in front of
 -- the profile. Handing this back as `p` is what let the whole renderer stay
 -- written as `p.layout`: the fallback lives in one metatable instead of at
@@ -1112,7 +1100,8 @@ end
 --  fits on a ring and costs one keybind. A panel with a micro button fires as
 --  "/click <button>", the click Blizzard's own menu makes: the macro runs
 --  untainted from the secure button, where an addon opening the frame from its
---  own Lua taints what it draws (EllesmereUIDataBars_Blocks.lua:4138). The five
+--  own Lua taints what it draws (see MM_MICRO_BUTTON_NAMES in
+--  EllesmereUIDataBars/Blocks/MicroMenu.lua). The five
 --  with no button to click fire from FireInsecure, out of combat only.
 -------------------------------------------------------------------------------
 do
@@ -1128,8 +1117,9 @@ do
     --   no English one is baked in; first that answers wins, `default` last.
     -- minor: left out of the preset menu. The Shop and Customer Support are
     --   the two a ring is worth the least; the preset stays at the sixteen a
-    --   ring reads best at even though MAX_SLOTS now seats the full set. Both
-    --   are still in the picker.
+    --   ring reads best at (on WoW Forever too, where Talents has its own
+    --   entry and the Great Vault is unavailable) even though MAX_SLOTS now
+    --   seats the full set. Both are still in the picker.
     local PANELS = {
         { key = "character",   icon = ART .. "menu-character.png",
           button = "CharacterMicroButton",
@@ -1222,6 +1212,32 @@ do
           button = "HelpMicroButton",
           label = "HELP_BUTTON",                default = "Customer Support" },
     }
+
+    -- WoW Forever has no Great Vault content: its weekly rewards entry point
+    -- still loads there but only opens an empty window, so the vault entry
+    -- loses its toggle. PanelAvailable then answers no, which keeps it out of
+    -- the picker and the preset and makes it fire nothing, while a saved
+    -- vault slot still draws its own icon and name and goes dark under Hide
+    -- Unusable Entries like any other panel the client cannot open.
+    -- Forever also splits the spellbook and the talents into two micro
+    -- buttons. Its combined button still exists but opens on whichever tab
+    -- was last shown, so there the spellbook entry clicks the spellbook's own
+    -- button and a Talents entry follows it.
+    if EllesmereUI.IS_FOREVER then
+        for _, def in ipairs(PANELS) do
+            if def.key == "greatvault" then def.fire = nil end
+        end
+        for i, def in ipairs(PANELS) do
+            if def.key == "spellbook" then
+                def.button, def.label, def.default = "SpellbookMicroButton", "SPELLBOOK", "Spellbook"
+                tinsert(PANELS, i + 1, { key = "talents",
+                    icon = ART .. "menu-achievements.png",
+                    button = "TalentMicroButton",
+                    label = "TALENTS",                  default = "Talents" })
+                break
+            end
+        end
+    end
 
     local byKey = {}
     for _, def in ipairs(PANELS) do byKey[def.key] = def end
@@ -2537,13 +2553,12 @@ local function ApplyModuleFont(fs)
     if fs.eqdIconText and EllesmereUI.GetIconTextOutlineFlag then
         flags = EllesmereUI.GetIconTextOutlineFlag(FONT_KEY)
     else
-        flags = EllesmereUI.GetFontOutlineFlag and EllesmereUI.GetFontOutlineFlag(FONT_KEY) or ""
+        flags = EllesmereUI.GetFontOutlineFlag(FONT_KEY) or ""
     end
     -- Runtime SetShadowOffset no longer renders on 12.x; the shadow has to be
     -- carried by a FontObject, primed BEFORE the typeface call.
     if EllesmereUI.PrimeFontShadow then
-        local useShadow = flags == "" and EllesmereUI.GetFontUseShadow
-            and EllesmereUI.GetFontUseShadow()
+        local useShadow = flags == "" and EllesmereUI.GetFontUseShadow()
         EllesmereUI.PrimeFontShadow(fs, useShadow and true or false)
     end
     fs:SetFont(EllesmereUI.GetFontPath(FONT_KEY), size, flags)
@@ -3607,16 +3622,10 @@ end
 -- entry drawn farthest from the centre is half the palette out and not the
 -- whole of it. Measured over the whole count the strip was fitted to about
 -- twice its own drawn length -- the preview shrank its icons to half what the
--- panel had room for. The hover reach next door counts the same way.
+-- panel had room for.
 function ns.FanReach(count, iconSize, gap, decay)
     return FanOffset(count * 0.5, iconSize, gap, decay, FAN_EDIT_MIN_SCALE)
            + iconSize + iconSize * (SelectedZoom() - 1) * 0.5
-end
-
--- The same measurement for a hover fan, which is evenly spaced at full pitch
--- because its zoomed entry is drawn at 1.0 and must not overlap its neighbours.
-function ns.FanHoverReach(count, iconSize, gap)
-    return count * 0.5 * (iconSize + gap) + iconSize * 0.5 * SelectedZoom()
 end
 
 -- Position every widget from self.fanVisual, the CONTINUOUS centre. Called
@@ -9582,10 +9591,6 @@ end
 -- Re-read everything from the DB. Safe to call at any time; only redraws views
 -- that are actually on screen.
 function ns.Refresh()
-    -- Secure handlers end to end: stands down on a client that cannot compile
-    -- snippets (WoW Forever beta); the enable drain skipped OnEnable for the
-    -- same reason, and every toggle arrives here.
-    if not EllesmereUI.SecureSnippetsOK() then return end
     -- Ahead of everything that reads the profile: a profile imported from a
     -- pre-rename build carries its palettes under the dead key until this
     -- runs, and applying such a profile is exactly what reaches here.
