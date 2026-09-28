@@ -5073,6 +5073,10 @@ local function UpdateBordersForScale(frame, unit)
     -- Blizzard Style: the stock geometry is re-asserted over everything above
     -- (a reload runs its own sweep after the per-unit re-anchors instead).
     if ns.UF_Blizz() and not ns._ufReloadSweep then ns.UF_ApplyBlizzardLayout(frame, unit) end
+    if settings.portraitSeparator or frame._portraitSeparator then
+        ns.UpdatePortraitSeparator(frame, frame.Portrait and frame.Portrait.backdrop,
+            settings, effectiveSide, showPortrait and isAttached, ns.UF_Blizz())
+    end
 end
 
 -- All sizing is width/height based; positioning is owned by Unlock Mode.
@@ -6724,8 +6728,8 @@ end
 -- Border Style's separator strip (EllesmereUI.GetBorderCompanion "sepH") along the
 -- health / power join while the power bar is attached with a height, the frame
 -- border is above 0 and its style has seam art; flipped for a bar above health.
--- It rides power._pbSeam, our own child frame of the power bar built on first
--- enable (the power border host exists only while Power Border Size is above 0),
+-- It rides power._pbSeam, our own frame anchored to the power bar, built on first
+-- enable and parented outside the bar clip so its ends can overlap the border,
 -- tinted with the frame border colour, which FrameBorderEnter / Leave recolour
 -- with the border. Thickness follows the border's edge (exact size, else the
 -- step's), height and offsets snapped at the bar's effective scale; re-laid on
@@ -6743,7 +6747,7 @@ function ns.UpdatePowerSeam(power, s, stock, preview)
         if stock == nil then stock = ns.UF_Blizz() end
         local pos = s.powerPosition or "below"
         if not stock and (pos == "above" or pos == "below") and (s.powerHeight or 6) > 0
-           and (s.borderSize or 1) > 0 then
+           and (s.borderSize or 1) > 0 and power:IsShown() then
             path = EllesmereUI.GetBorderCompanion(s.borderTexture or "solid", "sepH")
         end
     end
@@ -6754,15 +6758,26 @@ function ns.UpdatePowerSeam(power, s, stock, preview)
         end
         return false
     end
+    -- Live power bars sit inside _barClip; a higher level alone cannot escape
+    -- that clipping. Keep the seam on the unit frame, as in the preview.
+    local owner = power:GetParent()
+    while owner and not (owner.unifiedBorder or owner._border) do owner = owner:GetParent() end
+    local border = owner and (owner.unifiedBorder or owner._border)
+    local parent = owner or power
     if not seam then
-        seam = CreateFrame("Frame", nil, power)
-        seam:SetAllPoints(power)
+        seam = CreateFrame("Frame", nil, parent)
         seam._tex = seam:CreateTexture(nil, "ARTWORK")
         power._pbSeam = seam
+    elseif seam:GetParent() ~= parent then
+        seam:SetParent(parent)
     end
-    -- Over the health and power fills, under the frame border (frame +10) that
-    -- closes its ends.
-    seam:SetFrameLevel(power:GetFrameLevel() + 1)
+    seam._power = power
+    seam:ClearAllPoints()
+    seam:SetAllPoints(power)
+    -- Above the fills and the unit frame border, on the border's strata.
+    seam:SetFrameStrata((border or power):GetFrameStrata())
+    seam:SetFrameLevel(math.max(power:GetFrameLevel() + 1,
+        border and border:GetFrameLevel() + 1 or 0))
     local key, size = s.borderTexture, s.borderSize or 1
     local px = EllesmereUI.BorderPx(s.borderSizePx, size, key)
     seam._key, seam._step, seam._px, seam._path = key, size, px, path
@@ -6780,7 +6795,7 @@ end
 -- texels (its soft edge spans texels 0-9 of 32, centred on texel 5): raising
 -- the strip 5/32 of its thickness centres the line on the join.
 function ns.UF_LayoutPowerSeam(seam)
-    local power, t = seam:GetParent(), seam._tex
+    local power, t = seam._power, seam._tex
     local es = power:GetEffectiveScale()
     if not (es and es > 0.01) then es = UIParent:GetEffectiveScale() end
     local thick = EllesmereUI.BorderCompanionThickness(seam._key, seam._step, seam._px, es)
@@ -6805,6 +6820,68 @@ function ns.UF_LayoutPowerSeam(seam)
         t:SetPoint("TOPRIGHT", power, "TOPRIGHT", 0, raise)
     end
     t:SetHeight(thick)
+    t:Show()
+end
+
+-- Attached portrait divider: reuse the border style's vertical companion art.
+-- A sibling of the portrait avoids clipping the strip where it crosses into the
+-- bars. Built only on opt-in; layout and colour updates use existing passes.
+function ns.UpdatePortraitSeparator(frame, portrait, s, side, attached, stock, preview)
+    local seam = frame._portraitSeparator
+    local path
+    if s.portraitSeparator and attached and portrait and portrait:IsShown()
+       and not stock and (s.borderSize or 1) > 0 then
+        path = EllesmereUI.GetBorderCompanion(s.borderTexture or "solid", "sepV")
+    end
+    if not path then
+        if seam then
+            seam:Hide()
+            EllesmereUI.RegisterPxReapply(seam, nil)
+        end
+        return
+    end
+    if not seam then
+        seam = CreateFrame("Frame", nil, frame)
+        seam._tex = seam:CreateTexture(nil, "ARTWORK")
+        frame._portraitSeparator = seam
+    end
+    seam:SetAllPoints(portrait)
+    -- Above portrait/bar fills and the outer border, on the same strata.
+    local border = frame.unifiedBorder or frame._border
+    seam:SetFrameLevel(math.max(frame:GetFrameLevel() + (preview and 4 or 9),
+        border and border:GetFrameLevel() + 1 or 0))
+    seam._key, seam._step, seam._path = s.borderTexture, s.borderSize or 1, path
+    seam._px = EllesmereUI.BorderPx(s.borderSizePx, seam._step, seam._key)
+    seam._right = side == "right"
+    local c = s.borderColor
+    seam._tex:SetVertexColor(c and c.r or 0, c and c.g or 0, c and c.b or 0, s.borderAlpha or 1)
+    ns.UF_LayoutPortraitSeparator(seam)
+    seam:Show()
+    EllesmereUI.RegisterPxReapply(seam, (seam._px and not preview) and ns.UF_LayoutPortraitSeparator or nil)
+end
+
+function ns.UF_LayoutPortraitSeparator(seam)
+    local t = seam._tex
+    local es = seam:GetEffectiveScale()
+    local thick = EllesmereUI.BorderCompanionThickness(seam._key, seam._step, seam._px, es)
+    if not thick or thick <= 0 then t:Hide(); return end
+    if t._path ~= seam._path then
+        t:SetTexture(seam._path)
+        t._path = seam._path
+    end
+    -- As on cast icons, the vertical art's leading 2/16 sits over the portrait.
+    local lead = PP.SnapForES(thick * 2 / 16, es)
+    t:ClearAllPoints()
+    if seam._right then
+        t:SetTexCoord(1, 0, 0, 1)
+        t:SetPoint("TOPRIGHT", seam, "TOPLEFT", lead, 0)
+        t:SetPoint("BOTTOMRIGHT", seam, "BOTTOMLEFT", lead, 0)
+    else
+        t:SetTexCoord(0, 1, 0, 1)
+        t:SetPoint("TOPLEFT", seam, "TOPRIGHT", -lead, 0)
+        t:SetPoint("BOTTOMLEFT", seam, "BOTTOMRIGHT", -lead, 0)
+    end
+    t:SetWidth(thick)
     t:Show()
 end
 
@@ -8515,6 +8592,8 @@ local function FrameBorderEnter(self)
     -- So does the Power Bar Seam (only once built).
     local seam = self.Power and self.Power._pbSeam
     if seam and seam:IsShown() then seam._tex:SetVertexColor(hc.r, hc.g, hc.b, ha) end
+    local portraitSeam = self._portraitSeparator
+    if portraitSeam and portraitSeam:IsShown() then portraitSeam._tex:SetVertexColor(hc.r, hc.g, hc.b, ha) end
 end
 local function FrameBorderLeave(self)
     if not self.unifiedBorder then return end
@@ -8535,6 +8614,8 @@ local function FrameBorderLeave(self)
     if ring and ring:IsShown() then ring:SetVertexColor(bc.r, bc.g, bc.b, ba) end
     local seam = self.Power and self.Power._pbSeam
     if seam and seam:IsShown() then seam._tex:SetVertexColor(bc.r, bc.g, bc.b, ba) end
+    local portraitSeam = self._portraitSeparator
+    if portraitSeam and portraitSeam:IsShown() then portraitSeam._tex:SetVertexColor(bc.r, bc.g, bc.b, ba) end
 end
 
 -- Unified border for unit frames using the PP border system
