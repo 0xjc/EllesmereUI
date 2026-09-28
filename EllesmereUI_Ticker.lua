@@ -214,6 +214,10 @@ function EllesmereUI.NewCombatQueue(frame)
     return q
 end
 
+-- The core's own queue. EllesmereUI_Startup.lua and EllesmereUI.lua load before
+-- this file, so they read it at the call, never as a load-time upvalue.
+EllesmereUI.CombatQueue = EllesmereUI.NewCombatQueue(CreateFrame("Frame"))
+
 -- The shared driver: frame created here in the parent, so subscriber work is
 -- billed to the parent addon. Parent-owned subscribers only; children should
 -- carry their own NewDriver(frame) with a file-scope-created frame.
