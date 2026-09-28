@@ -7222,8 +7222,12 @@ local function RestoreBlizzardFrame(nameplate)
     if not uf then return end
     -- Return this UnitFrame's parked children from the hidden holder (shared by every plate,
     -- filter by recorded owner), then re-home the kept-live frames.
-    for i = npOffscreenParent:GetNumChildren(), 1, -1 do
-        local child = select(i, npOffscreenParent:GetChildren())
+    -- One snapshot instead of select(i, GetChildren()) per index: the holder is shared by
+    -- every plate, so re-reading it per step was quadratic in all parked children.
+    -- Backwards only to keep the order children return to uf in.
+    local children = { npOffscreenParent:GetChildren() }
+    for i = #children, 1, -1 do
+        local child = children[i]
         if child and storedParents[child] == uf then
             child:SetParent(uf)
             storedParents[child] = nil
