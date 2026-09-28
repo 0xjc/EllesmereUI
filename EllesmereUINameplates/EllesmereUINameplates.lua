@@ -680,7 +680,7 @@ function ns.NP_UpdateCustomBorderWrap(plate)
         end
         -- Textured: the same join from the backdrop pieces (off for solid).
         ns.NP_SetWrapJoin(plate, not solid, tex, r, g, b, a)
-        ns.NP_SetWrapSeam(lower, cast, (p and p.wrapBorderSeam) == true, tex, sz, px, r, g, b, a)
+        ns.NP_SetWrapSeam(lower, cast, (p and p.wrapBorderSeam) == true, tex, sz, px, r, g, b, a, plate.health)
     else
         if plate._cbWrapMode == "split" then ns.NP_DropCustomWrapLower(plate) end
         if plate._cbWrapMode ~= "single" then
@@ -690,7 +690,7 @@ function ns.NP_UpdateCustomBorderWrap(plate)
             bf:SetPoint("BOTTOM", cast, "BOTTOM", 0, 0)
             plate._cbWrapMode = "single"
         end
-        ns.NP_SetWrapSeam(bf, cast, (p and p.wrapBorderSeam) == true, tex, sz, px, r, g, b, a)
+        ns.NP_SetWrapSeam(bf, cast, (p and p.wrapBorderSeam) == true, tex, sz, px, r, g, b, a, plate.health)
     end
     plate._cbWrapActive = true
     -- The 1px icon separator would show inside the outline (NP_UnwrapCustomBorder
@@ -817,15 +817,18 @@ function ns.NP_UnwrapCustomBorder(plate)
     end
 end
 
--- "Show Seam Line": a divider along anchor's top edge (the cast bar's), on a lazy
--- child of owner (a border frame we own) above its border art. The border style's
--- separator strip where it has one (tinted like the border), else a plain line: as
--- thick as the pixel border for Solid, an eighth of the edge for other styles.
+-- "Show Seam Line": only the two Pixels styles have a supported separator.
+function ns.NP_CanShowWrapSeam(tex)
+    return tex == "pixels" or tex == "pixels-textured"
+end
+-- A divider along anchor's top edge (the cast bar's), spanning the health bar's
+-- width even when the cast bar reserves space for its icon. A lazy child of owner
+-- (a border frame we own) above its border art, tinted like the live border.
 -- tex / step / px = the texture key, size step and exact px the border is drawn at.
 -- Shared by the live plates and the options preview.
-function ns.NP_SetWrapSeam(owner, anchor, show, tex, step, px, r, g, b, a)
+function ns.NP_SetWrapSeam(owner, anchor, show, tex, step, px, r, g, b, a, health)
     local host = owner and owner._cbSeamHost
-    if not show then
+    if not show or not ns.NP_CanShowWrapSeam(tex) then
         if host and host:IsShown() then
             host:Hide()
             EllesmereUI.RegisterPxReapply(host, nil)
@@ -841,6 +844,7 @@ function ns.NP_SetWrapSeam(owner, anchor, show, tex, step, px, r, g, b, a)
     -- Above the border's backdrop (owner level) and its pixel strips (owner level + 1).
     host:SetFrameLevel(owner:GetFrameLevel() + 2)
     host._seamAnchor, host._seamTex, host._seamStep, host._seamPx = anchor, tex, step, px
+    host._seamHealth = health
     host._seam:SetVertexColor(r, g, b, a)
     host:Show()
     ns.NP_LayoutWrapSeam(host)
@@ -848,51 +852,33 @@ function ns.NP_SetWrapSeam(owner, anchor, show, tex, step, px, r, g, b, a)
     EllesmereUI.RegisterPxReapply(host, px and ns.NP_LayoutWrapSeam or nil)
 end
 function ns.NP_LayoutWrapSeam(host)
-    local t, anchor = host._seam, host._seamAnchor
-    if not (t and anchor) then return end
+    local t, anchor, health = host._seam, host._seamAnchor, host._seamHealth
+    if not (t and anchor and health) then return end
     local EUI = EllesmereUI
     local tex, step, px = host._seamTex, host._seamStep, host._seamPx
     local es = host:GetEffectiveScale()
     if not (es and es > 0.01) then es = UIParent:GetEffectiveScale() end
     local path = EUI.GetBorderCompanion(tex, "sepH")
-    local thick, raise
-    if path then
-        thick = EUI.BorderCompanionThickness(tex, step, px, es)
-        -- The strip's line sits near its top edge: raising it 3/16 of its thickness
-        -- puts the line on the join, where the border's own line runs.
-        if thick then raise = PP.SnapForES(thick * 3 / 16, es) end
-    elseif not tex or tex == "" or tex == "solid" then
-        local n = px or step
-        if n and n > 0 then
-            thick, raise = math.max(1, math.floor(n + 0.5)) * PP.perfect / es, 0
-        end
-    else
-        local edge
-        if px then
-            edge = math.max(1, math.floor(px + 0.5)) * PP.mult
-        elseif step and step > 0 then
-            edge = EUI.BORDER_EDGE_MAP[step] or EUI.BORDER_EDGE_MAP[1]
-        end
-        if edge then
-            thick = math.max(PP.perfect / es, PP.SnapForES(edge / 8, es))
-            raise = PP.SnapForES(thick / 2, es)
-        end
-    end
+    local thick = path and EUI.BorderCompanionThickness(tex, step, px, es)
     if not thick or thick <= 0 then
         t:Hide()
         return
     end
-    local want = path or false
-    if host._seamPath ~= want then
-        if path then t:SetTexture(path) else t:SetColorTexture(1, 1, 1, 1) end
-        host._seamPath = want
+    -- The strip's line sits near its top edge: raising it 3/16 of its thickness
+    -- puts the line on the join, where the border's own line runs.
+    local raise = PP.SnapForES(thick * 3 / 16, es)
+    if host._seamPath ~= path then
+        t:SetTexture(path)
+        host._seamPath = path
     end
-    if host._lThick ~= thick or host._lRaise ~= raise or host._lAnchor ~= anchor then
+    if host._lThick ~= thick or host._lRaise ~= raise or host._lAnchor ~= anchor or host._lHealth ~= health then
         t:ClearAllPoints()
-        t:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, raise)
-        t:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", 0, raise)
+        t:SetPoint("TOP", anchor, "TOP", 0, raise)
+        t:SetPoint("LEFT", health, "LEFT", 0, 0)
+        t:SetPoint("RIGHT", health, "RIGHT", 0, 0)
         t:SetHeight(thick)
         host._lThick, host._lRaise, host._lAnchor = thick, raise, anchor
+        host._lHealth = health
     end
     t:Show()
 end
@@ -2116,7 +2102,7 @@ function ns.LayoutCastBar(plate, footprintW, castH)
     local w = footprintW
     local classic = ns.NP_Classic()
     -- Cast Bar Y Offset: + up, - down; `or` fallback only fires when nil (0 is truthy in Lua).
-    local offsetY = (p and p.castBarOffsetY) or defaults.castBarOffsetY
+    local offsetY = ns.GetCastBarOffsetY()
     if classic then
         -- Classic WoW UI: the vanilla cast border hangs under the health
         -- border with its icon plate under the health border's plain end,
@@ -2832,6 +2818,11 @@ function ns.GetWrapBorderCastbar()
     local v = p and p.wrapBorderCastbar
     if v == nil then return defaults.wrapBorderCastbar end
     return v
+end
+-- Wrapping keeps the bars flush without overwriting the user's saved offset.
+function ns.GetCastBarOffsetY()
+    if ns.GetWrapBorderCastbar() then return 0 end
+    return (p and p.castBarOffsetY) or defaults.castBarOffsetY
 end
 local function GetAuraSlots()
     local ds = (p and p.debuffSlot) or defaults.debuffSlot
