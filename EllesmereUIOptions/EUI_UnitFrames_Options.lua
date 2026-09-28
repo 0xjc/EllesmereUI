@@ -6836,8 +6836,9 @@ initFrame:SetScript("OnEvent", function(self)
             suffix:SetTextColor(1, 1, 1, 0.35)
             suffix:SetText(EllesmereUI.L("(Applies to All Units)"))
             local lbl
+            local regions = { decRow._leftRegion:GetRegions() }
             for i = 1, decRow._leftRegion:GetNumRegions() do
-                local reg = select(i, decRow._leftRegion:GetRegions())
+                local reg = regions[i]
                 if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Show Decimal on Health Text" then
                     lbl = reg; break
                 end
@@ -16698,8 +16699,9 @@ initFrame:SetScript("OnEvent", function(self)
         do
             activateBtn = select(1, activateBtnFrame:GetChildren())
             if activateBtn then
+                local regions = { activateBtn:GetRegions() }
                 for i = 1, activateBtn:GetNumRegions() do
-                    local rgn = select(i, activateBtn:GetRegions())
+                    local rgn = regions[i]
                     if rgn and rgn.GetText and rgn:GetText() then
                         activateBtnLbl = rgn; break
                     end

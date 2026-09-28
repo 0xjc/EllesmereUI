@@ -368,8 +368,9 @@ local function BuildMovementAlertPage(pageName, parent, yOffset)
     if not EllesmereUI._prebuilding then
         local btn = select(1, previewBtnFrame:GetChildren())
         if btn then
+            local regions = { btn:GetRegions() }
             for i = 1, btn:GetNumRegions() do
-                local rgn = select(i, btn:GetRegions())
+                local rgn = regions[i]
                 if rgn and rgn.GetText and rgn:GetText() then previewBtnLbl = rgn; break end
             end
         end

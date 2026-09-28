@@ -13808,8 +13808,9 @@ initFrame:SetScript("OnEvent", function(self, event)
         -- Skin our custom buttons the same way as pooled Blizzard buttons
         if _reskinMenu then
             for _, customBtn in ipairs({ btn, unlockBtn }) do
-                for j = 1, select("#", customBtn:GetRegions()) do
-                    local r = select(j, customBtn:GetRegions())
+                local regions = { customBtn:GetRegions() }
+                for j = 1, #regions do
+                    local r = regions[j]
                     if r and r:IsObjectType("Texture") and r ~= customBtn:GetFontString() then
                         r:SetAlpha(0)
                     end

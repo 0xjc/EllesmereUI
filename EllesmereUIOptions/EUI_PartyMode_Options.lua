@@ -48,8 +48,9 @@ do
         if not EllesmereUI._prebuilding then
             local btn = select(1, activateBtnFrame:GetChildren())
             if btn then
+                local regions = { btn:GetRegions() }
                 for i = 1, btn:GetNumRegions() do
-                    local rgn = select(i, btn:GetRegions())
+                    local rgn = regions[i]
                     if rgn and rgn.GetText and rgn:GetText() then
                         activateBtnLbl = rgn
                         break
@@ -397,8 +398,9 @@ do
                 suffix:SetFont(EllesmereUI.EXPRESSWAY, 11, "")
                 suffix:SetTextColor(1, 1, 1, 0.35)
                 local durLabel
+                local regions = { durFrame:GetRegions() }
                 for i = 1, durFrame:GetNumRegions() do
-                    local reg = select(i, durFrame:GetRegions())
+                    local reg = regions[i]
                     if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Auto Celebration Duration" then
                         durLabel = reg
                         break
@@ -427,8 +429,9 @@ do
             if not EllesmereUI._prebuilding then
                 -- Find the label and slider control regions
                 local durLabel, durControl
+                local regions = { durFrame:GetRegions() }
                 for i = 1, durFrame:GetNumRegions() do
-                    local reg = select(i, durFrame:GetRegions())
+                    local reg = regions[i]
                     if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Auto Celebration Duration" then
                         durLabel = reg
                         break
@@ -496,8 +499,9 @@ do
                 suffix:SetFont(EllesmereUI.EXPRESSWAY, 11, "")
                 suffix:SetTextColor(1, 1, 1, 0.35)
                 local cdLabel
+                local regions = { cdFrame:GetRegions() }
                 for i = 1, cdFrame:GetNumRegions() do
-                    local reg = select(i, cdFrame:GetRegions())
+                    local reg = regions[i]
                     if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Random Celebrations Minimum Cooldown" then
                         cdLabel = reg
                         break
@@ -523,8 +527,9 @@ do
             -- Disabled tooltip for cooldown slider (split: label zone + control zone)
             do
                 local cdLabel
+                local regions = { cdFrame:GetRegions() }
                 for i = 1, cdFrame:GetNumRegions() do
-                    local reg = select(i, cdFrame:GetRegions())
+                    local reg = regions[i]
                     if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Random Celebrations Minimum Cooldown" then
                         cdLabel = reg
                         break

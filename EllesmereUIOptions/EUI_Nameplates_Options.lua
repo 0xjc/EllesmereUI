@@ -3842,8 +3842,9 @@ initFrame:SetScript("OnEvent", function(self)
                 suffixFS:SetFont(EllesmereUI.EXPRESSWAY, 11, GetNPOptOutline())
                 suffixFS:SetTextColor(1, 1, 1, 0.35)
                 local sliderLabel
+                local regions = { rightFrame:GetRegions() }
                 for i = 1, rightFrame:GetNumRegions() do
-                    local reg = select(i, rightFrame:GetRegions())
+                    local reg = regions[i]
                     if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Hash Line Location" then
                         sliderLabel = reg
                         break
@@ -3919,8 +3920,9 @@ initFrame:SetScript("OnEvent", function(self)
                 suffixFS:SetFont(EllesmereUI.EXPRESSWAY, 11, GetNPOptOutline())
                 suffixFS:SetTextColor(1, 1, 1, 0.35)
                 local sliderLabel
+                local regions = { leftFrame:GetRegions() }
                 for i = 1, leftFrame:GetNumRegions() do
-                    local reg = select(i, leftFrame:GetRegions())
+                    local reg = regions[i]
                     if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Scale Target Nameplate" then
                         sliderLabel = reg
                         break
@@ -3985,8 +3987,9 @@ initFrame:SetScript("OnEvent", function(self)
                 suffixFS:SetFont(EllesmereUI.EXPRESSWAY, 11, GetNPOptOutline())
                 suffixFS:SetTextColor(1, 1, 1, 0.35)
                 local sliderLabel
+                local regions = { leftFrame:GetRegions() }
                 for i = 1, leftFrame:GetNumRegions() do
-                    local reg = select(i, leftFrame:GetRegions())
+                    local reg = regions[i]
                     if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Focus Cast Height" then
                         sliderLabel = reg
                         break
@@ -4141,8 +4144,9 @@ initFrame:SetScript("OnEvent", function(self)
                 suffixFS:SetFont(EllesmereUI.EXPRESSWAY, 11, GetNPOptOutline())
                 suffixFS:SetTextColor(1, 1, 1, 0.35)
                 local sliderLabel
+                local regions = { leftFrame:GetRegions() }
                 for i = 1, leftFrame:GetNumRegions() do
-                    local reg = select(i, leftFrame:GetRegions())
+                    local reg = regions[i]
                     if reg and reg.GetText and EllesmereUI.EnKey(reg:GetText()) == "Scale Nameplate On Cast" then
                         sliderLabel = reg
                         break

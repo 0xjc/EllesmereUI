@@ -1173,8 +1173,9 @@ do
         killOne(pager.DownButton)
         -- Cover anything else Blizzard parents in here later (ResizeLayoutFrame).
         if type(pager.GetChildren) == "function" then
+            local children = { pager:GetChildren() }
             for i = 1, pager:GetNumChildren() do
-                killOne((select(i, pager:GetChildren())))
+                killOne((children[i]))
             end
         end
     end
@@ -8222,8 +8223,9 @@ function EAB_VTABLE.CooldownFonts.ApplyToFrame(cdFrame, fontPath, cdSize, cdOX, 
         return true
     end
 
+    local regions = { cdFrame:GetRegions() }
     for ri = 1, cdFrame:GetNumRegions() do
-        local region = select(ri, cdFrame:GetRegions())
+        local region = regions[ri]
         if region and region.GetObjectType and region:GetObjectType() == "FontString" then
             EllesmereUI.ApplyIconTextFont(region, fontPath, eff, "actionBars")
             region:SetTextColor(cr, cg, cb)

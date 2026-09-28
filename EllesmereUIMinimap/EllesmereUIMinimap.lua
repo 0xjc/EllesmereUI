@@ -4617,8 +4617,9 @@ local function ApplyMinimap()
         if backdrop then
             local function CheckHousing()
                 local housingAtlas
+                local regions = { backdrop:GetRegions() }
                 for ri = 1, backdrop:GetNumRegions() do
-                    local rgn = select(ri, backdrop:GetRegions())
+                    local rgn = regions[ri]
                     if rgn and rgn.GetAtlas then
                         local atlas = rgn:GetAtlas()
                         if atlas and atlas:find("housing") then
