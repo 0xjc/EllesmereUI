@@ -2271,6 +2271,9 @@ EllesmereUI._playerClass     = playerClass
 EllesmereUI._accentElements  = _accentElements
 EllesmereUI._widgetRefreshList = _widgetRefreshList
 EllesmereUI._rowCounters     = rowCounters
+EllesmereUI._STYLE          = STYLE
+EllesmereUI._THEME_BG_FILES = THEME_BG_FILES
+EllesmereUI._IS_STANDALONE  = IS_STANDALONE
 
 -------------------------------------------------------------------------------
 --  MakeUnlockElement  --  shared factory for unlock mode element tables.
@@ -3425,7 +3428,7 @@ initFrame:RegisterEvent("PLAYER_LOGIN")
 initFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
 initFrame:SetScript("OnEvent", function(self, event)
     if event == "PLAYER_REGEN_DISABLED" then
-        if mainFrame and mainFrame:IsShown() then
+        if EllesmereUI._mainFrame and EllesmereUI._mainFrame:IsShown() then
             EllesmereUI:Hide()
             EllesmereUI.PrintError("Options closed -- entering combat.")
         end
@@ -4242,7 +4245,7 @@ initFrame:SetScript("OnEvent", function(self, event)
                     dT[k] = { opt1 = true, opt2 = false, opt3 = true, opt4 = false, opt5 = true, opt6 = false, opt7 = true }
                     dS[k] = { size = 36, font = 14, opacity = 80, spacing = 4, scale = 100, thickness = 2 }
                     dD[k] = { effect = "pulse", position = "center", style = "modern" }
-                    EllesmereUI:SelectPage(activePage)
+                    EllesmereUI:SelectPage(EllesmereUI:GetActivePage())
                 end,
             })
         end

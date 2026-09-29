@@ -1,3 +1,39 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EllesmereUI_Panel.lua
+--  The options panel shell: main frame, sidebar, header, tabs, content
+--  area, inline search, module registration, page selection, show/hide
+--  and the sidebar unlock tip. Loads right after EllesmereUI.lua.
+-------------------------------------------------------------------------------
+local EllesmereUI = _G.EllesmereUI
+
+local PP                  = EllesmereUI.PP
+local PanelPP             = EllesmereUI.PanelPP
+local MakeFont            = EllesmereUI.MakeFont
+local MakeBorder          = EllesmereUI.MakeBorder
+local SolidTex            = EllesmereUI.SolidTex
+local lerp                = EllesmereUI.lerp
+local RegAccent           = EllesmereUI.RegAccent
+local ResetRowCounters    = EllesmereUI.ResetRowCounters
+local ResolveFactionTheme = EllesmereUI._ResolveFactionTheme
+local ELLESMERE_GREEN     = EllesmereUI.ELLESMERE_GREEN
+local BORDER_COLOR        = EllesmereUI.BORDER_COLOR
+local DARK_BG             = EllesmereUI.DARK_BG
+local TEXT_DIM            = EllesmereUI.TEXT_DIM
+local TEXT_SECTION        = EllesmereUI.TEXT_SECTION
+local CONTENT_PAD         = EllesmereUI.CONTENT_PAD
+local STYLE               = EllesmereUI._STYLE
+local THEME_BG_FILES      = EllesmereUI._THEME_BG_FILES
+local IS_STANDALONE       = EllesmereUI._IS_STANDALONE
+local MEDIA_PATH          = EllesmereUI.MEDIA_PATH
+local ICONS_PATH          = EllesmereUI.ICONS_PATH
+local ADDON_ROSTER        = EllesmereUI.ADDON_ROSTER
+local CLASS_ART_MAP       = EllesmereUI.CLASS_ART_MAP
+local playerClass         = EllesmereUI._playerClass
+local modules             = EllesmereUI._modules
+local _widgetRefreshList  = EllesmereUI._widgetRefreshList
+local IsAddonLoaded       = C_AddOns.IsAddOnLoaded
+
 -- Sidebar nav states
 local NAV_SELECTED_TEXT   = { r = STYLE.TEXT_WHITE_R, g = STYLE.TEXT_WHITE_G, b = STYLE.TEXT_WHITE_B, a = 1 }
 local NAV_SELECTED_ICON_A = 1
