@@ -1,3 +1,12 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EllesmereUI_VisibilityRules.lua
+--  Visibility dropdown values, option lanes and the runtime checks modules
+--  evaluate them with (the event dispatcher is EllesmereUI_Visibility.lua).
+--  Loads right after EllesmereUI.lua; nothing here is read at load time.
+-------------------------------------------------------------------------------
+local EllesmereUI = _G.EllesmereUI
+
 -------------------------------------------------------------------------------
 --  Shared Visibility System -- unified visibility dropdown values, checkbox dropdown items, and runtime checks used by CDM, Action Bars, Resource Bars, and Unit Frames.
 -------------------------------------------------------------------------------

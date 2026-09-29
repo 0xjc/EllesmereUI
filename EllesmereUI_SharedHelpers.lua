@@ -1,6 +1,15 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EllesmereUI_SharedHelpers.lua
+--  Frame data store, third-party skin registry, Blizzard cast bar ownership
+--  and suppression, and small shared helpers (Swiftmend, level colors,
+--  faction art). Loads right after EllesmereUI_VisibilityRules.lua.
+-------------------------------------------------------------------------------
+local EllesmereUI = _G.EllesmereUI
+
 -------------------------------------------------------------------------------
 --  External weak-keyed lookup table for frame state (prevents tainting Blizzard
---  frames). Stored on EllesmereUI to avoid the 200-local cap in this file.
+--  frames). Stored on EllesmereUI to avoid the 200-local cap in EllesmereUI.lua.
 -------------------------------------------------------------------------------
 EllesmereUI._FFD = EllesmereUI._FFD or setmetatable({}, { __mode = "k" })
 function EllesmereUI._GetFFD(frame)
@@ -42,7 +51,7 @@ end
 --  queue at PLAYER_LOGIN (or immediately for late/LoD registrations) and passes the skinning
 --  facade S. Queuing keeps registration order-independent -- third-party addons may load before
 --  or after the child -- and the API stays callable (a silent no-op) when the child addon is
---  disabled. Developer guide: SKINNING_API.md. Stored on EllesmereUI to avoid the 200-local cap.
+--  disabled. Developer guide: SKINNING_API.md. Stored on EllesmereUI to avoid the 200-local cap in EllesmereUI.lua.
 -------------------------------------------------------------------------------
 EllesmereUI._skinRegistry = EllesmereUI._skinRegistry or {}
 function EllesmereUI.RegisterSkin(name, applyFn)
