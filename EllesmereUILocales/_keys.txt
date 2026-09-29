@@ -395,7 +395,6 @@ Favorites
 Filters
 Fire Res
 Flask
-Flight Timer Preview
 Focus
 Font changed. A UI reload is needed to apply the new font.
 Food
@@ -494,6 +493,7 @@ Keybind
 Keybind: %1$s
 LOW MANA
 Label
+Land at the next flight point
 Latency
 Later
 Layout
