@@ -63,13 +63,16 @@ _G._EUI_BuildFlightTimerPage = function(pageName, parent, yOffset)
     ---------------------------------------------------------------------------
     _, h = W:SectionHeader(parent, "LAYOUT", y);  y = y - h
 
-    -- The track is a fixed thin line, so width is its only size.
     _, h = W:DualRow(parent, y,
         { type = "slider", text = "Width", min = 50, max = 800, step = 1,
           disabled = off, disabledTooltip = "Flight Timer",
           getValue = function() return FT.Get("width") end,
           setValue = function(v) Set("width", v) end },
-        EllesmereUI.BlankRowCfg()
+        -- The track's own key (trackHeight), not the retired bar's height.
+        { type = "slider", text = "Height", min = 1, max = 30, step = 1,
+          disabled = off, disabledTooltip = "Flight Timer",
+          getValue = function() return FT.Get("trackHeight") end,
+          setValue = function(v) Set("trackHeight", v) end }
     );  y = y - h
 
     _, h = W:Spacer(parent, y, 20);  y = y - h
@@ -184,27 +187,6 @@ _G._EUI_BuildFlightTimerPage = function(pageName, parent, yOffset)
         icon = EllesmereUI.DIRECTIONS_ICON, gap = 9, disabledTooltip = "Show Time",
         disabled = function() return off() or FT.Get("timeText") == "none" end })
 
-    do
-        local fontValues, fontOrder = EllesmereUI.BuildFontDropdownData()
-        local outlineValues = {
-            ["__global"] = { text = "EUI Global Default" },
-            ["none"]     = { text = "Drop Shadow" },
-            ["outline"]  = { text = "Outline" },
-            ["thick"]    = { text = "Thick Outline" },
-        }
-        _, h = W:DualRow(parent, y,
-            { type = "dropdown", text = "Font", values = fontValues, order = fontOrder,
-              disabled = off, disabledTooltip = "Flight Timer",
-              getValue = function() return FT.Get("font") end,
-              setValue = function(v) Set("font", v) end },
-            { type = "dropdown", text = "Font Outline", values = outlineValues,
-              order = { "__global", "none", "outline", "thick" },
-              disabled = off, disabledTooltip = "Flight Timer",
-              getValue = function() return FT.Get("outlineMode") end,
-              setValue = function(v) Set("outlineMode", v) end }
-        );  y = y - h
-    end
-
     _, h = W:DualRow(parent, y,
         { type = "toggle", text = "Show Total Time",
           tooltip = "Shows the full flight time next to the time left, for example 1:23 / 4:19.",
@@ -225,7 +207,11 @@ _G._EUI_BuildFlightTimerPage = function(pageName, parent, yOffset)
           disabled = off, disabledTooltip = "Flight Timer",
           getValue = function() return FT.Get("fade") end,
           setValue = function(v) FT.Cfg().fade = v end },
-        EllesmereUI.BlankRowCfg()
+        { type = "toggle", text = "Show End Caps",
+          tooltip = "The dots at the two ends of the track.",
+          disabled = off, disabledTooltip = "Flight Timer",
+          getValue = function() return FT.Get("showEndCaps") end,
+          setValue = function(v) Set("showEndCaps", v) end }
     );  y = y - h
 
     return math.abs(y)

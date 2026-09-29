@@ -6795,6 +6795,8 @@ initFrame:SetScript("OnEvent", function(self)
                 local mode = db.profile.previewMode or "overlay"
                 if mode ~= "none" and ns.ShowPartyPreview then ns.ShowPartyPreview() end
             elseif page == PAGE_BUFFS then
+                -- Panel opening on Buffs counts as entering it (WoW Forever: All Specs).
+                ns.BM_EnterAllSpecs()
                 if not ns._bmRoot then
                     C_Timer.After(0, function()
                         if EllesmereUI:GetActiveModule() == "EllesmereUIRaidFrames" then
@@ -6895,6 +6897,8 @@ initFrame:SetScript("OnEvent", function(self)
         local origSelectPage = EllesmereUI.SelectPage
         EllesmereUI.SelectPage = function(self, pageName, ...)
             _partyCtx = (pageName == PAGE_PARTY)
+            -- Entering Buffs from another page (not a rebuild while on it): WoW Forever opens it on All Specs.
+            if pageName == PAGE_BUFFS and EllesmereUI:GetActivePage() ~= PAGE_BUFFS then ns.BM_EnterAllSpecs() end
             -- Party tab excludes synced sections from inline search; cleared on every other page (any module) so the hook can never leak.
             EllesmereUI._searchExcludeSection = (pageName == PAGE_PARTY) and ns._PartySearchExclude or nil
             EllesmereUI._onInlineSearch = (pageName == PAGE_PARTY) and ns._PartySearchOverlaySync or nil

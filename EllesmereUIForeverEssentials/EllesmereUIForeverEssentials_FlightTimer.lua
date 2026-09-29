@@ -18,7 +18,7 @@ local PREVIEW_SECONDS = 20
 local TRACK_HEIGHT = 3
 local PIN_SIZE = 14
 -- Seconds before arrival a stop scrolls in at the track's right end.
-local LOOKAHEAD = 60 -- ponytail: fixed; make it a setting if 60s feels wrong
+local LOOKAHEAD = 60
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 local STOP_ICON = "Interface\\Minimap\\Tracking\\FlightMaster"
 -- Slow Fall's feather: "come down gently" reads as land here.
@@ -34,7 +34,9 @@ local PREVIEW_ROUTES = {
 
 -- Settings live in EllesmereUIDB.flightTimer; unset keys read these.
 local DEFAULTS = {
-    width = 240,
+    enabled = true,
+    -- trackHeight: its own key; the retired bar style's `height` stays unread.
+    width = 300, trackHeight = TRACK_HEIGHT, showEndCaps = true,
     texture = "none",
     fillOpacity = 100, classColored = false,
     bgA = 0.8,
@@ -43,8 +45,7 @@ local DEFAULTS = {
     -- side from the retired bar style) shows.
     destText = "show", destSize = 12, destX = 0, destY = 0,
     timeText = "show", timeSize = 12, timeX = 0, timeY = 0,
-    showTotal = false, earlyExit = false, fade = false,
-    font = "__global", outlineMode = "__global",
+    showTotal = false, earlyExit = true, fade = false,
 }
 
 local BAR_TEXTURES, BAR_TEXTURE_NAMES, BAR_TEXTURE_ORDER = EllesmereUI.BuildBarTextureTables()
@@ -76,11 +77,18 @@ end
 -- The display's full height, centred on the track: end names above it, stop
 -- icons and names below (the same room the stop strip clips to).
 local function BoxHeight()
-    return PIN_SIZE + 2 * (Get("destSize") + 8)
+    return math.max(PIN_SIZE, Get("trackHeight")) + 2 * (Get("destSize") + 8)
 end
 
+-- How much further a label must sit from a mark of this height, centred on
+-- the track, to clear a track taller than the mark.
+local function Rise(size)
+    return math.max(0, (Get("trackHeight") - size) / 2)
+end
+
+-- On by default; a saved false turns it off.
 local function Enabled()
-    return Read().enabled == true
+    return Get("enabled") == true
 end
 
 local function Speed()
@@ -149,26 +157,9 @@ local function ApplyPosition()
     bar:SetPoint(pos.point, UIParent, pos.relPoint or pos.point, pos.x or 0, pos.y or 0)
 end
 
--- "__global" follows the EUI Fonts & Colors defaults; anything else is a key
--- in the shared font registry.
-local function TextFont()
-    local key = Get("font")
-    local path = key ~= "__global" and EllesmereUI.ResolveFontName(key)
-    return path or EllesmereUI.GetFontPath("essentials")
-end
-
-local function TextOutline()
-    local mode = Get("outlineMode")
-    if mode == "outline" then return EllesmereUI.SlugFlag("OUTLINE, SLUG") end
-    if mode == "thick" then return EllesmereUI.SlugFlag("THICKOUTLINE, SLUG") end
-    if mode == "none" then return "" end
-    return EllesmereUI.GetFontOutlineFlag("essentials")
-end
-
--- An empty flag means Drop Shadow, which only renders through the font object.
-local function StyleFont(fs, font, flag, size)
-    EllesmereUI.PrimeFontShadow(fs, flag == "")
-    fs:SetFont(font, size, flag)
+-- Text in Forever Essentials' font and outline (Fonts page, else the global font).
+local function StyleFont(fs, size)
+    EllesmereUI.ApplyModuleFont(fs, nil, size, "essentials")
 end
 
 -- A mark on the route (an end, a stop, "you"): an icon with a label.
@@ -181,13 +172,13 @@ local function NewMark(parent, texture, w, h)
 end
 
 -- text: a string shows icon and label, nil the icon alone, false neither.
-local function ShowMark(m, text, font, flag)
+local function ShowMark(m, text)
     m.icon:SetShown(text ~= false)
     m.icon:SetAlpha(1)
     m.label:SetShown(text and true or false)
     m.label:SetAlpha(1)
     if text then
-        StyleFont(m.label, font, flag, Get("destSize"))
+        StyleFont(m.label, Get("destSize"))
         m.label:SetText(text)
     end
 end
@@ -228,7 +219,7 @@ end
 -- A side-scroller: the two ends hold still at the track's ends and "you" at
 -- its centre. Stops scroll in from the right as they near, cross "you" the
 -- moment they are reached, and run out to the left.
-local function LayoutRoute(font, flag)
+local function LayoutRoute()
     local points = flight and flight.points
     local n = points and #points or 0
     local names = Get("destText") ~= "none"
@@ -237,13 +228,19 @@ local function LayoutRoute(font, flag)
     bar.over:SetFrameLevel(level)
     bar.clip:SetFrameLevel(level)
 
-    -- The ends: a dot in the fill colour with the node's name above it.
+    -- The ends: a dot in the fill colour (Show End Caps) with the node's name
+    -- above it; a hidden dot still places its name.
+    local caps = Get("showEndCaps")
     for i = 1, 2 do
         local m, side = bar.ends[i], i == 1 and "LEFT" or "RIGHT"
-        ShowMark(m, MarkText(n > 0, n > 0 and points[i == 1 and 1 or n].name, names), font, flag)
+        ShowMark(m, MarkText(n > 0, n > 0 and points[i == 1 and 1 or n].name, names))
+        if not caps then m.icon:Hide() end
         m.icon:SetVertexColor(FillColor())
         m.label:ClearAllPoints()
-        m.label:SetPoint("BOTTOM" .. side, m.icon, "TOP" .. side, dx, 4 + dy)
+        m.label:SetPoint("BOTTOM" .. side, m.icon, "TOP" .. side, dx, 4 + dy + Rise(PIN_SIZE / 2))
+        -- Each end name gets at most 47% of the bar's width; a longer one is cut off.
+        m.label:SetWidth(Get("width") * 0.47)
+        m.label:SetJustifyH(side)
     end
 
     -- Where each stop sits comes from its arrival time, known only with route
@@ -258,7 +255,7 @@ local function LayoutRoute(font, flag)
         -- Inside the two end dots, tall enough for a stop's icon and the name
         -- under it.
         clip:ClearAllPoints()
-        clip:SetPoint("BOTTOMLEFT", bar, "LEFT", PIN_SIZE / 2, -PIN_SIZE / 2 - Get("destSize") - 8)
+        clip:SetPoint("BOTTOMLEFT", bar, "LEFT", PIN_SIZE / 2, -PIN_SIZE / 2 - Get("destSize") - 8 - Rise(PIN_SIZE))
         clip:SetPoint("TOPRIGHT", bar, "RIGHT", -PIN_SIZE / 2, PIN_SIZE / 2 + 2)
         -- px per second of flight: a stop comes in LOOKAHEAD seconds out
         -- (scaled down with the clock for a fast-forward preview).
@@ -271,11 +268,12 @@ local function LayoutRoute(font, flag)
         local m = bar.stops[k]
         if y and not m then
             m = NewMark(clip.strip, STOP_ICON, PIN_SIZE)
-            m.label:SetPoint("TOP", m.icon, "BOTTOM", 0, -4)
             bar.stops[k] = m
         end
         if m then
-            ShowMark(m, MarkText(y, y and points[k + 1].name, names), font, flag)
+            ShowMark(m, MarkText(y, y and points[k + 1].name, names))
+            m.label:ClearAllPoints()
+            m.label:SetPoint("TOP", m.icon, "BOTTOM", 0, -4 - Rise(PIN_SIZE))
             if y then
                 m.icon:ClearAllPoints()
                 m.icon:SetPoint("CENTER", clip.strip, "CENTER", y / flight.yards * flight.eta * clip.pps, 0)
@@ -286,7 +284,9 @@ local function LayoutRoute(font, flag)
 
     -- "You are here": a white post at the centre, where each stop is reached;
     -- a direct flight has no stops to reach, so none.
-    ShowMark(bar.you, MarkText(scroll, EllesmereUI.L("You"), names), font, flag)
+    ShowMark(bar.you, MarkText(scroll, EllesmereUI.L("You"), names))
+    bar.you.label:ClearAllPoints()
+    bar.you.label:SetPoint("BOTTOM", bar.you.icon, "TOP", 0, 2 + Rise(PIN_SIZE + 4))
 end
 
 local RequestLanding -- the early exit button's click; defined with the flight code
@@ -325,6 +325,7 @@ local function ApplyStyle()
     local PP = EllesmereUI.PP
     local track = bar.track
     bar:SetSize(Get("width"), BoxHeight())
+    track:SetHeight(Get("trackHeight"))
     track:SetStatusBarTexture(EllesmereUI.ResolveTexturePath(BAR_TEXTURES, Get("texture"), WHITE))
     -- The fill's one alpha owner: a texture's SetAlpha and its colour alpha
     -- are the same channel. A plain SetValue does not reliably take the fill
@@ -332,21 +333,23 @@ local function ApplyStyle()
     local r, g, b = FillColor()
     track:SetStatusBarColor(r, g, b, (flight and not flight.eta) and 0 or Get("fillOpacity") / 100)
     track.bg:SetColorTexture(0.1, 0.1, 0.1, Get("bgA"))
-    local bs = Get("borderSize")
+    -- The border draws inside the track: kept under half its height in pixels,
+    -- so at least a pixel of fill always shows (the saved size is kept).
+    local cap = math.floor((Get("trackHeight") / (PP.mult or 1) - 1) / 2)
+    local bs = math.max(0, math.min(Get("borderSize"), cap))
     if bs > 0 then
         PP.UpdateBorder(track, bs, Get("borderR"), Get("borderG"), Get("borderB"), 1)
         PP.ShowBorder(track)
     else
         PP.HideBorder(track)
     end
-    local font, flag = TextFont(), TextOutline()
     -- The time sits left of the track, mirroring the early exit button on the
     -- right; under the track is the stop names' lane.
     bar.time:SetShown(Get("timeText") ~= "none")
-    StyleFont(bar.time, font, flag, Get("timeSize"))
+    StyleFont(bar.time, Get("timeSize"))
     bar.time:ClearAllPoints()
     bar.time:SetPoint("RIGHT", bar, "LEFT", -PIN_SIZE / 2 - 6 + Get("timeX"), Get("timeY"))
-    LayoutRoute(font, flag)
+    LayoutRoute()
     StyleExit()
 end
 
@@ -359,7 +362,6 @@ local function CreateBar()
     local track = CreateFrame("StatusBar", nil, bar)
     track:SetPoint("LEFT")
     track:SetPoint("RIGHT")
-    track:SetHeight(TRACK_HEIGHT)
     track:SetMinMaxValues(0, 1)
     track:SetValue(0)
     track.bg = track:CreateTexture(nil, "BACKGROUND")
@@ -377,7 +379,6 @@ local function CreateBar()
     bar.ends[2].icon:SetPoint("CENTER", bar, "RIGHT")
     bar.you = NewMark(bar.over, WHITE, 2, PIN_SIZE + 4)
     bar.you.icon:SetPoint("CENTER", bar, "CENTER")
-    bar.you.label:SetPoint("BOTTOM", bar.you.icon, "TOP", 0, 2)
     -- The stops ride a strip inside a clipping frame (see ScrollStrip).
     bar.clip = CreateFrame("Frame", nil, bar)
     bar.clip:SetClipsChildren(true)
@@ -481,8 +482,8 @@ end
 
 -- An early landing stops at the next node on the way: the timer and the
 -- route end there instead. Nothing is learned from it.
--- ponytail: assumes the server lands at the very next node; a request made
--- right on top of one may land at the node after, and the bar then ends early.
+-- Assumes the server lands at the very next node: a request made right on top
+-- of one may land at the node after, and the bar then ends early.
 function Retarget()
     flight.early = true
     local points = flight.points
