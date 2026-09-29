@@ -3723,7 +3723,7 @@ initFrame:SetScript("OnEvent", function(self)
         return TOTAL_H
     end
 
-    -- Shared helpers for the section and page builders under ResourceBars\
+    -- Shared helpers for the section and page builders under ResourceBars_Options\
     -- (loaded before this file, read when a page builds). Preview state stays
     -- here; the pages write it through the two setters.
     ns._ERB_OptEnv = {

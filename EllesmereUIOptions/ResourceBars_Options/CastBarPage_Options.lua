@@ -1,6 +1,6 @@
 if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
 -------------------------------------------------------------------------------
---  ResourceBars\CastBarPage.lua
+--  ResourceBars_Options\CastBarPage_Options.lua
 --  Resource Bars options: Cast Bar page. Definitions only; the shared
 --  helpers come from ns._ERB_OptEnv (filled by EUI_ResourceBars_Options.lua).
 -------------------------------------------------------------------------------

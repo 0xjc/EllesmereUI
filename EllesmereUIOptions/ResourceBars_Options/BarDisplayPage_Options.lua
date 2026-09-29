@@ -1,6 +1,6 @@
 if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
 -------------------------------------------------------------------------------
---  ResourceBars\BarDisplayPage.lua
+--  ResourceBars_Options\BarDisplayPage_Options.lua
 --  Resource Bars options: Class, Power and Health Bars page. Definitions only; the shared
 --  helpers come from ns._ERB_OptEnv (filled by EUI_ResourceBars_Options.lua).
 -------------------------------------------------------------------------------
