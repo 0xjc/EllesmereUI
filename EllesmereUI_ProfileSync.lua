@@ -1,3 +1,11 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EllesmereUI_ProfileSync.lua
+--  Profile sync mirror groups, per-module sync exclusions, and the sync
+--  popup anchored to the sidebar. Loads after EllesmereUI_Fonts.lua.
+-------------------------------------------------------------------------------
+local EllesmereUI = _G.EllesmereUI
+
 -------------------------------------------------------------------------------
 --  Profile Sync System (mirror groups)
 --  A module's sync set is a MEMBERSHIP group (popup adds the configuring profile too).
@@ -1029,4 +1037,3 @@ do
         EllesmereUI.PadFocus(popup)
     end
 end
-

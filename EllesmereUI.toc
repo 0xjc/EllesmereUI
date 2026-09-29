@@ -43,6 +43,7 @@ EllesmereUI.lua
 EllesmereUI_Popups.lua
 EllesmereUI_Colors.lua
 EllesmereUI_Fonts.lua
+EllesmereUI_ProfileSync.lua
 EllesmereUI_RetailAtlas.lua
 EllesmereUI_BuffPresets.lua
 EllesmereUI_UICore.lua
