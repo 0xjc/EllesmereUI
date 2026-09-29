@@ -40,6 +40,7 @@ EllesmereUI_Startup.lua
 
 # Shared EllesmereUI Files
 EllesmereUI.lua
+EllesmereUI_Popups.lua
 EllesmereUI_RetailAtlas.lua
 EllesmereUI_BuffPresets.lua
 EllesmereUI_UICore.lua
