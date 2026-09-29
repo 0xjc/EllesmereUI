@@ -1,3 +1,20 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EllesmereUI_Popups.lua
+--  Popup scale helper, announcement shell and buttons, reload helpers, and
+--  the confirm / info / input popups. Loads right after EllesmereUI.lua.
+-------------------------------------------------------------------------------
+local EllesmereUI = _G.EllesmereUI
+
+local PanelPP         = EllesmereUI.PanelPP
+local MakeFont        = EllesmereUI.MakeFont
+local MakeBorder      = EllesmereUI.MakeBorder
+local SolidTex        = EllesmereUI.SolidTex
+local lerp            = EllesmereUI.lerp
+local ELLESMERE_GREEN = EllesmereUI.ELLESMERE_GREEN
+local BORDER_COLOR    = EllesmereUI.BORDER_COLOR
+local TEXT_DIM        = EllesmereUI.TEXT_DIM
+
 -------------------------------------------------------------------------------
 --  Popup Scale Helper -- pixel-perfect base scale * user panel scale, so popups grow/shrink with the main panel when the scale slider moves.
 -------------------------------------------------------------------------------
