@@ -935,9 +935,9 @@ function ns.ERB_BuildCastBarPage(pageName, parent, yOffset)
     -- Wire up click mappings for cast bar preview hit overlays (never from a hidden pre-build: the shared live table would end up pointing at off-screen rows)
     if not EllesmereUI._prebuilding then
         _clickMappings.castBar       = { section = castSection, target = classSizeRow }
-        _clickMappings.castIcon      = { section = castSection, target = castEnableRow, slotSide = "right" }
-        _clickMappings.castSpellText = { section = displaySection, target = textRow, slotSide = "left" }
-        _clickMappings.castTimer     = { section = displaySection, target = textRow, slotSide = "right" }
+        _clickMappings.castIcon      = { section = castSection, target = iconRow, slotSide = "left" }
+        _clickMappings.castSpellText = { section = displaySection, target = textRow, slotSide = "right" }
+        _clickMappings.castTimer     = { section = displaySection, target = timerRow, slotSide = "left" }
     end
 
     return math.abs(y)
