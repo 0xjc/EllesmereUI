@@ -1,3 +1,13 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EllesmereUI_PixelPerfect.lua
+--  Pixel perfect system (PP), panel pixel perfect (PanelPP) and the border
+--  texture system. Loads before EllesmereUI.lua, which reads PP at load time.
+-------------------------------------------------------------------------------
+local EllesmereUI = _G.EllesmereUI
+
+local PP
+
 -------------------------------------------------------------------------------
 --  Pixel Perfect System
 --  Snaps UI elements to exact physical pixel boundaries regardless of UI scale, resolution, or element scale.

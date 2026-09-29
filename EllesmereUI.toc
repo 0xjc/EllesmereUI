@@ -39,6 +39,7 @@ EllesmereUI_Migration.lua
 EllesmereUI_Startup.lua
 
 # Shared EllesmereUI Files
+EllesmereUI_PixelPerfect.lua
 EllesmereUI.lua
 EllesmereUI_Popups.lua
 EllesmereUI_Colors.lua

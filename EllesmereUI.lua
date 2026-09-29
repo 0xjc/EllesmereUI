@@ -1040,8 +1040,8 @@ local function SolidTex(parent, layer, r, g, b, a)
     return tex
 end
 
--- Forward declaration: PP is populated after the Pixel Perfect do-block below
-local PP
+-- PP and PanelPP come from EllesmereUI_PixelPerfect.lua, which loads before this file
+local PP = EllesmereUI.PP
 
 -- Disable WoW pixel snapping on a texture/frame so 1px elements never round to 0.
 local function DisablePixelSnap(obj)
@@ -1103,7 +1103,7 @@ local function RowBg(frame, parent)
     local bgParent = splitParent or frame
     local bg = bgParent:CreateTexture(nil, "BACKGROUND")
     bg:SetColorTexture(0, 0, 0, alpha)
-    -- Always panel context: PanelPP, resolved lazily (it is defined later in the file)
+    -- Always panel context: PanelPP (EllesmereUI_PixelPerfect.lua, loaded before this file)
     local ppp = EllesmereUI.PanelPP or PP
     ppp.DisablePixelSnap(bg)
     bg:SetIgnoreParentAlpha(true)
@@ -1624,6 +1624,9 @@ do
         end
     end
 end
+
+-- File-level PanelPP reference for panel layout code below
+local PanelPP = EllesmereUI.PanelPP
 
 -- Critical Strike and Haste as Blizzard's character pane shows them. WoW Forever
 -- keeps melee, ranged and spell crit and haste apart and shows the highest with
