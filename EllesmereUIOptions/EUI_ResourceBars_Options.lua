@@ -272,6 +272,7 @@ initFrame:SetScript("OnEvent", function(self)
 
     local _previewPipCount = 3  -- randomized each page visit
     local _previewBarFillPct = 65 -- randomized each page visit (30-80)
+    local _headerBaseH = 0  -- preview area height without the hint line (set by every preview build)
 
     -- Discrete pip count for the current spec: the real resource max (Fury
     -- Whirlwind 4, Arms Sweeping Strikes 18, DK runes 6, Maelstrom Weapon
@@ -818,7 +819,6 @@ initFrame:SetScript("OnEvent", function(self)
     -- Forward decls for preview click-to-scroll
     local CreateHitOverlay
     local _hitOverlays = {}
-    local _headerBaseH = 0
 
     -- Preview Header Builder
     _previewHeaderBuilder = function(hdr, hdrW)
@@ -1283,6 +1283,7 @@ initFrame:SetScript("OnEvent", function(self)
             return rf
         end
 
+        local _  -- the switches' unused second return (never the global)
         -- Value units segmented switch (Amount / Percent), bar-type only; count-based shows a hint instead.
         _bandModeRow = HeaderRow("Values as")
         _bandModeSeg, _, _bandModeSegRefresh = EllesmereUI.BuildSegmentedControl({

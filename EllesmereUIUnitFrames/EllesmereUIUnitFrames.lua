@@ -355,7 +355,7 @@ local defaults = {
             detachedPortraitWinglessDragonY = 0,
             detachedPortraitWinglessDragonFlip = false,
             detachedPortraitWinglessDragonStrata = "inherit",
-            detachedPortraitWinglessDragonLevel = 1,
+            detachedPortraitWinglessDragonLevel = 2,
             healthBarOpacity = 90,
             powerBarOpacity = 100,
             showPlayerAbsorb = "none",
@@ -663,7 +663,7 @@ local defaults = {
             detachedPortraitWinglessDragonY = 0,
             detachedPortraitWinglessDragonFlip = false,
             detachedPortraitWinglessDragonStrata = "inherit",
-            detachedPortraitWinglessDragonLevel = 1,
+            detachedPortraitWinglessDragonLevel = 2,
             detachedPortraitWinglessDragonInstances = false,
             healthBarOpacity = 90,
             powerBarOpacity = 100,
@@ -1048,7 +1048,7 @@ local defaults = {
             detachedPortraitWinglessDragonY = 0,
             detachedPortraitWinglessDragonFlip = false,
             detachedPortraitWinglessDragonStrata = "inherit",
-            detachedPortraitWinglessDragonLevel = 1,
+            detachedPortraitWinglessDragonLevel = 2,
             detachedPortraitWinglessDragonInstances = false,
             btbBgColor = { r = 0.2, g = 0.2, b = 0.2 },
             btbBgOpacity = 1.0,
@@ -4509,7 +4509,7 @@ function ns.UF_DragonSettings(unitKey, s)
         e.flip = s.detachedPortraitWinglessDragonFlip == true
         e.classColor = s.detachedPortraitWinglessDragonClassColor == true
         e.strata = s.detachedPortraitWinglessDragonStrata or "inherit"
-        e.level = s.detachedPortraitWinglessDragonLevel or 1
+        e.level = s.detachedPortraitWinglessDragonLevel or 2
         e.instances = s.detachedPortraitWinglessDragonInstances == true
     end
     return e
