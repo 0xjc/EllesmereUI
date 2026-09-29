@@ -6,12 +6,8 @@ if not (EllesmereUI and EllesmereUI.IS_FOREVER) then return end -- Forever Essen
 -------------------------------------------------------------------------------
 if not EllesmereUI._ModuleNS["EllesmereUIForeverEssentials"] then return end  -- module disabled: no options page
 
-local TEXT_SIDES = { none = "None", left = "Left", center = "Center", right = "Right" }
-local TEXT_SIDE_ORDER = { "none", "left", "center", "right" }
-
 _G._EUI_BuildFlightTimerPage = function(pageName, parent, yOffset)
     local W = EllesmereUI.Widgets
-    local PP = EllesmereUI.PP
     local FT = EllesmereUI._FlightTimer
     local y = yOffset
     local _, h
@@ -53,29 +49,11 @@ _G._EUI_BuildFlightTimerPage = function(pageName, parent, yOffset)
               FT.Apply()
               EllesmereUI:RefreshPage()
           end },
-        { type = "labeledButton", text = "Preview", buttonText = "Show Bar",
+        { type = "labeledButton", text = "Preview", buttonText = "Show Flight",
+          tooltip = "Plays a short two-stop flight of your faction, sped up. Click again to stop.",
           disabled = off,
           disabledTooltip = "Flight Timer",
           onClick = function() FT.Preview() end }
-    );  y = y - h
-
-    _, h = W:DualRow(parent, y,
-        { type = "labeledButton", text = "Learned Flight Speed", buttonText = "Reset",
-          tooltip = "Flight time estimates get more accurate with each flight you finish.",
-          disabled = function() return FT.Get("speed") == nil end,
-          onClick = function()
-              EllesmereUI:ShowConfirmPopup({
-                  title = "Reset Learned Flight Speed",
-                  message = "Flight times go back to the starting estimate.",
-                  confirmText = "Reset",
-                  cancelText = "Cancel",
-                  onConfirm = function()
-                      FT.Cfg().speed = nil
-                      EllesmereUI:RefreshPage()
-                  end,
-              })
-          end },
-        { type = "label", text = "" }
     );  y = y - h
 
     _, h = W:Spacer(parent, y, 20);  y = y - h
@@ -85,15 +63,13 @@ _G._EUI_BuildFlightTimerPage = function(pageName, parent, yOffset)
     ---------------------------------------------------------------------------
     _, h = W:SectionHeader(parent, "LAYOUT", y);  y = y - h
 
+    -- The track is a fixed thin line, so width is its only size.
     _, h = W:DualRow(parent, y,
         { type = "slider", text = "Width", min = 50, max = 800, step = 1,
           disabled = off, disabledTooltip = "Flight Timer",
           getValue = function() return FT.Get("width") end,
           setValue = function(v) Set("width", v) end },
-        { type = "slider", text = "Height", min = 4, max = 60, step = 1,
-          disabled = off, disabledTooltip = "Flight Timer",
-          getValue = function() return FT.Get("height") end,
-          setValue = function(v) Set("height", v) end }
+        EllesmereUI.BlankRowCfg()
     );  y = y - h
 
     _, h = W:Spacer(parent, y, 20);  y = y - h
@@ -191,20 +167,21 @@ _G._EUI_BuildFlightTimerPage = function(pageName, parent, yOffset)
 
     local textRow
     textRow, h = W:DualRow(parent, y,
-        { type = "dropdown", text = "Destination Text", values = TEXT_SIDES, order = TEXT_SIDE_ORDER,
+        -- "none" hides; nil falls back to the shown default.
+        { type = "toggle", text = "Show Names",
           disabled = off, disabledTooltip = "Flight Timer",
-          getValue = function() return FT.Get("destText") end,
-          setValue = function(v) Set("destText", v); EllesmereUI:RefreshPage() end },
-        { type = "dropdown", text = "Time Text", values = TEXT_SIDES, order = TEXT_SIDE_ORDER,
+          getValue = function() return FT.Get("destText") ~= "none" end,
+          setValue = function(v) Set("destText", not v and "none" or nil); EllesmereUI:RefreshPage() end },
+        { type = "toggle", text = "Show Time",
           disabled = off, disabledTooltip = "Flight Timer",
-          getValue = function() return FT.Get("timeText") end,
-          setValue = function(v) Set("timeText", v); EllesmereUI:RefreshPage() end }
+          getValue = function() return FT.Get("timeText") ~= "none" end,
+          setValue = function(v) Set("timeText", not v and "none" or nil); EllesmereUI:RefreshPage() end }
     );  y = y - h
-    EllesmereUI.BuildInlineCog(textRow._leftRegion, { title = "Destination Text Settings", rows = TextCogRows("dest"),
-        icon = EllesmereUI.DIRECTIONS_ICON, gap = 9, disabledTooltip = "Destination Text",
+    EllesmereUI.BuildInlineCog(textRow._leftRegion, { title = "Name Text Settings", rows = TextCogRows("dest"),
+        icon = EllesmereUI.DIRECTIONS_ICON, gap = 9, disabledTooltip = "Show Names",
         disabled = function() return off() or FT.Get("destText") == "none" end })
     EllesmereUI.BuildInlineCog(textRow._rightRegion, { title = "Time Text Settings", rows = TextCogRows("time"),
-        icon = EllesmereUI.DIRECTIONS_ICON, gap = 9, disabledTooltip = "Time Text",
+        icon = EllesmereUI.DIRECTIONS_ICON, gap = 9, disabledTooltip = "Show Time",
         disabled = function() return off() or FT.Get("timeText") == "none" end })
 
     do
@@ -232,10 +209,23 @@ _G._EUI_BuildFlightTimerPage = function(pageName, parent, yOffset)
         { type = "toggle", text = "Show Total Time",
           tooltip = "Shows the full flight time next to the time left, for example 1:23 / 4:19.",
           disabled = function() return off() or FT.Get("timeText") == "none" end,
-          disabledTooltip = "Time Text",
+          disabledTooltip = "Show Time",
           getValue = function() return FT.Get("showTotal") end,
           setValue = function(v) FT.Cfg().showTotal = v end },
-        { type = "label", text = "" }
+        { type = "toggle", text = "Early Exit Button",
+          tooltip = "Shows a button next to the bar that lands you at the next flight point.",
+          disabled = off, disabledTooltip = "Flight Timer",
+          getValue = function() return FT.Get("earlyExit") end,
+          setValue = function(v) Set("earlyExit", v) end }
+    );  y = y - h
+
+    _, h = W:DualRow(parent, y,
+        { type = "toggle", text = "Fade In/Out",
+          tooltip = "Fades the timer in at takeoff and out on landing.",
+          disabled = off, disabledTooltip = "Flight Timer",
+          getValue = function() return FT.Get("fade") end,
+          setValue = function(v) FT.Cfg().fade = v end },
+        EllesmereUI.BlankRowCfg()
     );  y = y - h
 
     return math.abs(y)
