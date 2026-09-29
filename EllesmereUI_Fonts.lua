@@ -1,3 +1,13 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EllesmereUI_Fonts.lua
+--  Font tables and LSM registration, font resolution cache and per-module
+--  getters, outline/slug/shadow helpers, game-text font. Loads after EllesmereUI_Colors.lua.
+-------------------------------------------------------------------------------
+local EllesmereUI = _G.EllesmereUI
+
+local MEDIA_PATH = EllesmereUI.MEDIA_PATH
+
 -------------------------------------------------------------------------------
 --  Global Font System
 -------------------------------------------------------------------------------
@@ -189,7 +199,7 @@ local function ResolveFontName(fontName)
     -- external SharedMedia font (or a FONT_CYRILLIC face in ruRU, handled first) may
     -- override. Bundled names are excluded below because they are LSM-registered too and
     -- would otherwise resolve to their Latin file.
-    if LOCALE_FONT_FALLBACK then
+    if EllesmereUI.LOCALE_FONT_FALLBACK then
         -- Cyrillic locales: a bundled face with verified Cyrillic coverage renders ruRU
         -- text correctly, so honour the pick instead of forcing the system glyph font.
         -- Gated on LOCALE_SCRIPT, not on the fallback alone: CJK has no bundled coverage.
@@ -213,7 +223,7 @@ local function ResolveFontName(fontName)
                 end
             end
         end
-        return LOCALE_FONT_FALLBACK
+        return EllesmereUI.LOCALE_FONT_FALLBACK
     end
     local bliz = EllesmereUI.FONT_BLIZZARD[fontName]
     if bliz then return bliz end
@@ -608,4 +618,3 @@ function EllesmereUI.BuildFontDropdownData()
     end
     return values, order
 end
-

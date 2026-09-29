@@ -1,3 +1,13 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EllesmereUI_Colors.lua
+--  Class, power and resource colour defaults, the custom-colour cache and
+--  getters, Dark Mode palette and toggles. Loads right after EllesmereUI_Popups.lua.
+-------------------------------------------------------------------------------
+local EllesmereUI = _G.EllesmereUI
+
+local CLASS_COLOR_MAP = EllesmereUI.CLASS_COLOR_MAP
+
 -------------------------------------------------------------------------------
 --  Global Color System -- central source of truth for class, power, and resource colors;
 --  stored in EllesmereUIDB.customColors, falls back to WoW defaults.
@@ -597,4 +607,3 @@ function EllesmereUI.ApplyColorsToOUF()
         EllesmereUI._DM_RefreshColors()
     end
 end
-
