@@ -20,6 +20,9 @@ local PV_DISPEL_ICON_POINTS, ComputeGrid = I.PV_DISPEL_ICON_POINTS, I.ComputeGri
 local DefaultBuffsCfg, DefaultDebuffsCfg = I.DefaultBuffsCfg, I.DefaultDebuffsCfg
 local CornerFor, SetMaybeRefreshPreview = I.CornerFor, I.SetMaybeRefreshPreview
 
+-- Assigned below and handed to the earlier files (SetMaybeRefreshPreview).
+local PAB_MaybeRefreshPreview
+
 -------------------------------------------------------------------------------
 -- Options-page preview box, embedded inside the bar's own detail page (NOT an
 --  on-screen overlay at the bar's real position). Shows FAKE buffs/debuffs at the
@@ -1296,7 +1299,7 @@ end
 -- PAB_ReloadCustomBuffBar, PAB_ReloadCustomDebuffBar) so a currently-open preview box
 -- stays in sync with slider drags/dropdown changes without EUI_PlayerAuraBars_
 -- ManagerPages.lua needing to know the preview exists or wrap its ApplyBar() closures.
-SetMaybeRefreshPreview(function(kind, id)
+PAB_MaybeRefreshPreview = function(kind, id)
     if not (activePreview and activePreview.kind == kind and activePreview.id == id) then return end
     -- The page was left: its root waits parked and hidden until its next
     -- render, which builds a new preview, so nothing is drawn into the hidden
@@ -1333,6 +1336,7 @@ SetMaybeRefreshPreview(function(kind, id)
     if activePreview.onResize then activePreview.onResize(bottomY) end
 
     RenderPreviewIcons(activePreview.box, activePreview.icons, isBuff, cfg, activePreview.fontPath, activePreview.pool)
-end)
+end
+SetMaybeRefreshPreview(PAB_MaybeRefreshPreview)
 
 I.broken = false

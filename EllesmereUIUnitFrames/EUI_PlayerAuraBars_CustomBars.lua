@@ -33,6 +33,10 @@ I.AKSetters[#I.AKSetters + 1] = function(v) AK = v end
 local PAB_MaybeRefreshPreview
 I.previewRefreshSetters[#I.previewRefreshSetters + 1] = function(v) PAB_MaybeRefreshPreview = v end
 
+-- Assigned at the end of this file and handed to the earlier files
+-- (SetReloadAllCustomBars).
+local ReloadAllCustomBars
+
 -------------------------------------------------------------------------------
 --  Custom bars -- engine wiring
 --
@@ -537,11 +541,12 @@ local function ReloadAllCustomBarsImpl()
         if not presentDebuff[barId] then ns.PAB_ReloadCustomDebuffBar(barId) end
     end
 end
-SetReloadAllCustomBars(ReloadAllCustomBarsImpl)
+ReloadAllCustomBars = ReloadAllCustomBarsImpl
+SetReloadAllCustomBars(ReloadAllCustomBars)
 ns.PAB_ReloadAllCustomBars = ReloadAllCustomBarsImpl
 
 I.customBuffContainers, I.customBuffParents = customBuffContainers, customBuffParents
 I.customDebuffContainers, I.customDebuffParents = customDebuffContainers, customDebuffParents
 I.RegisterPABCustomUnlock = RegisterPABCustomUnlock
-I.ReloadAllCustomBars = ReloadAllCustomBarsImpl
+I.ReloadAllCustomBars = ReloadAllCustomBars
 I.broken = false
