@@ -497,8 +497,8 @@ end
 -- a live padding/icon-size change follows. Turning the row OFF is served by
 -- the content signature below instead: the engine has no addon-facing
 -- unregister, so the container has to be rebuilt for that.
--- Wrapped in do...end: the unsplit file sat at the 200-locals-per-chunk
--- limit, so only the two helpers used below stay chunk-level locals.
+-- Wrapped in do...end so only the two helpers used below stay chunk-level
+-- locals.
 local BuffAuraMax, SyncEnchantEvents
 do
     -- Inventory slots behind AuraContainerItemEnchantmentSlot, in the same order.
@@ -1160,7 +1160,7 @@ ns.PAB_ApplyLiveConfig = ApplyLiveConfig
 -- in one place.
 --
 -- Also handles custom-bar keys ("PAB_CustomBuff_<id>"/"PAB_CustomDebuff_<id>", the
--- unlock-mode keys RegisterPABCustomUnlock registers below): EUI_UnlockMode.lua's Grow
+-- unlock-mode keys RegisterPABCustomUnlock registers in EUI_PlayerAuraBars_CustomBars.lua): EUI_UnlockMode.lua's Grow
 -- dropdown dispatches here for ANY barKey prefixed "PAB_", so without these branches it
 -- silently no-ops on custom bars. Calls ns.PAB_ReloadCustomBuffBar/DebuffBar rather than
 -- BuildContainerSpec/SetContainerGrowth directly, since the spell/class signature is

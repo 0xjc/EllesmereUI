@@ -489,7 +489,7 @@ local function BuildStyle(isBuff, cfg)
     return style
 end
 
--- ApplyGroupConfig (below) declares/updates every group in `chain` on an existing
+-- ApplyGroupConfig (EUI_PlayerAuraBars_Groups.lua) declares/updates every group in `chain` on an existing
 -- container. Groups are ADDITIVE and the container is NEVER torn down and rebuilt:
 -- ReleaseContainer()+RequestContainer() permanently leaks a 10-button engine batch per
 -- group per swap (WoW never frees frames). A class toggle (or grid/padding/growth

@@ -332,7 +332,7 @@ local function PabSnap(x)
     return PP.FromPixels(PP.ToPixels(x))
 end
 
--- On ns, not file locals: the unsplit file sat near the 200-local cap. The need
+-- On ns, not file locals. The need
 -- table names the engine glow families the Icon Glow menu offers (Pixel and
 -- the flipbooks, no Blizzard Border), so a prewarm builds only those.
 ns.PAB_GLOW_SPEC = {}
@@ -351,7 +351,7 @@ local function PAB_ApplyDmFx(button, d, style, arming)
 
     -- Icon Glow overlay: created UNCONDITIONALLY, matching block or not. The first call
     -- lands in the button's one legal creation window (extraInit, see AddGroupToContainer
-    -- below); every later call is a RestyleSoon pass, where CreateFrame-parenting a NEW
+    -- in EUI_PlayerAuraBars_Groups.lua); every later call is a RestyleSoon pass, where CreateFrame-parenting a NEW
     -- frame to the secure engine button is not guaranteed legal (same reasoning as
     -- AuraKit's dispelHolder). Pre-making it keeps a later glow toggle to Show/Hide +
     -- StartGlow/StopGlow, which is always legal.
