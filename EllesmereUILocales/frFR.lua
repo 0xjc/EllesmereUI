@@ -5627,3 +5627,8 @@ L["Highlights the items your spells can work on (Disenchant, Pick Lock). Click a
 L["Leave Quick Actions."] = "Quitter les actions rapides."
 L["Click: %s"] = "Clic : %s"
 L["Highlights the items your spells can work on (Disenchant, Pick Lock, Comprehend Scroll). Click a matching item while this mode is on, or Alt-click it. Out of combat only."] = "Met en avant les objets sur lesquels vos sorts peuvent agir (Désenchanter, Crochetage, Compréhension de parchemin). Cliquez sur un objet compatible quand ce mode est actif, ou faites Alt + clic dessus. Hors combat uniquement."
+L["Reveal Unexplored Areas"] = "Révéler les zones inexplorées"
+L["Reveal Unexplored Areas Settings"] = "Réglages : Révéler les zones inexplorées"
+L["Shows the parts of the world map you have not explored yet. Use the cog to pick their color."] = "Affiche les parties de la carte du monde que vous n'avez pas encore explorées. Le rouage permet de choisir leur couleur."
+L["Unexplored Color"] = "Couleur des zones inexplorées"
+L["Tints the areas you have not explored yet. White shows them as they are."] = "Teinte les zones que vous n'avez pas encore explorées. Le blanc les affiche telles quelles."
