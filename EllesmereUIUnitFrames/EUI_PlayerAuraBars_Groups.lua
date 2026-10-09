@@ -1,3 +1,31 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_PlayerAuraBars_Groups.lua
+--
+--  Debuff match mode, the candidate filters, the group layout and
+--  ApplyGroupConfig.
+--  Reads the earlier Player Aura Bars files through ns and ns._pabInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._pabInternals
+-- EllesmereUIUnitFrames_PlayerAuraBars.lua or an earlier Player Aura Bars
+-- file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local BuildChain, ClassByKey, ClassEnabled = I.BuildChain, I.ClassByKey, I.ClassEnabled
+local DEBUFF_FILTER_ORDER, DebuffSubtractFn = I.DEBUFF_FILTER_ORDER, I.DebuffSubtractFn
+local MergeTypes, PAB_ApplyDmFx = I.MergeTypes, I.PAB_ApplyDmFx
+local PAB_FxEntryActive, PAB_FxSafeToForce = I.PAB_FxEntryActive, I.PAB_FxSafeToForce
+local PAB_FxSizeFor, PAB_FxWantsCategory = I.PAB_FxSizeFor, I.PAB_FxWantsCategory
+local PabShapedSize, PabSnap = I.PabShapedSize, I.PabSnap
+local VisibleCandidateClasses = I.VisibleCandidateClasses
+local VisibleTokenClasses, DebuffCatchAllOn = I.VisibleTokenClasses, I.DebuffCatchAllOn
+local ResolveSortDirection, ResolveSortMethod = I.ResolveSortDirection, I.ResolveSortMethod
+
+local AK -- EllesmereUI.AuraKit, resolved at first use (see SetAK)
+I.AKSetters[#I.AKSetters + 1] = function(v) AK = v end
+
 -------------------------------------------------------------------------------
 --  Debuff Match Mode (cfg.debuffMatch: nil = Match Any, "all" = Match All)
 --
@@ -510,3 +538,7 @@ local function RetireContainer(container, declaredSet)
     AK.ReleaseContainer(container)
 end
 
+I.ApplyGroupConfig, I.BuildGroupLayout = ApplyGroupConfig, BuildGroupLayout
+I.DebuffChainFor, I.MergeCandidateFilters = DebuffChainFor, MergeCandidateFilters
+I.RetireContainer = RetireContainer
+I.broken = false

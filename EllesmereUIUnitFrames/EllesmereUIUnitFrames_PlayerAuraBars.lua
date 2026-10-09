@@ -6,8 +6,6 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 
 local _, ns = ...
 
-local AK -- EllesmereUI.AuraKit, resolved at first use (parent file loads first)
-
 -------------------------------------------------------------------------------
 --  Settings accessor
 -------------------------------------------------------------------------------
@@ -334,7 +332,7 @@ local function PabSnap(x)
     return PP.FromPixels(PP.ToPixels(x))
 end
 
--- On ns, not file locals: this chunk sits near Lua's 200-local cap. The need
+-- On ns, not file locals: the unsplit file sat near the 200-local cap. The need
 -- table names the engine glow families the Icon Glow menu offers (Pixel and
 -- the flipbooks, no Blizzard Border), so a prewarm builds only those.
 ns.PAB_GLOW_SPEC = {}
@@ -803,3 +801,43 @@ local function BuildChain(base, classEnabledFn, includeCatchAll, subtractFn)
     return chain
 end
 
+-- Main-chunk locals the EUI_PlayerAuraBars_*.lua files re-import by name.
+-- AKSetters and the lists beside it: every file that reads one of these
+-- keeps its own copy and adds a setter here; each place that assigns it
+-- writes through the Set<Name> function built below, which runs them all.
+-- broken: true while an EUI_PlayerAuraBars_*.lua file loads; a file that
+-- fails leaves it set, and the files behind it return at their first lines.
+ns._pabInternals = {
+    BuffBarChain = BuffBarChain, BuildChain = BuildChain, ClassByKey = ClassByKey,
+    ClassEnabled = ClassEnabled, DEBUFF_FILTER_ORDER = DEBUFF_FILTER_ORDER,
+    DebuffSubtractFn = DebuffSubtractFn, ExpandFamily = ExpandFamily, MergeTypes = MergeTypes,
+    PAB = PAB, PAB_ApplyDmFx = PAB_ApplyDmFx, PAB_FxEntryActive = PAB_FxEntryActive,
+    PAB_FxListView = PAB_FxListView, PAB_FxSafeToForce = PAB_FxSafeToForce,
+    PAB_FxSizeFor = PAB_FxSizeFor, PAB_FxWantsCategory = PAB_FxWantsCategory,
+    PabShapeActive = PabShapeActive, PabShapeBorderSize = PabShapeBorderSize,
+    PabShapedSize = PabShapedSize, PabSnap = PabSnap,
+    VisibleCandidateClasses = VisibleCandidateClasses,
+    VisibleTokenClasses = VisibleTokenClasses,
+    AKSetters = {}, buffsContainerSetters = {}, debuffsContainerSetters = {},
+    buffsParentSetters = {}, debuffsParentSetters = {}, buffsSlotSigSetters = {},
+    pabSuppressedSetters = {}, reloadAllSetters = {}, previewRefreshSetters = {},
+    broken = false,
+}
+-- Set<Name> hands a new value to every copy registered in <name>Setters.
+for setter, listName in pairs({
+    SetAK = "AKSetters", SetBuffsContainer = "buffsContainerSetters",
+    SetDebuffsContainer = "debuffsContainerSetters", SetBuffsParent = "buffsParentSetters",
+    SetDebuffsParent = "debuffsParentSetters", SetBuffsSlotSig = "buffsSlotSigSetters",
+    SetPabSuppressed = "pabSuppressedSetters", SetReloadAllCustomBars = "reloadAllSetters",
+    SetMaybeRefreshPreview = "previewRefreshSetters",
+}) do
+    local list = ns._pabInternals[listName]
+    ns._pabInternals[setter] = function(v)
+        for i = 1, #list do list[i](v) end
+    end
+end
+-- A re-import of a name this table lacks fails where the part file loads,
+-- not later as a nil upvalue inside one of its functions.
+setmetatable(ns._pabInternals, { __index = function(_, k)
+    error("ns._pabInternals has no entry " .. tostring(k), 2)
+end })

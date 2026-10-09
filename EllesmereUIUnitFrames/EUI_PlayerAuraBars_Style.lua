@@ -1,3 +1,22 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_PlayerAuraBars_Style.lua
+--
+--  Sort settings, the style tables, BuildStyle, the dispel colors and the
+--  candidate extras of both polarities.
+--  Reads the earlier Player Aura Bars files through ns and ns._pabInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._pabInternals
+-- EllesmereUIUnitFrames_PlayerAuraBars.lua or an earlier Player Aura Bars
+-- file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local PAB_ApplyDmFx, PAB_FxListView = I.PAB_ApplyDmFx, I.PAB_FxListView
+local PabShapeActive, PabShapeBorderSize = I.PabShapeActive, I.PabShapeBorderSize
+local PabShapedSize, PabSnap = I.PabShapedSize, I.PabSnap
+
 -------------------------------------------------------------------------------
 --  Container spec construction
 --
@@ -575,3 +594,10 @@ local function DebuffCatchAllOn(cfg)
     return true
 end
 
+I.BuffCandidateExtras, I.BuildDispelColorMap = BuffCandidateExtras, BuildDispelColorMap
+I.BuildStyle, I.DebuffCandidateExtras = BuildStyle, DebuffCandidateExtras
+I.DebuffCatchAllOn, I.PV_DISPEL_ICON_ATLAS = DebuffCatchAllOn, PV_DISPEL_ICON_ATLAS
+I.PV_DISPEL_ICON_POINTS, I.ResolveSortDirection = PV_DISPEL_ICON_POINTS, ResolveSortDirection
+I.ResolveSortMethod, I.STYLE_BUFFS = ResolveSortMethod, STYLE_BUFFS
+I.STYLE_DEBUFFS = STYLE_DEBUFFS
+I.broken = false

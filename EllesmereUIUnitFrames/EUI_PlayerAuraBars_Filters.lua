@@ -1,3 +1,23 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_PlayerAuraBars_Filters.lua
+--
+--  The custom bar store, the buff filters and their copies, the buff
+--  manager import and the spec buckets.
+--  Reads the earlier Player Aura Bars files through ns and ns._pabInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._pabInternals
+-- EllesmereUIUnitFrames_PlayerAuraBars.lua or an earlier Player Aura Bars
+-- file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local ExpandFamily, PAB, BuffBarHasContent = I.ExpandFamily, I.PAB, I.BuffBarHasContent
+
+local ReloadAllCustomBars
+I.reloadAllSetters[#I.reloadAllSetters + 1] = function(v) ReloadAllCustomBars = v end
+
 -------------------------------------------------------------------------------
 --  Custom bars (free bar creator)
 --
@@ -7,7 +27,7 @@
 --  Buff Bars are ONE model, not two. Rendering is one candidateFilters-restricted
 --  GROUP into the bar's own dedicated container with a signature-gated rebuild (see
 --  PAB_ReloadCustomBuffBar for why a group, not per-spell slots). This section is
---  the CRUD data layer; engine wiring is further down.
+--  the CRUD data layer; engine wiring is in EUI_PlayerAuraBars_CustomBars.lua.
 --
 --  Debuffs: category-based (same as RaidFrames) -- customDebuffBars entries carry
 --  classFilters={[classKey]=true} and render through the EXISTING
@@ -996,3 +1016,4 @@ function ns.PAB_BarActive(bar, bucketKey)
     return true
 end
 
+I.broken = false

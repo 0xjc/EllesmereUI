@@ -1,21 +1,62 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_PlayerAuraBars_Bars.lua
+--
+--  The default Buffs and Debuffs bars: their state, the restricted-apply
+--  deferral, growth and position, CreateBars, the unlock registration,
+--  RestyleBars and ApplyLiveConfig.
+--  Reads the earlier Player Aura Bars files through ns and ns._pabInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._pabInternals
+-- EllesmereUIUnitFrames_PlayerAuraBars.lua or an earlier Player Aura Bars
+-- file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local BuffBarChain, PAB, PabSnap = I.BuffBarChain, I.PAB, I.PabSnap
+local BuffCandidateExtras, BuildStyle = I.BuffCandidateExtras, I.BuildStyle
+local DebuffCandidateExtras = I.DebuffCandidateExtras
+local ResolveSortDirection, ResolveSortMethod = I.ResolveSortDirection, I.ResolveSortMethod
+local STYLE_BUFFS, STYLE_DEBUFFS = I.STYLE_BUFFS, I.STYLE_DEBUFFS
+local ApplyGroupConfig, BuildGroupLayout = I.ApplyGroupConfig, I.BuildGroupLayout
+local DebuffChainFor, MergeCandidateFilters = I.DebuffChainFor, I.MergeCandidateFilters
+local RetireContainer, ComputeGrid = I.RetireContainer, I.ComputeGrid
+local DefaultBuffsCfg, DefaultDebuffsCfg = I.DefaultBuffsCfg, I.DefaultDebuffsCfg
+local EnsureBarEnable, EnsureDebuffFilterV2 = I.EnsureBarEnable, I.EnsureDebuffFilterV2
+local EnsureExtDefCustomBar, EnsureFilterLanes = I.EnsureExtDefCustomBar, I.EnsureFilterLanes
+local SeedDefaultBuffsDebuffsFromLegacySources = I.SeedDefaultBuffsDebuffsFromLegacySources
+local SetAK, SetBuffsParent, SetDebuffsParent = I.SetAK, I.SetBuffsParent, I.SetDebuffsParent
+local SetBuffsSlotSig, SetBuffsContainer = I.SetBuffsSlotSig, I.SetBuffsContainer
+local SetDebuffsContainer = I.SetDebuffsContainer
+
+local AK -- EllesmereUI.AuraKit, resolved at first use (see SetAK)
+I.AKSetters[#I.AKSetters + 1] = function(v) AK = v end
+
 local buffsContainer, debuffsContainer
+I.buffsContainerSetters[#I.buffsContainerSetters + 1] = function(v) buffsContainer = v end
+I.debuffsContainerSetters[#I.debuffsContainerSetters + 1] = function(v) debuffsContainer = v end
 local buffsParent, debuffsParent
+I.buffsParentSetters[#I.buffsParentSetters + 1] = function(v) buffsParent = v end
+I.debuffsParentSetters[#I.debuffsParentSetters + 1] = function(v) debuffsParent = v end
 -- Per-container, per-polarity registry of every group key ever declared (see
 -- ApplyGroupConfig): reset only when a container is (re-)created, never on a live
 -- settings change.
 local declared = { buffs = {}, debuffs = {} } -- buffs: only the "Show All Buffs" catch-all key ("all"); debuffs: every class-token chain key
 local lastSize = { buffs = nil, debuffs = nil } -- {w=,h=} last-applied grid size, for fixed-edge compensation (see ApplyLiveConfig)
 local buffsSlotSig -- signature of the default Buffs bar's last-applied resolved spell list (ns.PAB_ResolveSpells), mirrors customBuffSig[barId] for the per-bar slots model
+I.buffsSlotSigSetters[#I.buffsSlotSigSetters + 1] = function(v) buffsSlotSig = v end
 local RegisterPABUnlock -- forward-declared; defined after CreateBars, called from it
 local SyncCancelCVar -- forward-declared; defined after RestyleBars, called from CreateBars/RestyleBars/ReloadCustomBuffBarImpl
-local vehicleHidden = false -- vehicle ride state (assigned in the recovery section at file bottom); feeds pabSuppressed below
 local pabSuppressed = false -- vehicle ride OR degraded-filter window: SetParentShownSafe dims the parents instead of hiding them (see ApplyVehicleHidden)
-local ClearDegraded -- forward-declared; defined in the recovery section at file bottom, called from PAB_SetEnabled
+I.pabSuppressedSetters[#I.pabSuppressedSetters + 1] = function(v) pabSuppressed = v end
 -- Last label the Buffs mover was registered under, so ApplyLiveConfig can
 -- re-register on a name change without doing it on every slider drag.
 local lastUnlockBuffLabel
-local ReloadAllCustomBars -- forward-declared; defined after CreateBars (custom bars section), called from it
-local PAB_MaybeRefreshPreview -- forward-declared; assigned in the options-page preview section, called from every live-apply function so an open bar-detail preview box tracks slider drags without those functions knowing it exists
+local ReloadAllCustomBars -- forward-declared; assigned by EUI_PlayerAuraBars_CustomBars.lua (SetReloadAllCustomBars), called from CreateBars
+I.reloadAllSetters[#I.reloadAllSetters + 1] = function(v) ReloadAllCustomBars = v end
+local PAB_MaybeRefreshPreview -- forward-declared; assigned by EUI_PlayerAuraBars_Preview.lua (SetMaybeRefreshPreview), called from every live-apply function so an open bar-detail preview box tracks slider drags without those functions knowing it exists
+I.previewRefreshSetters[#I.previewRefreshSetters + 1] = function(v) PAB_MaybeRefreshPreview = v end
 
 -- Last-applied growDirection per live container (weak keys); written by
 -- ApplyContainerAnchorAndGrowth, read by the restricted-apply gate below.
@@ -32,7 +73,7 @@ local restrictionHooked = false
 local function DeferRestrictedApply(key, fn, container, dir)
     local applied = container and containerDirections[container]
     if not (applied and applied ~= (dir or "LEFT")) then return false end
-    AK = AK or (EllesmereUI and EllesmereUI.AuraKit)
+    if not AK then SetAK(EllesmereUI and EllesmereUI.AuraKit) end
     if not (AK and AK.AurasRestricted and AK.AurasRestricted()) then return false end
     restrictedApplies[key] = fn
     if not restrictionHooked then
@@ -456,7 +497,7 @@ end
 -- a live padding/icon-size change follows. Turning the row OFF is served by
 -- the content signature below instead: the engine has no addon-facing
 -- unregister, so the container has to be rebuilt for that.
--- Wrapped in do...end: this file sits at Lua 5.1's 200-locals-per-chunk
+-- Wrapped in do...end: the unsplit file sat at the 200-locals-per-chunk
 -- limit, so only the two helpers used below stay chunk-level locals.
 local BuffAuraMax, SyncEnchantEvents
 do
@@ -544,7 +585,7 @@ local function BuffsContentSig(cfg, spells, enchSlots)
 end
 
 local function CreateBars()
-    AK = AK or (EllesmereUI and EllesmereUI.AuraKit)
+    if not AK then SetAK(EllesmereUI and EllesmereUI.AuraKit) end
     if not AK then return end -- 12.1 gated at file top; defensive only
 
     local s = PAB()
@@ -564,7 +605,7 @@ local function CreateBars()
     if s.enabled ~= true then return end
 
     -- Enablement is confirmed from here down: arm the cinematic/faction/
-    -- vehicle recovery lane (defined at file bottom; the whole file has
+    -- vehicle recovery lane (EUI_PlayerAuraBars_Lifecycle.lua; every file has
     -- loaded by the time anything calls CreateBars). Idempotent.
     ns.PAB_ArmRecovery()
 
@@ -608,14 +649,14 @@ local function CreateBars()
     local buffGrid = ComputeGrid(true, buffCfg)
     local debuffGrid = ComputeGrid(false, debuffCfg)
 
-    buffsParent = buffsParent or CreateFrame("Frame", "EllesmereUIPlayerAuraBars_Buffs", UIParent)
+    if not buffsParent then SetBuffsParent(CreateFrame("Frame", "EllesmereUIPlayerAuraBars_Buffs", UIParent)) end
     buffsParent:SetSize(buffGrid.width, buffGrid.height)
     ApplyBarPosition(buffsParent, true, buffGrid)
     lastSize.buffs = { w = buffGrid.width, h = buffGrid.height, dw = buffGrid.designWidth,
         dh = buffGrid.designHeight, lw = buffGrid.legacyWidth, lh = buffGrid.legacyHeight,
         gd = buffCfg.growDirection, wd = buffCfg.iconWrapDirection }
 
-    debuffsParent = debuffsParent or CreateFrame("Frame", "EllesmereUIPlayerAuraBars_Debuffs", UIParent)
+    if not debuffsParent then SetDebuffsParent(CreateFrame("Frame", "EllesmereUIPlayerAuraBars_Debuffs", UIParent)) end
     debuffsParent:SetSize(debuffGrid.width, debuffGrid.height)
     ApplyBarPosition(debuffsParent, false, debuffGrid)
     lastSize.debuffs = { w = debuffGrid.width, h = debuffGrid.height, dw = debuffGrid.designWidth,
@@ -668,7 +709,7 @@ local function CreateBars()
     -- the sig-diffing.
     local buffAllChain = BuffBarChain(buffCfg)
     local buffSpells = ns.PAB_ResolveSpells(buffCfg)
-    buffsSlotSig = BuffsContentSig(buffCfg, buffSpells, buffGrid.enchSlots)
+    SetBuffsSlotSig(BuffsContentSig(buffCfg, buffSpells, buffGrid.enchSlots))
     -- This runs more than once per session (master re-enable, Use Blizzard
     -- Buffs off, a profile swap whose content signature moved), and a container
     -- can never be destroyed: retire the previous pair first or the orphans stay
@@ -677,7 +718,7 @@ local function CreateBars()
     RetireContainer(buffsContainer, declared.buffs)
     RetireContainer(debuffsContainer, declared.debuffs)
     AK.RequestContainer(buffsParent, "player", buffSpec, function(container)
-        buffsContainer = container
+        SetBuffsContainer(container)
         ApplyContainerAnchorAndGrowth(container, buffsParent, buffCfg, buffGrid)
         ApplyEnchants(container, buffCfg, buffPad, buffGrid)
         declared.buffs = {}
@@ -699,7 +740,7 @@ local function CreateBars()
         end
     end)
     AK.RequestContainer(debuffsParent, "player", debuffSpec, function(container)
-        debuffsContainer = container
+        SetDebuffsContainer(container)
         ApplyContainerAnchorAndGrowth(container, debuffsParent, debuffCfg, debuffGrid)
         declared.debuffs = {}
         ApplyGroupConfig(container, debuffChain, declared.debuffs, STYLE_DEBUFFS, debuffGrid.effectiveMax, debuffPad, debuffGrid.rowGap, debuffCfg, DebuffCandidateExtras(debuffCfg))
@@ -1059,7 +1100,7 @@ local function ApplyLiveConfig(isBuff)
             RetireContainer(container, declared.buffs)
             local _, spec = BuildContainerSpec(parent, cfg, grid)
             AK.RequestContainer(parent, "player", spec, function(newContainer)
-                buffsContainer = newContainer
+                SetBuffsContainer(newContainer)
                 ApplyContainerAnchorAndGrowth(newContainer, parent, cfg, grid)
                 ApplyEnchants(newContainer, cfg, pad, grid)
                 declared.buffs = {}
@@ -1080,7 +1121,7 @@ local function ApplyLiveConfig(isBuff)
                     declared.buffs.spells = true
                 end
             end)
-            buffsSlotSig = sig
+            SetBuffsSlotSig(sig)
         else
             -- Spell list unchanged: only Show All Buffs and/or grid (icon size,
             -- padding, ...) may have changed. ApplyGroupConfig is idempotent and self-
@@ -1176,3 +1217,14 @@ function ns.PAB_SetGrowDirection(barKey, dir)
     end
 end
 
+I.ApplyContainerAnchorAndGrowth = ApplyContainerAnchorAndGrowth
+I.ApplyDefaultBarShown, I.ApplyLiveConfig = ApplyDefaultBarShown, ApplyLiveConfig
+I.BarAnchorOffset, I.BuffsContentSig = BarAnchorOffset, BuffsContentSig
+I.BuildContainerSpec, I.CornerFor, I.CreateBars = BuildContainerSpec, CornerFor, CreateBars
+I.DeferRestrictedApply, I.MapElementSettings = DeferRestrictedApply, MapElementSettings
+I.MoverStorePos, I.QueuePABRegenApply = MoverStorePos, QueuePABRegenApply
+I.RebaseBarPositionToCenter, I.RegisterPABUnlock = RebaseBarPositionToCenter, RegisterPABUnlock
+I.SetParentShownSafe, I.ShowBlizzardPlayerAuras = SetParentShownSafe, ShowBlizzardPlayerAuras
+I.SnapBarPos, I.SyncCancelCVar = SnapBarPos, SyncCancelCVar
+I.SyncEnchantEvents, I.SyncNativeAuras = SyncEnchantEvents, SyncNativeAuras
+I.broken = false

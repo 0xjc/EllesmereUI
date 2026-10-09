@@ -1,3 +1,23 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_PlayerAuraBars_Config.lua
+--
+--  Grid sizing, the default bar configs, seeding and migration from the
+--  legacy sources and the per-bar enable state.
+--  Reads the earlier Player Aura Bars files through ns and ns._pabInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._pabInternals
+-- EllesmereUIUnitFrames_PlayerAuraBars.lua or an earlier Player Aura Bars
+-- file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local PAB, PAB_FxListView, PAB_FxSafeToForce = I.PAB, I.PAB_FxListView, I.PAB_FxSafeToForce
+local PAB_FxWantsCategory, PabShapedSize = I.PAB_FxWantsCategory, I.PabShapedSize
+local PabSnap, VisibleCandidateClasses = I.PabSnap, I.VisibleCandidateClasses
+local VisibleTokenClasses = I.VisibleTokenClasses
+
 -- Grid sizing. AK's flow layout only exposes a row WIDTH (pixels) to wrap on, no
 -- native "max lines" cap, so a row cap is enforced indirectly by capping
 -- maxFrameCount to rows*cols; the anchor frame's footprint is our own bounding-box
@@ -513,3 +533,9 @@ local function EnsureExtDefCustomBar(s)
     s.extDefPos = nil
 end
 
+I.BuffBarHasContent, I.ComputeGrid = BuffBarHasContent, ComputeGrid
+I.DefaultBuffsCfg, I.DefaultDebuffsCfg = DefaultBuffsCfg, DefaultDebuffsCfg
+I.EnsureBarEnable, I.EnsureDebuffFilterV2 = EnsureBarEnable, EnsureDebuffFilterV2
+I.EnsureExtDefCustomBar, I.EnsureFilterLanes = EnsureExtDefCustomBar, EnsureFilterLanes
+I.SeedDefaultBuffsDebuffsFromLegacySources = SeedDefaultBuffsDebuffsFromLegacySources
+I.broken = false

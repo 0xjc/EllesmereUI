@@ -1,3 +1,25 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_PlayerAuraBars_Preview.lua
+--
+--  The preview box of the options page.
+--  Reads the earlier Player Aura Bars files through ns and ns._pabInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._pabInternals
+-- EllesmereUIUnitFrames_PlayerAuraBars.lua or an earlier Player Aura Bars
+-- file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local ExpandFamily, PAB, PAB_FxListView = I.ExpandFamily, I.PAB, I.PAB_FxListView
+local PabShapeBorderSize, PabShapedSize = I.PabShapeBorderSize, I.PabShapedSize
+local BuildDispelColorMap, BuildStyle = I.BuildDispelColorMap, I.BuildStyle
+local PV_DISPEL_ICON_ATLAS = I.PV_DISPEL_ICON_ATLAS
+local PV_DISPEL_ICON_POINTS, ComputeGrid = I.PV_DISPEL_ICON_POINTS, I.ComputeGrid
+local DefaultBuffsCfg, DefaultDebuffsCfg = I.DefaultBuffsCfg, I.DefaultDebuffsCfg
+local CornerFor, SetMaybeRefreshPreview = I.CornerFor, I.SetMaybeRefreshPreview
+
 -------------------------------------------------------------------------------
 -- Options-page preview box, embedded inside the bar's own detail page (NOT an
 --  on-screen overlay at the bar's real position). Shows FAKE buffs/debuffs at the
@@ -1274,7 +1296,7 @@ end
 -- PAB_ReloadCustomBuffBar, PAB_ReloadCustomDebuffBar) so a currently-open preview box
 -- stays in sync with slider drags/dropdown changes without EUI_PlayerAuraBars_
 -- ManagerPages.lua needing to know the preview exists or wrap its ApplyBar() closures.
-PAB_MaybeRefreshPreview = function(kind, id)
+SetMaybeRefreshPreview(function(kind, id)
     if not (activePreview and activePreview.kind == kind and activePreview.id == id) then return end
     -- The page was left: its root waits parked and hidden until its next
     -- render, which builds a new preview, so nothing is drawn into the hidden
@@ -1311,5 +1333,6 @@ PAB_MaybeRefreshPreview = function(kind, id)
     if activePreview.onResize then activePreview.onResize(bottomY) end
 
     RenderPreviewIcons(activePreview.box, activePreview.icons, isBuff, cfg, activePreview.fontPath, activePreview.pool)
-end
+end)
 
+I.broken = false

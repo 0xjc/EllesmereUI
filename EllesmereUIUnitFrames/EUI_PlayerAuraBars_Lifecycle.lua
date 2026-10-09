@@ -1,3 +1,45 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_PlayerAuraBars_Lifecycle.lua
+--
+--  The public toggles, vehicle and cinematic hiding, the events and the
+--  recovery path.
+--  Reads the earlier Player Aura Bars files through ns and ns._pabInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._pabInternals
+-- EllesmereUIUnitFrames_PlayerAuraBars.lua or an earlier Player Aura Bars
+-- file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local PAB, ComputeGrid, DefaultBuffsCfg = I.PAB, I.ComputeGrid, I.DefaultBuffsCfg
+local DefaultDebuffsCfg, ApplyDefaultBarShown = I.DefaultDebuffsCfg, I.ApplyDefaultBarShown
+local ApplyLiveConfig, BuffsContentSig = I.ApplyLiveConfig, I.BuffsContentSig
+local CreateBars, RegisterPABUnlock = I.CreateBars, I.RegisterPABUnlock
+local SetParentShownSafe = I.SetParentShownSafe
+local ShowBlizzardPlayerAuras = I.ShowBlizzardPlayerAuras
+local SyncEnchantEvents, SyncNativeAuras = I.SyncEnchantEvents, I.SyncNativeAuras
+local customBuffContainers, customBuffParents = I.customBuffContainers, I.customBuffParents
+local customDebuffContainers = I.customDebuffContainers
+local customDebuffParents = I.customDebuffParents
+local RegisterPABCustomUnlock = I.RegisterPABCustomUnlock
+local ReloadAllCustomBars, SetPabSuppressed = I.ReloadAllCustomBars, I.SetPabSuppressed
+
+local buffsContainer
+I.buffsContainerSetters[#I.buffsContainerSetters + 1] = function(v) buffsContainer = v end
+local debuffsContainer
+I.debuffsContainerSetters[#I.debuffsContainerSetters + 1] = function(v) debuffsContainer = v end
+local buffsParent
+I.buffsParentSetters[#I.buffsParentSetters + 1] = function(v) buffsParent = v end
+local debuffsParent
+I.debuffsParentSetters[#I.debuffsParentSetters + 1] = function(v) debuffsParent = v end
+local buffsSlotSig
+I.buffsSlotSigSetters[#I.buffsSlotSigSetters + 1] = function(v) buffsSlotSig = v end
+
+local ClearDegraded -- forward-declared; defined in the recovery section, called from PAB_SetEnabled
+local vehicleHidden = false -- vehicle ride state; feeds pabSuppressed
+
 -------------------------------------------------------------------------------
 --  Lifecycle
 -------------------------------------------------------------------------------
@@ -144,8 +186,8 @@ end
 -- Hide (SetParentShownSafe): the exit routinely lands inside lockdown, where
 -- a Show is blocked. A suppressed ride therefore costs what ordinary play
 -- costs -- the containers stay registered behind alpha 0.
--- vehicleHidden and pabSuppressed are forward-declared at the top of the state
--- section (every parent-visibility pass reads the latter).
+-- vehicleHidden is declared at the top of this file; pabSuppressed lives in
+-- EUI_PlayerAuraBars_Bars.lua (every parent-visibility pass reads it).
 -- Bare apply, no state guard: the recovery lane re-asserts the CURRENT
 -- state after its reload paths (which Show() the parents as a side effect).
 -- Restoring (hidden = false) honors each bar's OWN enable toggle -- a
@@ -176,7 +218,7 @@ local function ApplyVehicleHidden(hidden)
     -- below stays the durable render verdict, so a bar disabled mid-ride still
     -- hides for real and a reload that runs during the ride cannot un-suppress
     -- the parents behind our back.
-    pabSuppressed = hidden
+    SetPabSuppressed(hidden)
     local s = PAB()
     -- Regen replay re-derives from the LIVE vehicle state, not the argument.
     local function recompute() ApplyVehicleHidden(vehicleHidden) end
@@ -225,7 +267,7 @@ end
 -- The latch is only ever meaningful while the recovery lane is live: every
 -- early exit down there hands it back, or a stand-down set on a transition
 -- outlives the thing that caused it and every later bar comes up dimmed.
--- Forward-declared at the top of the state section (the enable path clears a
+-- Forward-declared at the top of this file (the enable path clears a
 -- latch that was set while the module was off, where no lane runs at all).
 function ClearDegraded()
     if not pabDegraded then return end
@@ -387,3 +429,4 @@ function ns.PAB_ArmRecovery()
     initFrame:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
 end
 
+I.broken = false

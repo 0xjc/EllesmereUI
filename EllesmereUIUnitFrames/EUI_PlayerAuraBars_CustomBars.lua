@@ -1,3 +1,38 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_PlayerAuraBars_CustomBars.lua
+--
+--  The custom bar engine: state, position, unlock registration and
+--  the reload of one bar or of all of them.
+--  Reads the earlier Player Aura Bars files through ns and ns._pabInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._pabInternals
+-- EllesmereUIUnitFrames_PlayerAuraBars.lua or an earlier Player Aura Bars
+-- file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local BuffBarChain, PAB, BuffCandidateExtras = I.BuffBarChain, I.PAB, I.BuffCandidateExtras
+local BuildStyle, DebuffCandidateExtras = I.BuildStyle, I.DebuffCandidateExtras
+local ResolveSortDirection, ResolveSortMethod = I.ResolveSortDirection, I.ResolveSortMethod
+local ApplyGroupConfig, BuildGroupLayout = I.ApplyGroupConfig, I.BuildGroupLayout
+local DebuffChainFor, MergeCandidateFilters = I.DebuffChainFor, I.MergeCandidateFilters
+local RetireContainer, ComputeGrid = I.RetireContainer, I.ComputeGrid
+local ApplyContainerAnchorAndGrowth = I.ApplyContainerAnchorAndGrowth
+local BarAnchorOffset, BuildContainerSpec = I.BarAnchorOffset, I.BuildContainerSpec
+local DeferRestrictedApply, MapElementSettings = I.DeferRestrictedApply, I.MapElementSettings
+local MoverStorePos, QueuePABRegenApply = I.MoverStorePos, I.QueuePABRegenApply
+local RebaseBarPositionToCenter = I.RebaseBarPositionToCenter
+local SetParentShownSafe, SnapBarPos = I.SetParentShownSafe, I.SnapBarPos
+local SyncCancelCVar, SetAK = I.SyncCancelCVar, I.SetAK
+local SetReloadAllCustomBars = I.SetReloadAllCustomBars
+
+local AK -- EllesmereUI.AuraKit, resolved at first use (see SetAK)
+I.AKSetters[#I.AKSetters + 1] = function(v) AK = v end
+local PAB_MaybeRefreshPreview
+I.previewRefreshSetters[#I.previewRefreshSetters + 1] = function(v) PAB_MaybeRefreshPreview = v end
+
 -------------------------------------------------------------------------------
 --  Custom bars -- engine wiring
 --
@@ -237,7 +272,7 @@ ns.PAB_RegisterCustomUnlock = RegisterPABCustomUnlock
 -- disabled, spell-list-unchanged, full rebuild) without repeating
 -- RegisterPABCustomUnlock() at each early return.
 local function ReloadCustomBuffBarImpl(barId)
-    AK = AK or (EllesmereUI and EllesmereUI.AuraKit)
+    if not AK then SetAK(EllesmereUI and EllesmereUI.AuraKit) end
     if not AK then return end
     local bar, barBucket = ns.PAB_GetCustomBuffBar(barId)
     if not bar then
@@ -376,7 +411,7 @@ end
 -- the same container. Wrapped for the same reason as PAB_ReloadCustomBuffBar: unlock-
 -- mode registration stays in sync on every exit path.
 local function ReloadCustomDebuffBarImpl(barId)
-    AK = AK or (EllesmereUI and EllesmereUI.AuraKit)
+    if not AK then SetAK(EllesmereUI and EllesmereUI.AuraKit) end
     if not AK then return end
     local bar, barBucket = ns.PAB_GetCustomDebuffBar(barId)
     if not bar then
@@ -502,6 +537,11 @@ local function ReloadAllCustomBarsImpl()
         if not presentDebuff[barId] then ns.PAB_ReloadCustomDebuffBar(barId) end
     end
 end
-ReloadAllCustomBars = ReloadAllCustomBarsImpl
+SetReloadAllCustomBars(ReloadAllCustomBarsImpl)
 ns.PAB_ReloadAllCustomBars = ReloadAllCustomBarsImpl
 
+I.customBuffContainers, I.customBuffParents = customBuffContainers, customBuffParents
+I.customDebuffContainers, I.customDebuffParents = customDebuffContainers, customDebuffParents
+I.RegisterPABCustomUnlock = RegisterPABCustomUnlock
+I.ReloadAllCustomBars = ReloadAllCustomBarsImpl
+I.broken = false
