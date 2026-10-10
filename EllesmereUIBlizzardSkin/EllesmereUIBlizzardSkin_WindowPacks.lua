@@ -13462,6 +13462,8 @@ function HP.ApplyStackSplit()
                     f.StackSplitText:SetJustifyH("CENTER")
                 end
             end
+            -- A bundle shows two lines, the stacks over the total.
+            d.splitField:SetHeight(f.isMultiStack and 44 or 22)
         end
 
         if f.StackSplitText then WSkin.White(f.StackSplitText) end
