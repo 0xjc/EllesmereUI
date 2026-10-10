@@ -2664,6 +2664,24 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                             -- buff is MISSING, and the ACTIVE buff renders hidden
                             -- (layout gap closes).
                             { val = "missing", label = "Show When Missing" },
+                            -- Independent of the choice above, used with Show When Missing: the
+                            -- active buff also shows for its last N seconds (0 = off). Scalar popup
+                            -- value, same shape as Threshold Seconds.
+                            { val = "below", label = "+ Also Show Below",
+                              scalarApply = true,
+                              dynamicLabel = function()
+                                  local base = EllesmereUI.L("+ Also Show Below")
+                                  local s = tonumber(ss.missingShowBelow) or 0
+                                  if s > 0 then return base .. " (" .. s .. "s)" end
+                                  return base
+                              end,
+                              tooltip = "With Show When Missing, also show the buff for its last seconds. Buffs whose timers are hidden from addons in instances stay hidden there.",
+                              toggleGet = function() return (tonumber(ss.missingShowBelow) or 0) > 0 end,
+                              applyKeys = { "missingShowBelow" },
+                              applyWrite = function(t)
+                                  local s = tonumber(ss.missingShowBelow) or 0
+                                  t.missingShowBelow = (s > 0) and s or false
+                              end },
                         }
                         MakeSubnavRow("Always Show Buff", ALWAYS_SHOW_ITEMS,
                             function() return ss.alwaysShow end,
@@ -2673,7 +2691,20 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                                 EllesmereUI:RefreshPage()
                             end,
                             function() return ss.alwaysShow == nil end,
-                            nil,
+                            function(si, item)
+                                if item.val ~= "below" then return end
+                                -- Popup flow (mirrors Threshold Seconds): 0 turns it off.
+                                si:SetScript("OnClick", function()
+                                    local cur = tonumber(ss.missingShowBelow) or 0
+                                    menu:Hide()
+                                    ShowThresholdSecondsPopup(cur > 0 and cur or nil, function(v)
+                                        EnsureSS()
+                                        SetOwn("missingShowBelow", (v and v > 0) and v or nil)
+                                        if ns.QueueReanchor then ns.QueueReanchor() end
+                                    end, { title = EllesmereUI.L("Also Show Below"),
+                                           hint = EllesmereUI.L("Seconds left when the buff shows again (0 = off)") })
+                                end)
+                            end,
                             -- Mutually exclusive with the bar's "Keep Buffs in Same Place": that
                             -- mode reserves every buff's slot and ignores per-icon overrides, so
                             -- disable this row while it's on. Escape hatch: if THIS icon is the one

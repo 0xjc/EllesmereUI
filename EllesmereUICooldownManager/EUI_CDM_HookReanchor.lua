@@ -256,18 +256,32 @@ local function CollectAndReanchor()
                                         -- every refresh. Skipped under Keep Buffs in Same Place
                                         -- (every slot reserved; the options row is disabled
                                         -- there too).
-                                        local missingMode = false
+                                        local missingMode, belowSec = false, nil
                                         if tbd and not tbd.hidePlaceholderIcon then
                                             local sdMV = ns.GetBarSpellData(targetBar)
                                             local ssMV = ns.ResolveSpellSettings(frame, displaySID, sdMV, targetBar)
                                             missingMode = (ssMV and ssMV.alwaysShow == "missing") and true or false
+                                            belowSec = missingMode and tonumber(ssMV.missingShowBelow) or nil
                                         end
                                         local fcMV = FC(frame)
-                                        if missingMode then
+                                        -- Also Show Below N Seconds: the buff comes back for its last
+                                        -- seconds (ns.MissingShowBelow arms the relayout timer).
+                                        local showLow = false
+                                        if belowSec or fcMV._missingTimer or fcMV._missingLow then
+                                            showLow = ns.MissingShowBelow(frame, fcMV, belowSec)
+                                        end
+                                        local wasHidden = fcMV._missingActiveHidden and true or false
+                                        if missingMode and not showLow then
                                             fcMV._missingActiveHidden = true
                                             frame:SetAlpha(0)
                                         elseif fcMV._missingActiveHidden then
                                             fcMV._missingActiveHidden = nil
+                                        end
+                                        -- The icon list is unchanged when only this flag flips, so
+                                        -- the bar would not lay out: the icon would show at its
+                                        -- stale point, or leave its gap open.
+                                        if wasHidden ~= (fcMV._missingActiveHidden and true or false) then
+                                            ns.QueueShiftLayout(targetBar)
                                         end
                                     end
                                     barSeen[dedupKey] = true
