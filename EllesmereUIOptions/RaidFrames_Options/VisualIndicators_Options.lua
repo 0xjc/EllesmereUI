@@ -143,6 +143,7 @@ local function BuildVisualIndicators(parent, y, W, onSection, EYE, CustomBorderO
             -- resolver over the page's raw, party-aware reads, so an unset
             -- role shows what it does.
             local blessOrder = { "none", "might", "wisdom", "kings", "salvation", "light" }
+            local blessItems = {}
             local BLESS_ID = { might = 19740, wisdom = 19742, kings = 20217, salvation = 1038, light = 19977 }
             local BLESS_EN = { might = "Might", wisdom = "Wisdom", kings = "Kings", salvation = "Salvation", light = "Light" }
             local blessValues = { none = "None" }
@@ -162,12 +163,35 @@ local function BuildVisualIndicators(parent, y, W, onSection, EYE, CustomBorderO
                 local k = blessOrder[i]
                 local n = full and full[k]
                 blessValues[k] = (n and cut) and n:sub(#cut + 1) or n or BLESS_EN[k]
+                blessItems[#blessItems + 1] = { key = k, label = blessValues[k] }
             end
             local view = setmetatable({}, { __index = function(_, k) return SGet(k) end })
+            -- A priority list per role: the checked blessings in the order
+            -- shown (drag to reorder); the first one the member lacks shows.
+            -- Each open lists the checked ones first, in priority order.
             local function BlessRow(label, tip, role)
-                return { type="dropdown", label=label, tooltip=tip, values=blessValues, order=blessOrder,
-                  get=function() return ns.RF_FvBlessingChoice(view, role) end,
-                  set=function(v) SSet(ns.RF_FvBlessingKey[role], v) end }
+                local function Picked() return ns.RF_FvBlessingChoice(view, role) end
+                local function Save(order, key, on)
+                    local picked = {}
+                    for _, k in ipairs(Picked()) do picked[k] = true end
+                    if key then picked[key] = on or nil end
+                    local list = {}
+                    for _, k in ipairs(order) do
+                        if picked[k] then list[#list + 1] = k end
+                    end
+                    SSet(ns.RF_FvBlessingKey[role], list)
+                end
+                return { type="reordercheck", label=label, tooltip=tip, ddWidth=170, grip=true,
+                  hint="Drag to set priority", items=blessItems,
+                  get=function(key)
+                      for _, k in ipairs(Picked()) do
+                          if k == key then return true end
+                      end
+                      return false
+                  end,
+                  set=function(key, on, order) Save(order, key, on) end,
+                  setOrder=function(keys) Save(keys) end,
+                  openOrder=function() return Picked() end }
             end
             local rows = {
                 -- One switch per buff (all on by default). The list is the
@@ -192,9 +216,9 @@ local function BuildVisualIndicators(parent, y, W, onSection, EYE, CustomBorderO
                   disabledTooltip="Thorns",
                   get=function() return SVal("missingBuffsThornsTank", false) end,
                   set=function(v) SSet("missingBuffsThornsTank", v and true or false) end },
-                BlessRow("Tank Blessing", "Reminds you while a tank lacks this blessing. Members with no assigned role count any blessing.", "TANK"),
-                BlessRow("Healer Blessing", "Reminds you while a healer lacks this blessing.", "HEALER"),
-                BlessRow("DPS Blessing", "Reminds you while a damage dealer lacks this blessing.", "DAMAGER"),
+                BlessRow("Tank Blessing", "Reminds you of the first checked blessing a tank lacks, top to bottom. Members with no assigned role count any blessing.", "TANK"),
+                BlessRow("Healer Blessing", "Reminds you of the first checked blessing a healer lacks, top to bottom.", "HEALER"),
+                BlessRow("DPS Blessing", "Reminds you of the first checked blessing a damage dealer lacks, top to bottom.", "DAMAGER"),
                 { type="slider", label="Offset X", min=-50, max=50, step=1,
                   get=function() return SVal("missingBuffsOffsetX", 0) end,
                   set=function(v) SSet("missingBuffsOffsetX", v) end },

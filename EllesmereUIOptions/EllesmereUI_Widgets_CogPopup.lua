@@ -361,13 +361,15 @@ local function BuildCogPopup(opts)
                 local ddBtn, refresh = EllesmereUI.BuildReorderCBDropdown(
                     pf, row.ddWidth or COG_DD_W, pf:GetFrameLevel() + 2, items,
                     row.get,
-                    function(k, v)
-                        row.set(k, v)
+                    function(k, v, order)
+                        row.set(k, v, order)
                         if pf._refresh then pf._refresh() end
                     end,
                     {
                         hint = row.hint,
                         hint2 = row.hint2,
+                        grip = row.grip,
+                        openOrder = row.openOrder,
                         setOrder = function(keys)
                             if row.setOrder then row.setOrder(keys) end
                         end,

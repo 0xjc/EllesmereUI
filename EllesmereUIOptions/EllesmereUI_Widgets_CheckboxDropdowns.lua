@@ -1200,6 +1200,7 @@ end
 --      setOrder = function(orderedMovableKeys),  -- fired on every drop
 --      onClose  = function(orderChanged),        -- fired once per menu close
 --      hint     = "Drag to Reorder",             -- text above the rows
+--      grip     = true,                          -- a three-dash drag handle on each movable row
 --      hint2    = "...",                         -- optional second hint line
 --      canReorder = function() -> boolean,       -- optional drag guard
 --      summaryLabel = function(movable, fixed, getFn) -> string,
@@ -1405,7 +1406,7 @@ function EllesmereUI.BuildReorderCBDropdown(parentFrame, ddW, fLevel, items, get
             lbl:SetFont(fontPath, 13, "")
             lbl:SetTextColor(0.75, 0.75, 0.75, 1)
             lbl:SetPoint("LEFT", box, "RIGHT", 8, 0)
-            lbl:SetPoint("RIGHT", row, "RIGHT", -10, 0)
+            lbl:SetPoint("RIGHT", row, "RIGHT", (draggable and opts.grip) and -30 or -10, 0)
             lbl:SetJustifyH("LEFT")
             lbl:SetWordWrap(false)
             lbl:SetMaxLines(1)
@@ -1413,6 +1414,15 @@ function EllesmereUI.BuildReorderCBDropdown(parentFrame, ddW, fLevel, items, get
             local hl = row:CreateTexture(nil, "ARTWORK")
             hl:SetAllPoints()
             hl:SetColorTexture(1, 1, 1, 0)
+            -- opts.grip: a three-dash handle on the right of each movable row.
+            if draggable and opts.grip then
+                for g = 1, 3 do
+                    local bar = row:CreateTexture(nil, "ARTWORK")
+                    bar:SetSize(10, 1)
+                    bar:SetPoint("RIGHT", row, "RIGHT", -10, (2 - g) * 3)
+                    bar:SetColorTexture(1, 1, 1, 0.35)
+                end
+            end
             local function UpdateCheck()
                 if getFn(row._item.key) then
                     chk:Show()
