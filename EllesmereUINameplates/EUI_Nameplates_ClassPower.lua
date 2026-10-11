@@ -41,6 +41,7 @@ end
 --  UNIT_POWER_UPDATE and shows pips only on the current target's nameplate.
 -------------------------------------------------------------------------------
 local classPowerWatcher
+local classPowerWatcherFrame  -- created on first enable, reused after every disable
 local classPowerType     -- Enum.PowerType value for the player's class resource, or nil
 local classPowerMax = 0  -- max pips for the resource
 local classPowerFormReq  -- required GetShapeshiftFormID() value, or nil if no form check needed
@@ -866,7 +867,11 @@ local function EnableClassPowerWatcher()
         local isResto = (PLAYER_CLASS == "DRUID" and specIdx == 4)
         classPowerFormReq = isResto and (DRUID_CAT_FORM or 1) or nil
     end
-    classPowerWatcher = CreateFrame("Frame")
+    -- Every spec change and setting toggle runs Disable + Enable, so the frame is
+    -- reused: WoW never frees a frame, and a new one per rebuild leaked.
+    classPowerWatcherFrame = classPowerWatcherFrame or CreateFrame("Frame")
+    classPowerWatcher = classPowerWatcherFrame
+    classPowerWatcher:Show()  -- Disable hides it; OnUpdate needs it shown
 
     -- String-type resources (custom-tracked): use OnUpdate poll + events
     if type(classPowerType) == "string" then
