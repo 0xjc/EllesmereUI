@@ -194,8 +194,10 @@ local function DecorateFrame(frame, barData)
         ns.EnsureBuffSoundHook(frame)
     end
 
-    -- Hook SetPoint: when Blizzard repositions this frame (Layout,
-    -- RefreshLayout, internal updates), force it back to the stored CDM anchor.
+    -- Hook SetPoint: restore our anchor after Blizzard repositions the icon.
+    -- Buff viewers must finish measuring their native grid first; redirecting
+    -- one child during Layout makes ResizeLayout measure the distance between
+    -- our bar and the viewer's remaining children as the viewer's own size.
     if not fd._setPointHooked then
         fd._setPointHooked = true
         hooksecurefunc(frame, "SetPoint", function(_, point, relativeTo)
@@ -225,6 +227,20 @@ local function DecorateFrame(frame, barData)
             end
             -- relativeTo == our bar container: our own LayoutCDMBar SetPoint.
             if relativeTo == anchor[2] then return end
+            if fd._isBuffViewerFrame then
+                if not fd._buffAnchorPending then
+                    fd._buffAnchorPending = true
+                    C_Timer.After(0, function()
+                        fd._buffAnchorPending = nil
+                        -- The pool may have released/reassigned this icon since scheduling, so refresh it.
+                        local current = fd._cdmAnchor
+                        if not current then return end
+                        frame:ClearAllPoints()
+                        frame:SetPoint(current[1], current[2], current[3], current[4], current[5])
+                    end)
+                end
+                return
+            end
             -- Blizzard is trying to move us. Force back to CDM position.
             frame:ClearAllPoints()
             frame:SetPoint(anchor[1], anchor[2], anchor[3], anchor[4], anchor[5])
