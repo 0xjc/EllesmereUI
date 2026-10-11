@@ -21,6 +21,10 @@ local EABR = EllesmereUI.Lite.NewAddon("EllesmereUIAuraBuffReminders")
 EABR.FOREVER = EllesmereUI.IS_FOREVER == true
 EABR.CAMP_BENEFITS = 1229741
 EABR.WELL_FED = 19705
+-- Food buffs not named Well Fed (Grilled Squid, Nightfin Soup, Runn Tum Tuber Surprise,
+-- Dirge's Chops, Blessed Sunfruit and its juice): counted by ID, since their names are
+-- shared with other buffs (Mana Regeneration is also Mageblood Potion's).
+EABR.FOOD_BUFFS = { 18192, 18194, 22730, 25661, 18125, 18141 }
 
 local _B = {}  -- beacon state table, populated later
 local Known = function(id) return id and (IsPlayerSpell(id) or IsSpellKnown(id)) end
@@ -4288,14 +4292,15 @@ function EABR.BuildForeverFamilies()
     end
 end
 
--- WoW Forever collector: the Camp Benefits campfire buff and the user's custom
--- spell IDs, absence only (no expiry thresholds). A custom ID counts as up
--- while any spell of its rank family is (EABR.ForeverFamily). Entries are
+-- WoW Forever collector: the Camp Benefits campfire buff, Well Fed (any food
+-- buff: the shared Well Fed name, or one of EABR.FOOD_BUFFS) and the user's
+-- custom spell IDs, absence only (no expiry thresholds). A custom ID counts as
+-- up while any spell of its rank family is (EABR.ForeverFamily). Entries are
 -- display-only textures carrying the spell for the tooltip; presence goes
 -- through PlayerHasAuraByID, so combat falls back to the pre-pull snapshot
--- exactly like the Auras section. Camp Benefits is skipped under the aura lock
--- and in PvP. The one-slot id table, the cached families and the dismiss-key
--- memo keep the pass allocation-free.
+-- exactly like the Auras section. Camp Benefits and Well Fed are skipped under
+-- the aura lock and in PvP. The one-slot id table, the cached families and the
+-- dismiss-key memo keep the pass allocation-free.
 function EABR.CollectForever(missing, inInstance, inPvP, restricted)
     local fo = db.profile.forever
     if not fo or not EABR.SectionShows(fo.whereToShow, inInstance) then return end
@@ -4315,7 +4320,7 @@ function EABR.CollectForever(missing, inInstance, inPvP, restricted)
     if fo.wellFed and not inPvP and not restricted then
         local name = SpellName(EABR.WELL_FED) or "Well Fed"
         local ok, aura = pcall(C_UnitAuras.GetAuraDataBySpellName, "player", name, "HELPFUL")
-        if ok and not isSecret(aura) and not aura then
+        if ok and not isSecret(aura) and not aura and not PlayerHasAuraByID(EABR.FOOD_BUFFS) then
             local e = AcquireEntry()
             e.mode = "texture"; e.spellID = EABR.WELL_FED
             e.texture = Tex(EABR.WELL_FED)

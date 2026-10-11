@@ -889,16 +889,15 @@ initFrame:SetScript("OnEvent", function(self)
     --  Auras, Buffs & Consumables page
     ---------------------------------------------------------------------------
     ---------------------------------------------------------------------------
-    --  WoW Forever custom spells: one DualRow slot per tracked spell (label =
-    --  name + id, button = Remove), filled left to right, a blank label in an
-    --  odd last slot. The page rebuilds on add and remove, so the slots never
-    --  need in-place updates.
+    --  WoW Forever custom spells: the lead slot (the Add Custom Spell entry),
+    --  then one slot per tracked spell (label = name + id, button = Remove),
+    --  filled left to right, a blank label in an odd last slot. The page
+    --  rebuilds on add and remove, so the slots never need in-place updates.
     ---------------------------------------------------------------------------
-    local function BuildForeverCustomRows(parent, y)
+    local function BuildForeverCustomRows(parent, y, lead)
         local f = FDB()
         local ids = f and f.customIDs
-        local n = ids and #ids or 0
-        if n == 0 then return y end
+        local n = 1 + (ids and #ids or 0)
         local W = EllesmereUI.Widgets
         local function Slot(id)
             return { type="labeledButton", buttonText="Remove", width=90,
@@ -915,9 +914,13 @@ initFrame:SetScript("OnEvent", function(self)
                     EllesmereUI:RefreshPage(true)
                 end }
         end
-        for i = 1, n, 2 do
-            local _, h = W:DualRow(parent, y, Slot(ids[i]),
-                ids[i + 1] and Slot(ids[i + 1]) or { type="label", text="" })
+        local function SlotAt(k)
+            if k == 1 then return lead end
+            local id = ids and ids[k - 1]
+            return id and Slot(id) or EllesmereUI.BlankRowCfg()
+        end
+        for k = 1, n, 2 do
+            local _, h = W:DualRow(parent, y, SlotAt(k), SlotAt(k + 1))
             y = y - h
         end
         return y
@@ -1016,7 +1019,7 @@ initFrame:SetScript("OnEvent", function(self)
               end }
         );  y = y - h
 
-        -- Row 2: Grow Direction
+        -- Row 2: Grow Direction | Beacon M+ Reminders (retail Holy Paladins only)
         _, h = W:DualRow(parent, y,
             { type="dropdown", text="Grow Direction",
               values=GROW_DIR_VALUES, order=GROW_DIR_ORDER,
@@ -1027,7 +1030,23 @@ initFrame:SetScript("OnEvent", function(self)
                   RefreshAll()
                   RelayoutPreviewIcons()
               end },
-            EllesmereUI.BlankRowCfg()
+            (function()
+                local spec = not FOREVER and select(2, UnitClass("player")) == "PALADIN"
+                    and C_SpecializationInfo.GetSpecialization()
+                if not (spec and C_SpecializationInfo.GetSpecializationInfo(spec) == 65) then
+                    return EllesmereUI.BlankRowCfg()
+                end
+                return { type="toggle", text="Beacon M+ Reminders",
+                  tooltip="During Mythic+ boss fights, shows a glowing red Beacon on your tank's raid frame while they have your Beacon of Light or Beacon of Faith.",
+                  disabled=function() return not EllesmereUI._ModuleNS["EllesmereUIRaidFrames"] end,
+                  disabledTooltip=EllesmereUI.DisabledTooltip("EllesmereUI Raid Frames"),
+                  getValue=function() local d = DDB(); return d and d.beaconMPlus == true end,
+                  setValue=function(v)
+                      local d = DDB(); if not d then return end
+                      d.beaconMPlus = v or nil
+                      RefreshAll()
+                  end }
+            end)()
         );  y = y - h
 
         -----------------------------------------------------------------------
@@ -1401,8 +1420,9 @@ initFrame:SetScript("OnEvent", function(self)
 
         -----------------------------------------------------------------------
         --  WOW FOREVER section: on that client the rest of the page.
-        --  Camp Benefits toggle, a spell-ID entry that adds a custom reminder
-        --  and one row per tracked spell; the retail sections below never build.
+        --  Camp Benefits | Well Fed, then the spell-ID entry that adds a custom
+        --  reminder followed by one slot per tracked spell; the retail sections
+        --  below never build.
         -----------------------------------------------------------------------
         if FOREVER then
             _, h = W:SectionHeader(parent, SECTION_FOREVER, y);  y = y - h
@@ -1424,7 +1444,8 @@ initFrame:SetScript("OnEvent", function(self)
                       local f = FDB(); if not f then return end; f.camp = v
                       RefreshAll()
                   end },
-                { type="toggle", text="Well Fed",
+                -- The client's own name for the buff (19705, EABR.WELL_FED), so it reads localized.
+                { type="toggle", text=_G._EABR_SpellName(19705, "Well Fed"),
                   tooltip="Reminds you when you have no Well Fed buff.",
                   getValue=function() local f = FDB(); return f and f.wellFed == true end,
                   setValue=function(v)
@@ -1433,8 +1454,8 @@ initFrame:SetScript("OnEvent", function(self)
                   end }
             );  y = y - h
 
-            -- Add Custom Spell
-            _, h = W:DualRow(parent, y,
+            -- Add Custom Spell, paired with the tracked spells
+            y = BuildForeverCustomRows(parent, y,
                 { type="input", text="Add Custom Spell", inputStyle="popup", placeholder="Spell ID", inputWidth=110,
                   tooltip="Type a spell ID and press Enter to be reminded whenever that buff is missing.\nUnknown IDs are ignored.",
                   getValue=function() return "" end,
@@ -1449,12 +1470,9 @@ initFrame:SetScript("OnEvent", function(self)
                       end
                       f.customIDs[#f.customIDs + 1] = id
                       RefreshAll()
+                      -- Rebuilds the page once the edit box has finished its commit.
                       C_Timer.After(0, function() EllesmereUI:RefreshPage(true) end)
-                  end },
-                EllesmereUI.BlankRowCfg()
-            );  y = y - h
-
-            y = BuildForeverCustomRows(parent, y)
+                  end })
 
             -- No preview header here, so no click-to-scroll mappings to wire.
             return math.abs(y)
@@ -2492,6 +2510,7 @@ initFrame:SetScript("OnEvent", function(self)
                 iLbl:SetJustifyH("LEFT")
                 iLbl:SetWordWrap(false)
                 iLbl:SetText(t.name)
+                item._lbl = iLbl
                 item._talentName = t.name
                 item._spellID = t.spellID
                 item:SetScript("OnClick", function()
@@ -2539,10 +2558,23 @@ initFrame:SetScript("OnEvent", function(self)
                 sf:GetScript("OnMouseWheel")(sf, delta)
             end)
 
-            -- Show/hide
+            -- Show/hide. The talent icons are made on the first open, so the
+            -- page build pays nothing for them.
+            local iconsMade = false
             popup:SetScript("OnShow", function()
                 popup:ClearAllPoints()
                 popup:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2)
+                if not iconsMade then
+                    iconsMade = true
+                    for _, item in ipairs(items) do
+                        local ico = item:CreateTexture(nil, "ARTWORK", nil, 1)
+                        ico:SetSize(18, 18)
+                        ico:SetPoint("LEFT", item, "LEFT", 10, 0)
+                        ico:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+                        ico:SetTexture(C_Spell.GetSpellTexture(item._spellID) or 134400)
+                        item._lbl:SetPoint("LEFT", ico, "RIGHT", 6, 0)
+                    end
+                end
                 search:SetText("")
                 search:SetFocus()
                 tScrollTo(0)

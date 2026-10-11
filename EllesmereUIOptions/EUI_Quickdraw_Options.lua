@@ -77,6 +77,15 @@ initFrame:SetScript("OnEvent", function(self)
         return ns.EnsurePalette and ns.EnsurePalette(index or editPalette)
     end
 
+    -- A palette as stored, for getters: nothing created or compacted (getters
+    -- must not write; the panel's read trace runs them).
+    local function PaletteRead(index)
+        local prof = DB()
+        local pals = prof and prof.palettes
+        local pal = type(pals) == "table" and pals[index or editPalette]
+        return type(pal) == "table" and pal or nil
+    end
+
     -- Does ANY menu hold a nested entry? Read-only walk over the stored
     -- tables (never through EnsurePalette, which compacts and allocates):
     -- this runs on every Refresh to notice presence flipping.
@@ -110,7 +119,7 @@ initFrame:SetScript("OnEvent", function(self)
     --  which specs a menu works in is its own Assign to Spec setting instead.
     ---------------------------------------------------------------------------
     local function ACfg(key)
-        local pal = ns.EnsurePalette and ns.EnsurePalette(editPalette)
+        local pal = PaletteRead(editPalette)
         local a = pal and pal.appearance
         local v = a and a[key]
         if v ~= nil then return v end
@@ -133,7 +142,7 @@ initFrame:SetScript("OnEvent", function(self)
 
     -- A menu's name as the page shows it.
     local function MenuName(index)
-        local pal = Palette(index)
+        local pal = PaletteRead(index)
         return (pal and pal.name) or AutoName(index)
     end
 
@@ -974,10 +983,7 @@ initFrame:SetScript("OnEvent", function(self)
             end
         end
         AddBlock(1, numAccount)
-        -- The global is nil on this client; 120 is the account block's size,
-        -- the same fallback the ClickCast macro list uses
-        -- (EUI_RaidFrames_ClickCast.lua:36).
-        AddBlock((MAX_ACCOUNT_MACROS or 120) + 1, numChar)
+        AddBlock(Constants.MacroConsts.MAX_ACCOUNT_MACROS + 1, numChar)
         return out
     end
 

@@ -356,8 +356,8 @@ local function CreateCustomClassPower(playerFrame, style)
             -- Forever combo points belong to the target, and UnitPower still
             -- reports the previous target's count at the moment
             -- PLAYER_TARGET_CHANGED fires (measured on 1.60.1: up=3 while
-            -- gcp=0 on the swap), with no later event to correct it. Blizzard's
-            -- own classic ComboFrame reads GetComboPoints for the same reason.
+            -- gcp=0 on the swap), with no later power event to correct it.
+            -- Blizzard's own ComboFrame reads GetComboPoints for the same reason.
             if EllesmereUI.IS_FOREVER == true and powerType == Enum.PowerType.ComboPoints
                and GetComboPoints then
                 cur = GetComboPoints("player", "target") or 0
@@ -500,17 +500,20 @@ local function CreateCustomClassPower(playerFrame, style)
             eventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
         end
         -- Combo points belong to the target on Forever, so swapping targets
-        -- changes the count with no power event behind it. Blizzard's own
-        -- ComboFrame refreshes on this event for the same reason.
+        -- changes the count with no power event behind it, and so does points
+        -- moving to a new target (COMBO_TARGET_CHANGED, no payload). Blizzard's
+        -- own combo displays refresh on these events for the same reason.
         if EllesmereUI.IS_FOREVER == true and powerType == Enum.PowerType.ComboPoints then
             eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+            eventFrame:RegisterEvent("COMBO_TARGET_CHANGED")
         end
         eventFrame:SetScript("OnEvent", function(_, event, unit)
             if druidFormToggle and (event == "UPDATE_SHAPESHIFT_FORM" or event == "PLAYER_ENTERING_WORLD") then
                 container:SetShown(InCatForm())
             end
             if event == "PLAYER_ENTERING_WORLD" or event == "RUNE_POWER_UPDATE"
-               or event == "PLAYER_TARGET_CHANGED" or (unit == "player") then
+               or event == "PLAYER_TARGET_CHANGED" or event == "COMBO_TARGET_CHANGED"
+               or (unit == "player") then
                 UpdatePips()
             end
         end)

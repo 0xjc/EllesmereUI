@@ -983,10 +983,11 @@ local function RefreshCDMIconAppearance(barKey)
                     -- Glow (On CD) wants the opposite cooldown state of the ready variants.
                     local wantsGlow
                     if cseInfo then
+                        local realCD = ns.CdmOnRealCD(icon, cseInfo)
                         if isOnCdGlow then
-                            wantsGlow = cseInfo.isActive and not cseInfo.isOnGCD
+                            wantsGlow = realCD
                         else
-                            wantsGlow = not cseInfo.isActive or cseInfo.isOnGCD
+                            wantsGlow = not realCD
                         end
                     end
                     if wantsGlow then
@@ -1050,8 +1051,7 @@ local function RefreshCDMIconAppearance(barKey)
                     onCD = ns.CdmSpellOutsideForm(csLive)
                     ns.WatchCdUsable(icon, true)
                 else
-                    local cseInfo = C_Spell.GetSpellCooldown(csLive)
-                    onCD = cseInfo and cseInfo.isActive and not cseInfo.isOnGCD
+                    onCD = ns.CdmOnRealCD(icon, C_Spell.GetSpellCooldown(csLive))
                 end
                 if cseUsable then
                     if not onCD then onCD = ns.CdmSpellNotUsable(csLive) end
@@ -1145,6 +1145,9 @@ local function RefreshCDMIconAppearance(barKey)
                 end
             end
         end
+        -- Ignore Resource Cost: repaint now, as a settings change brings no
+        -- Blizzard tint write for the hook to follow (one flag read when unused).
+        if ns._cdmAnyNoResourceTint and ns.CdmApplyResourceTint then ns.CdmApplyResourceTint(icon, fd) end
         end -- not icon._isEmptySlotFrame
         -- Only Show Numbers (bar setting): re-hide the icon art AFTER the passes above re-applied
         -- borders/shapes/textures, so the countdown number is all that remains. One field read when the bar is off; also restores one-shot right after the bar toggles off.

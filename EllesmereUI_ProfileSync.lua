@@ -468,13 +468,17 @@ EllesmereUI.RegisterSyncExclusions("EllesmereUIDragonRiding", {
     "unlockPos",
 })
 
--- QoL Secondary Stats/FPS positions and the cursor slice (GCD ring, cast circle, at
--- profile.cursor) stay per-profile on sync: exported intact, never push-overwritten.
+-- QoL Secondary Stats/FPS positions, the cursor slice (GCD ring, cast circle, at
+-- profile.cursor) and the Battle Res, Bloodlust and Junk Items positions stay
+-- per-profile on sync: exported intact, never push-overwritten.
 EllesmereUI.RegisterSyncExclusions("EllesmereUIQoL", {
     "secondaryStatsPos",
     "fpsPos",
     "cursor.gcd.pos",
     "cursor.castCircle.pos",
+    "battleRes.pos",
+    "bloodlust.pos",
+    "junkList.pos",
 })
 
 -- Minimap settings nest under profile.minimap.

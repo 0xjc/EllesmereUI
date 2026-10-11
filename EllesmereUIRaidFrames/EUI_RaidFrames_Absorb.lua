@@ -24,14 +24,15 @@ local GetFFD, PixelSnap = I.GetFFD, I.PixelSnap
 local db
 I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
 
--- AddMaskTexture errors at the 3-mask cap even when the mask is already attached, and the
--- fill object survives SetStatusBarTexture. With rounded corners on, RoundCorners seats its
--- body mask on every texture under the health bar, so the backfill fill is already full
--- (absorbMask + curMask + body) and any style re-apply errored. Drop the mask first.
+-- (Re)seats a mask on a fill that may already carry it: AddMaskTexture refuses at the
+-- 3-mask cap even for an attached mask, and SetStatusBarTexture keeps the fill object
+-- with its masks. With rounded corners the backfill fill holds the absorb, current-health
+-- and corner masks, so it sits at the cap.
 local function AddMaskOnce(tex, mask)
     pcall(tex.RemoveMaskTexture, tex, mask)
     tex:AddMaskTexture(mask)
 end
+ns.RF_AddMaskOnce = AddMaskOnce
 
 -------------------------------------------------------------------------------
 --  Absorb style application. Single-fill styles match the unit-frame look; the
@@ -978,7 +979,7 @@ local function UpdateAbsorb(button, unit, now)
                 if ha._lastHaKey ~= haKey then
                     ha._lastHaKey = haKey
                     ns.ApplyHealAbsorbStyle(ha, haStyle, s)
-                    -- Retexture REPLACES the fill object: re-arm the backing's one-time fill anchor.
+                    -- After the retexture, re-arm the backing's one-time fill anchor.
                     if ha._bg then ha._bg._fillAnchored = nil end
                 end
                 -- "Show Over Dispels" (default off): lift the heal-absorb overlay above the dispel
@@ -1054,9 +1055,9 @@ local function UpdateAbsorb(button, unit, now)
         if absStyle and absStyle ~= "none" and ab._lastAbsKey ~= absKey then
             ab._lastAbsKey = absKey
             ApplyAbsorbStyle(ab, absStyle, s)
-            -- Retexture REPLACES the fill objects: re-arm the modern base's one-time fill anchor
-            -- and the glow anchors that can ride ab's fill (the gate, the overshield spark). The
-            -- seam spark's target (the gate bar's texture) is creation-static and never re-arms.
+            -- After the retexture, re-arm the modern base's one-time fill anchor and the glow
+            -- anchors that can ride ab's fill (the gate, the overshield spark). The seam spark's
+            -- target (the gate bar's texture) is creation-static and never re-arms.
             if fw and fw._modernBase then fw._modernBase._fillAnchored = nil end
             if fw and fw._edgeGate then fw._edgeGate._ge = nil end
             if fw and fw._bfSpark then fw._bfSpark._anc = nil end

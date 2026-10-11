@@ -225,8 +225,13 @@ function ns.SetupViewerHooks()
                         QueueReanchor()
                     end)
                     local isBarViewer = viewer == _G["BuffBarCooldownViewer"]
-                    hooksecurefunc(frame, "OnActiveStateChanged", function()
-                        if isBarViewer and ns.WakeTBBTickIfParked then ns.WakeTBBTickIfParked() end
+                    hooksecurefunc(frame, "OnActiveStateChanged", function(itemFrame)
+                        -- Wake a parked Tracking Bars tick when this item activates (a
+                        -- deactivation has nothing to show): the sleeper's probe can run
+                        -- before the item binds its aura, reads a secret aura as nil and
+                        -- hears no target auras. Keep this ahead of the shared pending
+                        -- return below, which any buff item's change holds for two frames.
+                        if isBarViewer and ns.WakeTBBTickIfParked then ns.WakeTBBTickIfParked(itemFrame) end
                         ReapplyPositions()
                         if _activeStateReanchorPending then return end
                         _activeStateReanchorPending = true
@@ -326,20 +331,51 @@ function ns.SetupViewerHooks()
             -- CD/utility spell sets are static -- rebuilt by FullCDMRebuild
             -- on spec/talent/equip events only. SetPoint hook on each icon
             -- handles positioning when Blizzard calls Layout.
+            -- The viewers are Edit Mode systems: pin them through the saved C
+            -- methods so Edit Mode's anchor sweep and snap state stay Blizzard's.
+            -- The SetPoint hook below watches Blizzard's own writes only.
+            -- A pin asked for in combat runs once combat ends (one queued pin
+            -- per viewer, however many asks).
+            local pinKey = "CDMViewerPin" .. barKey
             local function SyncViewerToBar()
-                if InCombatLockdown() then return end
+                if InCombatLockdown() then
+                    ns.CombatQueue.Defer(pinKey, SyncViewerToBar)
+                    return
+                end
                 local container = cdmBarFrames[barKey]
                 if not container then return end
-                viewer:ClearAllPoints()
-                viewer:SetPoint("TOPLEFT", container, "TOPLEFT", 0, 0)
-                viewer:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
+                EllesmereUI.ClearFramePoints(viewer)
+                EllesmereUI.SetFramePoint(viewer, "TOPLEFT", container, "TOPLEFT", 0, 0)
+                EllesmereUI.SetFramePoint(viewer, "BOTTOMRIGHT", container, "BOTTOMRIGHT", 0, 0)
             end
+            -- After a Blizzard SetPoint, a viewer in the bottom managed column
+            -- is pinned at once, so the column's next pass measures our bar. A
+            -- viewer outside it (moved or snapped in Edit Mode) is pinned once
+            -- Blizzard's call has returned: Edit Mode reads the anchor back right
+            -- after its own SetPoint (a snap break saves it into the layout) and
+            -- must find its own anchor there, never our bar.
+            local pinLater
             hooksecurefunc(viewer, "Layout", SyncViewerToBar)
             hooksecurefunc(viewer, "SetPoint", function(_, _, relativeTo)
-                if InCombatLockdown() then return end
+                if InCombatLockdown() then
+                    SyncViewerToBar() -- queues the pin for combat end
+                    return
+                end
                 local container = cdmBarFrames[barKey]
                 if relativeTo == container then return end
-                SyncViewerToBar()
+                local parent = viewer:GetParent()
+                if not issecretvalue(parent) and parent == BottomManagedFrameContainer then
+                    SyncViewerToBar()
+                    return
+                end
+                if not pinLater then
+                    pinLater = ns.TakeShell()
+                    pinLater:SetScript("OnUpdate", function(self)
+                        self:Hide()
+                        SyncViewerToBar()
+                    end)
+                end
+                pinLater:Show()
             end)
             SyncViewerToBar()
         end
@@ -1074,11 +1110,10 @@ local function LockCooldownViewerFrames()
         local frame = _G[vName]
         if IsCooldownViewerSystemFrame(frame) and ShouldLockViewer(frame) then
             frame:SetMovable(false)
+            -- No drag button on the selection box: a drag never starts there, so
+            -- Edit Mode's own OnDragStart / OnDragStop (left in place) never run.
             local selection = frame.Selection
-            if selection then
-                selection:SetScript("OnDragStart", nil)
-                selection:SetScript("OnDragStop", nil)
-            end
+            if selection then selection:RegisterForDrag() end
         end
     end
 end
@@ -1112,10 +1147,6 @@ function ns.SetupEditModeLock()
                     end
                     ShowEditModeLockNotice()
                 end)
-
-                hooksecurefunc(frame, "HighlightSystem", function() end)
-
-                hooksecurefunc(frame, "ClearHighlight", function() end)
             end
         end
 
