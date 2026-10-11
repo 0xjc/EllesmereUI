@@ -466,11 +466,11 @@ initFrame:SetScript("OnEvent", function(self)
         local pickRow
         pickRow, h = W:DualRow(parent, y,
             { type = "dropdown", text = "Gear Set", values = gearValues, order = gearOrder,
-              tooltip = "The Equipment Manager set the Save buttons below assign.",
+              tooltip = "The Equipment Manager set the Save buttons below assign. No gear set leaves the saved gear as it is; Clear removes both.",
               getValue = function() return ns.GetSelectedSet() or NONE end,
               setValue = function(v) ns.SetSelectedSet(v ~= NONE and v or nil) Refresh() end },
             { type = "dropdown", text = "Talent Loadout", values = talentValues, order = talentOrder,
-              tooltip = "The talent loadout the Save buttons below assign. Only loadouts belonging to your current specialization are listed.",
+              tooltip = "The talent loadout the Save buttons below assign. Only loadouts belonging to your current specialization are listed. No talent loadout leaves the saved talents as they are; Clear removes both.",
               getValue = SelectedTalentKey,
               setValue = SetSelectedTalentKey }
         ); y = y - h

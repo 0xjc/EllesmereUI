@@ -10,10 +10,12 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 -------------------------------------------------------------------------------
 
 local ADDON_NAME, ns = ...
-if not (EllesmereUI and EllesmereUI._ModuleNS and EllesmereUI.HexColor and EllesmereUI.COLOR_CODES) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring
+if not (EllesmereUI and EllesmereUI._ModuleNS and EllesmereUI.HexColor and EllesmereUI.COLOR_CODES and EllesmereUI.NewCombatQueue) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring
 EllesmereUI._ModuleNS[ADDON_NAME] = ns  -- LOD options file reads this module ns via the registry
 
-local IGS -- created only when automation or an explicit action needs events
+-- Built together on first need (automation switched on, or a button press):
+-- the event frame and the combat queue that holds a swap due after combat.
+local IGS, CombatQueue
 
 -- Chat colours follow the live EllesmereUI accent.
 local function AC() return EllesmereUI.HexColor(EllesmereUI.GetAccentColor()) end
@@ -63,7 +65,7 @@ for _, info in ipairs(INSTANCE_TYPE_ORDER) do TYPE_LABELS[info.key] = info.label
 local function TypeLabel(key) return TYPE_LABELS[key] or tostring(key) end
 
 local SetEventsEnabled -- forward: defined with the event gating at the end
-local UpdateRegenRegistration -- forward: same
+local UpdateRequestEvents -- forward: same
 
 -- One request per channel. Deferred event work retains request identity so an
 -- older operation cannot apply after another selection, reset, or context.
@@ -342,11 +344,16 @@ end
 -- Gear sets
 -- -----------------------------------------------------------------------------
 
+local function GetEquipmentSetIDs()
+    local ok, ids = pcall(C_EquipmentSet.GetEquipmentSetIDs)
+    if ok and type(ids) == "table" then return ids end
+end
+
 -- A populated catalog can prove that a name is missing. An empty catalog is
 -- not evidence of readiness; pending lookups wait for equipment/bag events.
 local function EquipmentCacheReady(allowEmpty)
-    local ok, ids = pcall(C_EquipmentSet.GetEquipmentSetIDs)
-    if not ok or type(ids) ~= "table" then return false end
+    local ids = GetEquipmentSetIDs()
+    if not ids then return false end
     if #ids == 0 then return allowEmpty == true end
     -- IDs present but names not yet populated is also "warming up"
     local name = C_EquipmentSet.GetEquipmentSetInfo(ids[1])
@@ -357,7 +364,7 @@ local function GetEquipmentSetIDByName(setName)
     if not setName or setName == "" then return nil end
 
     local wanted = tostring(setName):lower()
-    for _, setID in ipairs(C_EquipmentSet.GetEquipmentSetIDs()) do
+    for _, setID in ipairs(GetEquipmentSetIDs() or {}) do
         local name = C_EquipmentSet.GetEquipmentSetInfo(setID)
         if name and name:lower() == wanted then
             return setID, name
@@ -380,7 +387,7 @@ local function ByNameLowerAsc(a, b) return tostring(a.name):lower() < tostring(b
 -- Read live: only the settings page lists sets, and only while it is open.
 local function ListEquipmentSetsDetailed()
     local sets = {}
-    for _, setID in ipairs(C_EquipmentSet.GetEquipmentSetIDs()) do
+    for _, setID in ipairs(GetEquipmentSetIDs() or {}) do
         local name, icon = C_EquipmentSet.GetEquipmentSetInfo(setID)
         if name then table.insert(sets, { name = name, icon = icon }) end
     end
@@ -460,7 +467,7 @@ FinishRequest = function(request)
     if not request or requests[request.kind] ~= request then return end
     requests[request.kind] = nil
     if request.kind == "talent" then HideSpecChangeWarning() end
-    UpdateRegenRegistration()
+    UpdateRequestEvents()
 end
 
 CancelRequests = function(automaticOnly)
@@ -479,7 +486,7 @@ local function BeginRequest(kind, value, reason, manual)
         tries = 0,
     }
     requests[kind] = request
-    UpdateRegenRegistration()
+    UpdateRequestEvents()
     return request
 end
 
@@ -519,6 +526,12 @@ local function DeferRequest(request, message, combat, waitReason, quiet)
         return
     end
     request.waitReason = combat and "combat" or waitReason or "availability"
+    if combat then
+        -- The queue has no cancel: a request that ended meanwhile is skipped.
+        CombatQueue.Defer(request.kind, function()
+            if requests[request.kind] == request and request.waitReason == "combat" then ScheduleRequest(request) end
+        end)
+    end
     -- One line per kind of wait. Combat lines can be muted (EllesmereUI.Print
     -- in raid combat) and quiet waits print nothing; neither may swallow a
     -- later wait's line.
@@ -530,7 +543,7 @@ local function DeferRequest(request, message, combat, waitReason, quiet)
             or request.waitReason == "restricted" and " The swap waits until they are allowed again."
             or " Waiting for a game update; Check Now can retry."))
     end
-    UpdateRegenRegistration()
+    UpdateRequestEvents()
 end
 
 TryEquipSet = function(request)
@@ -575,7 +588,7 @@ TryEquipSet = function(request)
     request.setID, request.setName = info.setID, info.name
     request.verifying = true
     request.swapFinished = nil
-    UpdateRegenRegistration()
+    UpdateRequestEvents()
     local okCall, result = pcall(C_EquipmentSet.UseEquipmentSet, info.setID)
     if not RequestIsCurrent(request) then return end
     if not okCall or result == false then
@@ -985,7 +998,7 @@ TryLoadTalentLoadout = function(request)
     request.commitSignal, request.commitCastGUID, request.commitFailed = nil, nil, nil
     request.commitCastSucceeded = nil
     request.casting = nil
-    UpdateRegenRegistration()
+    UpdateRequestEvents()
     local okLoad, loadError = pcall(C_ClassTalents.SwitchToLoadoutByName, loadout.name)
     -- This command has no load-result return. Confirm through native events
     -- and applied-node evidence, never merely because the call returned.
@@ -1125,7 +1138,7 @@ local function ResumeRequests(waitReason)
             ScheduleRequest(request)
         end
     end
-    UpdateRegenRegistration()
+    UpdateRequestEvents()
 end
 
 -- One assignment slot for chat: "Holy Raid / Elle Raid", "Holy Raid / no talents".
@@ -1143,7 +1156,8 @@ local function SlotTables(key, isType)
     return W.instanceSets, W.talentInstanceSets, scopeID
 end
 
--- Save the selected set and loadout into one slot. label names it in chat.
+-- Save the selected set and/or loadout into one slot; an empty picker keeps
+-- that half as saved. label names it in chat.
 local function SaveSlot(key, isType, label)
     local gTbl, tTbl, scopeID = SlotTables(key, isType)
     local changed = false
@@ -1271,8 +1285,6 @@ local function OnEvent(self, event, ...)
         HandlePossibleInstanceEntry("zone changed")
         ResumeRequests("availability")
         RequestRefresh()
-    elseif event == "PLAYER_REGEN_ENABLED" then
-        ResumeRequests("combat")
     elseif event == "PLAYER_REGEN_DISABLED" then
         HideSpecChangeWarning()
     elseif event == "CHALLENGE_MODE_START" then
@@ -1368,6 +1380,7 @@ local function SetEventState(event, wanted, playerOnly)
         if not wanted then return end
         IGS = CreateFrame("Frame")
         IGS:SetScript("OnEvent", OnEvent)
+        CombatQueue = EllesmereUI.NewCombatQueue(CreateFrame("Frame"))
         registeredEvents = {}
     end
     if (registeredEvents[event] or false) == wanted then return end
@@ -1381,7 +1394,7 @@ local function SetEventState(event, wanted, playerOnly)
     end
 end
 
-UpdateRegenRegistration = function()
+UpdateRequestEvents = function()
     local gear, talent = requests.gear, requests.talent
     local db = EllesmereUILoadoutManagerDB
     local wantWork = eventsOn or gear or talent
@@ -1393,7 +1406,6 @@ UpdateRegenRegistration = function()
     for _, event in ipairs(GEAR_REQUEST_EVENTS) do SetEventState(event, gear) end
     for _, event in ipairs(TALENT_REQUEST_EVENTS) do SetEventState(event, talent) end
     for _, event in ipairs(TALENT_CAST_EVENTS) do SetEventState(event, talent and talent.inFlight, true) end
-    SetEventState("PLAYER_REGEN_ENABLED", gear or talent)
     SetEventState("PLAYER_REGEN_DISABLED", talent)
     local availability = (gear and gear.waitReason == "availability") or (talent and talent.waitReason == "availability")
     SetEventState("PLAYER_STOPPED_MOVING", availability)
@@ -1406,7 +1418,7 @@ end
 
 SetEventsEnabled = function(on)
     eventsOn = on and true or false
-    UpdateRegenRegistration()
+    UpdateRequestEvents()
 end
 
 -- Every setting lives on the settings page; /lm opens it.
@@ -1502,7 +1514,7 @@ function ns.SetChannelEnabled(kind, value)
     EllesmereUILoadoutManagerDB[kind == "gear" and "gearEnabled" or "talentEnabled"] = value and true or false
     local request = requests[kind]
     if not value and request and not request.manual then FinishRequest(request) end
-    UpdateRegenRegistration()
+    UpdateRequestEvents()
     RequestRefresh()
 end
 
