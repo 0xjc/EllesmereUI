@@ -473,6 +473,7 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                     if t.maxStacksGlow and t.maxStacksGlow > 0 then ns._cdmAnyMaxStacksGlow = true end
                     if t.desatNotActive then ns._cdmAnyDesatNotActive = true end
                     if t.noDesatOnCD then ns._cdmAnyNoDesatOnCD = true end
+                    if t.noResourceTint then ns._cdmAnyNoResourceTint = true end
                     if t.chargeHideCdText then ns._cdmAnyChargeHideCdText = true end
                     if t.hideChargeText then ns._cdmAnyHideChargeText = true end
                     if t.suppressGCD then ns._cdmAnySuppressGcd = true end
@@ -2937,7 +2938,24 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
 
                     -- Cooldown Saturation (preset/custom): mirror of the regular-spell row.
                     -- These icons are greyed by the Fake-Active engine rather than by Blizzard, so the runtime reads this key in PresetKeepsColor instead of the SetDesaturated hook -- same setting, same key name.
-                    MakeSubnavRow("Cooldown Saturation", KEEP_COLORED_ITEMS,
+                    -- Spells added by Spell ID also get "+ Ignore Resource Cost" (racials and
+                    -- items carry no resource tint); the runtime reads it in PresetIgnoresResourceTint.
+                    local satItems = KEEP_COLORED_ITEMS
+                    if sd.customSpellIDs and sd.customSpellIDs[spellID]
+                       and not (ns._myRacialsSet and ns._myRacialsSet[spellID]) then
+                        satItems = { KEEP_COLORED_ITEMS[1], KEEP_COLORED_ITEMS[2],
+                            { val = "ignoreResource", label = "+ Ignore Resource Cost",
+                              tooltip = "Keeps the icon in full color while you lack the resource to cast it. Out of range still tints it red.",
+                              toggleGet = function() return cas.noResourceTint == true end,
+                              toggleSet = function(v)
+                                  SetCasOwn("noResourceTint", v or nil)
+                                  if v then ns._cdmAnyNoResourceTint = true end
+                                  if ns._MarkPresetCdDirty then ns._MarkPresetCdDirty() end
+                              end,
+                              applyKeys = { "noResourceTint" },
+                              applyWrite = function(t, v) t.noResourceTint = v and true or false end } }
+                    end
+                    MakeSubnavRow("Cooldown Saturation", satItems,
                         function()
                             local v = cas.noDesatOnCD
                             if v == false then v = nil end  -- blocked slot value = None
@@ -2949,7 +2967,7 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                             if ns.FakeActive_Rearm then ns.FakeActive_Rearm() end
                             if ns.RefreshCDMIconAppearance then ns.RefreshCDMIconAppearance(barKey) end
                         end,
-                        function() return not cas.noDesatOnCD end,
+                        function() return not cas.noDesatOnCD and not cas.noResourceTint end,
                         nil,
                         { apply = { keys = { "noDesatOnCD" },
                                     write = function(t, v) t.noDesatOnCD = v or false end } })
@@ -3475,9 +3493,21 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
 
                 -- 3c. Cooldown Saturation (default = nil/none): suppresses the grey-out
                 -- Blizzard applies while the spell is on cooldown -- grouped with Non Active State above because both own the icon's saturation.
+                -- "+ Ignore Resource Cost" is an independent toggle (NOT part of the
+                -- single-select): drops Blizzard's blue short-on-resource tint, keeps red out of range.
                 local KEEP_COLORED_ITEMS = {
                     { val = nil,  label = "None" },
                     { val = true, label = "Keep Colored (On CD)" },
+                    { val = "ignoreResource", label = "+ Ignore Resource Cost",
+                      tooltip = "Keeps the icon in full color while you lack the resource to cast it. Out of range still tints it red.",
+                      toggleGet = function() return ss.noResourceTint == true end,
+                      toggleSet = function(v)
+                          EnsureSS(); SetOwn("noResourceTint", v or nil)
+                          if v then ns._cdmAnyNoResourceTint = true end
+                          if ns.RefreshCDMIconAppearance then ns.RefreshCDMIconAppearance(barKey) end
+                      end,
+                      applyKeys = { "noResourceTint" },
+                      applyWrite = function(t, v) t.noResourceTint = v and true or false end },
                 }
                 local cdSatRow = MakeSubnavRow("Cooldown Saturation", KEEP_COLORED_ITEMS,
                     function() return ss.noDesatOnCD and true or nil end,
@@ -3486,7 +3516,7 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                         if v then ns._cdmAnyNoDesatOnCD = true end
                         if ns.RefreshCDMIconAppearance then ns.RefreshCDMIconAppearance(barKey) end
                     end,
-                    function() return ss.noDesatOnCD == nil end,
+                    function() return ss.noDesatOnCD == nil and ss.noResourceTint == nil end,
                     nil,
                     { apply = { keys = { "noDesatOnCD" },
                                 write = function(t, v) t.noDesatOnCD = v or false end } })

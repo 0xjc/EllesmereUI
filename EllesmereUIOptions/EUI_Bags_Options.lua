@@ -311,7 +311,7 @@ initFrame:SetScript("OnEvent", function(self)
                               if _G.EUI_Bags and _G.EUI_Bags.RefreshInventory then _G.EUI_Bags:RefreshInventory() end
                           end },
                         { type="toggle", label="Hide from Other Categories",
-                          tooltip="Show pinned items only in Pinned Items, hiding them from other categories and Recent Items. OneBag/MultiBag keep their normal slots. Unpinning an item returns it to its category.",
+                          tooltip="Pinned items show only in Pinned Items, not in their categories or Recent Items.",
                           get=function() return db.profile.bagHidePinnedInCategories == true end,
                           set=function(v)
                               db.profile.bagHidePinnedInCategories = v
@@ -1035,7 +1035,7 @@ initFrame:SetScript("OnEvent", function(self)
                   tooltip="Also use the split dialog with Auto Split in OneBag, MultiBag, the reagent bag, the bank and the guild bank, replacing Blizzard's split popup there. All Items and category views always use it.",
                   getValue=function() return db.profile.bagStackSplitter == true end,
                   setValue=function(v) db.profile.bagStackSplitter = v and true or false end },
-                { type="toggle", text="Toggle Bags with Character Window",
+                { type="toggle", text="Open Bags with Character Window",
                   tooltip="The bags automatically open when the character window is opened and close again when the character window is closed.",
                   getValue=function() return db.profile.bagOpenWithCharacter == true end,
                   setValue=function(v)

@@ -1337,8 +1337,11 @@ local function BuildNameplatePreview(parent, parentW)
         end
         local reIconSz = (clPos ~= "none") and (DBVal(clPos .. "SlotSize") or defaults[clPos .. "SlotSize"] or 20) or 20
         local showCL = optState.showClassificationPreview or optState._sliderDragShowClassification
+        local hideRare = DBVal("classificationHideRare")
         classIcon:SetSize(reIconSz, reIconSz)
-        if clPos == "none" or not showCL then
+        -- Both halves off (the WoW Forever look's seed can leave that when the
+        -- Quest Indicator was already off): live plates draw nothing there.
+        if clPos == "none" or not showCL or (hideRare and DBVal("classificationHideQuest")) then
             classIcon:Hide()
             if pf._classOverlay then pf._classOverlay:Hide() end
         else
@@ -1357,9 +1360,8 @@ local function BuildNameplatePreview(parent, parentW)
             elseif clPos == "bottom" then
                 classIcon:SetPoint("TOP", cast, "BOTTOM", clXOff, -2 + clYOff)
             end
-            -- The quest mark while the Rare Indicator is off (or under the WoW
-            -- Forever look, whose plates show no elite or rare marks).
-            if DBVal("classificationHideRare") or EllesmereUI.BlizzStyle.Forever("nameplates") then
+            -- The quest mark while the Elite/Rare Indicator is off.
+            if hideRare then
                 classIcon:SetAtlas("Crosshair_Quest_64")
             else
                 classIcon:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\elite-rare-indicator.png")

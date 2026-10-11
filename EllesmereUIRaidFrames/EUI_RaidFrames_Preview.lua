@@ -2195,7 +2195,7 @@ local function ApplyPreviewData(f, index)
                 if bfFill then
                     bfFill:SetDrawLayer("ARTWORK", 1)
                     bfFill:SetHorizTile(false); bfFill:SetVertTile(false)
-                    if mask then bfFill:AddMaskTexture(mask) end
+                    if mask then ns.RF_AddMaskOnce(bfFill, mask) end
                 end
             else
                 ns.HideModernAbsorbBase(f._absorbBar)
@@ -2209,7 +2209,7 @@ local function ApplyPreviewData(f, index)
                     bfFill:SetDrawLayer("ARTWORK", 1)
                     bfFill:SetHorizTile(tiled)
                     bfFill:SetVertTile(tiled)
-                    if mask then bfFill:AddMaskTexture(mask) end
+                    if mask then ns.RF_AddMaskOnce(bfFill, mask) end
                 end
 
                 -- Apply style to forward bar
@@ -2221,7 +2221,7 @@ local function ApplyPreviewData(f, index)
                         fwFill:SetDrawLayer("ARTWORK", 1)
                         fwFill:SetHorizTile(tiled)
                         fwFill:SetVertTile(tiled)
-                        if mask then fwFill:AddMaskTexture(mask) end
+                        if mask then ns.RF_AddMaskOnce(fwFill, mask) end
                     end
                 end
             end
@@ -2496,7 +2496,7 @@ local function ApplyPreviewData(f, index)
                 haFillPv:SetDrawLayer("ARTWORK", 2)
                 haFillPv:SetHorizTile(tiled)
                 haFillPv:SetVertTile(tiled)
-                if mask then haFillPv:AddMaskTexture(mask) end
+                if mask then ns.RF_AddMaskOnce(haFillPv, mask) end
             end
             f._healAbsorbBar:SetMinMaxValues(0, 100)
             f._healAbsorbBar:SetValue(haAmt)
@@ -3378,7 +3378,7 @@ local function ApplyPreviewData(f, index)
                 local rc = f._roleIcon:GetParent()
                 if rc then
                     rc:SetFrameLevel(f:GetFrameLevel()
-                        + (s.roleIconBehindBorder and 7 or (ns.LVL_AURA - 1)))
+                        + (s.roleIconBehindBorder and ns.LVL_ROLE_BEHIND or (ns.LVL_AURA - 1)))
                 end
                 f._roleIcon:ClearAllPoints()
                 local pos = (s.roleIconPosition or "bottomleft"):upper()

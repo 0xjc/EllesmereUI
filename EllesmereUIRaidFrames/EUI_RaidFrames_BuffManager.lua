@@ -1577,10 +1577,10 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
     local rawPowerH = (s.powerShowForHealer or s.powerShowForTank or s.powerShowForDPS) and (s.powerHeight or 4) or 0
     local matchPowerBorder = s.powerBorderMatchFrame == true and rawPowerH > 0
         and (s.powerBorderStyle == "divider" or s.powerBorderStyle == "border") and not ns.RF_Stock()
-        and (s.borderTexture == "pixels" or s.borderTexture == "pixels-textured")
+        and EllesmereUI._pixelArtBorders[s.borderTexture]
     local rawTopBarH = s.topNameBarEnabled and (s.topNameBarHeight or 20) or 0
     local matchTopNameDivider = s.topNameBarDivider == true and rawTopBarH >= 4 and (s.borderSize or 1) > 0
-        and not ns.RF_Stock() and (s.borderTexture == "pixels" or s.borderTexture == "pixels-textured")
+        and not ns.RF_Stock() and EllesmereUI._pixelArtBorders[s.borderTexture]
     -- Show on Bottom: the bar takes the bottom edge, health starts at the top and
     -- the power bar sits on the bar (as the live LayoutTopNameBar lays it out).
     local rawBottomY = (s.topNameBarEnabled and s.topNameBarBottom == true) and rawTopBarH or 0
@@ -1903,6 +1903,9 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
             ns.BM_ApplyPreviewIndicators(pv, 1, db.profile)
         end
     end
+    -- The Assigned Buffs filter picks (the manager-pages file) update the
+    -- frames and preview in place through this.
+    ns._bmReloadAndUpdate = ReloadAndUpdate
 
     -- Full update: also rebuilds the page (preview, sidebar, settings) -- used by create/delete/toggle/dropdown changes that alter structure.
     local function ReloadAndRebuild()
@@ -2247,26 +2250,29 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
             end
         end
     end
-    for _, ind in ipairs(specIndicators) do
-        -- v2: tiles render the RESOLVED spell union (assigned filters + direct spells) -- the raw list is empty for filter-driven groups.
+    -- v2: tiles render the RESOLVED spell union (assigned filters + direct
+    -- spells) -- the raw list is empty for filter-driven groups. The face
+    -- prefers a spell the EDITED bucket's spec/class actually uses (known
+    -- spell > class-tagged > all-class). Returns face, subtitle.
+    local function TileFaceSub(ind)
         local tileSpells = ind.spells
-        if ns.BM2_ResolveSpells then
-            tileSpells = ns.BM2_ResolveSpells(ind)
+        if ns.BM2_ResolveSpells then tileSpells = ns.BM2_ResolveSpells(ind) end
+        if not (tileSpells and #tileSpells > 0) then return 136243, EllesmereUI.L("(no spells)") end
+        local names = {}
+        for _, sid in ipairs(tileSpells) do
+            names[#names + 1] = SPELL_NAME_BY_ID[sid]
+                or (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(sid))
+                or tostring(sid)
         end
-        local face = 136243
-        local subtitle = EllesmereUI.L("(no spells)")
-        if tileSpells and #tileSpells > 0 then
-            -- v2: prefer a spell the EDITED bucket's spec/class actually uses as the tile's face (known spell > class-tagged > all-class).
-            face = GetSpellIcon((ns.BM2_PreferredSpell
-                and ns.BM2_PreferredSpell(ind, SelectedBucketClass())) or tileSpells[1])
-            local names = {}
-            for _, sid in ipairs(tileSpells) do
-                names[#names + 1] = SPELL_NAME_BY_ID[sid]
-                    or (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(sid))
-                    or tostring(sid)
-            end
-            subtitle = table.concat(names, ", ")
-        end
+        return GetSpellIcon((ns.BM2_PreferredSpell
+            and ns.BM2_PreferredSpell(ind, SelectedBucketClass())) or tileSpells[1]),
+            table.concat(names, ", ")
+    end
+    for _, ind in ipairs(specIndicators) do
+        -- The selected indicator's filters are edited live in the settings
+        -- column, so its tile re-reads face and subtitle on every widget refresh.
+        local isSel = selectedIndicator and selectedIndicator.id == ind.id
+        local face, subtitle = TileFaceSub(ind)
 
         local typeInfo2 = INDICATOR_TYPE_MAP[ind.type]
         local typeName = typeInfo2 and typeInfo2.name or ind.type
@@ -2277,10 +2283,12 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
 
         local tileH, tile = EllesmereUI.BuildManagerTile(sidebarFrame, tileY, {
             width = sidebarW, fontPath = fontPath, icon = face,
+            iconFn = isSel and function() return (TileFaceSub(ind)) end or nil,
             -- v2: named indicators (the seeded filter groups) show their name.
             title = ind.name and EllesmereUI.L(ind.name) or EllesmereUI.L(typeName),
             titleUnclamped = true, posText = posText, subtitle = subtitle,
-            selected = selectedIndicator and selectedIndicator.id == ind.id,
+            subtitleFn = isSel and function() return select(2, TileFaceSub(ind)) end or nil,
+            selected = isSel,
             enabled = ind.enabled,
             showToggle = true,
             onSelect = function()
@@ -2555,7 +2563,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                         local filters = (ns.BM2_Filters and ns.BM2_Filters()) or {}
                         local fItems = {
                             { isTopAction = true, label = "Edit Filters", onClick = function()
-                                if ns.BMP_ShowFilterEditor then ns.BMP_ShowFilterEditor() end
+                                if ns.BMP_ShowFilterEditor then ns.BMP_ShowFilterEditor(popup._v2Filters, popup._v2NegFilters) end
                             end },
                             { isHeader = true, label = "Show", rightLabel = "Hide" },
                         }

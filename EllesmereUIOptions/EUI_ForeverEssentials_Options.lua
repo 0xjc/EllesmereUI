@@ -52,10 +52,7 @@ initFrame:SetScript("OnEvent", function(self)
             if pageName == PAGE_TRAVEL then return _G._EUI_TravelHeaderBuilder end
             if pageName == PAGE_THREAT then return _G._EUI_ThreatHeaderBuilder end
             if pageName == PAGE_LOOT then return _G._EUI_LootHeaderBuilder end
-            if pageName == PAGE_MACROS then
-                local MM = EllesmereUI._MacroManager
-                if MM and MM.Enabled() then return _G._EUI_MacrosHeaderBuilder end
-            end
+            if pageName == PAGE_MACROS and EllesmereUI._MacroManager.Enabled() then return _G._EUI_MacrosHeaderBuilder end
         end,
         onReset = function()
             if EllesmereUIDB then
@@ -63,8 +60,7 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUIDB.threatMeter = nil
                 EllesmereUIDB.lootFeed = nil
                 EllesmereUIDB.spellUprank = nil
-                -- The stored builder models are user data: only the switch resets.
-                if EllesmereUIDB.macroManager then EllesmereUIDB.macroManager.enabled = nil end
+                EllesmereUIDB.macroManager = nil
                 if EllesmereUIDB.unlockAnchors then
                     EllesmereUIDB.unlockAnchors.EUI_FlightTimer = nil
                     EllesmereUIDB.unlockAnchors.EUI_ThreatMeter = nil

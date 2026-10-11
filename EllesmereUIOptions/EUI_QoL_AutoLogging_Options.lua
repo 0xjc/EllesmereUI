@@ -60,10 +60,17 @@ local function TeleCfg()
     return EllesmereUIDB.teleportPrompt
 end
 
+-- Read-only: the /way table appears on the first write, so viewing the page
+-- saves nothing.
+local NO_WAY_CFG = {}
 local function WayCfg()
-    if not EllesmereUIDB then return {} end
+    return EllesmereUIDB and EllesmereUIDB.waypointCmd or NO_WAY_CFG
+end
+
+local function SetWay(key, value)
+    if not EllesmereUIDB then return end
     EllesmereUIDB.waypointCmd = EllesmereUIDB.waypointCmd or {}
-    return EllesmereUIDB.waypointCmd
+    EllesmereUIDB.waypointCmd[key] = value
 end
 
 -- Built as the tail of the Quality of Life page (chained from BuildQoLPage),
@@ -200,11 +207,11 @@ local function BuildAutoLoggingPage(pageName, parent, yOffset)
     wayRow, h = W:DualRow(parent, y,
         { type    = "toggle",
           text    = "Enable /way Command",
-          tooltip = "Prints a clickable link that places a native map pin: /way [#mapID or zone] x y [description]. /way is skipped when another addon already owns it; /euiway always works while enabled.",
+          tooltip = "Adds /way, which prints a map pin link.",
           -- Off by default.
           getValue = function() return WayCfg().enabled == true end,
           setValue = function(v)
-              WayCfg().enabled = v
+              SetWay("enabled", v or nil)
               EllesmereUI:RefreshPage()
               EllesmereUI:ShowConfirmPopup({
                   title = "Reload Required",
@@ -217,21 +224,24 @@ local function BuildAutoLoggingPage(pageName, parent, yOffset)
         EllesmereUI.BlankRowCfg()
     ); y = y - h
 
-    -- The arrival message for hand-placed pins (off by default, read live by
-    -- EllesmereUIQoL_Waypoint.lua).
-    if not EllesmereUI._prebuilding then
-        EllesmereUI.BuildInlineCog(wayRow._leftRegion, {
-            title = "/way Command",
-            disabled = function() return WayCfg().enabled ~= true end,
-            disabledTooltip = "Enable /way Command",
-            rows = {
-                { type="toggle", label="Hand-Placed Pin Arrival",
-                  tooltip="Also announces arrival at a map pin you placed yourself (ctrl-click on the map).",
-                  get=function() return WayCfg().manualArrival == true end,
-                  set=function(v) WayCfg().manualArrival = v end },
-            },
-        })
-    end
+    -- The arrival message for hand-placed pins (off by default). The runtime
+    -- reads it live and listens for arrivals only while it or a /way list
+    -- needs them, so a change re-syncs that listener.
+    EllesmereUI.BuildInlineCog(wayRow._leftRegion, {
+        title = "/way Command",
+        disabled = function() return WayCfg().enabled ~= true end,
+        disabledTooltip = "Enable /way Command",
+        rows = {
+            { type="toggle", label="Hand-Placed Pin Arrival",
+              tooltip="Also announces arrival at pins you place.",
+              get=function() return WayCfg().manualArrival == true end,
+              set=function(v)
+                  SetWay("manualArrival", v or nil)
+                  local sync = EllesmereUI._ModuleNS["EllesmereUIQoL"].WaypointArrivalSync
+                  if sync then sync() end
+              end },
+        },
+    })
 
     _, h = W:Spacer(parent, y, 20); y = y - h
 
@@ -334,12 +344,10 @@ local function BuildAutoLoggingPage(pageName, parent, yOffset)
     end
 
     ---------------------------------------------------------------------------
-    --  JUNK ITEMS (cheapest vendor stacks in your bags)
+    --  JUNK ITEMS (the cheapest junk stacks in your bags; the builder's file
+    --  loads first and shares this file's module gate)
     ---------------------------------------------------------------------------
-    if _G._EUI_BuildJunkListSection then
-        local junkH = _G._EUI_BuildJunkListSection(parent, y, W, EllesmereUI.PP)
-        y = y - junkH
-    end
+    y = y - _G._EUI_BuildJunkListSection(parent, y, W)
 
     return math.abs(y - yOffset)
 end

@@ -1475,11 +1475,14 @@ do
 
     --- A scaleOffset texture's base offset (half its edge). For the Pixels styles a tie
     --- rounds toward the frame, or an odd size leaves their line short of the frame.
+    --- Unsnapped: every caller snaps it once with its offset added (snapping here too
+    --- would round twice when that offset is not a whole pixel).
     function EllesmereUI.BorderHalfEdge(textureKey, edge, es)
         if not EllesmereUI._pixelArtBorders[textureKey] then return edge / 2 end
         local PP = EllesmereUI.PP
         if not (PP.IsNum(es) and es > 0) then es = 1 end
-        return PP.SnapForES(edge / 2 - 0.002 * PP.perfect / es, es)
+        -- 0.002 px under: beats SnapForES's 0.001 px tie-up epsilon.
+        return edge / 2 - 0.002 * PP.perfect / es
     end
 
     --- Check if a border texture uses scaled offset (edgeSize/2 base).
@@ -1701,8 +1704,11 @@ do
                     end
                     bdFrame._edgeFill = fill
                     -- Opaque only: under translucent art a strip would stack darker.
+                    -- The hook stays for good: while the fill is off it returns at once
+                    -- (the apply that turns it on recolours after setting fill.on).
                     hooksecurefunc(bdFrame, "SetBackdropBorderColor", function(self, cr, cg, cb, ca)
                         local f = self._edgeFill
+                        if not f.on then return end
                         for i = 1, 4 do f[i]:SetVertexColor(cr, cg, cb, 1) end
                         local opaque = (ca or 1) >= 0.999
                         if f.opaque ~= opaque then
