@@ -810,8 +810,8 @@ initFrame:SetScript("OnEvent", function(self)
                   tooltip="Choose which icons show in the bag window's top bar; the Junk Icon is the Junk Marker." },
                 { type="toggle", text="Gold Tracking and History",
                   tooltip="Track and display gold amounts from all your characters on hover.",
-                  getValue=function() return db.profile.enableGoldTracking ~= false end,
-                  setValue=function(v) db.profile.enableGoldTracking = v end }
+                  getValue=function() return EllesmereUI.GetGoldLedger().IsTracking() end,
+                  setValue=function(v) EllesmereUI.GetGoldLedger().SetTracking(v) end }
             ); y = y - h
 
             -- Bag Top Bar Icons dropdown (left side), its Sort Options cog to the left
@@ -1068,7 +1068,10 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUIDB.bagPinnedItems = nil
                 EllesmereUIDB.bagItemAssignments = nil
                 EllesmereUIDB.bagJunkPrev = nil
+                EllesmereUIDB.goldLedger = nil
+                -- Legacy gold stores: they stay on disk until a gold module loads and absorbs them.
                 EllesmereUIDB.characterGold = nil
+                EllesmereUIDB.dataBarsGold = nil
                 EllesmereUIDB.warbandGold = nil
                 EllesmereUIDB.bagCurrencyByChar = nil
             end
