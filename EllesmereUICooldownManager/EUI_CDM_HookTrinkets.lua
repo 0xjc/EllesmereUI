@@ -289,6 +289,18 @@ local function PresetKeepsColor(f)
 end
 ns.PresetKeepsColor = PresetKeepsColor
 
+-- Ignore Resource Cost for spells added by Spell ID: their icons are tinted
+-- by our own pass (ns.PaintCustomSpellTint), which reads this instead of the
+-- Blizzard-icon hook. Same cas lookup and session gate shape as above.
+function ns.PresetIgnoresResourceTint(f)
+    if not ns._cdmAnyNoResourceTint then return false end
+    local fc = f and _ecmeFC[f]
+    local sid = fc and fc.spellID
+    if not sid or not ns.GetEffectiveCustomActiveState then return false end
+    local cas = ns.GetEffectiveCustomActiveState(sid)
+    return (cas and cas.noResourceTint) and true or false
+end
+
 local function UpdateTrinketCooldown(slotID)
     local f = _trinketFrames[slotID]
     if not f or not f._trinketIsOnUse then return false end

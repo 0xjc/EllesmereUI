@@ -26,7 +26,7 @@ local EvalMaxStacksFrame = I.EvalMaxStacksFrame
 local HideBlizzardDecorations = I.HideBlizzardDecorations
 local WatchMaxStacksFrame, ApplyCustomIcon = I.WatchMaxStacksFrame, I.ApplyCustomIcon
 local ApplyOnlyNumbers, ArmCdStateEval = I.ApplyOnlyNumbers, I.ArmCdStateEval
-local TryHookSwiftmend = I.TryHookSwiftmend
+local TryHookSwiftmend, ApplyResourceTint = I.TryHookSwiftmend, I.ApplyResourceTint
 
 -------------------------------------------------------------------------------
 --  DecorateFrame
@@ -153,6 +153,7 @@ local function DecorateFrame(frame, barData)
     if fd.decorated then
         -- Late retry: the style block already ran; skip one-time decoration.
         TryHookSwiftmend(frame, fd)
+        ApplyResourceTint(frame, fd)
         ApplyCustomIcon(frame, fd)
         ApplyOnlyNumbers(frame, fd, barData)
         return fd
@@ -175,6 +176,8 @@ local function DecorateFrame(frame, barData)
 
     -- Swiftmend brightness (druid only; retried from the decorated early-return).
     TryHookSwiftmend(frame, fd)
+    -- Ignore Resource Cost (inert until some spell uses it; retried the same way).
+    ApplyResourceTint(frame, fd)
 
     -- First decoration: fd.tex is now available, so Custom Icon can stamp.
     ApplyCustomIcon(frame, fd)
@@ -439,6 +442,10 @@ local function DecorateFrame(frame, barData)
                 -- one check for everyone else. Runs for every icon on login.
                 if ss2 and ss2.desatNotActive then ns._cdmAnyDesatNotActive = true end
                 if ss2 and ss2.noDesatOnCD then ns._cdmAnyNoDesatOnCD = true end
+                if ss2 and ss2.noResourceTint and not fd._resTintHooked then
+                    ns._cdmAnyNoResourceTint = true
+                    ApplyResourceTint(frame, fd)
+                end
                 if ss2 and (ss2.chargeHideSwipe or ss2.hideRechargeEdge) then ns._cdmAnyChargeStyle = true end
                 if ss2 and ss2.maxStacksGlow and ss2.maxStacksGlow > 0 then ns._cdmAnyMaxStacksGlow = true end
                 if ss2 and ss2.activeGlow and ss2.activeGlow > 0 then ns._cdmAnyActiveGlow = true end
@@ -1294,8 +1301,7 @@ local function DecorateFrame(frame, barData)
                 if C_SpellBook and C_SpellBook.FindSpellOverrideByID then
                     liveSid = C_SpellBook.FindSpellOverrideByID(sid2) or sid2
                 end
-                local cseInfo = C_Spell.GetSpellCooldown(liveSid)
-                local onCD = cseInfo and cseInfo.isActive and not cseInfo.isOnGCD
+                local onCD = ns.CdmOnRealCD(frame, C_Spell.GetSpellCooldown(liveSid))
                 if cse == "pixelGlowReady" or cse == "buttonGlowReady" then
                     -- Plain CD Ready Glow: cooldown state only, decided right here
                     -- -- no usability reads, no deferral, no events for genuine
@@ -1377,8 +1383,7 @@ local function DecorateFrame(frame, barData)
                             -- Re-read the cooldown now instead of trusting a value
                             -- sampled inside the secure chain a frame ago (GCD
                             -- transients misreport isActive there).
-                            local ci = C_Spell.GetSpellCooldown(self.sid)
-                            local pOnCD = ci and ci.isActive and not ci.isOnGCD
+                            local pOnCD = ns.CdmOnRealCD(frame, C_Spell.GetSpellCooldown(self.sid))
                             local shouldGlow
                             if self.cse == "glowOnCD" then
                                 shouldGlow = pOnCD

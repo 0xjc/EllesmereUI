@@ -3391,34 +3391,42 @@ end
 --  Bind keyword search (shared by bags and bank): typing exactly BoP / BoE /
 --  WuE (any case) filters by bind type instead of the native tooltip search.
 -------------------------------------------------------------------------------
-local BIND_KEYWORDS = { bop = true, boe = true, wue = true }
+-- In a block so the main chunk's local count (close to the 200 cap) stays put.
+do
+    local BIND_KEYWORDS = { bop = true, boe = true, wue = true }
+    -- One location reused for every slot: a keyword pass visits every item on
+    -- each refresh, and CreateFromBagAndSlot builds a new mixin table per call.
+    local loc = ItemLocation:CreateEmpty()
 
-function EUI_Bags.SetSearchText(text)
-    local k = strtrim(text or ""):lower()
-    EUI_Bags._bindKeyword = BIND_KEYWORDS[k] and k or nil
-    C_Container.SetItemSearch(text)
-end
+    function EUI_Bags.SetSearchText(text)
+        local k = strtrim(text or ""):lower()
+        EUI_Bags._bindKeyword = BIND_KEYWORDS[k] and k or nil
+        C_Container.SetItemSearch(text)
+    end
 
--- Overrides info.isFiltered for the active keyword; no-op when none is active.
-function EUI_Bags.ApplyBindKeyword(info, bag, slot)
-    local k = EUI_Bags._bindKeyword
-    if not k or not info then return end
-    local match = false
-    local loc = ItemLocation:CreateFromBagAndSlot(bag, slot)
-    if loc and C_Item.DoesItemExist(loc) then
-        local isWuE = not info.isBound and C_Item.IsBoundToAccountUntilEquip(loc)
-        if k == "wue" then
-            match = isWuE
-        else
-            local bindType = info.hyperlink and select(14, GetItemInfo(info.hyperlink))
-            if k == "boe" then
-                match = bindType == Enum.ItemBind.OnEquip and not isWuE and not info.isBound
-            else
-                match = bindType == Enum.ItemBind.OnAcquire
+    -- Overrides info.isFiltered for the active keyword; no-op when none is active.
+    function EUI_Bags.ApplyBindKeyword(info, bag, slot)
+        local k = EUI_Bags._bindKeyword
+        if not k or not info then return end
+        local match = false
+        loc:SetBagAndSlot(bag, slot)
+        if C_Item.DoesItemExist(loc) then
+            if k == "bop" then
+                match = info.hyperlink and select(14, GetItemInfo(info.hyperlink)) == Enum.ItemBind.OnAcquire
+            elseif not info.isBound then
+                -- BoE and WuE both mean "not bound yet". WuE reads as OnEquip
+                -- from GetItemInfo, so the account check tells the two apart.
+                local isWuE = C_Item.IsBoundToAccountUntilEquip(loc)
+                if k == "wue" then
+                    match = isWuE
+                else
+                    match = not isWuE and info.hyperlink
+                        and select(14, GetItemInfo(info.hyperlink)) == Enum.ItemBind.OnEquip
+                end
             end
         end
+        info.isFiltered = not match
     end
-    info.isFiltered = not match
 end
 
 -------------------------------------------------------------------------------
@@ -7491,6 +7499,8 @@ local function StartAddon()
     local characterBagHooksInstalled = false
     function ns.ToggleBagsWithCharacterFrame()
         if not BP().bagOpenWithCharacter then return end
+        -- WoW Forever's Gamepad interface style: no hooks on Blizzard windows (see the stand-down below).
+        if ns.PadUIStandDown() then return end
         local frame = _G.CharacterFrame
         if not frame then return end
         if not characterBagHooksInstalled then

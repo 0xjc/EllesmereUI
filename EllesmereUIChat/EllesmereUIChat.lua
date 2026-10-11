@@ -121,6 +121,7 @@ local CHAT_DEFAULTS = {
             showPortals = true,
             showVoice = false,
             showSettings = true,
+            showChatMenu = false,
             showScroll = true,
             hideTooltipOnHover = true,
             sidebarRight = false,
@@ -1463,6 +1464,7 @@ ECHAT.SIDEBAR_CHAIN_REFS = {
     showCopy       = { btn = "copyBtn" },
     showPortals    = { btn = "portalBtn" },
     showVoice      = { btn = "voiceBtn" },
+    showChatMenu   = { btn = "chatMenuBtn" },
     showSettings   = { btn = "settingsBtn" },
 }
 function ECHAT.ApplySidebarIcons()
@@ -1552,6 +1554,7 @@ local SIDEBAR_ICON_REFS = {
     showCopy       = "copyBtn",
     showPortals    = "portalBtn",
     showVoice      = "voiceBtn",
+    showChatMenu   = "chatMenuBtn",
     showSettings   = "settingsBtn",
     showScroll     = "scrollBtn",
 }
@@ -1562,20 +1565,30 @@ local SIDEBAR_ICON_REFS = {
 -- still order Friends, Durability, then the middle group. Scroll is not part
 -- of the chain -- it stays pinned at the sidebar bottom.
 local SIDEBAR_CHAIN_KEYS = {
-    "showFriends", "showGuild", "showDurability", "showCopy", "showPortals", "showVoice", "showSettings",
+    "showFriends", "showGuild", "showDurability", "showCopy", "showPortals", "showVoice", "showChatMenu",
+    "showSettings",
 }
 -- No keystones on Forever, so no season portals (the Minimap button is never
 -- built there either): the M+ Portals icon leaves the chain, which also drops
 -- it from creation and from the options icon list. Every button reader guards.
+-- Chat Menu leaves it under WoW Forever's Gamepad interface style (decided at
+-- load): it hooks Blizzard's chat menu button, which that style's navigation
+-- drives from secure code.
 if EllesmereUI.IS_FOREVER then
+    local gamepad = EllesmereUI.PadGamepadUI()
     for i = #SIDEBAR_CHAIN_KEYS, 1, -1 do
-        if SIDEBAR_CHAIN_KEYS[i] == "showPortals" then table.remove(SIDEBAR_CHAIN_KEYS, i) end
+        local key = SIDEBAR_CHAIN_KEYS[i]
+        if key == "showPortals" or (gamepad and key == "showChatMenu") then table.remove(SIDEBAR_CHAIN_KEYS, i) end
     end
 end
 local SIDEBAR_FALLBACK_ORDER = {
     showFriends = -20, showGuild = -15, showDurability = -10,
-    showCopy = 1, showPortals = 2, showVoice = 3, showSettings = 4,
+    showCopy = 1, showPortals = 2, showVoice = 3, showChatMenu = 4, showSettings = 4,
 }
+-- An icon with no saved place takes its neighbour's (a tie goes to list
+-- position): Chat Menu sorts just above Settings in any saved order, and no
+-- other icon moves.
+local SIDEBAR_FALLBACK_WITH = { showChatMenu = "showSettings" }
 
 -- Chain-icon keys sorted into the user's saved order. Used by the sidebar
 -- creation pass (reload-time source of truth), by ApplySidebarIcons when no
@@ -1591,6 +1604,9 @@ function ECHAT.ResolveSidebarIconOrder()
     end
     local function OrderOf(key)
         local o = map[key]
+        if type(o) == "number" then return o end
+        local with = SIDEBAR_FALLBACK_WITH[key]
+        o = with and map[with]
         if type(o) == "number" then return o end
         return SIDEBAR_FALLBACK_ORDER[key] or 999
     end
@@ -1608,6 +1624,81 @@ function ECHAT.SidebarIconExists(key)
     local cf1 = _G.ChatFrame1
     if not cf1 then return true end
     return CFD(cf1)[ref] ~= nil
+end
+
+-------------------------------------------------------------------------------
+--  Chat Menu: Blizzard's own chat menu button (chat types, emotes, the spoken
+--  language) behind our sidebar icon. Our chat keeps that button invisible;
+--  under the icon it stays at alpha 0 with its mouse back on, so the click
+--  lands on Blizzard's button and the menu, the language pick and the
+--  new-language help tip all run in Blizzard's code. Picking the language
+--  from our code would leave the edit box's language written by us, read by
+--  every message the player sends. Only the top-level button is touched
+--  (anchors, fixed strata and level, mouse), never a key of ours on it, and
+--  its parent stays Blizzard's: its OnShow re-validates the language, so our
+--  code must never be what shows it. Its mouse follows the icon's shown
+--  state, so nothing invisible takes clicks while the icon or the sidebar is
+--  hidden. Hover and press reach the icon through the button's post-hooks
+--  (the menu opens in the button's own handler first); a Shift press opens
+--  no menu, so Free Move drags the icon as usual.
+-------------------------------------------------------------------------------
+ECHAT.CHAT_MENU_GLYPH = "Interface\\AddOns\\EllesmereUI\\media\\micromenu\\menu-options.png"
+do
+    local host  -- our sidebar icon, once attached
+
+    local function Fwd(event, ...)
+        if host:GetScript(event) then ExecuteFrameScript(host, event, ...) end
+    end
+    local function OnEnter(_, motion)
+        host:LockHighlight()
+        Fwd("OnEnter", motion)
+    end
+    local function OnLeave(_, motion)
+        host:UnlockHighlight()
+        Fwd("OnLeave", motion)
+    end
+    local function OnMouseDown(_, button)
+        if button == "LeftButton" then host:SetButtonState("PUSHED") end
+        Fwd("OnMouseDown", button)
+    end
+    local function OnMouseUp(_, button)
+        host:SetButtonState("NORMAL")
+        Fwd("OnMouseUp", button)
+    end
+
+    -- Called once, as the icon is built (only with Chat Menu on at login).
+    function ECHAT.AttachChatMenu(btn)
+        local mb = _G.ChatFrameMenuButton
+        if host or not mb then return end
+        host = btn
+        mb:HookScript("OnEnter", OnEnter)
+        mb:HookScript("OnLeave", OnLeave)
+        mb:HookScript("OnMouseDown", OnMouseDown)
+        mb:HookScript("OnMouseUp", OnMouseUp)
+        btn:HookScript("OnShow", function() mb:EnableMouse(true) end)
+        btn:HookScript("OnHide", function()
+            mb:EnableMouse(false)
+            btn:UnlockHighlight()
+            btn:SetButtonState("NORMAL")
+        end)
+        ECHAT.SeatChatMenu()
+    end
+
+    -- The button over the icon, pinned one level above it. The sidebar's
+    -- strata and level are set once at build, and fixed values keep Blizzard's
+    -- re-levels of the chat frames from carrying the button below the icon.
+    -- Re-run after the login pass that hides Blizzard's chat buttons.
+    function ECHAT.SeatChatMenu()
+        local mb = _G.ChatFrameMenuButton
+        if not (host and mb) then return end
+        mb:ClearAllPoints()
+        mb:SetAllPoints(host)
+        mb:SetFrameStrata(host:GetFrameStrata())
+        mb:SetFixedFrameStrata(true)
+        mb:SetFrameLevel(host:GetFrameLevel() + 2)
+        mb:SetFixedFrameLevel(true)
+        mb:EnableMouse(host:IsVisible())
+    end
 end
 
 -------------------------------------------------------------------------------
@@ -2543,13 +2634,14 @@ function ECHAT.ApplyIconColor()
     local d = CFD(cf1)
     local ICON_LABELS = {
         friendsBtn = "Friends", guildBtn = "Guild", durabilityBtn = "Durability", copyBtn = "Copy Chat",
-        portalBtn = "M+ Portals", voiceBtn = "Voice/Channels", settingsBtn = "Settings",
+        portalBtn = "M+ Portals", voiceBtn = "Voice/Channels", chatMenuBtn = "Chat Menu", settingsBtn = "Settings",
         scrollBtn = "Scroll to Bottom",
     }
     local fc = d.friendsCount
     local gc = d.guildCount
     local dp = d.durabilityPct
-    for _, key in ipairs({ "friendsBtn", "guildBtn", "durabilityBtn", "copyBtn", "portalBtn", "voiceBtn", "settingsBtn", "scrollBtn" }) do
+    for _, key in ipairs({ "friendsBtn", "guildBtn", "durabilityBtn", "copyBtn", "portalBtn", "voiceBtn", "chatMenuBtn",
+        "settingsBtn", "scrollBtn" }) do
         local btn = CFD(cf1)[key]
         if btn and btn._icon then
             btn._icon:SetVertexColor(r, g, b, ICON_ALPHA)
@@ -2646,7 +2738,7 @@ function ECHAT.ApplySidebarIconScale()
     -- _freeMoveH mirrors each icon's height from these constants so
     -- TopYFromSidebarTop never calls GetHeight() -- a geometry resolve that
     -- can taint the Edit-Mode ChatFrame1. Our own frames, so writing is safe.
-    for _, key in ipairs({ "durabilityBtn", "copyBtn", "portalBtn", "voiceBtn", "settingsBtn", "scrollBtn" }) do
+    for _, key in ipairs({ "durabilityBtn", "copyBtn", "portalBtn", "voiceBtn", "chatMenuBtn", "settingsBtn", "scrollBtn" }) do
         local btn = CFD(cf1)[key]
         if btn then
             btn:SetSize(BASE_ICON * scale, BASE_ICON * scale)
@@ -2829,6 +2921,7 @@ function ECHAT.ApplyIconFreeMove()
         { ref = "copyBtn",       key = "copy" },
         { ref = "portalBtn",     key = "portals" },
         { ref = "voiceBtn",      key = "voice" },
+        { ref = "chatMenuBtn",   key = "chatmenu" },
         { ref = "settingsBtn",   key = "settings" },
         { ref = "scrollBtn",     key = "scroll" },
     }
@@ -4160,14 +4253,17 @@ local function EnsureChatStateCallbacks()
 
     -- Sent-line capture for the Up/Down recall history. Blizzard triggers
     -- this from SendText, sequenced AFTER ParseText has stripped any slash
-    -- header and BEFORE GetText, so the string seen here is byte-identical to
-    -- what the old OnTextChanged shadow held for both plain and slash-
-    -- prefixed sends ("/raid hello" records "hello" either way).
+    -- header and BEFORE GetText, so a message is recorded as it is sent
+    -- ("/raid hello" records "hello"). A line ParseText consumed (it ran the
+    -- slash command and ClearChat emptied the box) reaches here as "" and is
+    -- taken from the copy the edit box's OnKeyDown hook made at Enter.
     EventRegistry:RegisterCallback("ChatFrame.OnEditBoxPreSendText", function(_, eb)
         if not PermanentEditBox(eb) then return end
         local d = CFD(eb)
         local h = d.history
         if not h then return end
+        local line = d.pendingLine
+        d.pendingLine = nil
         local text = eb:GetText()
         -- type() and issecretvalue() BEFORE any comparison. `text == ""` on a
         -- secret string THROWS ("attempt to compare ... a secret string
@@ -4176,14 +4272,33 @@ local function EnsureChatStateCallbacks()
         -- the very bug this file is fixing. A BN-whisper reply produces one.
         if type(text) ~= "string" then return end
         if issecretvalue and issecretvalue(text) then return end
+        if text == "" and line then
+            -- Kept only when ParseText ran it as an ADDON's command: that slot
+            -- in Blizzard's slash table is addon-written, so a typed one runs as
+            -- addon code from the slash lookup on (a recalled one runs the steps
+            -- before it that way too, among them the import of newly registered
+            -- commands). Blizzard's own commands run secure when typed and stay
+            -- with the engine's Alt+Up/Down history (WoW Forever blocks /reload
+            -- from addon code). Chat types and channel numbers are checked first,
+            -- in ParseText's order: a line it reads as a chat type (an addon's
+            -- own /raid included) would switch the box's chat type as addon code.
+            local lineCmd = line:match("^(/[^%s]+)")
+            local slots, types = hash_SlashCmdList, hash_ChatTypeInfoList
+            if lineCmd and not lineCmd:match("^/%d+$")
+                and type(slots) == "table" and type(types) == "table" then
+                lineCmd = lineCmd:upper()
+                local chatType = types[lineCmd]
+                if not (chatType and ChatTypeInfo[chatType])
+                    and slots[lineCmd] ~= nil and not issecurevariable(slots, lineCmd) then
+                    text = line
+                end
+            end
+        end
         if text == "" then return end
-        -- KNOWN, ACCEPTED NARROWING vs the old OnTextChanged shadow: ParseText
-        -- runs most non-secure slash commands and ClearChat empties the box, so
-        -- "/dance" reaches here as "" and never enters our history. Blizzard's
-        -- own AddHistoryLine still holds it for Alt+Up/Down. Not universal --
         -- ExtractChannel returns without SetText or ClearChat when the channel
-        -- is not joined (ChatFrameEditBox.lua:123-125), so "/c <name> msg" does
-        -- survive to here. Harmless: recalling it re-sends what the user typed.
+        -- is not joined (ChatFrameEditBox.lua:123-125), so "/c <name> msg"
+        -- survives to here whole. Harmless: recalling it re-sends what the
+        -- user typed.
         local cmd = text:match("^%s*(/%S+)")
         if cmd and IsSecureCmd and IsSecureCmd(cmd) then return end
         if h[#h] ~= text then
@@ -4301,6 +4416,19 @@ local function SkinEditBox(cf)
             -- OnKeyDown stay safe: physical input only, so they can never land
             -- inside SendText or Deactivate.
             eb:HookScript("OnKeyDown", function(self, key)
+                if key == "ENTER" or key == "NUMPADENTER" then
+                    -- OnKeyDown runs before the box acts on the key (the
+                    -- template's BACKSPACE autocomplete guard relies on that
+                    -- order), so the whole typed line is still here; ParseText
+                    -- may run it and empty the box before the send callback
+                    -- reads it. Read-only copy, consumed by that callback.
+                    local line = self:GetText()
+                    if type(line) ~= "string" or (issecretvalue and issecretvalue(line)) then
+                        line = nil
+                    end
+                    CFD(self).pendingLine = line
+                    return
+                end
                 if key ~= "UP" and key ~= "DOWN" then return end
                 if IsAltKeyDown() then return end
                 -- Restriction guards. Recall is SetText, and addon-planted edit
@@ -4602,7 +4730,7 @@ local function SkinChatFrame(cf)
         -- options dropdown; a new order takes effect on the next reload).
         local anchor = nil
         local friendsBtn, friendsCount, durabilityBtn, durabilityPct, copyBtn, portalBtn, voiceBtn, settingsBtn
-        local guildBtn, guildCount
+        local guildBtn, guildCount, chatMenuBtn
 
         local function ChainAnchor(btn)
             btn:ClearAllPoints()
@@ -4803,10 +4931,15 @@ local function SkinChatFrame(cf)
             showCopy     = { tex = "chat_copy.png", key = "copy" },
             showPortals  = { tex = "chat_portal.png", size = 26, key = "portals" },
             showVoice    = { tex = "chat_voice.png", key = "voice" },
+            showChatMenu = { path = ECHAT.CHAT_MENU_GLYPH, key = "chatmenu" },
             showSettings = { tex = "chat_settings.png", key = "settings" },
         }
         local middleBtns = {}
         local chainOrder = ECHAT.ResolveSidebarIconOrder()
+        -- Classic WoW UI dresses Chat Menu in Blizzard's chat bubble, which
+        -- Settings wears otherwise (ECHAT.SB_Dress reads this before either
+        -- button is made).
+        ECHAT.SB_ChatMenuOn = icfg.showChatMenu ~= false and tContains(chainOrder, "showChatMenu") or nil
         for _, key in ipairs(chainOrder) do
             local special = SPECIAL_CREATORS[key]
             if special then
@@ -4814,7 +4947,7 @@ local function SkinChatFrame(cf)
             else
                 local def = MIDDLE_DEFS[key]
                 if def and icfg[key] ~= false then
-                    local btn = MakeSidebarIcon(sidebar, MEDIA .. def.tex, nil, nil, nil, def.key)
+                    local btn = MakeSidebarIcon(sidebar, def.path or (MEDIA .. def.tex), nil, nil, nil, def.key)
                     if def.size then btn:SetSize(def.size, def.size) end
                     ChainAnchor(btn)
                     anchor = btn
@@ -4825,6 +4958,7 @@ local function SkinChatFrame(cf)
         copyBtn     = middleBtns["showCopy"]
         portalBtn   = middleBtns["showPortals"]
         voiceBtn    = middleBtns["showVoice"]
+        chatMenuBtn = middleBtns["showChatMenu"]
         settingsBtn = middleBtns["showSettings"]
 
         -- Scroll is pinned to the sidebar bottom, outside the chain.
@@ -4846,6 +4980,11 @@ local function SkinChatFrame(cf)
         if voiceBtn then HookIconTooltip(voiceBtn, "Voice/Channels") end
         if settingsBtn then HookIconTooltip(settingsBtn, "Settings") end
         HookIconTooltip(scrollBtn, "Scroll to Bottom")
+        -- No click of ours: Blizzard's own button takes it (ECHAT.AttachChatMenu).
+        if chatMenuBtn then
+            HookIconTooltip(chatMenuBtn, "Chat Menu")
+            ECHAT.AttachChatMenu(chatMenuBtn)
+        end
 
         -- Scroll to bottom: acts on OUR message frame for the selected window.
         scrollBtn:SetScript("OnClick", function()
@@ -4938,6 +5077,7 @@ local function SkinChatFrame(cf)
         sbd.copyBtn = copyBtn
         sbd.portalBtn = portalBtn
         sbd.voiceBtn = voiceBtn
+        sbd.chatMenuBtn = chatMenuBtn
         sbd.settingsBtn = settingsBtn
         sbd.scrollBtn = scrollBtn
         -- Order snapshot for ApplySidebarIcons: live visibility toggles keep this
@@ -6034,6 +6174,7 @@ initFrame:SetScript("OnEvent", function(self)
             if _sbd.copyBtn then _sbd.copyBtn:SetShown(_cfg.showCopy ~= false) end
             if _sbd.portalBtn then _sbd.portalBtn:SetShown(_cfg.showPortals ~= false) end
             if _sbd.voiceBtn then _sbd.voiceBtn:SetShown(_cfg.showVoice ~= false) end
+            if _sbd.chatMenuBtn then _sbd.chatMenuBtn:SetShown(_cfg.showChatMenu ~= false) end
             if _sbd.settingsBtn then _sbd.settingsBtn:SetShown(_cfg.showSettings ~= false) end
         end
     end
@@ -6066,6 +6207,7 @@ initFrame:SetScript("OnEvent", function(self)
                 if _sbd.copyBtn then _sbd.copyBtn:SetShown(_cfg.showCopy ~= false) end
                 if _sbd.portalBtn then _sbd.portalBtn:SetShown(_cfg.showPortals ~= false) end
                 if _sbd.voiceBtn then _sbd.voiceBtn:SetShown(_cfg.showVoice ~= false) end
+                if _sbd.chatMenuBtn then _sbd.chatMenuBtn:SetShown(_cfg.showChatMenu ~= false) end
                 if _sbd.settingsBtn then _sbd.settingsBtn:SetShown(_cfg.showSettings ~= false) end
             end
         end
@@ -6314,5 +6456,7 @@ initFrame:SetScript("OnEvent", function(self)
         local f = _G[frameName]
         if f then f:SetAlpha(0); f:EnableMouse(false) end
     end
+    -- Chat Menu: the menu button back over its icon, mouse on while shown.
+    ECHAT.SeatChatMenu()
 
 end)

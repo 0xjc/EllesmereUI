@@ -1385,6 +1385,13 @@ local REFRESH_ADDON_STEPS = {
             EllesmereUI._applySecondaryStats()
         end
     end,
+    -- QoL Battle Res, Bloodlust and Junk Items (enable state, visibility,
+    -- position; Battle Res and Bloodlust do not exist on WoW Forever)
+    function()
+        if _G._EUI_BattleRes_Apply then _G._EUI_BattleRes_Apply() end
+        if _G._EUI_Bloodlust_Apply then _G._EUI_Bloodlust_Apply() end
+        if _G._EUI_JunkList_Apply then _G._EUI_JunkList_Apply() end
+    end,
     -- AuraBuffReminders (style + refresh + position)
     function()
         if _G._EABR_UpdateGroupAuraRegistration then _G._EABR_UpdateGroupAuraRegistration() end

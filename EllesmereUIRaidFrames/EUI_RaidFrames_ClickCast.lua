@@ -34,8 +34,7 @@ local GetMacroInfo = GetMacroInfo
 local GetMacroBody = GetMacroBody
 local GetMacroIndexByName = GetMacroIndexByName
 local GetNumMacros = GetNumMacros
-local MAX_ACCOUNT_MACROS   = MAX_ACCOUNT_MACROS or 120
-local MAX_CHARACTER_MACROS = MAX_CHARACTER_MACROS or 18
+local MAX_ACCOUNT_MACROS = Constants.MacroConsts.MAX_ACCOUNT_MACROS
 
 -------------------------------------------------------------------------------
 --  Constants

@@ -1780,10 +1780,12 @@ function AK.AddItemEnchantmentsToContainer(container, e)
     AK.SetContainerItemEnchantmentSort(container, e.sortMethod, e.sortDirection)
 end
 
--- Unit LAST: unit assignment re-evaluates event registrations, and those
--- are gated on the container having groups/slots. Setting the unit before
--- declaring content leaves UNIT_AURA unregistered (the Blizzard reference
--- consumer follows this same order). Finish with a full refresh request.
+-- Binds the unit, then requests a full refresh. Builders call it once their
+-- content is declared, but the order is free: every group or slot
+-- declaration, every unit change and the container's own show re-run the
+-- engine's event registration (12.1 and WoW Forever), which holds UNIT_AURA
+-- only while the container has content and is visible. Unit Frames binds
+-- every element at build and declares an element's groups only once it is on.
 function AK.FinishContainer(container, unitToken)
     container:SetUnit(unitToken)
     container:UpdateAllAuras()

@@ -2175,7 +2175,8 @@ end
 -- opts: step (45), thumbMin (30), width (4), rightInset (2), topInset (4), bottomInset (topInset),
 -- trackParent (sf), level (2, above trackParent), trackAlpha (0.02), thumbAlpha (0.27),
 -- child (range = child height - sf height, else SafeScrollRange), onScroll(v), thumb (false = wheel only),
--- panelWheel (true: a surface inside the options panel, where Shift + wheel scales the panel instead).
+-- panelWheel (true: a surface inside the options panel, where Shift + wheel scales the panel instead),
+-- passWheel (true: while there is nothing to scroll, the wheel goes on to the options page; a surface inside a page).
 -- Returns UpdateThumb, ScrollTo(v) (immediate: stops the lerp, clamps, syncs the thumb).
 -- While a controller is in use the bar also carries step arrows and a page strip.
 function EllesmereUI.AttachSmoothScrollbar(sf, opts)
@@ -2248,11 +2249,16 @@ function EllesmereUI.AttachSmoothScrollbar(sf, opts)
         Set(math.max(0, math.min(maxScroll, cur + diff * math.min(1, 12 * elapsed))))
     end)
     sf:EnableMouseWheel(true)
-    local panelWheel = opts.panelWheel
+    local panelWheel, passWheel = opts.panelWheel, opts.passWheel
     sf:SetScript("OnMouseWheel", function(self, delta)
         if panelWheel and EllesmereUI._ShiftWheelScale(delta) then return end
         local maxScroll = MaxScroll()
-        if maxScroll <= 0 then return end
+        if maxScroll <= 0 then
+            local page = passWheel and EllesmereUI._scrollFrame
+            local fn = page and page:GetScript("OnMouseWheel")
+            if fn then fn(page, delta) end
+            return
+        end
         local base = smoothing and target or self:GetVerticalScroll()
         target = math.max(0, math.min(maxScroll, base - delta * step))
         if not smoothing then smoothing = true; smoothFrame:Show() end
@@ -2922,7 +2928,7 @@ end
 -------------------------------------------------------------------------------
 --  Slash commands
 -------------------------------------------------------------------------------
-EllesmereUI.VERSION = "9.4"
+EllesmereUI.VERSION = "9.4.1"
 
 -- Register this addon's version into a shared global table (taint-free at load time)
 if not _G._EUI_AddonVersions then _G._EUI_AddonVersions = {} end

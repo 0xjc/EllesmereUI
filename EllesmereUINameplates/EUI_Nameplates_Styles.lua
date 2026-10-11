@@ -886,18 +886,27 @@ function ns.NP_SeedStock(prof)
     prof.healthBarTexture = "blizzard"
     prof.castBarTexture = "blizzard"
 end
--- The one-time WoW Forever seed: the level box shows the level, so the Left
--- Text slot's Forever default ("level") steps aside instead of showing it a
--- second time. Once per profile; a level the user put anywhere else stays,
--- and the slot is the user's afterwards. The Style page keeps the key in a
--- Forever-only slot (p._foreverStyleSlots): the other looks' value is banked
--- on the way into the variant and comes back on the way out.
+-- The one-time WoW Forever seeds, each under its own stamp: the level box
+-- shows the level, so the Left Text slot's Forever default ("level") steps
+-- aside instead of showing it a second time (a level the user put anywhere
+-- else stays), and the look's plates start without elite or rare marks (the
+-- Elite/Rare Indicator box unchecked; the Quest Indicator keeps its own).
+-- Once per profile; the settings are the user's afterwards. The Style page
+-- keeps the keys in a Forever-only slot (p._foreverStyleSlots): the other
+-- looks' values are banked on the way into the variant and come back on the
+-- way out.
 function ns.NP_SeedForever(prof)
-    if not prof or prof.foreverLevelSlotSeeded then return end
-    prof.foreverLevelSlotSeeded = true
-    local v = prof.textSlotLeft
-    if v == nil then v = defaults.textSlotLeft end
-    if v == "level" then prof.textSlotLeft = "none" end
+    if not prof then return end
+    if not prof.foreverLevelSlotSeeded then
+        prof.foreverLevelSlotSeeded = true
+        local v = prof.textSlotLeft
+        if v == nil then v = defaults.textSlotLeft end
+        if v == "level" then prof.textSlotLeft = "none" end
+    end
+    if not prof.foreverRareSeeded then
+        prof.foreverRareSeeded = true
+        prof.classificationHideRare = true
+    end
 end
 
 local function NoTintFlag(db, key)

@@ -2496,13 +2496,23 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUIDB.targetDistancePos = nil
                 if EllesmereUIDB.unlockAnchors then
                     EllesmereUIDB.unlockAnchors.EUI_TargetDistance = nil
+                    EllesmereUIDB.unlockAnchors.EUI_BattleRes = nil
+                    EllesmereUIDB.unlockAnchors.EUI_Bloodlust = nil
+                    EllesmereUIDB.unlockAnchors.EUI_JunkList = nil
                 end
                 EllesmereUIDB.hideTransforms = false
                 EllesmereUIDB.hideTransformItems = nil
+                -- The /keys popup, LFG Reminder and /way sections (the reset reloads).
+                EllesmereUIDB.keystonePopup = nil
+                EllesmereUIDB.teleportPrompt = nil
+                EllesmereUIDB.waypointCmd = nil
             end
             EllesmereUIDB.autoLogging = nil
             if _G._EUI_ResetUpgradeCalc then _G._EUI_ResetUpgradeCalc() end
             if _G._EBS_ResetCursor then _G._EBS_ResetCursor() end
+            _G._EUI_JunkList_Reset()
+            -- Battle Res and Bloodlust do not exist on WoW Forever.
+            if _G._EUI_BattleRes_Reset then _G._EUI_BattleRes_Reset() end
             EllesmereUI._applyHideBlizzardPartyFrame()
             if EllesmereUI._applyBonusRollConfirmation then EllesmereUI._applyBonusRollConfirmation() end
             if EllesmereUI._applyHideErrorMessages then EllesmereUI._applyHideErrorMessages() end

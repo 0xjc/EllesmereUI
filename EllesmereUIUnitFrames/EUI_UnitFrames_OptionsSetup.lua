@@ -103,6 +103,11 @@ local function SetupOptionsPanel()
         -- UpdateFrameVisibility guards its restricted Show/Hide behind
         -- InCombatLockdown, and SetAlpha is unrestricted.
         if ns.UpdateFrameVisibility then ns.UpdateFrameVisibility() end
+        -- The pet's containers are built only once its Buffs or Debuffs is on,
+        -- and every path that can turn one on (the options, a profile switch,
+        -- a Spec or Conditional Override) lands here: ask for them before the
+        -- pass below (the build reloads the pet itself when it finishes).
+        ns.UF_EnsurePetAuras(frames.pet)
         -- 12.1 aura containers reload with every real pass (direct call --
         -- ns.ReloadFrames is just the throttle-arming stub, so wrapping it
         -- from the container file is timing-unreliable).
