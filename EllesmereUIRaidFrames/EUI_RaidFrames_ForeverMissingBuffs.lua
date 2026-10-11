@@ -332,9 +332,11 @@ local function Evaluate(unit, restricted)
                     if not ok or issecretvalue(aura) then value = nil; break end
                     if aura then
                         value = true
+                        -- The caster, not isFromPlayerOrPlayerPet: that is
+                        -- true for any player's aura, another paladin's too.
                         if FAMILIES[i].blessing and mine ~= true then
-                            local own = aura.isFromPlayerOrPlayerPet
-                            if issecretvalue(own) then mine = nil elseif own then mine = true end
+                            local src = aura.sourceUnit
+                            if issecretvalue(src) then mine = nil elseif src == "player" then mine = true end
                         end
                         local iid = aura.auraInstanceID
                         if iid and not issecretvalue(iid) then found[iid] = true end
