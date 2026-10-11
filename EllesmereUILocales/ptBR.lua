@@ -8846,3 +8846,6 @@ L["Usage:"] = "Uso:"
 L["WAYPOINT COMMAND"] = "COMANDO DE MARCADOR DE MAPA"
 L["White stacks delete without asking first."] = "Pilhas brancas são excluídas sem perguntar antes."
 L["You have arrived:"] = "Você chegou:"
+
+-- == DataBars Gold ==========================================================
+L["Account gold tracking is disabled"] = "O rastreamento de ouro da conta está desativado"
