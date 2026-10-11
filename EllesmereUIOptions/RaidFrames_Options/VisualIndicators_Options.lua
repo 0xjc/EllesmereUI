@@ -169,29 +169,99 @@ local function BuildVisualIndicators(parent, y, W, onSection, EYE, CustomBorderO
             -- A priority list per role: the checked blessings in the order
             -- shown (drag to reorder); the first one the member lacks shows.
             -- Each open lists the checked ones first, in priority order.
-            local function BlessRow(label, tip, role)
-                local function Picked() return ns.RF_FvBlessingChoice(view, role) end
+            -- A blessing list row: picked() = the list it shows, write(list)
+            -- saves a new one, which keeps the order shown.
+            local function ListRow(label, picked, write)
                 local function Save(order, key, on)
-                    local picked = {}
-                    for _, k in ipairs(Picked()) do picked[k] = true end
-                    if key then picked[key] = on or nil end
+                    local keep = {}
+                    for _, k in ipairs(picked()) do keep[k] = true end
+                    if key then keep[key] = on or nil end
                     local list = {}
                     for _, k in ipairs(order) do
-                        if picked[k] then list[#list + 1] = k end
+                        if keep[k] then list[#list + 1] = k end
                     end
-                    SSet(ns.RF_FvBlessingKey[role], list)
+                    write(list)
                 end
-                return { type="reordercheck", label=label, tooltip=tip, ddWidth=170, grip=true,
+                return { type="reordercheck", label=label, ddWidth=170, grip=true,
                   hint="Drag to set priority", items=blessItems,
                   get=function(key)
-                      for _, k in ipairs(Picked()) do
+                      for _, k in ipairs(picked()) do
                           if k == key then return true end
                       end
                       return false
                   end,
                   set=function(key, on, order) Save(order, key, on) end,
                   setOrder=function(keys) Save(keys) end,
-                  openOrder=function() return Picked() end }
+                  openOrder=picked }
+            end
+            -- Class exceptions: the classes that can fill each role, one list
+            -- each in a popup beside this one; a class's own list replaces
+            -- the role's list for members of that class.
+            local ROLE_CLASSES = {
+                TANK = { "DRUID", "PALADIN", "WARRIOR" },
+                HEALER = { "DRUID", "PALADIN", "PRIEST", "SHAMAN" },
+                DAMAGER = { "DRUID", "HUNTER", "MAGE", "PALADIN", "PRIEST", "ROGUE",
+                    "SHAMAN", "WARLOCK", "WARRIOR" },
+            }
+            local ROLE_TITLE = { TANK = "Tank Exceptions", HEALER = "Healer Exceptions", DAMAGER = "DPS Exceptions" }
+            local function BlessRow(label, tip, role)
+                local function Picked() return ns.RF_FvBlessingChoice(view, role) end
+                local exKey = ns.RF_FvBlessingExKey[role]
+                local function Own(class)
+                    local ex = SGet(exKey)
+                    local list = type(ex) == "table" and ex[class]
+                    return type(list) == "table" and list or nil
+                end
+                -- A fresh table on every save: the saved one is also what the
+                -- runtime reads.
+                local function SetOwn(class, list)
+                    local ex = {}
+                    local old = SGet(exKey)
+                    if type(old) == "table" then
+                        for k, v in pairs(old) do ex[k] = v end
+                    end
+                    ex[class] = list
+                    SSet(exKey, next(ex) ~= nil and ex or nil)
+                end
+                local exShow, exAnchor
+                local function OpenExceptions(_, ddBtn)
+                    if not exShow then
+                        local reset = "Use the " .. label:gsub(" Blessing", "") .. " List"
+                        local rows = {}
+                        for _, token in ipairs(ROLE_CLASSES[role]) do
+                            local name = LOCALIZED_CLASS_NAMES_MALE[token] or token
+                            local c = RAID_CLASS_COLORS[token]
+                            local r = ListRow(c and c:WrapTextInColorCode(name) or name,
+                                function() return Own(token) or Picked() end,
+                                function(list) SetOwn(token, list) end)
+                            r.tail = { { key="reset", label=reset } }
+                            r.onTail = function() SetOwn(token, nil) end
+                            r.tailSelected = function() return Own(token) == nil end
+                            rows[#rows + 1] = r
+                        end
+                        local pf = ddBtn:GetParent()
+                        local _, show = EllesmereUI.BuildCogPopup({ title = ROLE_TITLE[role], rows = rows, noOwnerDim = true })
+                        exShow = show
+                        -- Cog popups hang below their anchor: this one sits on
+                        -- the cog popup's top edge, so the list opens beside it.
+                        exAnchor = CreateFrame("Frame", nil, pf)
+                        exAnchor:SetSize(1, 1)
+                        exAnchor:SetScript("OnHide", function()
+                            local f = exShow._popupFrame
+                            if f and f:IsShown() then f:Hide() end
+                        end)
+                    end
+                    exShow(exAnchor)
+                    local f = exShow._popupFrame
+                    exAnchor:ClearAllPoints()
+                    exAnchor:SetPoint("BOTTOM", exAnchor:GetParent(), "TOPRIGHT", 4 + f:GetWidth() / 2, 5)
+                    ddBtn._sidePopup = f
+                end
+                local r = ListRow(label, Picked, function(list) SSet(ns.RF_FvBlessingKey[role], list) end)
+                r.tooltip = tip
+                r.tail = { { key="exceptions", label="Class Exemption" } }
+                r.onTail = OpenExceptions
+                return r
             end
             local rows = {
                 -- One switch per buff (all on by default). The list is the

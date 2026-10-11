@@ -19,9 +19,11 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --  missingBuffsOffsetX/Y, one switch per buff (missingBuffsFort/Mark/Spirit/
 --  Thorns, the cog's checkbox list, nil = on), missingBuffsThornsTank (nil =
 --  off), missingBuffsBlessingTank/Healer/DPS (a list of blessing keys in
---  priority order, or the older single key / "none"; unset
---  = Might / Wisdom / Salvation, or none for all three while the retired
---  single switch missingBuffsBlessing reads false), and the icons' glow on the
+--  priority order, or the older single key / "none"; unset = Might / Wisdom /
+--  Salvation, or none for all three while the retired single switch
+--  missingBuffsBlessing reads false), missingBuffsBlessingExTank/Healer/DPS
+--  (class token -> blessing list, replacing the role's list for members of
+--  that class; no entry = the role's list), and the icons' glow on the
 --  shared prefix schema (missingBuffsGlow*, EllesmereUI.Glows.PrefixKeys);
 --  Forever-only defaults in the main file.
 --
@@ -108,11 +110,21 @@ end
 local BLESS_KEY = { TANK = "missingBuffsBlessingTank", HEALER = "missingBuffsBlessingHealer",
     DAMAGER = "missingBuffsBlessingDPS" }
 local BLESS_DEFAULT = { TANK = "might", HEALER = "wisdom", DAMAGER = "salvation" }
+-- Class exceptions: per role, a table of class token -> blessing list that
+-- replaces the role's list for members of that class (an empty list = no
+-- blessing for them; no entry = the role's list).
+local EX_KEY = { TANK = "missingBuffsBlessingExTank", HEALER = "missingBuffsBlessingExHealer",
+    DAMAGER = "missingBuffsBlessingExDPS" }
 local NO_BLESSINGS = {}
 local OLD_SINGLE = {}  -- the older single-key form, one cached list per key
-local function Choice(s, role)
+local function Choice(s, role, class)
     local key = BLESS_KEY[role]
     if not key then return nil end
+    if class then
+        local ex = s[EX_KEY[role]]
+        local own = type(ex) == "table" and ex[class]
+        if type(own) == "table" then return own end
+    end
     local v = s[key]
     if v == nil then
         v = (s.missingBuffsBlessing == false) and "none" or BLESS_DEFAULT[role]
@@ -123,11 +135,21 @@ local function Choice(s, role)
     if not one then one = { v }; OLD_SINGLE[v] = one end
     return one
 end
-ns.RF_FvBlessingChoice, ns.RF_FvBlessingKey = Choice, BLESS_KEY
+ns.RF_FvBlessingChoice, ns.RF_FvBlessingKey, ns.RF_FvBlessingExKey = Choice, BLESS_KEY, EX_KEY
 
--- Blessings are on in a settings table while any role takes one.
+-- Blessings are on in a settings table while any role takes one, or any
+-- class exception does.
 local function BlessingsOn(s)
-    return #Choice(s, "TANK") > 0 or #Choice(s, "HEALER") > 0 or #Choice(s, "DAMAGER") > 0
+    if #Choice(s, "TANK") > 0 or #Choice(s, "HEALER") > 0 or #Choice(s, "DAMAGER") > 0 then return true end
+    for _, key in pairs(EX_KEY) do
+        local ex = s[key]
+        if type(ex) == "table" then
+            for _, list in pairs(ex) do
+                if type(list) == "table" and #list > 0 then return true end
+            end
+        end
+    end
+    return false
 end
 
 -- Only a priest, a druid or a paladin can ever cast one of these: every other
@@ -260,7 +282,9 @@ local function MissingBlessing(s, st, unit)
     end
     local role = RoleOf(unit)
     if not role then return nil end
-    local want = Choice(s, role)
+    local _, class = UnitClass(unit)
+    if issecretvalue(class) then class = nil end
+    local want = Choice(s, role, class)
     if want then
         for w = 1, #want do
             local key = want[w]

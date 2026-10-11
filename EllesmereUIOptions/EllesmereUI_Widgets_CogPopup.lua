@@ -358,7 +358,8 @@ local function BuildCogPopup(opts)
                 lbl:SetPoint('LEFT', pf, 'TOPLEFT', SIDE_PAD, curY - DROPDOWN_ROW_H / 2 - 1)
 
                 local items = type(row.items) == "function" and row.items() or row.items or {}
-                local ddBtn, refresh = EllesmereUI.BuildReorderCBDropdown(
+                local ddBtn, refresh
+                ddBtn, refresh = EllesmereUI.BuildReorderCBDropdown(
                     pf, row.ddWidth or COG_DD_W, pf:GetFrameLevel() + 2, items,
                     row.get,
                     function(k, v, order)
@@ -370,6 +371,11 @@ local function BuildCogPopup(opts)
                         hint2 = row.hint2,
                         grip = row.grip,
                         openOrder = row.openOrder,
+                        tail = row.tail,
+                        onTail = function(k)
+                            if row.onTail then row.onTail(k, ddBtn) end
+                        end,
+                        tailSelected = row.tailSelected,
                         setOrder = function(keys)
                             if row.setOrder then row.setOrder(keys) end
                         end,
@@ -1138,6 +1144,11 @@ local function BuildCogPopup(opts)
             for _, rw in ipairs(rowWidgets) do
                 if (rw.type == 'dropdown' or rw.type == 'reorder' or rw.type == 'reordercheck') and rw.btn and rw.btn._ddMenu
                    and rw.btn._ddMenu:IsShown() and rw.btn._ddMenu:IsMouseOver() then
+                    return true
+                end
+                -- A cog popup a dropdown row opened beside this one (btn._sidePopup).
+                local sp = rw.btn and rw.btn._sidePopup
+                if sp and sp:IsShown() and (sp:IsMouseOver() or sp._anyDropdownHovered()) then
                     return true
                 end
             end
