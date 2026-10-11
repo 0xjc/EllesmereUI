@@ -269,13 +269,16 @@ local function ScanTank()
     end
 end
 
--- The blessing icon a member shows (a family index) or nil: solo, Kings on
--- the player whatever the role (one reminder, no role picks); in a group,
--- the first blessing of their role's priority list that the player can cast
--- and the member lacks (one the player cannot cast is skipped; one the member
--- reads unknown for stops the walk), and with no role the Kings icon while
--- they lack every blessing.
+-- The blessing icon a member shows (a family index) or nil. None once the
+-- member has a blessing of the player's (a paladin keeps one per target) or
+-- while that is unknown. Otherwise: solo, Kings on the player whatever the
+-- role (one reminder, no role picks); in a group, the first blessing of their
+-- role's priority list that the player can cast and the member lacks, so one
+-- another paladin gave moves the pick down the list (one the player cannot
+-- cast is skipped; one the member reads unknown for stops the walk); with no
+-- role the Kings icon while they lack every blessing.
 local function MissingBlessing(s, st, unit)
+    if st.mine ~= false then return nil end
     if solo then
         if provider.kings and st.kings == false and UnitIsUnit(unit, "player") then return BLESS_INDEX.kings end
         return nil
@@ -312,6 +315,9 @@ local function Evaluate(unit, restricted)
     local found = inst[unit]
     if found then wipe(found) else found = {}; inst[unit] = found end
     local known = UnitExists(unit) and UnitIsConnected(unit) and UnitIsVisible(unit)
+    -- st.mine: the member has a blessing the player cast (a paladin keeps one
+    -- blessing per target, so theirs is then done); nil while unknown.
+    local mine = false
     for i = 1, NUM_FAMILIES do
         local key = FAMILIES[i].key
         local value
@@ -326,6 +332,10 @@ local function Evaluate(unit, restricted)
                     if not ok or issecretvalue(aura) then value = nil; break end
                     if aura then
                         value = true
+                        if FAMILIES[i].blessing and mine ~= true then
+                            local own = aura.isFromPlayerOrPlayerPet
+                            if issecretvalue(own) then mine = nil elseif own then mine = true end
+                        end
                         local iid = aura.auraInstanceID
                         if iid and not issecretvalue(iid) then found[iid] = true end
                         break
@@ -334,7 +344,9 @@ local function Evaluate(unit, restricted)
             end
         end
         st[key] = value
+        if value == nil and mine == false and FAMILIES[i].blessing and Tracked(i) then mine = nil end
     end
+    st.mine = mine
 end
 
 -- A buff counts only while the player can cast it: their class casts it and
