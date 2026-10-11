@@ -5147,3 +5147,70 @@ do
         end)
     end
 end
+
+--------------------------------------------------------------------------------
+--  WoW Forever: Nameplates Elite/Rare Indicator off on the WoW Forever look
+--  (one-time). That look drew no elite or rare marks whatever the box said;
+--  it now follows the box like every other look, and its own seed starts the
+--  box unchecked (NP_SeedForever). Every stored profile already on that look
+--  gets the same once: the value the other looks share is banked in its
+--  Forever-only style slot (it comes back on the way out), then the box is
+--  unchecked and the seed's stamp set, so the seed never runs over it again.
+--  Spec Override values stay as they are (an override wins over a look's
+--  seed, as on the Style page). Account flag, written before the pass; a
+--  brand-new account is marked once its saved data exists. Two client
+--  checks, as the blocks above.
+--------------------------------------------------------------------------------
+do
+    local FLAG = "forever_np_rare_box_v1"
+
+    local function ClientOK()
+        local toc = select(4, GetBuildInfo())
+        return EllesmereUI ~= nil and EllesmereUI.IS_FOREVER == true
+            and type(toc) == "number" and toc >= 16000 and toc < 20000
+    end
+
+    local function MoveProfile(prof)
+        if type(prof) ~= "table" then return end
+        local np = type(prof.addons) == "table" and prof.addons.EllesmereUINameplates
+        if type(np) ~= "table" or np.foreverRareSeeded then return end
+        -- The WoW Forever look: its flag rides a set Blizzard flag, and a
+        -- Classic flag wins over both.
+        if np.useClassicStyle or not (np.useBlizzardStyle and np.useForeverStyle) then return end
+        local s = np._foreverStyleSlots
+        if type(s) ~= "table" then s = {}; np._foreverStyleSlots = s end
+        local eui = s.eui
+        if type(eui) ~= "table" then eui = {}; s.eui = eui end
+        eui.classificationHideRare = np.classificationHideRare
+        np.classificationHideRare = true
+        np.foreverRareSeeded = true
+    end
+
+    if ClientOK() then
+        EllesmereUI.Lite.OnSavedVariablesLoaded(function()
+            if not ClientOK() then return end
+            local db = EllesmereUIDB
+            if type(db) ~= "table" then
+                -- A brand-new account: nothing to move. Marked at login, so
+                -- its own first session's choices are never overwritten.
+                local f = CreateFrame("Frame")
+                f:RegisterEvent("PLAYER_LOGIN")
+                f:SetScript("OnEvent", function(self)
+                    self:UnregisterAllEvents()
+                    local d = EllesmereUIDB
+                    if type(d) == "table" then
+                        if type(d._migrations) ~= "table" then d._migrations = {} end
+                        d._migrations[FLAG] = true
+                    end
+                end)
+                return
+            end
+            if type(db._migrations) ~= "table" then db._migrations = {} end
+            if db._migrations[FLAG] then return end
+            db._migrations[FLAG] = true
+            if type(db.profiles) == "table" then
+                for _, prof in pairs(db.profiles) do MoveProfile(prof) end
+            end
+        end)
+    end
+end

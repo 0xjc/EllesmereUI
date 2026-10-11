@@ -646,7 +646,6 @@ initFrame:SetScript("OnEvent", function(self)
         -----------------------------------------------------------------------
         local PlaySettingGlow = EllesmereUI.MakeSettingGlow({ color = EllesmereUI.ELLESMERE_GREEN, thickness = function() return PP.Scale(2) end, noSnap = true })
 
-
         -- Maps Core Text Position slot keys to their row/region (the cells of
         -- the texts the list shows)
         local textSlotToRow = textSlotCells

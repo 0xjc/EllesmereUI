@@ -6,7 +6,7 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --  animations, combat fade, low-resource alerts, class-colored bars
 -------------------------------------------------------------------------------
 local ADDON_NAME, ns = ...
-if not (EllesmereUI and EllesmereUI._ModuleNS and EllesmereUI.NewCombatQueue) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring
+if not (EllesmereUI and EllesmereUI._ModuleNS and EllesmereUI.NewCombatQueue and EllesmereUI.SetFrameScale) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring (the Call Totem Bar scales its Edit Mode system through the parent's SetFrameScale)
 EllesmereUI._ModuleNS[ADDON_NAME] = ns  -- LOD options files read this module ns via the registry
 local ERB = EllesmereUI.Lite.NewAddon(ADDON_NAME)
 ns.ERB = ERB
@@ -173,21 +173,20 @@ local CHANNEL_TICK_DATA = {
     [291944]  = { ticks = 6 },                                     -- Regeneratin (Zandalari)
 }
 
--- WoW Forever: every rank is its own spell ID.
--- Mind flay differs from Retail, as it ticks immediately at the start of the cast.
--- Penance acts like Retail where it ticks immediately at the start of the cast.
--- Mind flay hits 4 times over 3 seconds so we want 2 dividers (tick @ 0s, tick @ 1s divider, tick @ 2s divider, tick @ 3s)
--- Penance hits 3 times over 2 seconds so we want 1 divider (tick @ 0s, tick @ 1s divider, tick @ 2s)
--- The number of dividers is equal to ticks - 1
+-- WoW Forever: every rank is its own spell ID. Mind Flay channels for 3s and
+-- ticks every second, none at the cast (ticks = 3). Penance channels for 2s and
+-- fires a bolt at the cast and every second after (ticks = 2), as on retail;
+-- the cast bar shows the damage or heal channel the cast triggers, so each rank
+-- lists both, plus its channeled cast spell.
 if EllesmereUI.IS_FOREVER then
     for _, id in ipairs({ 15407, 17311, 17312, 17313, 17314, 18807 }) do
         CHANNEL_TICK_DATA[id] = { ticks = 3 }                      -- Mind Flay
     end
     for _, id in ipairs({
-        402174, 402284, 402289,                                    -- Penance rank 1
-        1240720, 1240723, 1240727,                                 -- rank 2
-        1240721, 1240724, 1240730,                                 -- rank 3
-        1316991, 1316993, 1316995,                                 -- rank 4
+        402261, 402277, 402174,                                    -- Penance rank 1: damage, heal, cast
+        1240734, 1240732, 1240720,                                 -- rank 2
+        1240736, 1240733, 1240721,                                 -- rank 3
+        1316994, 1316992, 1316995,                                 -- rank 4
     }) do
         CHANNEL_TICK_DATA[id] = { ticks = 2 }                      -- Penance
     end
@@ -3281,7 +3280,7 @@ end
 -- Value mode needs a readable max: getMaxFn returns the current max; if it is
 -- secret, fall back to the last-known-good value cached on the bar frame.
 -- Source: the active threshold entry when it has its own hash lines, else the
--- bar-wide hashEnabled/hashValues (which Spec Override / conditional layers can set).
+-- bar-wide hashEnabled/hashValues (which conditional overrides can set).
 function ns.ApplyHashLines(sb, cfg, getMaxFn)
     if not sb then return end
     local tickCache = sb._userHashTicks
@@ -10843,7 +10842,6 @@ BuildGCDBar = function()
                 return nil
             end)
             if ok and elapsed and not (issecretvalue and (issecretvalue(elapsed) or issecretvalue(dur))) then
-                self._gcdUnread = nil
                 local actualStart = GetTime() - elapsed
                 -- (Re)start whenever this is a genuinely NEWER GCD than the one we
                 -- last captured. Do NOT gate on how far the GCD has elapsed:
@@ -10856,6 +10854,9 @@ BuildGCDBar = function()
                 -- skips an already-finished GCD.
                 if (dur - elapsed) > 0.05 and ((not self._gcdActualStart) or actualStart > (self._gcdActualStart + 0.05)) then
                     self._gcdActualStart = actualStart
+                    -- Readable length: the window is exact, so the isActive
+                    -- end check (secret windows only) stands down.
+                    self._gcdUnread = nil
                     -- Lifecycle window for the tick (end detection + fade):
                     -- the engine timer owns the drawn fill when available;
                     -- the Lua fill only draws when it is not.
@@ -10874,7 +10875,8 @@ BuildGCDBar = function()
                 -- the exact trap the action bar swipe work documented --
                 -- push the object through. The engine renders the true
                 -- fill; the lifecycle window is a conservative GCD
-                -- ceiling, cut short by the next arm.
+                -- ceiling, cut short by the next arm or once the cooldown
+                -- reports isActive false (UpdateGCDBar).
                 if windowOnly then
                     -- Cooldown chatter may only refresh the fill of an open
                     -- window (armNative keeps the engine honest); it never
@@ -10882,6 +10884,9 @@ BuildGCDBar = function()
                     if self._gcdStart then armNativeGCD(bar, gc.depleteFill) end
                     return
                 end
+                -- A GCD that is already over (a hard cast's SUCCEEDED, an
+                -- off-GCD spell) opens nothing; isActive is never secret.
+                if not cd.isActive then return end
                 if armNativeGCD(bar, gc.depleteFill) then
                     self._nativeGCD = true
                     self._gcdStart = GetTime()
@@ -11976,11 +11981,11 @@ local function OnEvent(self, event, ...)
     elseif event == "PLAYER_REGEN_ENABLED" then
         isInCombat = false
         UpdateVisibility()
-    elseif event == "PLAYER_TARGET_CHANGED" then
-        UpdateVisibility()
-        -- WoW Forever: combo points belong to the target, so a target swap
-        -- changes the count with no power event behind it. Skipped while the
-        -- Class Resource is off.
+    elseif event == "PLAYER_TARGET_CHANGED" or event == "COMBO_TARGET_CHANGED" then
+        if event == "PLAYER_TARGET_CHANGED" then UpdateVisibility() end
+        -- WoW Forever: combo points belong to the target, so a target swap, or
+        -- the points moving to a new target, changes the count with no power
+        -- event behind it. Skipped while the Class Resource is off.
         if cachedSecondary and cachedSecondary.onTarget then
             local sp = ERB.db and ERB.db.profile and ERB.db.profile.secondary
             if sp and sp.enabled ~= false and not IsSpecDisabled(sp) then UpdateSecondaryResource() end
@@ -12284,6 +12289,11 @@ function ERB:OnEnable()
     eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
     eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
     eventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
+    -- WoW Forever: combo points moving to a new target fire no power event
+    -- (only a rogue or druid ever raises it; the handler acts for onTarget).
+    if EllesmereUI.IS_FOREVER == true then
+        eventFrame:RegisterEvent("COMBO_TARGET_CHANGED")
+    end
     eventFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
     eventFrame:RegisterEvent("ACTIVE_TALENT_GROUP_CHANGED")
     eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")

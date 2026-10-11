@@ -942,6 +942,11 @@ local function SuppressBlizzardUF(unit, nameplate)
     local uf = nameplate and nameplate.UnitFrame
     if not uf then return end
 
+    -- Hand back what an enemy plate parked on this pooled UnitFrame first: the
+    -- enemy reclaim hook runs after this one and would otherwise pull the
+    -- WidgetContainer back under the hidden UnitFrame.
+    ns.NP_ReclaimBlizzardFrame(uf)
+
     uf:SetAlpha(0)
 
     -- Reparent the entire UnitFrame to the hidden frame. This makes everything

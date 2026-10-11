@@ -487,8 +487,8 @@ local function UpdateClassPowerOnPlate(plate)
     else
         -- Forever combo points belong to the target, and UnitPower still reports
         -- the previous target's count at the moment PLAYER_TARGET_CHANGED fires
-        -- (measured on 1.60.1: up=3 while gcp=0 on the swap), with no later event
-        -- to correct it. Blizzard's own classic ComboFrame reads GetComboPoints.
+        -- (measured on 1.60.1: up=3 while gcp=0 on the swap), with no later power
+        -- event to correct it. Blizzard's own ComboFrame reads GetComboPoints.
         if EllesmereUI.IS_FOREVER == true and classPowerType == Enum.PowerType.ComboPoints
            and GetComboPoints then
             cur = GetComboPoints("player", "target") or 0
@@ -916,6 +916,11 @@ local function EnableClassPowerWatcher()
         classPowerWatcher:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
         if classPowerFormReq then
             classPowerWatcher:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
+        end
+        -- WoW Forever: combo points moving to a new target keep their count, so no
+        -- power event fires; the light refresh below repaints the target plate.
+        if EllesmereUI.IS_FOREVER == true and classPowerType == Enum.PowerType.ComboPoints then
+            classPowerWatcher:RegisterEvent("COMBO_TARGET_CHANGED")
         end
         -- Runes need their own event for per-rune cooldown changes
         if classPowerType == Enum.PowerType.Runes then

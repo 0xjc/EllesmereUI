@@ -5009,23 +5009,47 @@ end
 local _traceSink = nil
 local _traceReal = nil
 
-local function MakeReadProxy(real, folder, prefix)
-    local proxy = {}
-    setmetatable(proxy, {
-        __index = function(_, k)
-            local v = real[k]
-            local path = prefix and (prefix .. PS .. tostring(k)) or tostring(k)
-            if type(v) == "table" then
-                return MakeReadProxy(v, folder, path)
+local MakeReadProxy
+do
+    -- proxy -> the table it reads (weak). A getter that writes back a table it
+    -- read under the trace (an accessor that ensures or compacts a structure)
+    -- must store the tables behind the proxies: a proxy holds nothing of its
+    -- own, so SavedVariables would save it empty, and the next trace would wrap
+    -- it again, one layer per walk until reading it overflows the C stack.
+    -- Writes unwrap the value, and the proxies one level inside a plain table
+    -- built from them. (A do-block: the main chunk is at the local cap.)
+    local proxyOf = setmetatable({}, { __mode = "k" })
+    local function Unwrap(v)
+        local r = proxyOf[v]
+        while r do v = r; r = proxyOf[v] end
+        if type(v) == "table" then
+            for k, x in next, v do
+                local rx = type(x) == "table" and proxyOf[x]
+                if rx then rawset(v, k, Unwrap(rx)) end
             end
-            if _traceSink then
-                _traceSink[folder .. FS .. path] = true
-            end
-            return v
-        end,
-        __newindex = function(_, k, v) real[k] = v end,
-    })
-    return proxy
+        end
+        return v
+    end
+
+    MakeReadProxy = function(real, folder, prefix)
+        local proxy = {}
+        setmetatable(proxy, {
+            __index = function(_, k)
+                local v = real[k]
+                local path = prefix and (prefix .. PS .. tostring(k)) or tostring(k)
+                if type(v) == "table" then
+                    return MakeReadProxy(v, folder, path)
+                end
+                if _traceSink then
+                    _traceSink[folder .. FS .. path] = true
+                end
+                return v
+            end,
+            __newindex = function(_, k, v) real[k] = Unwrap(v) end,
+        })
+        proxyOf[proxy] = real
+        return proxy
+    end
 end
 
 local function BeginTrace()
@@ -5401,8 +5425,14 @@ local function GoldWalk(frame, forceOff, condGid, condName)
             frame._specOvHover:Hide()
         end
     end
+    -- Only what is on screen: a hidden cached page is walked again when it
+    -- shows (every page select requests a walk), and its getters never run
+    -- under the trace meanwhile (another module's page may be excluded).
     local kids = { frame:GetChildren() }
-    for i = 1, #kids do GoldWalk(kids[i], forceOff, condGid, condName) end
+    for i = 1, #kids do
+        local kid = kids[i]
+        if kid:IsShown() then GoldWalk(kid, forceOff, condGid, condName) end
+    end
 end
 
 local _goldWalkQueued = false
