@@ -4273,15 +4273,15 @@ local function SkinCharacterSheet()
             end
         end
 
-        -- Stat letters (on unless false; the tertiaries unless their own key
-        -- is false). An item with only tertiaries shows them at full size.
+        -- Stat letters (off unless true; the tertiaries only when their own key
+        -- is true too). An item with only tertiaries shows them at full size.
         -- Not on WoW Forever, whose sheet has its own stat text and no options row.
         if GetFFD(slot).statLetterLabel then
             local sec, tert = "", ""
             if itemLink and not EllesmereUI.IS_FOREVER
-                and not (EllesmereUIDB and EllesmereUIDB.charSheetItemStats == false) then
+                and EllesmereUIDB and EllesmereUIDB.charSheetItemStats == true then
                 sec, tert = EllesmereUI.GetItemStatLetters(itemLink)
-                if EllesmereUIDB and EllesmereUIDB.itemStatsTertiary == false then tert = "" end
+                if not (EllesmereUIDB and EllesmereUIDB.itemStatsTertiary == true) then tert = "" end
                 if sec == "" then sec, tert = tert, "" end
             end
             local statLabel, terLabel = GetFFD(slot).statLetterLabel, GetFFD(slot).statLetterTerLabel

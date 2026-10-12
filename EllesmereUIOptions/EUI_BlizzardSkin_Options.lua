@@ -1008,7 +1008,7 @@ initFrame:SetScript("OnEvent", function(self)
             local ITEM_DETAILS = {
                 { key="showItemLevel",    label="Item Level",    refresh="_refreshItemLevelVisibility" },
                 { key="showUpgradeTrack", label="Upgrade Track", refresh="_refreshUpgradeTrackVisibility" },
-                { key="charSheetItemStats", label="Stat Letters", refresh="_refreshCharSheetSlotLabels" },
+                { key="charSheetItemStats", label="Stat Letters", refresh="_refreshCharSheetSlotLabels", optIn=true },
             }
             if not stock then
                 ITEM_DETAILS[#ITEM_DETAILS + 1] = { key="showGems", label="Gems", refresh="_refreshGemsVisibility" }
@@ -1027,11 +1027,18 @@ initFrame:SetScript("OnEvent", function(self)
             );  y = y - h
             if not EllesmereUI._prebuilding then
                 local rgn = coreRow1._rightRegion
-                local refreshOf = {}
-                for _, item in ipairs(ITEM_DETAILS) do refreshOf[item.key] = item.refresh end
+                -- Keys are on unless false; an optIn key is off unless true.
+                local refreshOf, optIn = {}, {}
+                for _, item in ipairs(ITEM_DETAILS) do
+                    refreshOf[item.key] = item.refresh
+                    optIn[item.key] = item.optIn
+                end
                 local cbDD, cbDDRefresh = EllesmereUI.BuildVisOptsCBDropdown(
                     rgn, 210, rgn:GetFrameLevel() + 2, ITEM_DETAILS,
-                    function(key) return not (EllesmereUIDB and EllesmereUIDB[key] == false) end,
+                    function(key)
+                        if optIn[key] then return EllesmereUIDB and EllesmereUIDB[key] == true or false end
+                        return not (EllesmereUIDB and EllesmereUIDB[key] == false)
+                    end,
                     function(key, v)
                         if not EllesmereUIDB then EllesmereUIDB = {} end
                         EllesmereUIDB[key] = v
@@ -1216,7 +1223,8 @@ initFrame:SetScript("OnEvent", function(self)
 
         -- Stat letters: the gear flyout's (independent of the themed sheet, like
         -- its item levels) and whether Leech / Avoidance / Speed join them there
-        -- and on the sheet's slots (Item Details -> Stat Letters).
+        -- and on the sheet's slots (Item Details -> Stat Letters). All off
+        -- unless turned on.
         if not EllesmereUI.IS_FOREVER then
             local _
             _, h = W:DualRow(parent, y,
@@ -1229,7 +1237,7 @@ initFrame:SetScript("OnEvent", function(self)
                   end },
                 { type="toggle", text="Tertiary Stat Letters",
                   tooltip="Adds Leech, Avoidance and Speed (L, A, S) in smaller letters behind the secondary stats, in the gear flyout and on the character sheet slots.",
-                  getValue=function() return not (EllesmereUIDB and EllesmereUIDB.itemStatsTertiary == false) end,
+                  getValue=function() return EllesmereUIDB and EllesmereUIDB.itemStatsTertiary == true or false end,
                   setValue=function(v)
                       if not EllesmereUIDB then EllesmereUIDB = {} end
                       EllesmereUIDB.itemStatsTertiary = v

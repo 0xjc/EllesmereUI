@@ -5177,7 +5177,7 @@ end
 --  EquipmentFlyout_UpdateItems (after every flyout shape is populated) and reads EllesmereUIDB
 --  live, so the toggle applies to the next flyout with no reload. Toggle: EllesmereUIDB.flyoutItemLevels (Quality of Life -> UI).
 --  EllesmereUIDB.flyoutItemStats adds the stat letters (EllesmereUI.GetItemStatLetters)
---  centred along the bottom edge; itemStatsTertiary == false drops Leech/Avoidance/Speed.
+--  centred along the bottom edge; itemStatsTertiary == true adds Leech/Avoidance/Speed.
 -------------------------------------------------------------------------------
 do
     local function FlyoutEnabled()
@@ -5295,7 +5295,7 @@ do
         local sec, tert = "", ""
         if link and EllesmereUI.GetItemStatLetters then
             sec, tert = EllesmereUI.GetItemStatLetters(link)
-            if EllesmereUIDB and EllesmereUIDB.itemStatsTertiary == false then tert = "" end
+            if not (EllesmereUIDB and EllesmereUIDB.itemStatsTertiary == true) then tert = "" end
         end
         if sec == "" and tert == "" then
             if fs then fs:SetText(""); ter:SetText("") end
