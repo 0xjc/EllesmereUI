@@ -311,6 +311,7 @@ if EUI.IS_FOREVER and Entry and ECHAT.SB_KITS then
         copy       = Entry(FSQ, { glyph = { P("chat_copy.png") } }),
         portals    = Entry(FSQ, { glyph = { P("chat_portal.png") } }),
         voice      = Entry(FSQ, { glyph = { A("chatframe-button-icon-voicechat", 20, 20) } }),
+        chatmenu   = Entry(FSQ, { glyph = { { file = ECHAT.CHAT_MENU_GLYPH, w = 18, h = 18 } } }),
         settings   = Entry(FSQ, { glyph = { P("chat_settings.png") } }),
         scroll = {
             sidebar = { w = 34, h = 34, plate = true,

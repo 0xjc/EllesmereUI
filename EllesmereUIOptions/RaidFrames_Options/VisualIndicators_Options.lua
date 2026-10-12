@@ -1087,17 +1087,17 @@ local function BuildVisualIndicators(parent, y, W, onSection, EYE, CustomBorderO
             disabled=function()
                 local key = SGet("borderTexture")
                 return TNBOff() or EllesmereUI.BlizzStyle.Get("raidframes")
-                    or (key ~= "pixels" and key ~= "pixels-textured")
+                    or not EllesmereUI._pixelArtBorders[key]
             end,
             disabledTooltip=function() return TNBOff() and "Enable Top Name Bar" or "Pixels or Pixels Textured Border Style" end,
             title="Top Name Bar Options",
             rows={
                 { type="toggle", label="Divider",
-                  tooltip="Draw a separator matching the frame's Pixels style, size, color and transparency. Hidden below Height 4.",
+                  tooltip="Separates the name bar from the health bar.",
                   get=function() return SVal("topNameBarDivider", false) end,
                   set=function(v) SSet("topNameBarDivider", v) end },
                 { type="toggle", label="Match Highlight Colors",
-                  tooltip="Divider follows the frame border's highlight colors and transparency, including hover and target. When off, it keeps the normal frame border color.",
+                  tooltip="The divider follows hover and target colors.",
                   disabled=function() return not SVal("topNameBarDivider", false) end,
                   disabledTooltip="Requires Divider.",
                   rawTooltip=true,

@@ -629,7 +629,7 @@ EllesmereUI._WHATSNEW_PATCHES = {
                 -- Added from a bar's Add menu: page-only.
                 module = "Cooldown Manager",
                 title  = "Empty Slot",
-                desc   = "CD and utility bars can hold empty slots to space their icons into groups (Add menu > Empty Slot). Right-click an empty slot to set Talent Conditions for when it reserves space",
+                desc   = "CD and utility bars can hold empty slots to space their icons into groups (Add menu > Empty Slot)",
                 nav    = { module = "EllesmereUICooldownManager", page = "CDM Bars" },
             },
             {
@@ -838,7 +838,7 @@ EllesmereUI._WHATSNEW_PATCHES = {
                 title  = "Power Bar Spenders",
                 desc   = "The Power Bar can change color while a spell you choose is ready to cast, set per entry under Threshold Settings",
                 nav    = { module = "EllesmereUIResourceBars", page = "Class, Power and Health Bars",
-                           section = "POWER BAR", highlight = "Threshold Settings" },
+                           section = "POWER BAR", highlight = "Threshold & Hash Lines" },
             },
             {
                 module = "Resource Bars",
@@ -852,7 +852,7 @@ EllesmereUI._WHATSNEW_PATCHES = {
                 title  = "Expand Extra Y Offset",
                 desc   = "Expand Power Bar if No Resource gains an Extra Y Offset, so the expanded bar can cover a gap left by the class resource",
                 nav    = { module = "EllesmereUIResourceBars", page = "Class, Power and Health Bars",
-                           section = "BAR DISPLAY", highlight = "Expand Power Bar if No Resource" },
+                           section = "BAR SHIFTING", highlight = "Expand Power Bar if No Resource" },
             },
             {
                 module = "Resource Bars",

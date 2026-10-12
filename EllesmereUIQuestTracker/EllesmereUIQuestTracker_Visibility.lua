@@ -102,9 +102,10 @@ EQT.TrackerIsVisible = TrackerIsVisible
 -- events (QUEST_LOG_UPDATE etc.) from doing skin/resize/classify work when
 -- the tracker is hidden anyway. Re-registers on zone-out / unsuppress.
 local _eventsSuspended = false
--- Not guarded on _eventsSuspended: frames can enroll after an early suspend,
--- and each pass while hidden must catch them.
+-- Acts once per hide: no frame joins the set after the first suspend (all
+-- enroll at file load or in the login init, before any visibility pass).
 local function SuspendQTEvents()
+    if _eventsSuspended then return end
     _eventsSuspended = true
     if EQT._eventFrames then
         for _, f in ipairs(EQT._eventFrames) do

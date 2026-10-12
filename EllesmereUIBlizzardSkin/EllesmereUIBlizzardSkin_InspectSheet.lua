@@ -499,13 +499,15 @@ local function SkinInspectSheet()
     end
 
     -- Hide PVP Frame background elements. Frames other addons parent in here
-    -- are theirs to draw (see WSkin.IsForeignFrame).
+    -- are theirs to draw (see WSkin.IsForeignFrame), and the WoW Forever PvP
+    -- frame keeps all of its content in one unnamed child, MainInfoFrame.
     local IsForeign = ns.WSkin and ns.WSkin.IsForeignFrame
     if InspectPVPFrame then
+        local content = InspectPVPFrame.MainInfoFrame
         local children = { InspectPVPFrame:GetChildren() }
         for i = 1, #children do
             local child = children[i]
-            if child and not child:GetName()
+            if child and child ~= content and not child:GetName()
                and not (IsForeign and IsForeign(child, InspectPVPFrame)) then
                 child:Hide()
             end
@@ -598,8 +600,8 @@ local function SkinInspectSheet()
         local paperDollItemsFrame = InspectPaperDollItemsFrame
         if paperDollItemsFrame then
             local IsForeignBtn = ns.WSkin and ns.WSkin.IsForeignFrame
-            -- Forever parents it to InspectPaperDollFrame instead.
-            local talentsBtn = paperDollItemsFrame.InspectTalents or InspectPaperDollFrame.InspectTalents
+            -- Retail only: WoW Forever's inspect window has no Talents button.
+            local talentsBtn = paperDollItemsFrame.InspectTalents
             local children2 = { paperDollItemsFrame:GetChildren() }
             for i = 1, #children2 do
                 local child = children2[i]
@@ -801,7 +803,14 @@ local function SkinInspectSheet()
             ilvlFS:SetFont(fontPath, 16, "")
             ilvlFS:SetTextColor(0.6, 0.2, 1, 1)
             ilvlFS:SetJustifyH("CENTER")
-            ilvlFS:SetPoint("TOP", frame, "TOP", 0, -43)
+            -- Under Blizzard's level line wherever the client draws it (WoW
+            -- Forever puts it lower and larger than retail).
+            local levelText = _G.InspectLevelText
+            if levelText then
+                ilvlFS:SetPoint("TOP", levelText, "BOTTOM", 0, -3)
+            else
+                ilvlFS:SetPoint("TOP", frame, "TOP", 0, -43)
+            end
             GetFFD(frame).avgIlvlText = ilvlFS
         end
 
@@ -959,6 +968,10 @@ local function SkinInspectSheet()
         if GetFFD(frame).transmogBtn then
             GetFFD(frame).transmogBtn:SetShown(isTab1)
         end
+        -- The item text eyeball only has slots to act on on Tab 1
+        if GetFFD(frame).textEyeBtn then
+            GetFFD(frame).textEyeBtn:SetShown(isTab1)
+        end
 
         -- Update label visibility with ApplyTabVisibility - only show on Tab 1
         ApplyTabVisibility(isTab1)
@@ -984,22 +997,18 @@ local function SkinInspectSheet()
         end
     end
 
-    -- Hook to update tabs when they change (once only)
+    -- Hook to update tabs when they change (once only). Every switch goes
+    -- through InspectSwitchTabs: the bottom tabs on retail, the side tabs on
+    -- WoW Forever and Blizzard's own resets to the character tab.
     if frame.HookScript and not GetFFD(frame)._tabHooked then
         GetFFD(frame)._tabHooked = true
         frame:HookScript("OnShow", function()
             UpdateTabVisuals()
         end)
-
-        for i = 1, 3 do
-            local tab = _G["InspectFrameTab" .. i]
-            if tab then
-                tab:HookScript("OnClick", function()
-                    UpdateTabVisuals()
-                    local isTab1 = (frame.selectedTab or 1) == 1
-                    ApplyTabVisibility(isTab1)
-                end)
-            end
+        if _G.InspectSwitchTabs then
+            hooksecurefunc("InspectSwitchTabs", function()
+                UpdateTabVisuals()
+            end)
         end
     end
 

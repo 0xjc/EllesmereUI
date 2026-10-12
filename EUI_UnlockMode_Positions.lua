@@ -2093,7 +2093,7 @@ EllesmereUI.ReapplyAllUnlockAnchorsForced = function()
                     isABGrow = gd and gd ~= "CENTER"
                 end
                 if not isABGrow then
-                    pcall(childBar.ClearAllPoints, childBar)
+                    pcall(EllesmereUI.ClearFramePoints, childBar)
                     UM.ApplyAnchorPosition(childKey, info.target, info.side, true)
                 end
             end

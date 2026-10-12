@@ -377,7 +377,7 @@ function ns.RF_ApplyPowerBorderArt(host, s, force, preview, nameBar)
     local mode = nameBar and "divider" or (s.powerBorderStyle or "eui")
     local key = ((nameBar and s.topNameBarDivider == true) or (not nameBar and s.powerBorderMatchFrame == true))
         and not ns.RF_Stock() and s.borderTexture
-    if (key ~= "pixels" and key ~= "pixels-textured") or (mode ~= "divider" and mode ~= "border") then
+    if not EllesmereUI._pixelArtBorders[key] or (mode ~= "divider" and mode ~= "border") then
         ns.RF_ClearPowerBorderArt(host)
         return false
     end
@@ -427,7 +427,7 @@ function ns.RF_ApplyTopNameDivider(tnb, s, preview)
     local host = tnb._divider
     local key = s.borderTexture
     if not PP or not s.topNameBarEnabled or s.topNameBarDivider ~= true or ns.RF_Stock()
-        or (key ~= "pixels" and key ~= "pixels-textured") or (s.borderSize or 1) <= 0
+        or not EllesmereUI._pixelArtBorders[key] or (s.borderSize or 1) <= 0
         or (s.topNameBarHeight or 20) < 4 then
         if host then
             ns.RF_ClearPowerBorderArt(host)
@@ -733,9 +733,9 @@ local function StyleButton(button)
 
     local function AnchorRoleIcon()
         local s = LiveS()   -- party/extra-aware (see LiveS note above)
-        -- The normal textured border is +8, so the enabled carrier must sit below it.
+        -- Show Behind Border: just under the base border; default: the text band.
         roleCarrier:SetFrameLevel(button:GetFrameLevel()
-            + (s.roleIconBehindBorder and 7 or (ns.LVL_AURA - 1)))
+            + (s.roleIconBehindBorder and ns.LVL_ROLE_BEHIND or (ns.LVL_AURA - 1)))
         local health = ns.RF_AnchorHost(health, s)   -- Uniform Icon Anchoring host swap
         roleIcon:ClearAllPoints()
         -- Party Frames kit: the stock spot plus the user's offsets.

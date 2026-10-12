@@ -10,8 +10,8 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --      house close button, through the same engine calls every skinned
 --      Blizzard window uses;
 --    - every piece of frame art stripped: the pane backdrops and stone
---      header, the item slot frames, the class icon and its ring, the level
---      text plate, the right-pane collapse arrow;
+--      header, the item slot frames, the class icon and its ring, the rock
+--      strip under the level line, the right-pane collapse arrow;
 --    - the retail sheet's model backdrop behind the character, cover-cropped
 --      to the model area, and the retail sidebar's darker panel behind the
 --      stats (its left edge is the divider between the two panes);
@@ -1007,12 +1007,15 @@ local function SkinFrame()
         end)
     end
 
-    -- Name in the top bar and the level line: the house font on Blizzard's
-    -- own font strings, so the text (pvp title, class colour) stays theirs.
+    -- Name in the top bar and the level lines (the player's and the pet
+    -- view's): the house font on Blizzard's own font strings, so the text
+    -- (pvp title, class colour) stays theirs.
     local title = _G.CharacterFrameTitleText or (frame.TitleContainer and frame.TitleContainer.TitleText)
     if title and WSkin.Font then WSkin.Font(title, 1, 1, 1) end
     local level = _G.CharacterLevelText
     if level and WSkin.Font then WSkin.Font(level) end
+    local petLevel = _G.PetCharacterLevelText
+    if petLevel and WSkin.Font then WSkin.Font(petLevel) end
 
     -- Pane backdrops, the stone header, the divider strip, the stats box
     -- chrome (inside frame, scroll line, class crest) and the model backdrop.

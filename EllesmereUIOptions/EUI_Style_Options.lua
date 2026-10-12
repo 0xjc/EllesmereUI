@@ -439,7 +439,8 @@ if EllesmereUI.IS_FOREVER then
         end }
 end
 -- WoW Forever's own seeds (the Nameplates Left Text its level box stands in
--- for, the Unit Frames class resource its combo point arc takes) swap only
+-- for and the Elite/Rare Indicator box it starts unchecked, the Unit Frames
+-- class resource its combo point arc takes) swap only
 -- across the variant (foreverOnly), in a spec of their own (m.fvSlots) kept
 -- apart from the module's slots above (store): the other looks share one
 -- "eui" slot for them, banked on the way in and restored on the way out, and
@@ -448,8 +449,12 @@ end
 -- store at enable for a profile that arrives already switched.
 if IS_FOREVER then
     local FOREVER_SLOT_KEYS = {
-        nameplates = { keys = { "textSlotLeft" }, stamps = { "foreverLevelSlotSeeded" },
-                       seededBy = function() return "foreverLevelSlotSeeded" end,
+        nameplates = { keys = { "textSlotLeft", "classificationHideRare" },
+                       stamps = { "foreverLevelSlotSeeded", "foreverRareSeeded" },
+                       seededBy = function(key)
+                           if key == "classificationHideRare" then return "foreverRareSeeded" end
+                           return "foreverLevelSlotSeeded"
+                       end,
                        seed = function(p)
                            local n = NS("EllesmereUINameplates")
                            if n and n.NP_SeedForever then n.NP_SeedForever(p) end

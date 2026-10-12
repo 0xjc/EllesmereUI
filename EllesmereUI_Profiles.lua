@@ -140,7 +140,7 @@ end
 --  build; the canon lookup covers a decoded payload's canonical keys.
 -------------------------------------------------------------------------------
 local PRIVATE_ADDON_KEYS = {
-    ["EllesmereUIDataBars"] = { "characters" },  -- gold ledger -> EllesmereUIDB.dataBarsGold
+    ["EllesmereUIDataBars"] = { "characters" },  -- gold record -> EllesmereUIDB.goldLedger
     ["EllesmereUIQoL"]      = { "chars" },       -- upgrade calc -> EllesmereUIDB.qolUpgradeCalcChars
 }
 
@@ -1385,6 +1385,13 @@ local REFRESH_ADDON_STEPS = {
             EllesmereUI._applySecondaryStats()
         end
     end,
+    -- QoL Battle Res, Bloodlust and Junk Items (enable state, visibility,
+    -- position; Battle Res and Bloodlust do not exist on WoW Forever)
+    function()
+        if _G._EUI_BattleRes_Apply then _G._EUI_BattleRes_Apply() end
+        if _G._EUI_Bloodlust_Apply then _G._EUI_Bloodlust_Apply() end
+        if _G._EUI_JunkList_Apply then _G._EUI_JunkList_Apply() end
+    end,
     -- AuraBuffReminders (style + refresh + position)
     function()
         if _G._EABR_UpdateGroupAuraRegistration then _G._EABR_UpdateGroupAuraRegistration() end
@@ -2374,11 +2381,13 @@ end
 --  automatically instead of being silently missed.
 --
 --  Excluded by design -- per-character data that is nobody else's:
---    dataBarsGold         cross-character gold ledger
+--    goldLedger           cross-character and warband gold record
 --    qolUpgradeCalcChars  Upgrade Calculator per-character cache
 --    xpBarChars           XP bar session clock, XP rate and time this level
---  (The first two are the blobs PRIVATE_ADDON_KEYS strips from normal strings,
---  at their current top-level homes.) And the game settings this client had
+--  (The upgrade-calc and gold blobs are what PRIVATE_ADDON_KEYS strips from
+--  normal strings, at their current top-level homes. The three legacy gold
+--  keys stay listed: until Bags or DataBars loads and absorbs them they are
+--  still on disk.) And the game settings this client had
 --  before EllesmereUI, which Uninstall EUI puts back, with the values modules
 --  hand back to this client's CVars later:
 --    restoreOnUninstall     (EllesmereUI_Uninstall.lua)
@@ -2388,7 +2397,10 @@ end
 -------------------------------------------------------------------------------
 local FULL_EXPORT_TYPE = "fullaccount"
 local FULL_EXPORT_EXCLUDED = {
+    goldLedger            = true,
     dataBarsGold          = true,
+    characterGold         = true,
+    warbandGold           = true,
     qolUpgradeCalcChars   = true,
     xpBarChars            = true,
     restoreOnUninstall    = true,

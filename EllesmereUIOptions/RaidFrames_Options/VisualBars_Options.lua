@@ -1258,7 +1258,7 @@ local function BuildVisualBars(parent, y, W, onSection, EYE)
     local pwBdrRow
     local function CanMatchPowerBorder()
         local key = SGet("borderTexture")
-        return not EllesmereUI.BlizzStyle.Get("raidframes") and (key == "pixels" or key == "pixels-textured")
+        return not EllesmereUI.BlizzStyle.Get("raidframes") and EllesmereUI._pixelArtBorders[key] == true
     end
     local function MatchingPowerBorder()
         return SVal("powerBorderMatchFrame", false) and CanMatchPowerBorder() and SVal("powerBorderStyle", "eui") ~= "eui"
@@ -1299,11 +1299,11 @@ local function BuildVisualBars(parent, y, W, onSection, EYE)
             title="Power Border Options",
             rows={
                 ns.RF_PartyKitGate({ type="toggle", label="Match Frame Border",
-                  tooltip="Divider and Border follow the frame's Pixels style, size, color and transparency. Divider is hidden below Power Height 4. EllesmereUI keeps its fixed white line.",
+                  tooltip="Uses the frame border's art, size and color.",
                   get=function() return SVal("powerBorderMatchFrame", false) end,
                   set=function(v) SSet("powerBorderMatchFrame", v); EllesmereUI:RefreshPage(true) end }),
                 ns.RF_PartyKitGate({ type="toggle", label="Match Highlight Colors",
-                  tooltip="Divider follows the frame border's highlight colors and transparency, including hover and target. When off, it keeps the normal frame border color.",
+                  tooltip="The divider follows hover and target colors.",
                   disabled=function() return not MatchingPowerBorder() or SVal("powerBorderStyle", "eui") ~= "divider" end,
                   disabledTooltip="Requires Match Frame Border and Divider.",
                   rawTooltip=true,
