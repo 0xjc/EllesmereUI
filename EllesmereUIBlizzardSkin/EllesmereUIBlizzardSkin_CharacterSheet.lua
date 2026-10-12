@@ -4281,7 +4281,7 @@ local function SkinCharacterSheet()
             if itemLink and not EllesmereUI.IS_FOREVER
                 and EllesmereUIDB and EllesmereUIDB.charSheetItemStats == true then
                 sec, tert = EllesmereUI.GetItemStatLetters(itemLink)
-                if not (EllesmereUIDB and EllesmereUIDB.itemStatsTertiary == true) then tert = "" end
+                if not (EllesmereUIDB and EllesmereUIDB.charSheetItemStatsTertiary == true) then tert = "" end
                 if sec == "" then sec, tert = tert, "" end
             end
             local statLabel, terLabel = GetFFD(slot).statLetterLabel, GetFFD(slot).statLetterTerLabel

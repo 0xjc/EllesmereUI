@@ -1009,6 +1009,7 @@ initFrame:SetScript("OnEvent", function(self)
                 { key="showItemLevel",    label="Item Level",    refresh="_refreshItemLevelVisibility" },
                 { key="showUpgradeTrack", label="Upgrade Track", refresh="_refreshUpgradeTrackVisibility" },
                 { key="charSheetItemStats", label="Stat Letters", refresh="_refreshCharSheetSlotLabels", optIn=true },
+                { key="charSheetItemStatsTertiary", label="Tertiary Stats", refresh="_refreshCharSheetSlotLabels", optIn=true },
             }
             if not stock then
                 ITEM_DETAILS[#ITEM_DETAILS + 1] = { key="showGems", label="Gems", refresh="_refreshGemsVisibility" }
@@ -1158,18 +1159,23 @@ initFrame:SetScript("OnEvent", function(self)
             UpdateCogVis()
         end
 
-        -- Gear flyout item levels. Independent of the themed character sheet
-        -- (it enhances Blizzard's own equipment flyout), so it is not gated by
-        -- the section's disabled overlay.
-        local flyoutDurRow
-        flyoutDurRow, h = W:DualRow(parent, y,
-            { type="toggle", text="Gear Flyout Item Levels",
-              tooltip="Shows the item level on each item in the character sheet gear flyout (the popup of same-slot bag items that appears when hovering an equipped slot), coloured by quality.",
-              getValue=function() return EllesmereUIDB and EllesmereUIDB.flyoutItemLevels or false end,
+        -- Durability | Season Panel. The panel greys out with the sheet off;
+        -- durability stays live either way. The panel is retail only.
+        local seasonCfg
+        if not EllesmereUI.IS_FOREVER then
+            seasonCfg = { type="toggle", text="Season Panel",
+              tooltip="Show an Omnium Folio shortcut to the right of the socket panel during Midnight seasons. The cog adds a Great Vault shortcut.",
+              disabled=themedOff, disabledTooltip="Character Sheet",
+              getValue=function() return not (EllesmereUIDB and EllesmereUIDB.charSheetSeasonPanel == false) end,
               setValue=function(v)
                   if not EllesmereUIDB then EllesmereUIDB = {} end
-                  EllesmereUIDB.flyoutItemLevels = v
-              end },
+                  EllesmereUIDB.charSheetSeasonPanel = v
+                  if EllesmereUI._refreshCharSheetSocketPanel then EllesmereUI._refreshCharSheetSocketPanel() end
+                  EllesmereUI:RefreshPage()
+              end }
+        end
+        local durSeasonRow
+        durSeasonRow, h = W:DualRow(parent, y,
             { type="toggle", text="Show Item Durability",
               tooltip="Show total equipped durability above the character model, colored from green to red.",
               getValue=function() return EllesmereUIDB and EllesmereUIDB.showCharSheetDurability or false end,
@@ -1187,12 +1193,12 @@ initFrame:SetScript("OnEvent", function(self)
                   if EllesmereUI._updateCharSheetDurability then EllesmereUI._updateCharSheetDurability() end
                   if EllesmereUI._updateScrollHeaderOffset then EllesmereUI._updateScrollHeaderOffset() end
                   EllesmereUI:RefreshPage()
-              end }
+              end },
+            seasonCfg
         );  y = y - h
 
         if not EllesmereUI._prebuilding then
-            local rgn = flyoutDurRow._rightRegion
-            EllesmereUI.BuildInlineCog(rgn, {
+            EllesmereUI.BuildInlineCog(durSeasonRow._leftRegion, {
                 disabled = function() return not (EllesmereUIDB and EllesmereUIDB.showCharSheetDurability) end,
                 disabledTooltip = "Show Item Durability",
                 title = "Durability Settings",
@@ -1219,60 +1225,11 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
-        end
-
-        -- Stat letters: the gear flyout's (independent of the themed sheet, like
-        -- its item levels) and whether Leech / Avoidance / Speed join them there
-        -- and on the sheet's slots (Item Details -> Stat Letters). All off
-        -- unless turned on.
-        if not EllesmereUI.IS_FOREVER then
-            local _
-            _, h = W:DualRow(parent, y,
-                { type="toggle", text="Gear Flyout Item Stats",
-                  tooltip="Shows each item's secondary stats as letters in the gear flyout, largest first (C Crit, H Haste, M Mastery, V Versatility), so items with the same icon are told apart.",
-                  getValue=function() return EllesmereUIDB and EllesmereUIDB.flyoutItemStats or false end,
-                  setValue=function(v)
-                      if not EllesmereUIDB then EllesmereUIDB = {} end
-                      EllesmereUIDB.flyoutItemStats = v
-                  end },
-                { type="toggle", text="Tertiary Stat Letters",
-                  tooltip="Adds Leech, Avoidance and Speed (L, A, S) in smaller letters behind the secondary stats, in the gear flyout and on the character sheet slots.",
-                  getValue=function() return EllesmereUIDB and EllesmereUIDB.itemStatsTertiary == true or false end,
-                  setValue=function(v)
-                      if not EllesmereUIDB then EllesmereUIDB = {} end
-                      EllesmereUIDB.itemStatsTertiary = v
-                      if EllesmereUI._refreshCharSheetSlotLabels then EllesmereUI._refreshCharSheetSlotLabels() end
-                  end }
-            );  y = y - h
-        end
-
-        if not EllesmereUI.IS_FOREVER then
-            local seasonRow
-            seasonRow, h = W:DualRow(parent, y,
-                { type="toggle", text="Season Panel",
-                  tooltip="Show an Omnium Folio shortcut to the right of the socket panel during Midnight seasons. The cog adds a Great Vault shortcut.",
-                  getValue=function() return not (EllesmereUIDB and EllesmereUIDB.charSheetSeasonPanel == false) end,
-                  setValue=function(v)
-                      if not EllesmereUIDB then EllesmereUIDB = {} end
-                      EllesmereUIDB.charSheetSeasonPanel = v
-                      if EllesmereUI._refreshCharSheetSocketPanel then EllesmereUI._refreshCharSheetSocketPanel() end
-                      EllesmereUI:RefreshPage()
-                  end },
-                { type="toggle", text="Hide Slot Flyout Arrows",
-                  tooltip="Hide the arrows beside equipment slots on the Equipment tab. The slot flyouts remain usable.",
-                  getValue=function() return EllesmereUIDB and EllesmereUIDB.charSheetHideSlotFlyoutArrows == true end,
-                  setValue=function(v)
-                      if not EllesmereUIDB then EllesmereUIDB = {} end
-                      EllesmereUIDB.charSheetHideSlotFlyoutArrows = v
-                      if EllesmereUI._refreshCharSheetSlotFlyoutArrows then EllesmereUI._refreshCharSheetSlotFlyoutArrows() end
-                  end }
-            );  y = y - h
-            AttachDisabledOverlay(seasonRow)
 
             -- Inline cog on Season Panel: the Great Vault shortcut is its own opt-in.
-            if not EllesmereUI._prebuilding then
-                EllesmereUI.BuildInlineCog(seasonRow._leftRegion, {
-                    disabled = function() return EllesmereUIDB and EllesmereUIDB.charSheetSeasonPanel == false end,
+            if seasonCfg then
+                EllesmereUI.BuildInlineCog(durSeasonRow._rightRegion, {
+                    disabled = function() return themedOff() or (EllesmereUIDB and EllesmereUIDB.charSheetSeasonPanel == false) end,
                     disabledTooltip = "Season Panel",
                     title = "Season Panel Settings",
                     rows = {
@@ -1287,6 +1244,60 @@ initFrame:SetScript("OnEvent", function(self)
                     },
                 })
             end
+        end
+
+        _, h = W:Spacer(parent, y, 10);  y = y - h
+
+        ---------------------------------------------------------------------------
+        --  GEAR FLYOUT
+        ---------------------------------------------------------------------------
+        -- The popup of same-slot items from an equipped slot. Item levels and
+        -- stat letters enhance Blizzard's own flyout, so they stay live with the
+        -- sheet off; the slot arrows belong to the sheet and grey out with it.
+        -- The sheet's own slot letters live under Item Details (Stat Letters,
+        -- Tertiary Stats). All off unless turned on.
+        _, h = WSCardSection(parent, "GEAR FLYOUT", y);  y = y - h
+
+        local flyoutStatsCfg
+        if not EllesmereUI.IS_FOREVER then
+            flyoutStatsCfg = { type="toggle", text="Show Item Stats",
+              tooltip="Shows each item's secondary stats as letters in the gear flyout, largest first (C Crit, H Haste, M Mastery, V Versatility), so items with the same icon are told apart.",
+              getValue=function() return EllesmereUIDB and EllesmereUIDB.flyoutItemStats or false end,
+              setValue=function(v)
+                  if not EllesmereUIDB then EllesmereUIDB = {} end
+                  EllesmereUIDB.flyoutItemStats = v
+              end }
+        end
+        _, h = W:DualRow(parent, y,
+            { type="toggle", text="Show Item Levels",
+              tooltip="Shows the item level on each item in the character sheet gear flyout (the popup of same-slot bag items that appears when hovering an equipped slot), coloured by quality.",
+              getValue=function() return EllesmereUIDB and EllesmereUIDB.flyoutItemLevels or false end,
+              setValue=function(v)
+                  if not EllesmereUIDB then EllesmereUIDB = {} end
+                  EllesmereUIDB.flyoutItemLevels = v
+              end },
+            flyoutStatsCfg
+        );  y = y - h
+
+        if not EllesmereUI.IS_FOREVER then
+            _, h = W:DualRow(parent, y,
+                { type="toggle", text="Tertiary Stat Letters",
+                  tooltip="Adds Leech, Avoidance and Speed (L, A, S) in smaller letters behind the secondary stats in the gear flyout.",
+                  getValue=function() return EllesmereUIDB and EllesmereUIDB.flyoutItemStatsTertiary == true or false end,
+                  setValue=function(v)
+                      if not EllesmereUIDB then EllesmereUIDB = {} end
+                      EllesmereUIDB.flyoutItemStatsTertiary = v
+                  end },
+                { type="toggle", text="Hide Slot Flyout Arrows",
+                  tooltip="Hide the arrows beside equipment slots on the Equipment tab. The slot flyouts remain usable.",
+                  disabled=themedOff, disabledTooltip="Character Sheet",
+                  getValue=function() return EllesmereUIDB and EllesmereUIDB.charSheetHideSlotFlyoutArrows == true end,
+                  setValue=function(v)
+                      if not EllesmereUIDB then EllesmereUIDB = {} end
+                      EllesmereUIDB.charSheetHideSlotFlyoutArrows = v
+                      if EllesmereUI._refreshCharSheetSlotFlyoutArrows then EllesmereUI._refreshCharSheetSlotFlyoutArrows() end
+                  end }
+            );  y = y - h
         end
 
         _, h = W:Spacer(parent, y, 10);  y = y - h
@@ -4020,7 +4031,8 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUIDB.flyoutItemLevels = nil
                 EllesmereUIDB.flyoutItemStats = nil
                 EllesmereUIDB.charSheetItemStats = nil
-                EllesmereUIDB.itemStatsTertiary = nil
+                EllesmereUIDB.flyoutItemStatsTertiary = nil
+                EllesmereUIDB.charSheetItemStatsTertiary = nil
                 EllesmereUIDB.showCharSheetDurability = nil
                 EllesmereUIDB.charSheetDurabilityLocation = nil
                 EllesmereUIDB.charSheetDurabilityShowLabel = nil
