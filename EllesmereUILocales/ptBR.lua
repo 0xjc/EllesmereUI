@@ -8849,3 +8849,17 @@ L["You have arrived:"] = "Você chegou:"
 
 -- == DataBars Gold ==========================================================
 L["Account gold tracking is disabled"] = "O rastreamento de ouro da conta está desativado"
+
+if GetLocale() == "ptBR" and EllesmereUI then
+    EllesmereUI._dungeonAbbrevOverride = {
+        ["OVO"]   = "BV",   -- O Vale Ofuscante
+        ["ADCDC"] = "VA",   -- Arena da Chaga do Caos
+        ["CDN"]   = "DoN",  -- Covil de Nalorakk
+        ["TDA"]   = "MR",   -- Travessa do Assassino
+        ["ADP"]   = "AoF",  -- Altar das Presas
+        ["PDVR"]  = "RLP",  -- Pocos da Vida Rubi
+        ["TDS"]   = "ToS",  -- Templo de Sethraliss
+        ["RDR"]   = "KR",   -- Repouso do Rei
+    }
+end
+
