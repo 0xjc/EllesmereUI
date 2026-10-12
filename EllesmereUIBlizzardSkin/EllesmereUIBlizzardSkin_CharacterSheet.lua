@@ -4178,10 +4178,13 @@ local function SkinCharacterSheet()
     -- Cache item info (ID, level, upgrade track) to update when items change
     local itemCache = {}
 
-    -- Update one slot's item level, enchant and upgrade-track labels.
+    -- Update one slot's item level, enchant and upgrade-track labels. Returns false when
+    -- the item's data had not fully arrived (no quality, no item level, or an enchant id
+    -- on the link whose name the scan could not read yet), so the caller retries the slot.
+    -- An unenchanted item is complete: a missing enchant is an answer, not a failed read.
     local function UpdateSlotInfo(slotName)
         local slot = _G[slotName]
-        if not slot then return end
+        if not slot then return true end
 
         -- Tab guard: equipment events fire regardless of the active sub-tab, so
         -- labels must stay hidden if opened straight to Reputation/Currency.
@@ -4200,8 +4203,11 @@ local function SkinCharacterSheet()
         local slotID = slot:GetID()
 
         if itemLink then
-            local _, _, quality, ilvl = GetItemInfo(itemLink)
-            itemLevel = ilvl or ""
+            -- GetItemInfo's itemLevel is the cached base level, wrong for upgrade-track
+            -- pieces (shows 219 for a 334 item); read the equipped instance instead.
+            local _, _, quality = C_Item.GetItemInfo(itemLink)
+            local ilvl = GetEquippedItemLevel(slotID)
+            itemLevel = (ilvl and ilvl > 0) and ilvl or ""
             itemQuality = quality
 
             -- Enchant via C_TooltipInfo; upgrade track via C_Item (no tooltip).
@@ -4346,7 +4352,16 @@ local function SkinCharacterSheet()
             GetFFD(slot).statLetterLabel:SetShown(isCharTab)
             GetFFD(slot).statLetterTerLabel:SetShown(isCharTab)
         end
+
+        if not itemLink then return true end
+        local enchantID = tonumber(itemLink:match("item:%d+:(%d+)"))
+        local enchantPending = enchantID and enchantID ~= 0 and enchantText == ""
+        return itemQuality ~= nil and itemLevel ~= "" and not enchantPending
     end
+
+    -- Slots whose last read came back incomplete; they stay out of itemCache so the next
+    -- refresh reads them again, and item-data events only trigger a refresh while any exist.
+    local incompleteSlots = {}
 
     -- Event-driven per-slot label refresh; item-link cache guards redundant work, events catch upgrade/enchant/socket changes without polling.
     local function RefreshAllSlotLabels()
@@ -4355,8 +4370,13 @@ local function SkinCharacterSheet()
         for _, slotName in ipairs(itemSlots) do
             local itemLink = GetInventoryItemLink("player", _G[slotName]:GetID())
             if itemCache[slotName] ~= itemLink then
-                itemCache[slotName] = itemLink
-                UpdateSlotInfo(slotName)
+                if UpdateSlotInfo(slotName) then
+                    itemCache[slotName] = itemLink
+                    incompleteSlots[slotName] = nil
+                else
+                    itemCache[slotName] = nil
+                    incompleteSlots[slotName] = true
+                end
             end
         end
     end
@@ -4380,11 +4400,25 @@ local function SkinCharacterSheet()
                 monitor:RegisterEvent("UNIT_INVENTORY_CHANGED")
                 monitor:RegisterEvent("SOCKET_INFO_UPDATE")
                 monitor:RegisterEvent("ITEM_UPGRADE_MASTER_UPDATE")
+                -- Item/tooltip data arriving late for a slot whose read came back
+                -- incomplete. Both storm in cities, so the handler drops them at once
+                -- while no slot is pending and debounces the rest.
+                monitor:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+                monitor:RegisterEvent("TOOLTIP_DATA_UPDATE")
             else
                 monitor:UnregisterAllEvents()
             end
         end
+        local retryTimer
         monitor:SetScript("OnEvent", function(_, event, unit)
+            if event == "GET_ITEM_INFO_RECEIVED" or event == "TOOLTIP_DATA_UPDATE" then
+                if not next(incompleteSlots) or retryTimer then return end
+                retryTimer = C_Timer.NewTimer(0.12, function()
+                    retryTimer = nil
+                    RefreshAllSlotLabels()
+                end)
+                return
+            end
             if event == "UNIT_INVENTORY_CHANGED" and unit ~= "player" then return end
             if not (frame and frame:IsShown()) then return end
             RefreshAllSlotLabels()
