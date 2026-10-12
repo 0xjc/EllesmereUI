@@ -730,10 +730,10 @@ local function BuildMainPage(pageName, parent, yOffset)
     end
 
     _, h = W:DualRow(parent, y,
-        { type="slider", pixel=true, text="Frame Spacing", min=-1, max=15, step=1,
+        { type="slider", pixel=true, text="Frame Spacing", min=-5, max=15, step=1,
           getValue=function() return SVal("cellSpacing", 2) end,
           setValue=function(v) SSet("cellSpacing", v) end },
-        { type="slider", pixel=true, text="Group Spacing", min=-1, max=15, step=1,
+        { type="slider", pixel=true, text="Group Spacing", min=-5, max=15, step=1,
           getValue=function() return SVal("groupSpacing", 8) end,
           setValue=function(v) SSet("groupSpacing", v) end });  y = y - h
 
@@ -1652,7 +1652,7 @@ local function BuildPartyPage(pageName, parent, yOffset)
         -- (The Party Frames kit keeps its own spacing, set in its Frame
         -- Scale cog, so the Raid Frames layout's value survives a switch
         -- between the two.)
-        ns.RF_PartyKitGate({ type="slider", pixel=true, text="Frame Spacing", min=-1, max=15, step=1,
+        ns.RF_PartyKitGate({ type="slider", pixel=true, text="Frame Spacing", min=-5, max=15, step=1,
           getValue=function()
               if ns.RF_PartyKit() then return db.profile.partyKitSpacing or ns.RF_KIT_SPACING or 6 end
               return SVal("partyCellSpacing", db.profile.cellSpacing or 2)
