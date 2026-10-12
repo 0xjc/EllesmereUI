@@ -1008,6 +1008,7 @@ initFrame:SetScript("OnEvent", function(self)
             local ITEM_DETAILS = {
                 { key="showItemLevel",    label="Item Level",    refresh="_refreshItemLevelVisibility" },
                 { key="showUpgradeTrack", label="Upgrade Track", refresh="_refreshUpgradeTrackVisibility" },
+                { key="charSheetItemStats", label="Stat Letters", refresh="_refreshCharSheetSlotLabels" },
             }
             if not stock then
                 ITEM_DETAILS[#ITEM_DETAILS + 1] = { key="showGems", label="Gems", refresh="_refreshGemsVisibility" }
@@ -1211,6 +1212,30 @@ initFrame:SetScript("OnEvent", function(self)
                       end },
                 },
             })
+        end
+
+        -- Stat letters: the gear flyout's (independent of the themed sheet, like
+        -- its item levels) and whether Leech / Avoidance / Speed join them there
+        -- and on the sheet's slots (Item Details -> Stat Letters).
+        if not EllesmereUI.IS_FOREVER then
+            local _
+            _, h = W:DualRow(parent, y,
+                { type="toggle", text="Gear Flyout Item Stats",
+                  tooltip="Shows each item's secondary stats as letters in the gear flyout, largest first (C Crit, H Haste, M Mastery, V Versatility), so items with the same icon are told apart.",
+                  getValue=function() return EllesmereUIDB and EllesmereUIDB.flyoutItemStats or false end,
+                  setValue=function(v)
+                      if not EllesmereUIDB then EllesmereUIDB = {} end
+                      EllesmereUIDB.flyoutItemStats = v
+                  end },
+                { type="toggle", text="Tertiary Stat Letters",
+                  tooltip="Adds Leech, Avoidance and Speed (L, A, S) in smaller letters behind the secondary stats, in the gear flyout and on the character sheet slots.",
+                  getValue=function() return not (EllesmereUIDB and EllesmereUIDB.itemStatsTertiary == false) end,
+                  setValue=function(v)
+                      if not EllesmereUIDB then EllesmereUIDB = {} end
+                      EllesmereUIDB.itemStatsTertiary = v
+                      if EllesmereUI._refreshCharSheetSlotLabels then EllesmereUI._refreshCharSheetSlotLabels() end
+                  end }
+            );  y = y - h
         end
 
         if not EllesmereUI.IS_FOREVER then
@@ -3985,6 +4010,9 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUIDB.charSheetSeasonVault = nil
                 EllesmereUIDB.charSheetHideSlotFlyoutArrows = nil
                 EllesmereUIDB.flyoutItemLevels = nil
+                EllesmereUIDB.flyoutItemStats = nil
+                EllesmereUIDB.charSheetItemStats = nil
+                EllesmereUIDB.itemStatsTertiary = nil
                 EllesmereUIDB.showCharSheetDurability = nil
                 EllesmereUIDB.charSheetDurabilityLocation = nil
                 EllesmereUIDB.charSheetDurabilityShowLabel = nil

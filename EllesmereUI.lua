@@ -1701,6 +1701,58 @@ do
     end
 end
 
+-- Stat letters for an item: its secondaries by amount, largest first ("MH"),
+-- and its tertiaries the same way ("L"), returned apart so callers can show
+-- the tertiaries smaller. Ties keep the list order. The letters stay English
+-- in every locale (the usual shorthand). Shared by the equipment flyout and
+-- the character sheet slots. Memoized per link (the link carries the bonus
+-- IDs, so catalyst variants of one item differ); an item whose stats have not
+-- loaded yet is not recorded.
+do
+    local SECONDARY = {
+        { "ITEM_MOD_CRIT_RATING_SHORT",    "C" },
+        { "ITEM_MOD_HASTE_RATING_SHORT",   "H" },
+        { "ITEM_MOD_MASTERY_RATING_SHORT", "M" },
+        { "ITEM_MOD_VERSATILITY",          "V" },
+    }
+    local TERTIARY = {
+        { "ITEM_MOD_CR_LIFESTEAL_SHORT", "L" },
+        { "ITEM_MOD_CR_AVOIDANCE_SHORT", "A" },
+        { "ITEM_MOD_CR_SPEED_SHORT",     "S" },
+    }
+
+    local function Letters(stats, list)
+        local picked = {}
+        for i = 1, #list do
+            local v = stats[list[i][1]]
+            if type(v) == "number" and v > 0 then picked[#picked + 1] = i end
+        end
+        table.sort(picked, function(a, b)
+            local va, vb = stats[list[a][1]], stats[list[b][1]]
+            if va ~= vb then return va > vb end
+            return a < b
+        end)
+        local out = ""
+        for n = 1, #picked do out = out .. list[picked[n]][2] end
+        return out
+    end
+
+    local secCache, terCache, cacheN = {}, {}, 0
+    function EllesmereUI.GetItemStatLetters(itemLink)
+        if type(itemLink) ~= "string" then return "", "" end
+        local sec = secCache[itemLink]
+        if sec then return sec, terCache[itemLink] end
+        local stats = C_Item.GetItemStats and C_Item.GetItemStats(itemLink)
+        if not stats or next(stats) == nil then return "", "" end
+        local ter
+        sec, ter = Letters(stats, SECONDARY), Letters(stats, TERTIARY)
+        if cacheN >= 2000 then wipe(secCache); wipe(terCache); cacheN = 0 end
+        secCache[itemLink], terCache[itemLink] = sec, ter
+        cacheN = cacheN + 1
+        return sec, ter
+    end
+end
+
 -- File-level PanelPP reference for panel layout code below
 local PanelPP = EllesmereUI.PanelPP
 
