@@ -83,9 +83,9 @@ ApplyShapeToCDMIcon = function(icon, shape, barData, ssb)
             -- one equal to it takes the bar's px like the other two paint paths.
             local edgePx = EllesmereUI.BorderPx(barData.borderSizePx, borderSz, texKey)
             -- "Show Behind": set the border frame's level BEFORE styling so the
-            -- textured backdrop inherits it. +13 = in front, level-1 = behind.
+            -- textured backdrop inherits it. +13 = in front (+14 for the Pixels styles), level-1 = behind.
             if fd and fd.borderFrame then
-                fd.borderFrame:SetFrameLevel(barData.borderBehind and math.max(0, icon:GetFrameLevel() - 1) or (icon:GetFrameLevel() + 13))
+                fd.borderFrame:SetFrameLevel(barData.borderBehind and math.max(0, icon:GetFrameLevel() - 1) or (icon:GetFrameLevel() + (EllesmereUI._pixelArtBorders[texKey] and 14 or 13)))
             end
             EllesmereUI.ApplyBorderStyle(bdrTarget, borderSz, brdR, brdG, brdB, brdA, texKey, barData.borderTextureOffset, barData.borderTextureOffsetY, barData.borderTextureShiftX, barData.borderTextureShiftY, "cdm", barData.borderThickness or "thin", true, edgePx)
         end
@@ -712,11 +712,12 @@ local function RefreshCDMIconAppearance(barKey)
         -- number both live on the Cooldown widget, so raise the whole widget ABOVE our border
         -- (icon+13) or the border draws over the number (most visible with edge-offset text);
         -- anchoring the number to cd (below) keeps the X/Y offset working. Side effect: the dark swipe lightly tints the thin border while active.
+        -- The Pixels styles swap the two (cd +13, border +14): a square swipe over their line squares off its rounded corners.
         if cd then
             cd:ClearAllPoints()
             cd:SetAllPoints(icon)
-            -- Above the border (icon+13); still below glow (icon+16) / text (icon+23).
-            pcall(cd.SetFrameLevel, cd, icon:GetFrameLevel() + 14)
+            -- Above the border (icon+13; below it at +13 under Pixels); still below glow (icon+16) / text (icon+23).
+            pcall(cd.SetFrameLevel, cd, icon:GetFrameLevel() + (EllesmereUI._pixelArtBorders[barData.borderTexture] and 13 or 14))
             -- Per-icon Duration Text override (ssb) falls back to the bar's values. Only Show
             -- Numbers no longer forces this on: hiding the duration (bar toggle or per-icon) under it leaves just the stack count.
             local showCD = ns.CdmDurationTextOn(barData)
