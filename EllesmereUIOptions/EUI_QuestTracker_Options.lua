@@ -404,6 +404,28 @@ initFrame:SetScript("OnEvent", function(self)
         -- untracked and come back once they pass again.
         _, h = W:SectionHeader(parent, "TRACKING", y); y = y - h
 
+        -- Note row (same shape as BlizzStyle.Note): watch list edits only
+        -- run in the open world (see CanEditWatches in the QoL file).
+        do
+            local ROW_H = 40
+            if not EllesmereUI._prebuilding then
+                local PPn = EllesmereUI.PanelPP
+                local note = CreateFrame("Frame", nil, parent)
+                PPn.Size(note, parent:GetWidth() - EllesmereUI.CONTENT_PAD * 2, ROW_H)
+                PPn.Point(note, "TOPLEFT", parent, "TOPLEFT", EllesmereUI.CONTENT_PAD, y)
+                note._skipRowDivider = true
+                EllesmereUI.RowBg(note, parent)
+                local lbl = EllesmereUI.MakeFont(note, 12, nil, 1, 1, 1)
+                lbl:SetAlpha(0.6)
+                lbl:SetPoint("LEFT", note, "LEFT", 20, 0)
+                lbl:SetPoint("RIGHT", note, "RIGHT", -20, 0)
+                lbl:SetJustifyH("LEFT")
+                lbl:SetWordWrap(false)
+                lbl:SetText(EllesmereUI.L("Sorting, filtering and auto-tracking only update in the open world, out of combat, with the map closed."))
+            end
+            y = y - ROW_H
+        end
+
         local function ApplyWatches()
             if EQT.ApplyQuestWatches then EQT.ApplyQuestWatches() end
         end

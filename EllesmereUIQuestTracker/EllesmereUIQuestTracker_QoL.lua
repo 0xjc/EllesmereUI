@@ -707,13 +707,52 @@ local function ApplySort()
     end
 end
 
+-- Watch list edits fire QUEST_WATCH_LIST_CHANGED synchronously, so Blizzard's
+-- tracker, quest log and super-track handlers run under our taint (and the
+-- tracker flush they schedule). Under aura restrictions that flush hard-errors
+-- in ScenarioObjectiveTracker (ShouldShowMawBuffs) and freezes the tracker,
+-- so edits only happen in the open world, out of combat and encounters, and
+-- never with the map open (its quest pin rebuild would run tainted too).
+-- Leaving an instance (loading screen + zone events) re-runs the pass.
+local function MapOpen() return WorldMapFrame ~= nil and WorldMapFrame:IsShown() end
+
+local function CanEditWatches()
+    if IsInInstance() then return false end
+    if MapOpen() then return false end
+    if InCombatLockdown() then return false end
+    if C_InstanceEncounter and C_InstanceEncounter.IsEncounterInProgress() then return false end
+    return true
+end
+
+local QueueWatches  -- defined below; the map callback needs it
+local mapDeferred, mapHooked = false, false
+
 local function ApplyWatches()
     watchPending = false
-    if InCombatLockdown() then
-        watchFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+    if not CanEditWatches() then
+        if MapOpen() then
+            -- Retry when the map closes. EventRegistry dispatches through
+            -- securecallfunction, so our callback stays out of the map's chain.
+            mapDeferred = true
+            if not mapHooked then
+                mapHooked = true
+                EventRegistry:RegisterCallback("WorldMapOnHide", function()
+                    if not mapDeferred then return end
+                    mapDeferred = false
+                    QueueWatches()
+                end, EQT)
+            end
+        end
+        -- Combat / open-world encounter: retry when it ends. Instances wait
+        -- for the zone events on the way out.
+        if not IsInInstance() then
+            watchFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+            watchFrame:RegisterEvent("ENCOUNTER_END")
+        end
         return
     end
     watchFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
+    watchFrame:UnregisterEvent("ENCOUNTER_END")
     -- Log not loaded yet (loading screens): nothing reliable to act on.
     if C_QuestLog.GetNumQuestLogEntries() == 0 then return end
     ApplyFilter()
@@ -723,7 +762,7 @@ local function ApplyWatches()
     if not WatchesActive() then watchFrame:UnregisterAllEvents() end
 end
 
-local function QueueWatches()
+function QueueWatches()
     if watchPending then return end
     watchPending = true
     C_Timer.After(0, ApplyWatches)
