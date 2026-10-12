@@ -116,6 +116,10 @@ local function DecorateFrame(frame, barData)
         end
         local textureKey = barData.borderTexture or "solid"
         local brdSize = barData.borderSize or 1
+        -- "Show Behind": +13 draws the border in front of the icon (+14 for the Pixels
+        -- styles, above frame.Cooldown), level-1 behind it. Set BEFORE styling so the
+        -- textured backdrop inherits it.
+        fd.borderFrame:SetFrameLevel(barData.borderBehind and math.max(0, baseLvl - 1) or (baseLvl + (EllesmereUI._pixelArtBorders[textureKey] and 14 or 13)))
         EllesmereUI.ApplyBorderStyle(fd.borderFrame,
             brdSize,
             brdR, brdG, brdB, barData.borderA or 1,
@@ -137,13 +141,9 @@ local function DecorateFrame(frame, barData)
             EllesmereUI.SetBorderStyleColor(fd.borderFrame, abR, abG, abB, abA)
         end
     end
-    -- "Show Behind": +13 draws the border in front of the icon, level-1 behind it.
-    if fd.borderFrame then
-        fd.borderFrame:SetFrameLevel(barData.borderBehind and math.max(0, baseLvl - 1) or (baseLvl + 13))
-    end
     if fd.glowOverlay then fd.glowOverlay:SetFrameLevel(baseLvl + 16) end
     -- Blackout (solid-fill Cooldown State glow) sits BELOW frame.Cooldown
-    -- (icon+14), unlike every other glow style on glowOverlay (icon+16): a
+    -- (icon+14, +13 under a Pixels border), unlike every other glow style on glowOverlay (icon+16): a
     -- fill above it would hide the swipe and countdown. Made by
     -- ns.StartCdGlow on the icon's first Blackout start.
     if fd.blackoutOverlay then fd.blackoutOverlay:SetFrameLevel(baseLvl + 12) end
