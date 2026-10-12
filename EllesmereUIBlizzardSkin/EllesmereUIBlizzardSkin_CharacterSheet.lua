@@ -3487,6 +3487,48 @@ local function SkinCharacterSheet()
             emPane.ScrollBox:ClearAllPoints()
             emPane.ScrollBox:SetPoint("TOPLEFT", emPane, "TOPLEFT", 0, -23)
         end
+
+        -- Equip / Save and the scroll bar trade Blizzard's red panel-button
+        -- and trim art for the house look. Art is faded and our textures and
+        -- borders are added beside it; no field, size or script of Blizzard's
+        -- is written, so the pane's own code runs as before.
+        local WS = ns.WSkin
+        if WS then
+            for _, b in ipairs({ emPane.EquipSet or _G.PaperDollFrameEquipSet,
+                                 emPane.SaveSet or _G.PaperDollFrameSaveSet }) do
+                WS.Button(b)
+                WS.StateButtonLabel(b)
+            end
+            local sb = emPane.ScrollBar
+            if sb then
+                WS.ScrollBar(sb)
+                -- WowTrimScrollBar keeps its trough on a child frame that
+                -- WS.ScrollBar does not reach.
+                if sb.Background then WS.FadeRegions(sb.Background) end
+            end
+        end
+
+        -- Blizzard seats the button row flush on the list, with the slack
+        -- above it. Lift the row by its own anchor so the gap splits evenly;
+        -- a button chained to its sibling follows it. Moving the buttons
+        -- leaves the list's size alone.
+        local EM_BUTTON_LIFT = 8
+        local equipBtn = emPane.EquipSet or _G.PaperDollFrameEquipSet
+        local saveBtn = emPane.SaveSet or _G.PaperDollFrameSaveSet
+        for _, b in ipairs({ equipBtn, saveBtn }) do
+            local anchors, chained = {}, false
+            for i = 1, b:GetNumPoints() do
+                local a = { b:GetPoint(i) }
+                if a[2] == equipBtn or a[2] == saveBtn then chained = true end
+                anchors[i] = a
+            end
+            if not chained and #anchors > 0 then
+                b:ClearAllPoints()
+                for _, a in ipairs(anchors) do
+                    b:SetPoint(a[1], a[2], a[3], a[4], a[5] + EM_BUTTON_LIFT)
+                end
+            end
+        end
     end
 
     -- Gear set rows trade Blizzard's stat-strip art for the sheet's flat
