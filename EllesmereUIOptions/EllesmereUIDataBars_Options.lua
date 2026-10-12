@@ -2902,6 +2902,11 @@ initFrame:SetScript("OnEvent", function(self)
                       setValue = function() end },
                     MkToggle("Abbreviate Amount", "abbreviate",
                         "Shows large amounts using K/M suffixes (284,208g becomes 284.2Kg) instead of the full grouped number. The tooltip always shows the exact amount."),
+                    -- Account-wide switch shared with the Bags options.
+                    { type = "toggle", text = "Gold Tracking and History",
+                      tooltip = "Track and display gold amounts from all your characters on hover.",
+                      getValue = function() return EllesmereUI.GetGoldLedger().IsTracking() end,
+                      setValue = function(v) EllesmereUI.GetGoldLedger().SetTracking(v) end },
                 }
                 -- Force English Units: only where the effective locale actually
                 -- has its own abbreviation algorithm (currently the CJK wan/yi
