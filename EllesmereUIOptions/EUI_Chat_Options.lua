@@ -452,6 +452,7 @@ initFrame:SetScript("OnEvent", function(self)
             showCopy       = "Copy Chat",
             showPortals    = "M+ Portals",
             showVoice      = "Voice/Channels",
+            showChatMenu   = "Chat Menu",
             showSettings   = "Settings",
         }
         -- Chain icons listed in the user's saved order (drag rows to reorder);

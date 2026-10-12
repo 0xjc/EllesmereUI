@@ -280,6 +280,46 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
         mH = mH + ITEM_H
     end
 
+    local function AddTalentConditionsRow(spellID, ss, ensureSettings)
+        local tcConds = rawget(ss, "talentConditions")
+        local tcCount = type(tcConds) == "table" and #tcConds or 0
+        local tcRow = CreateFrame("Button", nil, inner)
+        tcRow:SetHeight(ITEM_H)
+        tcRow:SetPoint("TOPLEFT", inner, "TOPLEFT", 1, -mH)
+        tcRow:SetPoint("TOPRIGHT", inner, "TOPRIGHT", -1, -mH)
+        tcRow:SetFrameLevel(menu:GetFrameLevel() + 2)
+        local tcLbl = tcRow:CreateFontString(nil, "OVERLAY")
+        tcLbl:SetFont(FONT_PATH, 11, GetCDMOptOutline())
+        tcLbl:SetPoint("LEFT", 10, 0); tcLbl:SetPoint("RIGHT", -10, 0)
+        tcLbl:SetJustifyH("LEFT"); tcLbl:SetWordWrap(false); tcLbl:SetMaxLines(1)
+        tcLbl:SetText(EllesmereUI.Lf("Talent Conditions: %1$s",
+            tcCount > 0 and tostring(tcCount) or EllesmereUI.L("None")))
+        tcLbl:SetTextColor(tDimR, tDimG, tDimB, tDimA)
+        local tcHl = tcRow:CreateTexture(nil, "ARTWORK")
+        tcHl:SetAllPoints(); tcHl:SetColorTexture(1, 1, 1, 0); tcHl:SetAlpha(0)
+        tcRow:SetScript("OnEnter", function()
+            tcLbl:SetTextColor(1, 1, 1, 1)
+            tcHl:SetColorTexture(1, 1, 1, hlA); tcHl:SetAlpha(1)
+            if menu._openSub and menu._openSub:IsShown() then menu._openSub:Hide() end
+            EllesmereUI.ShowWidgetTooltip(tcRow, EllesmereUI.L("Show this icon only while the talents you pick are taken, or not taken."))
+        end)
+        tcRow:SetScript("OnLeave", function()
+            tcLbl:SetTextColor(tDimR, tDimG, tDimB, tDimA); tcHl:SetAlpha(0)
+            EllesmereUI.HideWidgetTooltip()
+        end)
+        tcRow:SetScript("OnClick", function()
+            EllesmereUI.HideWidgetTooltip()
+            menu:Hide()
+            ns.ShowCDMTalentConditionsPopup(spellID, tcConds, function(newConds)
+                ensureSettings()
+                ss.talentConditions = newConds
+                if newConds then ns._cdmAnyTalentCond = true end
+                RefreshCDPreview()
+            end)
+        end)
+        mH = mH + ITEM_H
+    end
+
     if removeOnly then
         -- Per-icon settings: CD/utility bars get the full menu; buff-family bars get a
         -- buff-specific subset. custom_buff (Auras) bars excluded here (separate system).
@@ -313,9 +353,18 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                     spellID = ns.HostedBuffMarkerToSpell(spellID)
                 end
             end
-            if spellID and spellID ~= 0 and not ns.IsEmptySlotMarker(spellID) then
-                -- Empty Slot: no spell/item behind it, so skip the whole per-icon settings
-                -- tree -- the "Remove Spell" row built above is the entire menu for it.
+            if ns.IsEmptySlotMarker(spellID) then
+                -- Empty slots only expose identity-level conditions, never icon styling.
+                if not EllesmereUI.IS_FOREVER and not isBuffBar and not (bd and bd.isGhostBar) then
+                    local store = ns.GetSpellSettingsStore(barKey, true)
+                    if store then
+                        local ss = store[spellID] or {}
+                        AddTalentConditionsRow(spellID, ss, function()
+                            store[spellID] = ss
+                        end)
+                    end
+                end
+            elseif spellID and spellID ~= 0 then
                 -- Hosted-buff SLOT? The slot decides, not the flag alone: the same
                 -- spellID can also be this bar's cooldown entry, which must keep the CD
                 -- store + cd/util menu. Legacy fallback: flag set with no marker entry yet means the plain entry is the buff (pre-marker data).
@@ -424,6 +473,7 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                     if t.maxStacksGlow and t.maxStacksGlow > 0 then ns._cdmAnyMaxStacksGlow = true end
                     if t.desatNotActive then ns._cdmAnyDesatNotActive = true end
                     if t.noDesatOnCD then ns._cdmAnyNoDesatOnCD = true end
+                    if t.noResourceTint then ns._cdmAnyNoResourceTint = true end
                     if t.chargeHideCdText then ns._cdmAnyChargeHideCdText = true end
                     if t.hideChargeText then ns._cdmAnyHideChargeText = true end
                     if t.suppressGCD then ns._cdmAnySuppressGcd = true end
@@ -2888,7 +2938,24 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
 
                     -- Cooldown Saturation (preset/custom): mirror of the regular-spell row.
                     -- These icons are greyed by the Fake-Active engine rather than by Blizzard, so the runtime reads this key in PresetKeepsColor instead of the SetDesaturated hook -- same setting, same key name.
-                    MakeSubnavRow("Cooldown Saturation", KEEP_COLORED_ITEMS,
+                    -- Spells added by Spell ID also get "+ Ignore Resource Cost" (racials and
+                    -- items carry no resource tint); the runtime reads it in PresetIgnoresResourceTint.
+                    local satItems = KEEP_COLORED_ITEMS
+                    if sd.customSpellIDs and sd.customSpellIDs[spellID]
+                       and not (ns._myRacialsSet and ns._myRacialsSet[spellID]) then
+                        satItems = { KEEP_COLORED_ITEMS[1], KEEP_COLORED_ITEMS[2],
+                            { val = "ignoreResource", label = "+ Ignore Resource Cost",
+                              tooltip = "Keeps the icon in full color while you lack the resource to cast it. Out of range still tints it red.",
+                              toggleGet = function() return cas.noResourceTint == true end,
+                              toggleSet = function(v)
+                                  SetCasOwn("noResourceTint", v or nil)
+                                  if v then ns._cdmAnyNoResourceTint = true end
+                                  if ns._MarkPresetCdDirty then ns._MarkPresetCdDirty() end
+                              end,
+                              applyKeys = { "noResourceTint" },
+                              applyWrite = function(t, v) t.noResourceTint = v and true or false end } }
+                    end
+                    MakeSubnavRow("Cooldown Saturation", satItems,
                         function()
                             local v = cas.noDesatOnCD
                             if v == false then v = nil end  -- blocked slot value = None
@@ -2900,7 +2967,7 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                             if ns.FakeActive_Rearm then ns.FakeActive_Rearm() end
                             if ns.RefreshCDMIconAppearance then ns.RefreshCDMIconAppearance(barKey) end
                         end,
-                        function() return not cas.noDesatOnCD end,
+                        function() return not cas.noDesatOnCD and not cas.noResourceTint end,
                         nil,
                         { apply = { keys = { "noDesatOnCD" },
                                     write = function(t, v) t.noDesatOnCD = v or false end } })
@@ -3426,9 +3493,21 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
 
                 -- 3c. Cooldown Saturation (default = nil/none): suppresses the grey-out
                 -- Blizzard applies while the spell is on cooldown -- grouped with Non Active State above because both own the icon's saturation.
+                -- "+ Ignore Resource Cost" is an independent toggle (NOT part of the
+                -- single-select): drops Blizzard's blue short-on-resource tint, keeps red out of range.
                 local KEEP_COLORED_ITEMS = {
                     { val = nil,  label = "None" },
                     { val = true, label = "Keep Colored (On CD)" },
+                    { val = "ignoreResource", label = "+ Ignore Resource Cost",
+                      tooltip = "Keeps the icon in full color while you lack the resource to cast it. Out of range still tints it red.",
+                      toggleGet = function() return ss.noResourceTint == true end,
+                      toggleSet = function(v)
+                          EnsureSS(); SetOwn("noResourceTint", v or nil)
+                          if v then ns._cdmAnyNoResourceTint = true end
+                          if ns.RefreshCDMIconAppearance then ns.RefreshCDMIconAppearance(barKey) end
+                      end,
+                      applyKeys = { "noResourceTint" },
+                      applyWrite = function(t, v) t.noResourceTint = v and true or false end },
                 }
                 local cdSatRow = MakeSubnavRow("Cooldown Saturation", KEEP_COLORED_ITEMS,
                     function() return ss.noDesatOnCD and true or nil end,
@@ -3437,7 +3516,7 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                         if v then ns._cdmAnyNoDesatOnCD = true end
                         if ns.RefreshCDMIconAppearance then ns.RefreshCDMIconAppearance(barKey) end
                     end,
-                    function() return ss.noDesatOnCD == nil end,
+                    function() return ss.noDesatOnCD == nil and ss.noResourceTint == nil end,
                     nil,
                     { apply = { keys = { "noDesatOnCD" },
                                 write = function(t, v) t.noDesatOnCD = v or false end } })
@@ -3820,44 +3899,7 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                    and type(spellID) == "number" and spellID > 0
                    and not ((ns._myRacialsSet and ns._myRacialsSet[spellID])
                             or (sd.customSpellIDs and sd.customSpellIDs[spellID])) then
-                    local tcConds = rawget(ss, "talentConditions")
-                    local tcCount = type(tcConds) == "table" and #tcConds or 0
-                    local tcRow = CreateFrame("Button", nil, inner)
-                    tcRow:SetHeight(ITEM_H)
-                    tcRow:SetPoint("TOPLEFT", inner, "TOPLEFT", 1, -mH)
-                    tcRow:SetPoint("TOPRIGHT", inner, "TOPRIGHT", -1, -mH)
-                    tcRow:SetFrameLevel(menu:GetFrameLevel() + 2)
-                    local tcLbl = tcRow:CreateFontString(nil, "OVERLAY")
-                    tcLbl:SetFont(FONT_PATH, 11, GetCDMOptOutline())
-                    tcLbl:SetPoint("LEFT", 10, 0); tcLbl:SetPoint("RIGHT", -10, 0)
-                    tcLbl:SetJustifyH("LEFT"); tcLbl:SetWordWrap(false); tcLbl:SetMaxLines(1)
-                    tcLbl:SetText(EllesmereUI.Lf("Talent Conditions: %1$s",
-                        tcCount > 0 and tostring(tcCount) or EllesmereUI.L("None")))
-                    tcLbl:SetTextColor(tDimR, tDimG, tDimB, tDimA)
-                    local tcHl = tcRow:CreateTexture(nil, "ARTWORK")
-                    tcHl:SetAllPoints(); tcHl:SetColorTexture(1, 1, 1, 0); tcHl:SetAlpha(0)
-                    tcRow:SetScript("OnEnter", function()
-                        tcLbl:SetTextColor(1, 1, 1, 1)
-                        tcHl:SetColorTexture(1, 1, 1, hlA); tcHl:SetAlpha(1)
-                        if menu._openSub and menu._openSub:IsShown() then menu._openSub:Hide() end
-                        EllesmereUI.ShowWidgetTooltip(tcRow, EllesmereUI.L("Show this icon only while the talents you pick are taken, or not taken."))
-                    end)
-                    tcRow:SetScript("OnLeave", function()
-                        tcLbl:SetTextColor(tDimR, tDimG, tDimB, tDimA); tcHl:SetAlpha(0)
-                        EllesmereUI.HideWidgetTooltip()
-                    end)
-                    tcRow:SetScript("OnClick", function()
-                        EllesmereUI.HideWidgetTooltip()
-                        menu:Hide()
-                        ns.ShowCDMTalentConditionsPopup(spellID, tcConds, function(newConds)
-                            EnsureSS()
-                            ss.talentConditions = newConds
-                            -- Live-arm the session gate (monotonic; the login rescan covers already-saved settings).
-                            if newConds then ns._cdmAnyTalentCond = true end
-                            RefreshCDPreview()
-                        end)
-                    end)
-                    mH = mH + ITEM_H
+                    AddTalentConditionsRow(spellID, ss, EnsureSS)
                 end
 
                 -- Custom Icon (per-spell ONLY -- deliberately outside the Apply-to-Bar

@@ -838,7 +838,7 @@ EllesmereUI._WHATSNEW_PATCHES = {
                 title  = "Power Bar Spenders",
                 desc   = "The Power Bar can change color while a spell you choose is ready to cast, set per entry under Threshold Settings",
                 nav    = { module = "EllesmereUIResourceBars", page = "Class, Power and Health Bars",
-                           section = "POWER BAR", highlight = "Threshold Settings" },
+                           section = "POWER BAR", highlight = "Threshold & Hash Lines" },
             },
             {
                 module = "Resource Bars",
@@ -852,7 +852,7 @@ EllesmereUI._WHATSNEW_PATCHES = {
                 title  = "Expand Extra Y Offset",
                 desc   = "Expand Power Bar if No Resource gains an Extra Y Offset, so the expanded bar can cover a gap left by the class resource",
                 nav    = { module = "EllesmereUIResourceBars", page = "Class, Power and Health Bars",
-                           section = "BAR DISPLAY", highlight = "Expand Power Bar if No Resource" },
+                           section = "BAR SHIFTING", highlight = "Expand Power Bar if No Resource" },
             },
             {
                 module = "Resource Bars",

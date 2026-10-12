@@ -886,18 +886,27 @@ function ns.NP_SeedStock(prof)
     prof.healthBarTexture = "blizzard"
     prof.castBarTexture = "blizzard"
 end
--- The one-time WoW Forever seed: the level box shows the level, so the Left
--- Text slot's Forever default ("level") steps aside instead of showing it a
--- second time. Once per profile; a level the user put anywhere else stays,
--- and the slot is the user's afterwards. The Style page keeps the key in a
--- Forever-only slot (p._foreverStyleSlots): the other looks' value is banked
--- on the way into the variant and comes back on the way out.
+-- The one-time WoW Forever seeds, each under its own stamp: the level box
+-- shows the level, so the Left Text slot's Forever default ("level") steps
+-- aside instead of showing it a second time (a level the user put anywhere
+-- else stays), and the look's plates start without elite or rare marks (the
+-- Elite/Rare Indicator box unchecked; the Quest Indicator keeps its own).
+-- Once per profile; the settings are the user's afterwards. The Style page
+-- keeps the keys in a Forever-only slot (p._foreverStyleSlots): the other
+-- looks' values are banked on the way into the variant and come back on the
+-- way out.
 function ns.NP_SeedForever(prof)
-    if not prof or prof.foreverLevelSlotSeeded then return end
-    prof.foreverLevelSlotSeeded = true
-    local v = prof.textSlotLeft
-    if v == nil then v = defaults.textSlotLeft end
-    if v == "level" then prof.textSlotLeft = "none" end
+    if not prof then return end
+    if not prof.foreverLevelSlotSeeded then
+        prof.foreverLevelSlotSeeded = true
+        local v = prof.textSlotLeft
+        if v == nil then v = defaults.textSlotLeft end
+        if v == "level" then prof.textSlotLeft = "none" end
+    end
+    if not prof.foreverRareSeeded then
+        prof.foreverRareSeeded = true
+        prof.classificationHideRare = true
+    end
 end
 
 local function NoTintFlag(db, key)
@@ -943,6 +952,11 @@ function ns.NP_ApplyRounding(plate, part)
     local customOn = radius > 0 and ns.IsCustomBorderEnabled()
     local style = customOn and ((p and p.customBorderTexture) or defaults.customBorderTexture) or "solid"
     if not EllesmereUI.RoundedStyleOK(style) then radius = 0 end
+    -- Join Cast Bar: while a cast shows, the health bar and the cast bar under
+    -- it share one outline (the cast bar's show / hide re-rounds the health
+    -- bar, see the cast visibility hook).
+    local join = radius > 0 and p and p.cornerJoinCast or nil
+    plate._npJoinCast = join
     -- Off: free on every spawn unless this plate was rounded before.
     if radius <= 0 then
         if plate._npRounded then
@@ -959,6 +973,10 @@ function ns.NP_ApplyRounding(plate, part)
     if part ~= "cast" and (custom or not customOn) then
         local shape = custom or health
         HP_OPTS.rect, HP_OPTS.border, HP_OPTS.style = shape, shape, style
+        HP_OPTS.corners = p and p.cornerMask
+        if join and plate.cast and plate.cast:IsShown() then
+            HP_OPTS.corners = EllesmereUI.RoundedJoinCorners(HP_OPTS.corners)
+        end
         local ab, fw = plate.absorb, plate.absorbForward
         HP_TEX[1], HP_TEX[2], HP_TEX[3] = health:GetStatusBarTexture(), plate.healthBG, plate.hashLine
         HP_TEX[4], HP_TEX[5] = plate.highlight, plate.targetHighlight
@@ -973,7 +991,11 @@ function ns.NP_ApplyRounding(plate, part)
     end
     local cast = plate.cast
     if cast and part ~= "health" then
-        CAST_OPTS.border = cast
+        CAST_OPTS.border, CAST_OPTS.corners = cast, p and p.cornerMask
+        if join then
+            local _, lower = EllesmereUI.RoundedJoinCorners(CAST_OPTS.corners)
+            CAST_OPTS.corners = lower
+        end
         CAST_TEX[1], CAST_TEX[2], CAST_TEX[3] = cast:GetStatusBarTexture(), plate.castBG, plate.castBarOverlay
         EllesmereUI.RoundCorners(cast, radius, CAST_OPTS)
     end

@@ -1007,6 +1007,7 @@ local function BuildNameplatePreview(parent, parentW)
         local pctStr = curHpPct .. "%"
         local pctNoSignStr = tostring(curHpPct)
         local hpNumStr = tostring(curHpVal):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+        local hpMaxStr = tostring(PV_CONST.FAKE_MAX_HP):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
         -- Synthetic fractional percent so "Show % Decimal" is visible here (the fake preview HP is a whole number).
         local pctStrDec = string.format("%.1f%%", curHpPct + 0.4)
         local pctNoSignStrDec = string.format("%.1f", curHpPct + 0.4)
@@ -1113,13 +1114,19 @@ local function BuildNameplatePreview(parent, parentW)
                     bc.r, bc.g, bc.b, 1, "solid")
             end
             if radius > 0 then
+                -- Join Cast Bar: the preview always shows its cast bar.
+                local corners, castCorners = DBVal("cornerMask"), DBVal("cornerMask")
+                if DBVal("cornerJoinCast") then
+                    corners, castCorners = EllesmereUI.RoundedJoinCorners(corners)
+                end
                 EllesmereUI.RoundCorners(pf, radius, {
                     roots = {}, rect = health, border = pcb, style = style,
+                    corners = corners,
                     textures = { health:GetStatusBarTexture(), healthBG,
                         pvAbs.absorb:GetStatusBarTexture(), pvAbs.absorbForward:GetStatusBarTexture() },
                 })
                 EllesmereUI.RoundCorners(cast, radius, {
-                    roots = {}, border = cast,
+                    roots = {}, border = cast, corners = castCorners,
                     textures = { cast:GetStatusBarTexture(), castBG },
                 })
             else
@@ -1330,8 +1337,11 @@ local function BuildNameplatePreview(parent, parentW)
         end
         local reIconSz = (clPos ~= "none") and (DBVal(clPos .. "SlotSize") or defaults[clPos .. "SlotSize"] or 20) or 20
         local showCL = optState.showClassificationPreview or optState._sliderDragShowClassification
+        local hideRare = DBVal("classificationHideRare")
         classIcon:SetSize(reIconSz, reIconSz)
-        if clPos == "none" or not showCL then
+        -- Both halves off (the WoW Forever look's seed can leave that when the
+        -- Quest Indicator was already off): live plates draw nothing there.
+        if clPos == "none" or not showCL or (hideRare and DBVal("classificationHideQuest")) then
             classIcon:Hide()
             if pf._classOverlay then pf._classOverlay:Hide() end
         else
@@ -1350,9 +1360,8 @@ local function BuildNameplatePreview(parent, parentW)
             elseif clPos == "bottom" then
                 classIcon:SetPoint("TOP", cast, "BOTTOM", clXOff, -2 + clYOff)
             end
-            -- The quest mark while the Rare Indicator is off (or under the WoW
-            -- Forever look, whose plates show no elite or rare marks).
-            if DBVal("classificationHideRare") or EllesmereUI.BlizzStyle.Forever("nameplates") then
+            -- The quest mark while the Elite/Rare Indicator is off.
+            if hideRare then
                 classIcon:SetAtlas("Crosshair_Quest_64")
             else
                 classIcon:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\elite-rare-indicator.png")
@@ -1517,7 +1526,7 @@ local function BuildNameplatePreview(parent, parentW)
             elseif ns.IsComboHealthText(element) then
                 SetPVFont(hpText, fontPath, fontSize, npOutline)
                 hpText:SetParent(healthTextFrame)
-                ns.SetCombinedHealthText(hpText, element, dec and pctStrDec or pctStr, hpNumStr)
+                ns.SetCombinedHealthText(hpText, element, dec and pctStrDec or pctStr, hpNumStr, hpMaxStr)
                 hpText:SetPoint(point, health, anchor, xOff, yOff)
                 hpText:SetTextColor(cr, cg, cb, 1)
                 hpText:Show()
@@ -1570,7 +1579,7 @@ local function BuildNameplatePreview(parent, parentW)
                 hpNumber:Show()
             elseif ns.IsComboHealthText(element) then
                 SetPVFont(hpText, fontPath, fontSize, npOutline)
-                ns.SetCombinedHealthText(hpText, element, dec and pctStrDec or pctStr, hpNumStr)
+                ns.SetCombinedHealthText(hpText, element, dec and pctStrDec or pctStr, hpNumStr, hpMaxStr)
                 hpText:SetParent(topTextFrame)
                 hpText:SetPoint("BOTTOM", health, "TOP", txOff, 4 + nameYOff + cpPush + tyOff)
                 hpText:SetTextColor(cr, cg, cb, 1)

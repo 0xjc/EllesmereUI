@@ -1216,14 +1216,20 @@ end
         if unit and guid and db and db.tooltipShowMount and not _tipHasLine(tt, "Mount:") then
             local mountName, mountCollected
             local cached = _mountCache[guid]
-            if cached and (GetTime() - cached.time) < _mountCacheTTL then
+            local now = GetTime()
+            if cached and (now - cached.time) < _mountCacheTTL then
                 mountName = cached.name
                 mountCollected = cached.collected
             else
                 local nm, col = _getMountedAuraName(unit)
                 mountName = nm or false
                 mountCollected = col
-                _mountCache[guid] = { name = mountName, collected = mountCollected, time = GetTime() }
+                -- Drop expired entries first, or the cache grows with every player hovered;
+                -- only the last few seconds of hovers survive, so this loop stays tiny.
+                for g, e in pairs(_mountCache) do
+                    if (now - e.time) >= _mountCacheTTL then _mountCache[g] = nil end
+                end
+                _mountCache[guid] = { name = mountName, collected = mountCollected, time = now }
             end
             if mountName then
                 -- Green check / red X for whether YOU own this mount (nil = unknown, no marker).
@@ -3007,9 +3013,10 @@ do
             return
         end
         -- An open Unlock Mode session owns the anchor frame (live drags + uncommitted edits): re-parking from saved would snap it back mid-session, so pin to wherever the session has it.
+        -- A screen-edge link in Unlock Mode owns the position too: re-parking would pull the box off the edge until the anchor chain moves it back a frame later.
         if EllesmereUI._unlockActive then
             EnsureSeeded()
-        else
+        elseif not EllesmereUI.IsUnlockAnchored("EUI_TooltipAnchor") then
             PositionFromSaved()
         end
         tooltip:SetOwner(parent, "ANCHOR_NONE")

@@ -478,29 +478,6 @@ function ns.NP_PaintSlotClassColors(plate, unit, skipName)
     end
     return ns._npSlotClassName
 end
--- Blizzard's own plate for this unit, colored by untainted code. Under HideBlizzardFrame the
--- UnitFrame keeps its unit (its events are killed), so its health bar still carries whatever
--- CompactUnitFrame_UpdateHealthColor resolved in the driver's SetUnit -- including the class
--- color we are not allowed to look up ourselves. Returns a PLAIN "have it" boolean plus three
--- numbers that may be secret: never branch on the numbers, only ever hand them to a setter.
--- On ns (module file is at the 200-local cap).
-function ns.GetBlizzardBarColor(frame)
-    local np = frame.nameplate
-    local uf = np and np.UnitFrame
-    -- Blizzard's plates are pooled too. Until ITS CompactUnitFrame_SetUnit has run for our
-    -- unit, that bar still wears the previous occupant's colour, and latching onto it would
-    -- paint a confidently WRONG class colour. No match, no mirror: the plain fallback applies
-    -- and the next pass retries.
-    if not uf or uf.unit ~= frame.unit then return false end
-    local hb = uf.healthBar or (uf.HealthBarsContainer and uf.HealthBarsContainer.healthBar)
-    if not hb or not hb.GetStatusBarColor then return false end
-    -- Same filter HideBlizzardFrame applies to this frame's children: reading a forbidden
-    -- widget throws, which would abort the rest of UpdateHealthColor on every health event.
-    if hb.IsForbidden and hb:IsForbidden() then return false end
-    local r, g, b = hb:GetStatusBarColor()
-    if type(r) ~= "number" or type(g) ~= "number" or type(b) ~= "number" then return false end
-    return true, r, g, b
-end
 -- Threat Colors channels (multi-check on the Threat Colors section). All three on ns:
 -- the module file is at the 200-local cap. Health Bar defaults ON so nothing changes
 -- for an existing profile; Border/Text default OFF.
@@ -620,7 +597,7 @@ local function GetReactionColor(unit)
     -- On ns (module file is at the 200-local cap).
     ns._reactionNearAggro = false
     -- Same idiom, for the enemy player class color at step 6: set when the class token
-    -- came back redacted, so UpdateHealthColor knows to mirror Blizzard's bar instead.
+    -- came back redacted, so UpdateHealthColor paints the bar from C_ClassColor instead.
     ns._reactionMirrorClass = false
     -- Same idiom, for the off-tank color under identity restriction: set when the
     -- mob-target ROLE read came back secret with Off-Tank Color enabled, so
@@ -775,16 +752,13 @@ local function GetReactionColor(unit)
     if UnitIsPlayer(unit) and UnitCanAttack("player", unit) then
         local _, class = UnitClass(unit)
         -- A secret class token (identity-restricted, i.e. instanced PvP) cannot key a
-        -- color table. Blizzard resolves the same lookup UNTAINTED on its own plate and
-        -- its bar keeps updating under our suppression, so flag the plate here and let
-        -- UpdateHealthColor copy that color across without ever inspecting it. We still
-        -- fall through to the reaction color so every plain-number consumer downstream
-        -- (the skip-if-unchanged compare, the No Tint overlay tints) keeps plain numbers.
-        -- Gated on the CVar because that is what decides whether Blizzard's bar is a class
-        -- color at all: with it off the bar carries a selection/threat color, and copying
-        -- that would overwrite the user's Enemy Types color with red.
+        -- plain color table, but C_ClassColor accepts it and returns a color that may only
+        -- reach setters. Flag the plate so UpdateHealthColor paints the bar that way. We
+        -- still fall through to the reaction color so every plain-number consumer
+        -- downstream (the skip-if-unchanged compare, the No Tint overlay tints) keeps
+        -- plain numbers.
         if issecretvalue(class) then
-            ns._reactionMirrorClass = GetCVarBool("nameplateShowClassColor") == true
+            ns._reactionMirrorClass = true
             class = nil
         end
         local c = class and RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]

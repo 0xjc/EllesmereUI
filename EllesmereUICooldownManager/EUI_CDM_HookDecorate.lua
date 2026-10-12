@@ -26,7 +26,7 @@ local EvalMaxStacksFrame = I.EvalMaxStacksFrame
 local HideBlizzardDecorations = I.HideBlizzardDecorations
 local WatchMaxStacksFrame, ApplyCustomIcon = I.WatchMaxStacksFrame, I.ApplyCustomIcon
 local ApplyOnlyNumbers, ArmCdStateEval = I.ApplyOnlyNumbers, I.ArmCdStateEval
-local TryHookSwiftmend = I.TryHookSwiftmend
+local TryHookSwiftmend, ApplyResourceTint = I.TryHookSwiftmend, I.ApplyResourceTint
 
 -------------------------------------------------------------------------------
 --  DecorateFrame
@@ -116,6 +116,10 @@ local function DecorateFrame(frame, barData)
         end
         local textureKey = barData.borderTexture or "solid"
         local brdSize = barData.borderSize or 1
+        -- "Show Behind": +13 draws the border in front of the icon (+14 for the Pixels
+        -- styles, above frame.Cooldown), level-1 behind it. Set BEFORE styling so the
+        -- textured backdrop inherits it.
+        fd.borderFrame:SetFrameLevel(barData.borderBehind and math.max(0, baseLvl - 1) or (baseLvl + (EllesmereUI._pixelArtBorders[textureKey] and 14 or 13)))
         EllesmereUI.ApplyBorderStyle(fd.borderFrame,
             brdSize,
             brdR, brdG, brdB, barData.borderA or 1,
@@ -137,13 +141,9 @@ local function DecorateFrame(frame, barData)
             EllesmereUI.SetBorderStyleColor(fd.borderFrame, abR, abG, abB, abA)
         end
     end
-    -- "Show Behind": +13 draws the border in front of the icon, level-1 behind it.
-    if fd.borderFrame then
-        fd.borderFrame:SetFrameLevel(barData.borderBehind and math.max(0, baseLvl - 1) or (baseLvl + 13))
-    end
     if fd.glowOverlay then fd.glowOverlay:SetFrameLevel(baseLvl + 16) end
     -- Blackout (solid-fill Cooldown State glow) sits BELOW frame.Cooldown
-    -- (icon+14), unlike every other glow style on glowOverlay (icon+16): a
+    -- (icon+14, +13 under a Pixels border), unlike every other glow style on glowOverlay (icon+16): a
     -- fill above it would hide the swipe and countdown. Made by
     -- ns.StartCdGlow on the icon's first Blackout start.
     if fd.blackoutOverlay then fd.blackoutOverlay:SetFrameLevel(baseLvl + 12) end
@@ -153,6 +153,7 @@ local function DecorateFrame(frame, barData)
     if fd.decorated then
         -- Late retry: the style block already ran; skip one-time decoration.
         TryHookSwiftmend(frame, fd)
+        ApplyResourceTint(frame, fd)
         ApplyCustomIcon(frame, fd)
         ApplyOnlyNumbers(frame, fd, barData)
         return fd
@@ -175,6 +176,8 @@ local function DecorateFrame(frame, barData)
 
     -- Swiftmend brightness (druid only; retried from the decorated early-return).
     TryHookSwiftmend(frame, fd)
+    -- Ignore Resource Cost (inert until some spell uses it; retried the same way).
+    ApplyResourceTint(frame, fd)
 
     -- First decoration: fd.tex is now available, so Custom Icon can stamp.
     ApplyCustomIcon(frame, fd)
@@ -191,8 +194,10 @@ local function DecorateFrame(frame, barData)
         ns.EnsureBuffSoundHook(frame)
     end
 
-    -- Hook SetPoint: when Blizzard repositions this frame (Layout,
-    -- RefreshLayout, internal updates), force it back to the stored CDM anchor.
+    -- Hook SetPoint: restore our anchor after Blizzard repositions the icon.
+    -- Buff viewers must finish measuring their native grid first; redirecting
+    -- one child during Layout makes ResizeLayout measure the distance between
+    -- our bar and the viewer's remaining children as the viewer's own size.
     if not fd._setPointHooked then
         fd._setPointHooked = true
         hooksecurefunc(frame, "SetPoint", function(_, point, relativeTo)
@@ -222,6 +227,20 @@ local function DecorateFrame(frame, barData)
             end
             -- relativeTo == our bar container: our own LayoutCDMBar SetPoint.
             if relativeTo == anchor[2] then return end
+            if fd._isBuffViewerFrame then
+                if not fd._buffAnchorPending then
+                    fd._buffAnchorPending = true
+                    C_Timer.After(0, function()
+                        fd._buffAnchorPending = nil
+                        -- The pool may have released/reassigned this icon since scheduling, so refresh it.
+                        local current = fd._cdmAnchor
+                        if not current then return end
+                        frame:ClearAllPoints()
+                        frame:SetPoint(current[1], current[2], current[3], current[4], current[5])
+                    end)
+                end
+                return
+            end
             -- Blizzard is trying to move us. Force back to CDM position.
             frame:ClearAllPoints()
             frame:SetPoint(anchor[1], anchor[2], anchor[3], anchor[4], anchor[5])
@@ -439,6 +458,10 @@ local function DecorateFrame(frame, barData)
                 -- one check for everyone else. Runs for every icon on login.
                 if ss2 and ss2.desatNotActive then ns._cdmAnyDesatNotActive = true end
                 if ss2 and ss2.noDesatOnCD then ns._cdmAnyNoDesatOnCD = true end
+                if ss2 and ss2.noResourceTint and not fd._resTintHooked then
+                    ns._cdmAnyNoResourceTint = true
+                    ApplyResourceTint(frame, fd)
+                end
                 if ss2 and (ss2.chargeHideSwipe or ss2.hideRechargeEdge) then ns._cdmAnyChargeStyle = true end
                 if ss2 and ss2.maxStacksGlow and ss2.maxStacksGlow > 0 then ns._cdmAnyMaxStacksGlow = true end
                 if ss2 and ss2.activeGlow and ss2.activeGlow > 0 then ns._cdmAnyActiveGlow = true end
@@ -1294,8 +1317,7 @@ local function DecorateFrame(frame, barData)
                 if C_SpellBook and C_SpellBook.FindSpellOverrideByID then
                     liveSid = C_SpellBook.FindSpellOverrideByID(sid2) or sid2
                 end
-                local cseInfo = C_Spell.GetSpellCooldown(liveSid)
-                local onCD = cseInfo and cseInfo.isActive and not cseInfo.isOnGCD
+                local onCD = ns.CdmOnRealCD(frame, C_Spell.GetSpellCooldown(liveSid))
                 if cse == "pixelGlowReady" or cse == "buttonGlowReady" then
                     -- Plain CD Ready Glow: cooldown state only, decided right here
                     -- -- no usability reads, no deferral, no events for genuine
@@ -1377,8 +1399,7 @@ local function DecorateFrame(frame, barData)
                             -- Re-read the cooldown now instead of trusting a value
                             -- sampled inside the secure chain a frame ago (GCD
                             -- transients misreport isActive there).
-                            local ci = C_Spell.GetSpellCooldown(self.sid)
-                            local pOnCD = ci and ci.isActive and not ci.isOnGCD
+                            local pOnCD = ns.CdmOnRealCD(frame, C_Spell.GetSpellCooldown(self.sid))
                             local shouldGlow
                             if self.cse == "glowOnCD" then
                                 shouldGlow = pOnCD

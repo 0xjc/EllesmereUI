@@ -17,7 +17,7 @@ if not ns then return end  -- module disabled: no options page
 -- leaves the position free.
 local KNOWN = { enemyName = true, levelName = true, nameLevel = true, level = true, targetOfTarget = true,
     healthPercent = true, healthPercentNoSign = true, healthNumber = true, healthPctNum = true,
-    healthNumPct = true, healthPctNumDash = true, healthNumPctDash = true }
+    healthNumPct = true, healthPctNumDash = true, healthNumPctDash = true, healthNumMax = true }
 -- Add Text Slot's text: the first of these whose font string no shown text
 -- uses (one per font string: name, health %, level, health #, Target of
 -- Target).
@@ -154,11 +154,15 @@ local function BuildDisplayLayout(parent, y, ctx)
                 return "This option requires the Solid, Glow or Shadow border style."
             end,
             requireState = "disabled",
-            rows = {
+            rows = EllesmereUI.RoundedJoinRow(EllesmereUI.RoundedCornerRows({
                 { type = "slider", label = "Corner Radius", min = 0, max = EllesmereUI.ROUNDED_MAX_RADIUS, step = 1,
                   get = function() return DBVal("cornerRadius") or 0 end,
                   set = function(v) DB().cornerRadius = v; ns.RefreshBorder(); ns.RefreshCastBorder(); UpdatePreview() end },
-            },
+            }, function() return DBVal("cornerMask") end,
+               function(v) DB().cornerMask = v; ns.RefreshBorder(); ns.RefreshCastBorder(); UpdatePreview() end),
+                "Join Cast Bar", "While a cast shows, rounds the health bar and the cast bar under it as one shape.",
+                function() return DBVal("cornerJoinCast") end,
+                function(v) DB().cornerJoinCast = v; ns.RefreshBorder(); ns.RefreshCastBorder(); UpdatePreview() end),
         })
     end
     -- Inline swatch on the Border dropdown: standard (Basic) border color, dimmed unless mode is Basic.
@@ -790,11 +794,11 @@ local function BuildDisplayLayout(parent, y, ctx)
     local CORE_ORDER = { "debuffs", "buffs", "ccs", "raidmarker", "rare", "quest", "faction" }
     local CORE_LABEL = {
         debuffs = "Debuffs", buffs = "Buffs", ccs = "Crowd Control", raidmarker = "Raid Marker",
-        rare = "Rare Indicator", quest = "Quest Indicator", faction = "Faction",
+        rare = "Elite/Rare Indicator", quest = "Quest Indicator", faction = "Faction",
     }
     local CORE_TIP = {
         rare  = "Elite and rare marks. Always in the same slot as the Quest Indicator.",
-        quest = "Marks mobs for your active quests. Always in the same slot as the Rare Indicator.",
+        quest = "Marks mobs for your active quests. Always in the same slot as the Elite/Rare Indicator.",
     }
     local CORE_GROUP = {
         debuffs = "aura", ccs = "aura",
@@ -829,7 +833,6 @@ local function BuildDisplayLayout(parent, y, ctx)
     -- A checked box can always be unchecked.
     local function CoreLocked(pos, k)
         if CoreHas(pos, k) then return false end
-        if k == "rare" and EllesmereUI.BlizzStyle.Forever("nameplates") then return true end
         local g = CORE_GROUP[k]
         for i = 1, #CORE_ORDER do
             local o = CORE_ORDER[i]
@@ -838,12 +841,7 @@ local function BuildDisplayLayout(parent, y, ctx)
         return false
     end
 
-    local function CoreLockTip(k)
-        if k == "rare" and EllesmereUI.BlizzStyle.Forever("nameplates") then
-            return "WoW Forever nameplates show no elite or rare marks."
-        end
-        return "Only Debuffs with Crowd Control, or the Rare and Quest Indicators with Faction, can share a slot."
-    end
+    local CORE_LOCK_TIP = "Only Debuffs with Crowd Control, or the Elite/Rare and Quest Indicators with Faction, can share a slot."
 
     local function CoreSet(pos, k, v)
         local db = DB()
@@ -949,7 +947,7 @@ local function BuildDisplayLayout(parent, y, ctx)
             items[i] = {
                 key = k, label = CORE_LABEL[k], tooltip = CORE_TIP[k],
                 lockedFn = function() return CoreLocked(pos, k) end,
-                lockedTooltip = function() return CoreLockTip(k) end,
+                lockedTooltip = CORE_LOCK_TIP,
             }
         end
         local cbDD, cbDDRefresh = EllesmereUI.BuildVisOptsCBDropdown(
@@ -1001,6 +999,7 @@ local function BuildDisplayLayout(parent, y, ctx)
     local function CogPopupOpen(btn) return cogPopupOwner == btn and cogPopup:IsShown() end
 
     -- opts = {title, xGet, xSet, yGet, ySet, sizeGet, sizeSet, sizeMin, sizeMax, sizeStep, sizeLabel}; sizeGet nil = no size row.
+    -- questTextGet/Set: the quest objective's Text Size, mirrored as the cog's top row.
     local function ShowCogPopup(anchorBtn, opts)
         if not cogPopup then
             local SolidTex = EllesmereUI.SolidTex
@@ -1045,7 +1044,7 @@ local function BuildDisplayLayout(parent, y, ctx)
 
             local tmpFS = pf:CreateFontString(nil, "OVERLAY")
             tmpFS:SetFont(EllesmereUI.EXPRESSWAY or "Fonts\\FRIZQT__.TTF", 12, GetNPOptOutline())
-            local labelTexts = {"X Offset", "Y Offset", "Size", "Width %", "Spacing", "Opacity"}
+            local labelTexts = {"X Offset", "Y Offset", "Size", "Width %", "Spacing", "Opacity", "Text Size"}
             local maxLblW = 0
             for _, txt in ipairs(labelTexts) do
                 tmpFS:SetText(EllesmereUI.L(txt))
@@ -1138,6 +1137,31 @@ local function BuildDisplayLayout(parent, y, ctx)
             wValBox:ClearAllPoints(); wValBox:SetPoint("TOPRIGHT", pf, "TOPRIGHT", -SIDE_PAD, W_ROW_Y)
             wTrack:Hide(); wValBox:Hide()
             pf._wTrack = wTrack; pf._wValBox = wValBox
+
+            -- Quest objective Text Size row (hidden unless a Core Positions slot
+            -- holds the Quest Indicator while Replace Quest Icon with Objective is
+            -- on): the General page's setting, mirrored; wired via pf._qtGet/Set,
+            -- its range that setting's own.
+            local qtLabel = MakeFont(pf, 12, nil, 1, 1, 1)
+            qtLabel:SetAlpha(0.6); qtLabel:SetText(EllesmereUI.L("Text Size"))
+            qtLabel:Hide()
+            pf._qtLabel = qtLabel
+            local qtHover = CreateFrame("Frame", nil, pf)
+            qtHover:SetFrameLevel(pf:GetFrameLevel() + 10)
+            qtHover:SetAllPoints(qtLabel)
+            qtHover:EnableMouse(true)
+            qtHover:Hide()
+            qtHover:SetScript("OnEnter", function(self)
+                EllesmereUI.ShowWidgetTooltip(self, EllesmereUI.L("Size of the quest objective text. The same setting as the cog next to Replace Quest Icon with Objective."), { width = 230 })
+            end)
+            qtHover:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
+            pf._qtHover = qtHover
+            local qtTrack, qtValBox = BuildSliderCore(pf, SLIDER_W, 4, 12, INPUT_W, SLIDER_H, 11, SL_INPUT_A,
+                6, 24, 1,
+                function() return pf._qtGet and pf._qtGet() or 14 end,
+                function(v) if pf._qtSet then pf._qtSet(v) end end, true)
+            qtTrack:Hide(); qtValBox:Hide()
+            pf._qtTrack = qtTrack; pf._qtValBox = qtValBox
 
             -- Store layout values for dynamic size slider rebuild + reorder
             pf._SLIDER_LEFT = SLIDER_LEFT
@@ -1451,6 +1475,23 @@ local function BuildDisplayLayout(parent, y, ctx)
         local hasRaiseStrata = opts.raiseStrataGet ~= nil
         local hasStrata = opts.strataGet ~= nil
         local hasCropPct = opts.cropPctGet ~= nil
+        local hasQuestText = opts.questTextGet ~= nil
+        -- Show/hide the quest objective Text Size row
+        if hasQuestText then
+            cogPopup._qtGet = opts.questTextGet
+            cogPopup._qtSet = opts.questTextSet
+            cogPopup._qtLabel:Show()
+            cogPopup._qtTrack:Show()
+            cogPopup._qtValBox:Show()
+            cogPopup._qtHover:Show()
+        else
+            cogPopup._qtGet = nil
+            cogPopup._qtSet = nil
+            cogPopup._qtLabel:Hide()
+            cogPopup._qtTrack:Hide()
+            cogPopup._qtValBox:Hide()
+            cogPopup._qtHover:Hide()
+        end
         if hasSize then
             -- Rebuild size slider if range changed
             local sStep = opts.sizeStep or 1
@@ -1687,6 +1728,8 @@ local function BuildDisplayLayout(parent, y, ctx)
             end
             -- Width % is intentionally NOT in this data-row sequence -- it's repositioned to the very bottom (below Wrap) further down, so it never sits between Size and X/Y.
             local seq = {}
+            -- The mirrored quest objective Text Size heads the cog.
+            if hasQuestText then seq[#seq + 1] = { p._qtLabel, p._qtTrack, p._qtValBox } end
             if hasSize and opts.sizeFirst then
                 seq[#seq + 1] = { p._sLabel, p._sTrack, p._sValBox }
                 if hasSpacing then seq[#seq + 1] = { p._spLabel, p._spTrack, p._spValBox } end
@@ -1805,6 +1848,7 @@ local function BuildDisplayLayout(parent, y, ctx)
             h = p._TOP_PAD + p._TITLE_H + p._TITLE_GAP
                 + gap + rowH   -- X
                 + gap + rowH   -- Y
+            if hasQuestText then h = h + gap + rowH end
             if hasSize    then h = h + gap + rowH end
             if hasWidth   then h = h + gap + rowH end
             if hasSpacing then h = h + gap + rowH end
@@ -2082,6 +2126,25 @@ local function BuildDisplayLayout(parent, y, ctx)
                 opts.growthGet = function() return DBVal("factionPvP") or defaults.factionPvP end
                 opts.growthSet = function(v) DB().factionPvP = v; refresh() end
             end
+            -- Quest Indicator here while Replace Quest Icon with Objective is on:
+            -- the objective's Text Size (the General page's setting, mirrored)
+            -- heads the cog, and the slot's Size goes when the Quest Indicator is
+            -- all the slot holds.
+            if CoreHas(posKey, "quest") and DBVal("replaceQuestIconWithObjective") == true then
+                opts.questTextGet = function()
+                    return DBVal("questObjectiveTextSize") or defaults.questObjectiveTextSize
+                end
+                opts.questTextSet = function(v)
+                    DB().questObjectiveTextSize = v
+                    if ns.RefreshQuestObjective then ns.RefreshQuestObjective() end
+                end
+                local onlyQuest = true
+                for i = 1, #CORE_ORDER do
+                    local k = CORE_ORDER[i]
+                    if k ~= "quest" and CoreHas(posKey, k) then onlyQuest = false; break end
+                end
+                if onlyQuest then opts.sizeGet, opts.sizeSet = nil, nil end
+            end
             -- Raise Strata: bumps whatever element occupies this slot one strata level up so it renders above the rest of the plate.
             local rsKey = posKey .. "SlotRaiseStrata"
             opts.raiseStrataGet = function() return DBVal(rsKey) and true or false end
@@ -2215,6 +2278,7 @@ local function BuildDisplayLayout(parent, y, ctx)
         topleft  = { coreRow3, "_leftRegion" },
         bottom   = { coreRow3, "_rightRegion" },
     }
+    ctx.corePosToRegion = posToRegion
 
     -- Eye icon that follows whichever Core Positions dropdown has "Raid Marker"
     do
@@ -2346,9 +2410,10 @@ local function BuildDisplayLayout(parent, y, ctx)
         healthNumPct         = "Health # | %",
         healthPctNumDash     = "Health % - #",
         healthNumPctDash     = "Health # - %",
+        healthNumMax         = "Health # / Max #",
         none                 = "Remove",
     }
-    local textElementOrder = { "none", "---", "enemyName", "levelName", "nameLevel", "level", "targetOfTarget", "healthPercent", "healthPercentNoSign", "healthNumber", "healthPctNum", "healthNumPct", "healthPctNumDash", "healthNumPctDash" }
+    local textElementOrder = { "none", "---", "enemyName", "levelName", "nameLevel", "level", "targetOfTarget", "healthPercent", "healthPercentNoSign", "healthNumber", "healthPctNum", "healthNumPct", "healthPctNumDash", "healthNumPctDash", "healthNumMax" }
 
     local function TextSlotSetValue(slotKey, v)
         -- Target of Target starts in Class mode whenever a slot newly takes it;

@@ -730,10 +730,10 @@ local function BuildMainPage(pageName, parent, yOffset)
     end
 
     _, h = W:DualRow(parent, y,
-        { type="slider", pixel=true, text="Frame Spacing", min=-1, max=15, step=1,
+        { type="slider", pixel=true, text="Frame Spacing", min=-5, max=15, step=1,
           getValue=function() return SVal("cellSpacing", 2) end,
           setValue=function(v) SSet("cellSpacing", v) end },
-        { type="slider", pixel=true, text="Group Spacing", min=-1, max=15, step=1,
+        { type="slider", pixel=true, text="Group Spacing", min=-5, max=15, step=1,
           getValue=function() return SVal("groupSpacing", 8) end,
           setValue=function(v) SSet("groupSpacing", v) end });  y = y - h
 
@@ -822,11 +822,11 @@ local function BuildMainPage(pageName, parent, yOffset)
             title = "Corner Radius", tip = "Corner Radius",
             disabled = function() return not EllesmereUI.RoundedStyleOK(SGet("borderTexture")) end,
             disabledTooltip = "This option requires the Solid, Glow or Shadow border style.",
-            rows = {
+            rows = EllesmereUI.RoundedCornerRows({
                 { type = "slider", label = "Corner Radius", min = 0, max = EllesmereUI.ROUNDED_MAX_RADIUS, step = 1,
                   get = function() return SVal("cornerRadius", 0) end,
                   set = function(v) SSet("cornerRadius", v) end },
-            },
+            }, function() return SGet("cornerMask") end, function(v) SSet("cornerMask", v) end),
         })
     end
 
@@ -1652,7 +1652,7 @@ local function BuildPartyPage(pageName, parent, yOffset)
         -- (The Party Frames kit keeps its own spacing, set in its Frame
         -- Scale cog, so the Raid Frames layout's value survives a switch
         -- between the two.)
-        ns.RF_PartyKitGate({ type="slider", pixel=true, text="Frame Spacing", min=-1, max=15, step=1,
+        ns.RF_PartyKitGate({ type="slider", pixel=true, text="Frame Spacing", min=-5, max=15, step=1,
           getValue=function()
               if ns.RF_PartyKit() then return db.profile.partyKitSpacing or ns.RF_KIT_SPACING or 6 end
               return SVal("partyCellSpacing", db.profile.cellSpacing or 2)

@@ -14,10 +14,26 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --  shared with Cursor/BattleRes/Bloodlust: each NewDB merges its own defaults
 --  into the SAME profile table, repointed by the profile system on swap.
 -------------------------------------------------------------------------------
-if not (EllesmereUI and EllesmereUI._ModuleNS and EllesmereUI.NewCombatQueue) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring
+if not (EllesmereUI and EllesmereUI._ModuleNS and EllesmereUI.NewCombatQueue and EllesmereUI.SetFramePlacer) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring (the Shifter's loot windows use the parent's frame placer)
 local ns = select(2, ...)
 EllesmereUI._ModuleNS["EllesmereUIQoL"] = ns  -- LOD options files read this module ns via the registry
 ns.CombatQueue = EllesmereUI.NewCombatQueue(CreateFrame("Frame"))
+
+-- Unlock-mode loadPos/clearPos for a QoL element whose slice (P()) stores pos as a
+-- center offset (Battle Res, Bloodlust, Junk Items).
+function ns.CenterPosFns(P)
+    local function loadPos()
+        local p = P()
+        if p and p.pos then
+            return { point = "CENTER", relPoint = "CENTER", x = p.pos.centerX, y = p.pos.centerY }
+        end
+        return nil
+    end
+    local function clearPos()
+        local p = P(); if p then p.pos = nil end
+    end
+    return loadPos, clearPos
+end
 
 local _qolExtrasDB
 local function QoLExtrasProfile()
@@ -1074,7 +1090,7 @@ qolFrame:SetScript("OnEvent", function(self)
             local left = CountJunk()
             if left > 0 and not warned then
                 warned = true
-                EllesmereUI.Print("|cff0cd29dEllesmereUI:|r " ..
+                EllesmereUI.Print(EllesmereUI.COLOR_CODES.BRAND .. "EllesmereUI:|r " ..
                     EllesmereUI.Lf("%d junk item(s) could not be sold.", left))
             end
         end
@@ -1100,7 +1116,7 @@ qolFrame:SetScript("OnEvent", function(self)
                 if stalls >= MAX_STALLS then
                     if junk > 0 and not warned then
                         warned = true
-                        EllesmereUI.Print("|cff0cd29dEllesmereUI:|r " ..
+                        EllesmereUI.Print(EllesmereUI.COLOR_CODES.BRAND .. "EllesmereUI:|r " ..
                             EllesmereUI.Lf("%d junk item(s) could not be sold.", junk))
                     end
                     return
@@ -1163,11 +1179,12 @@ qolFrame:SetScript("OnEvent", function(self)
             line = line .. EllesmereUI.L(" (guild bank)")
             if ownPart > 0 then line = line .. " " .. RepairCostString(guildPart) end
         end
-        EllesmereUI.Print("|cff0CD29DEllesmereUI:|r " .. line)
+        EllesmereUI.Print(EllesmereUI.COLOR_CODES.BRAND .. "EllesmereUI:|r " .. line)
     end
 
     local function ReportRepairBroke()
-        EllesmereUI.Print("|cff0CD29DEllesmereUI:|r |cffff6060" .. EllesmereUI.L("Not enough gold to repair.") .. "|r")
+        local cc = EllesmereUI.COLOR_CODES
+        EllesmereUI.Print(cc.BRAND .. "EllesmereUI:|r " .. cc.ERROR .. EllesmereUI.L("Not enough gold to repair.") .. "|r")
     end
 
     -- Releases the held-back junk sweep. Idempotent: debit or settle timer, whichever arrives first, starts it.
