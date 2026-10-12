@@ -3487,6 +3487,26 @@ local function SkinCharacterSheet()
             emPane.ScrollBox:ClearAllPoints()
             emPane.ScrollBox:SetPoint("TOPLEFT", emPane, "TOPLEFT", 0, -23)
         end
+
+        -- Equip / Save and the scroll bar trade Blizzard's red panel-button
+        -- and trim art for the house look. Art is faded and our textures and
+        -- borders are added beside it; no field, size or script of Blizzard's
+        -- is written, so the pane's own code runs as before.
+        local WS = ns.WSkin
+        if WS then
+            for _, b in ipairs({ emPane.EquipSet or _G.PaperDollFrameEquipSet,
+                                 emPane.SaveSet or _G.PaperDollFrameSaveSet }) do
+                WS.Button(b)
+                WS.StateButtonLabel(b)
+            end
+            local sb = emPane.ScrollBar
+            if sb then
+                WS.ScrollBar(sb)
+                -- WowTrimScrollBar keeps its trough on a child frame that
+                -- WS.ScrollBar does not reach.
+                if sb.Background then WS.FadeRegions(sb.Background) end
+            end
+        end
     end
 
     -- Gear set rows trade Blizzard's stat-strip art for the sheet's flat
