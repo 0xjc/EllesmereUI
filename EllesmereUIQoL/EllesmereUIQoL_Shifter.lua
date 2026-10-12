@@ -60,6 +60,7 @@ local ADDON_FRAMES = {
     ["Blizzard_ExpansionLandingPage"]              = { "ExpansionLandingPage" },
     ["Blizzard_FlightMap"]                         = { "FlightMapFrame" },
     ["Blizzard_GenericTraitUI"]                    = { "GenericTraitFrame" },
+    ["Blizzard_GroupFinder_VanillaStyle"]          = { "LFGParentFrame" },  -- WoW Forever's group finder
     ["Blizzard_GuildBankUI"]                       = { "GuildBankFrame" },
     ["Blizzard_GuildControlUI"]                    = { "GuildControlUI" },
     ["Blizzard_InspectUI"]                         = { "InspectFrame" },
@@ -73,6 +74,7 @@ local ADDON_FRAMES = {
     ["Blizzard_ProfessionsBook"]                   = { "ProfessionsBookFrame" },
     ["Blizzard_ProfessionsCustomerOrders"]         = { "ProfessionsCustomerOrdersFrame" },
     ["Blizzard_ScrappingMachineUI"]                = { "ScrappingMachineFrame" },
+    ["Blizzard_SocialUI"]                          = { "SocialUIFrame" },
     ["Blizzard_StableUI"]                          = { "StableFrame" },
     ["Blizzard_TokenUI"]                           = { "CurrencyTransferMenu" },
     ["Blizzard_TrainerUI"]                         = { "ClassTrainerFrame" },
@@ -101,10 +103,13 @@ local DRAG_HEADERS = {
 -- Extra drag handles layered ON TOP of the frame body. Used when a
 -- mouse-enabled child sits over the frame and would otherwise swallow the
 -- drag (e.g. the Achievement frame's floating points header). Values resolve
--- to a child frame: either a global name or a function(frame) -> child.
+-- to a child frame: either a global name or a function(frame) -> child, or a
+-- list of global names.
 local EXTRA_DRAG_TARGETS = {
     ["AchievementFrame"] = function(frame) return frame.Header or _G["AchievementFrameHeader"] end,
     ["ContainerFrameCombinedBags"] = function(frame) return frame.TitleContainer or _G["ContainerFrameCombinedBags"] end,
+    -- WoW Forever's group finder: each tab is a full window laid over the parent
+    ["LFGParentFrame"] = { "LFGBrowseFrame", "LFGListingFrame", "LFGWhoListFrame" },
 }
 
 -- Blizzard windows that normally dock beside CharacterFrame (Item Upgrade, Transmog,
@@ -127,6 +132,7 @@ local DOCKING_COMPANIONS = {
     ItemSocketingFrame = true,
     MerchantFrame = true,
     FriendsFrame = true,
+    SocialUIFrame = true,
     CommunitiesFrame = true,
     ProfessionsFrame = true,
     ProfessionsBookFrame = true,
@@ -607,7 +613,9 @@ local function HookFrame(frame, name)
 
     -- Extra handles layered on top of the frame body
     local extra = EXTRA_DRAG_TARGETS[name]
-    if extra then
+    if type(extra) == "table" then
+        for _, child in ipairs(extra) do AttachDrag(_G[child]) end
+    elseif extra then
         AttachDrag(type(extra) == "function" and extra(frame) or _G[extra])
     end
 
