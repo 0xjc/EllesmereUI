@@ -42,6 +42,8 @@ EllesmereUI_Migration.lua
 # Early startup -- applies engine-cached settings before PLAYER_LOGIN
 EllesmereUI_Startup.lua
 
+EllesmereUI_GoldLedger.lua
+
 # Shared EllesmereUI Files
 EllesmereUI_PixelPerfect.lua
 EllesmereUI.lua

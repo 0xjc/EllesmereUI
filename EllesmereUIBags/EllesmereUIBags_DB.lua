@@ -58,7 +58,6 @@ local BAGS_DEFAULTS = {
         -- bagFrameStrata has no default: unset reads the retired
         -- bagAllowWindowsOverBags (ns.BagFrameStrata)
         bagStackSplitter      = false,
-        enableGoldTracking    = true,
         detachReagentBag      = false,
         enhancedBags          = true,
         bagDesaturateJunkItems = false,  -- Junk Item Visuals: grey items and Junk Marker junk, every display

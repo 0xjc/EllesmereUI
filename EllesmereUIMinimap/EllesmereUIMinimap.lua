@@ -4354,6 +4354,14 @@ EBS._ApplyClassicMinimapChrome = function(minimap, mapSize)
     header:Show()
 end
 
+-- Blizzard's Toggle Minimap keybind (ToggleMinimap) hides the map with a plain Hide(),
+-- which our visibility passes would undo on their next run.
+local _mmKeyHidden
+hooksecurefunc("ToggleMinimap", function()
+    _mmKeyHidden = not Minimap:IsShown()
+    C_Timer.After(0, EllesmereUI.RequestVisibilityUpdate)
+end)
+
 local function ApplyMinimap()
     if TEMP_DISABLED.minimap then return end
     if InCombatLockdown() then QueueApplyAll(); return end
@@ -4437,7 +4445,9 @@ local function ApplyMinimap()
         local vis = EllesmereUI.EvalVisibility and p and EllesmereUI.EvalVisibility(p)
         -- Opacity in every state: a hidden map carries it into its next Show().
         EBS._WriteMapAlpha(minimap, p)
-        if not EllesmereUI.EvalVisibility or vis == true then
+        if _mmKeyHidden then
+            minimap:Hide()
+        elseif not EllesmereUI.EvalVisibility or vis == true then
             minimap:Show()
         elseif vis == "mouseover" then
             -- Idle state is a real Hide(), not alpha 0 -- see UpdateMinimapVisibility.
@@ -5608,7 +5618,8 @@ local function UpdateMinimapVisibility()
     -- and a transparent map still takes the mouse. A secure state driver is the only thing that can legally hide this frame mid-combat, so combat-dependent selections get one; others keep plain Show()/Hide().
     local vm = EllesmereUI.GetActiveVisibilityModes(p, "visibility")
     -- Mouseover cannot be expressed as a macro conditional, and the poll's own Show()/Hide() would fight a driver, so those selections stay on Lua.
-    local want = EllesmereUI.VisDependsOnCombat(p, "visibility")
+    local want = not _mmKeyHidden
+        and EllesmereUI.VisDependsOnCombat(p, "visibility")
         and not (vm and vm.mouseover)
         and MinimapDriverString(p, vm)
         or nil
@@ -5626,7 +5637,9 @@ local function UpdateMinimapVisibility()
 
     if InCombatLockdown() then return end
     local vis = EllesmereUI.EvalVisibility(p)
-    if vis == "mouseover" then
+    if _mmKeyHidden then
+        minimap:Hide()
+    elseif vis == "mouseover" then
         -- Mouseover idle is a real Hide(), not alpha 0: frame alpha does not cover
         -- everything drawn on this frame, so an alpha-0 map still left its icons on
         -- screen until the first hover. Hide() is also exactly what the shared
@@ -5874,7 +5887,7 @@ function EBS:OnInitialize()
             -- (every other module registers an addon-owned proxy); the shared poll's
             -- Show()/Hide() is blocked in combat lockdown, so report inactive during
             -- combat -- the poll then only resets bookkeeping, and the dispatcher re-applies state on PLAYER_REGEN_ENABLED.
-            if InCombatLockdown() then return false end
+            if InCombatLockdown() or _mmKeyHidden then return false end
             local p = EBS.db and EBS.db.profile and EBS.db.profile.minimap
             if not (p and p.enabled) then return false end
             -- Hover-gated sets only reveal while their conditions pass.
