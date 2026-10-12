@@ -1737,15 +1737,57 @@ do
         return out
     end
 
+    -- Stat amounts read off the item's tooltip data, for items whose stats
+    -- C_Item.GetItemStats leaves empty (gems: "+16 Versatility & +7 Critical
+    -- Strike"). Each listed stat's localized name (_G[key]) is found in a line
+    -- and paired with the last number before it. C_TooltipInfo only: never a
+    -- scanning tooltip frame.
+    local function TooltipStats(itemLink)
+        if not (C_TooltipInfo and C_TooltipInfo.GetHyperlink) then return nil end
+        local data = C_TooltipInfo.GetHyperlink(itemLink)
+        local lines = data and data.lines
+        if not lines then return nil end
+        local stats
+        for _, list in ipairs({ SECONDARY, TERTIARY }) do
+            for i = 1, #list do
+                local key = list[i][1]
+                local name = _G[key]
+                if type(name) == "string" and name ~= "" then
+                    for _, line in ipairs(lines) do
+                        local text = line.leftText
+                        local pos = type(text) == "string" and text:find(name, 1, true)
+                        if pos then
+                            local num = text:sub(1, pos - 1):match("(%d[%d%.,]*)%D*$")
+                            local v = num and tonumber((num:gsub("%D", "")))
+                            if v and v > 0 then
+                                stats = stats or {}
+                                stats[key] = v
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        return stats
+    end
+
     local secCache, terCache, cacheN = {}, {}, 0
     function EllesmereUI.GetItemStatLetters(itemLink)
         if type(itemLink) ~= "string" then return "", "" end
         local sec = secCache[itemLink]
         if sec then return sec, terCache[itemLink] end
         local stats = C_Item.GetItemStats and C_Item.GetItemStats(itemLink)
-        if not stats or next(stats) == nil then return "", "" end
+        local fromTooltip = false
+        if not stats or next(stats) == nil then
+            stats, fromTooltip = TooltipStats(itemLink), true
+        end
+        if not stats then return "", "" end
         local ter
         sec, ter = Letters(stats, SECONDARY), Letters(stats, TERTIARY)
+        -- A tooltip read before the item's data loads can come back short:
+        -- only a read that found letters is recorded.
+        if fromTooltip and sec == "" and ter == "" then return sec, ter end
         if cacheN >= 2000 then wipe(secCache); wipe(terCache); cacheN = 0 end
         secCache[itemLink], terCache[itemLink] = sec, ter
         cacheN = cacheN + 1

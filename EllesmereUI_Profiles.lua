@@ -2114,7 +2114,7 @@ do
         "charSheetHideSlotFlyoutArrows",
         "charSheetIconZoom", "charSheetEnchantNames", "charSheetEnchantSize",
         "flyoutItemLevels", "flyoutItemStats", "charSheetItemStats",
-        "flyoutItemStatsTertiary", "charSheetItemStatsTertiary",
+        "flyoutItemStatsTertiary", "charSheetItemStatsTertiary", "charSheetSocketPanelStats",
         "showCharSheetDurability", "charSheetDurabilityLocation",
         "charSheetDurabilityShowLabel", "showSecondaryRaw", "showSecondaryBoth",
         "showTertiaryRaw", "showTertiaryBoth", "showAdjustedStats",

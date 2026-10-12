@@ -1069,6 +1069,26 @@ initFrame:SetScript("OnEvent", function(self)
                   end },
                 iconZoomCfg);  y = y - h
             AttachDisabledOverlay(socketRow)
+
+            -- Inline cog on Socket Panel: stat letters on the gem icons (off
+            -- unless turned on).
+            if not EllesmereUI._prebuilding then
+                EllesmereUI.BuildInlineCog(socketRow._leftRegion, {
+                    disabled = function() return EllesmereUIDB and EllesmereUIDB.charSheetSocketPanel == false end,
+                    disabledTooltip = "Socket Panel",
+                    title = "Socket Panel Settings",
+                    rows = {
+                        { type="toggle", label="Stat Letters",
+                          tooltip="Shows each socketed gem's secondary stats as letters on its icon, largest first (C Crit, H Haste, M Mastery, V Versatility).",
+                          get=function() return EllesmereUIDB and EllesmereUIDB.charSheetSocketPanelStats == true or false end,
+                          set=function(v)
+                              if not EllesmereUIDB then EllesmereUIDB = {} end
+                              EllesmereUIDB.charSheetSocketPanelStats = v
+                              if EllesmereUI._refreshCharSheetSocketPanel then EllesmereUI._refreshCharSheetSocketPanel() end
+                          end },
+                    },
+                })
+            end
         else
             -- WoW Forever has no Mythic+, item level text, upgrade tracks or
             -- sockets: the track key shows each item's main and secondary stat
@@ -4033,6 +4053,7 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUIDB.charSheetItemStats = nil
                 EllesmereUIDB.flyoutItemStatsTertiary = nil
                 EllesmereUIDB.charSheetItemStatsTertiary = nil
+                EllesmereUIDB.charSheetSocketPanelStats = nil
                 EllesmereUIDB.showCharSheetDurability = nil
                 EllesmereUIDB.charSheetDurabilityLocation = nil
                 EllesmereUIDB.charSheetDurabilityShowLabel = nil
