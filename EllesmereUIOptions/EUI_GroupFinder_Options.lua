@@ -44,8 +44,20 @@ initFrame:SetScript("OnEvent", function(self)
               tooltip = "Premade Groups search filters, group list and applicant tools, the M+ applications bar and the Dungeon Finder / Raid Finder layout in the Dungeons & Raids window. Requires a reload.",
               getValue = function() return ns.Enabled() end,
               setValue = function(v)
-                  ns.SetEnabled(v and true or false)
-                  EUI.RequestReload()
+                  v = v and true or false
+                  if v == ns.Enabled() then return end
+                  -- Saved only once the reload is confirmed; until then the
+                  -- toggle shows the current state again.
+                  EUI:RefreshPage()
+                  EUI:ShowConfirmPopup({
+                      title       = v and "Enable Group Finder" or "Disable Group Finder",
+                      message     = v and "Your UI will reload to turn on the Group Finder."
+                                      or "Your UI will reload to turn off the Group Finder.",
+                      confirmText = "Reload Now",
+                      cancelText  = "Cancel",
+                      reload      = true,
+                      onConfirm   = function() ns.SetEnabled(v) end,
+                  })
               end },
             EUI.BlankRowCfg());  y = y - h
 
