@@ -4456,15 +4456,14 @@ end
 
 -------------------------------------------------------------------------------
 --  Combat Alert -- center-screen text on PLAYER_REGEN_DISABLED/ENABLED. Each
---  transition has its own text/color (custom or class color); one Text Size and
---  shared unlock-mode position apply to both. "Show On" selects enter/leave/both. No events registered unless enabled.
+--  transition has its own text/color (custom or class color); one Text Size
+--  applies to both. "Show On" selects enter/leave/both. The text is drawn by
+--  the shared alert anchor (EllesmereUIQoL_Alerts.lua), which also owns the
+--  Unlock Mode position. No events registered unless enabled.
 -------------------------------------------------------------------------------
 do
-    local alertFrame
     local watcher
     local installed = false
-    local DEFAULT_TEXT_SIZE = 22
-    local DEFAULT_POS = { point = "CENTER", relPoint = "CENTER", x = 0, y = 169 }
 
     local DEFAULTS = {
         enterText  = "+Combat",
@@ -4495,74 +4494,9 @@ do
         return (db and db.combatAlertEnterText) or DEFAULTS.enterText
     end
 
-    -- Applies configured font size and saved position (or default dead-center placement) to the overlay.
-    local function ApplyOverlaySettings()
-        if not alertFrame then return end
-        local fontPath = (EllesmereUI.GetFontPath("extras"))
-            or EllesmereUI.EXPRESSWAY or "Fonts\\FRIZQT__.TTF"
-        -- Always keep an outline so the alert stays readable over any background.
-        local outline = (EllesmereUI.GetFontOutlineFlag("extras")) or ""
-        if not outline:find("OUTLINE") then
-            outline = (outline == "" ) and "OUTLINE" or (outline .. ", OUTLINE")
-        end
-        local size = (EllesmereUIDB and EllesmereUIDB.combatAlertTextSize) or DEFAULT_TEXT_SIZE
-        alertFrame._text:SetFont(fontPath, size, outline)
-        -- Keep the frame (and unlock-mode mover) sized to roughly the text.
-        alertFrame:SetSize(size * 7, size + 14)
-
-        alertFrame:ClearAllPoints()
-        local pos = EllesmereUIDB and EllesmereUIDB.combatAlertPos
-        if pos and pos.point then
-            alertFrame:SetPoint(pos.point, UIParent, pos.relPoint or pos.point, pos.x or 0, pos.y or 0)
-        else
-            alertFrame:SetPoint(DEFAULT_POS.point, UIParent, DEFAULT_POS.relPoint, DEFAULT_POS.x, DEFAULT_POS.y)
-        end
-    end
-
-    local function CreateAlertFrame()
-        if alertFrame then return end
-
-        alertFrame = CreateFrame("Frame", nil, UIParent)
-        alertFrame:SetSize(240, 50)
-        alertFrame:SetFrameStrata("HIGH")
-        alertFrame:SetFrameLevel(60)
-        alertFrame:EnableMouse(false)
-        alertFrame:SetMouseClickEnabled(false)
-
-        local fs = alertFrame:CreateFontString(nil, "OVERLAY")
-        fs:SetPoint("CENTER")
-        alertFrame._text = fs
-        ApplyOverlaySettings()
-
-        -- Quick fade-in, brief hold, fade-out; hide when finished.
-        local ag = alertFrame:CreateAnimationGroup()
-        local fadeIn = ag:CreateAnimation("Alpha")
-        fadeIn:SetFromAlpha(0); fadeIn:SetToAlpha(1); fadeIn:SetDuration(0.15); fadeIn:SetOrder(1)
-        local hold = ag:CreateAnimation("Alpha")
-        hold:SetFromAlpha(1); hold:SetToAlpha(1); hold:SetDuration(1.2); hold:SetOrder(2)
-        local fadeOut = ag:CreateAnimation("Alpha")
-        fadeOut:SetFromAlpha(1); fadeOut:SetToAlpha(0); fadeOut:SetDuration(0.5); fadeOut:SetOrder(3)
-        ag:SetScript("OnFinished", function() alertFrame:Hide() end)
-        alertFrame._ag = ag
-
-        alertFrame:SetScript("OnHide", function() ag:Stop() end)
-        alertFrame:Hide()
-    end
-
-    local function ShowAlert(which)
-        -- Never fire live alerts while unlock mode is positioning the frame.
-        if EllesmereUI._unlockActive then return end
-        CreateAlertFrame()
-        ApplyOverlaySettings()
-
-        alertFrame._text:SetText(AlertText(which))
-        alertFrame._text:SetTextColor(ResolveColor(which))
-        alertFrame._text:SetAlpha(1)
-
-        alertFrame._ag:Stop()
-        alertFrame:SetAlpha(1)
-        alertFrame:Show()
-        alertFrame._ag:Play()
+    local function ShowAlert(which, preview)
+        local r, g, b = ResolveColor(which)
+        EllesmereUI.Alerts.Line("combat").Show(AlertText(which), r, g, b, preview)
     end
 
     local function OnCombatEvent(_, event)
@@ -4585,80 +4519,20 @@ do
         elseif not on and installed then
             watcher:UnregisterAllEvents()
             installed = false
+            EllesmereUI.Alerts.Hide("combat")
         end
-        if alertFrame then ApplyOverlaySettings() end
+        EllesmereUI.Alerts.Refresh()
     end
     EllesmereUI._applyCombatAlert = ApplyCombatAlert
 
     -- Fires a sample alert for the given transition so the look can be checked from the options cog without a real combat change.
-    EllesmereUI._combatAlertPreview = function(which)
-        if EllesmereUI._unlockActive then return end
-        CreateAlertFrame()
-        ApplyOverlaySettings()
-        alertFrame._text:SetText(AlertText(which))
-        alertFrame._text:SetTextColor(ResolveColor(which))
-        alertFrame._ag:Stop()
-        alertFrame:SetAlpha(1)
-        alertFrame:Show()
-        alertFrame._ag:Play()
-    end
+    EllesmereUI._combatAlertPreview = function(which) ShowAlert(which, true) end
 
-    -- Re-apply font size/position (called from the Text Size slider and from unlock mode on saved-position change).
-    EllesmereUI._applyCombatAlertFrame = function()
-        CreateAlertFrame()
-        ApplyOverlaySettings()
-    end
+    -- Re-apply size/position (called from the Text Size slider).
+    EllesmereUI._applyCombatAlertFrame = function() EllesmereUI.Alerts.Refresh() end
 
     watcher = CreateFrame("Frame")
     watcher:SetScript("OnEvent", OnCombatEvent)
-
-    -- Register the alert with Unlock Mode so its position can be dragged.
-    C_Timer.After(2, function()
-        if not (EllesmereUI and EllesmereUI.RegisterUnlockElements) then return end
-        local MK = EllesmereUI.MakeUnlockElement
-        if not MK then return end
-        EllesmereUI:RegisterUnlockElements({
-            MK({
-                key      = "EUI_CombatAlert",
-                label    = "Combat Alert",
-                group    = "Quality of Life",
-                order    = 721,
-                noResize = true,
-                isHidden = function()
-                    return not (EllesmereUIDB and EllesmereUIDB.combatAlertEnabled)
-                end,
-                getFrame = function()
-                    CreateAlertFrame()
-                    return alertFrame
-                end,
-                getSize = function()
-                    local size = (EllesmereUIDB and EllesmereUIDB.combatAlertTextSize) or DEFAULT_TEXT_SIZE
-                    return size * 7, size + 14
-                end,
-                savePos = function(_, point, relPoint, x, y)
-                    if not point then return end
-                    if not EllesmereUIDB then EllesmereUIDB = {} end
-                    EllesmereUIDB.combatAlertPos = { point = point, relPoint = relPoint, x = x, y = y }
-                    if alertFrame and not EllesmereUI._unlockActive then
-                        ApplyOverlaySettings()
-                    end
-                end,
-                loadPos = function()
-                    local pos = EllesmereUIDB and EllesmereUIDB.combatAlertPos
-                    if pos and pos.point then return pos end
-                    return { point = DEFAULT_POS.point, relPoint = DEFAULT_POS.relPoint, x = DEFAULT_POS.x, y = DEFAULT_POS.y }
-                end,
-                clearPos = function()
-                    if EllesmereUIDB then EllesmereUIDB.combatAlertPos = nil end
-                    if alertFrame then ApplyOverlaySettings() end
-                end,
-                applyPos = function()
-                    CreateAlertFrame()
-                    ApplyOverlaySettings()
-                end,
-            }),
-        })
-    end)
 
     local boot = CreateFrame("Frame")
     boot:RegisterEvent("PLAYER_LOGIN")
@@ -5176,6 +5050,8 @@ end
 --  enabled, overlays each button with the item's level, coloured by quality. Hooks
 --  EquipmentFlyout_UpdateItems (after every flyout shape is populated) and reads EllesmereUIDB
 --  live, so the toggle applies to the next flyout with no reload. Toggle: EllesmereUIDB.flyoutItemLevels (Quality of Life -> UI).
+--  EllesmereUIDB.flyoutItemStats adds the stat letters (EllesmereUI.GetItemStatLetters)
+--  centred along the bottom edge; flyoutItemStatsTertiary == true adds Leech/Avoidance/Speed.
 -------------------------------------------------------------------------------
 do
     local function FlyoutEnabled()
@@ -5262,14 +5138,71 @@ do
         return fs
     end
 
+    -- Stat letters ("MH", tertiaries smaller behind them: "L") centred along
+    -- the button's bottom edge, kept off the button like the item level above.
+    local _flyoutStatFS = setmetatable({}, { __mode = "k" })  -- [button] = fontstring
+    local _flyoutTerFS  = setmetatable({}, { __mode = "k" })  -- [button] = fontstring
+
+    local function EnsureStatText(button)
+        local fs = _flyoutStatFS[button]
+        if not fs then
+            local font = EllesmereUI._font
+                or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.ttf"
+            local flag = (EllesmereUI.SlugFlag("OUTLINE, SLUG"))
+                or "OUTLINE, SLUG"
+            fs = button:CreateFontString(nil, "OVERLAY", nil, 7)
+            fs:SetFont(font, 11, flag)
+            fs:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 2, 2)
+            fs:SetTextColor(1, 1, 1, 1)
+            local ter = button:CreateFontString(nil, "OVERLAY", nil, 7)
+            ter:SetFont(font, 8, flag)
+            ter:SetPoint("BOTTOMLEFT", fs, "BOTTOMRIGHT", 1, 0)
+            ter:SetTextColor(0.94, 0.66, 0.94, 1)
+            _flyoutStatFS[button] = fs
+            _flyoutTerFS[button] = ter
+        end
+        return fs, _flyoutTerFS[button]
+    end
+
+    local function PaintStats(button, link)
+        local fs, ter = _flyoutStatFS[button], _flyoutTerFS[button]
+        local sec, tert = "", ""
+        if link and EllesmereUI.GetItemStatLetters then
+            sec, tert = EllesmereUI.GetItemStatLetters(link)
+            if not (EllesmereUIDB and EllesmereUIDB.flyoutItemStatsTertiary == true) then tert = "" end
+        end
+        if sec == "" and tert == "" then
+            if fs then fs:SetText(""); ter:SetText("") end
+            return
+        end
+        -- Only tertiaries: they take the main label (and its size).
+        if sec == "" then sec, tert = tert, "" end
+        fs, ter = EnsureStatText(button)
+        fs:SetText(sec)
+        ter:SetText(tert)
+        -- Centre the pair along the bottom edge: the tertiaries hang off the
+        -- main label's right.
+        local w = fs:GetStringWidth() + (tert ~= "" and ter:GetStringWidth() + 1 or 0)
+        fs:ClearAllPoints()
+        fs:SetPoint("BOTTOMLEFT", button, "BOTTOM", -w / 2, 2)
+    end
+
     local function PaintButton(button, useItemLocation)
         local fs = _flyoutFS[button]
-        if not FlyoutEnabled() or not button:IsShown() then
+        local showIlvl = FlyoutEnabled()
+        local showStats = EllesmereUIDB and EllesmereUIDB.flyoutItemStats
+        if not (showIlvl or showStats) or not button:IsShown() then
             if fs then fs:SetText("") end
+            PaintStats(button, nil)
             return
         end
 
         local ilvl, quality, link = ButtonItemInfo(button, useItemLocation)
+        PaintStats(button, showStats and link or nil)
+        if not showIlvl then
+            if fs then fs:SetText("") end
+            return
+        end
         fs = EnsureText(button)
         if ilvl and ilvl > 0 then
             fs:SetText(ilvl)

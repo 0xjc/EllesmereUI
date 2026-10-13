@@ -63,6 +63,7 @@ EUI_ForeverEssentials_Loot_Options.lua
 EUI_ForeverEssentials_MacroModel_Options.lua
 EUI_ForeverEssentials_Macros_Options.lua
 EUI_Friends_Options.lua
+EUI_LoadoutManager_Options.lua
 EUI_Minimap_Options.lua
 EUI_MythicTimer_Options.lua
 Nameplates_Options\ColorsPage_Options.lua
@@ -76,6 +77,7 @@ EUI_QoL_Options.lua
 EUI_QoL_StatPicker.lua
 EUI_QoL_Cursor_Options.lua
 EUI_QoL_BattleRes_Options.lua
+EUI_QoL_Alerts_Options.lua
 EUI_QoL_JunkList_Options.lua
 EUI_QoL_AutoLogging_Options.lua
 EUI_QoL_Shifter_Options.lua

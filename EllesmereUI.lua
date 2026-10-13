@@ -698,6 +698,7 @@ local ADDON_ROSTER = {
     { folder = "EllesmereUIBags",              display = "Bags",                 search_name = "EllesmereUI Bags"                    },
     { folder = "EllesmereUIDataBars",          display = "DataBars",             search_name = "EllesmereUI DataBars"                },
     { folder = "EllesmereUIQuickdraw",         display = "Quickdraw",            search_name = "EllesmereUI Quickdraw"               },
+    { folder = "EllesmereUILoadoutManager",    display = "Loadout Manager",      search_name = "EllesmereUI Loadout Manager"         },
     { folder = "EllesmereUIPartyMode",         display = "Party Mode",           search_name = "EllesmereUI Party Mode",             alwaysLoaded = true },
 }
 
@@ -728,6 +729,7 @@ EllesmereUI.ADDON_GROUPS = {
             "EllesmereUIAuraBuffReminders",
             "EllesmereUIDataBars",
             "EllesmereUIQuickdraw",
+            "EllesmereUILoadoutManager",
             "EllesmereUIPartyMode",
         },
     },
@@ -782,6 +784,7 @@ end
 -- than sit in them disabled. Extend the set whenever a TOC gets that line.
 EllesmereUI.FOREVER_HIDDEN_ADDONS = {
     EllesmereUIMythicTimer = true, EllesmereUIFriends = true,
+    EllesmereUILoadoutManager = true,
     -- Not an addon: the Dragon Riding profile pseudo-folder (its file returns at
     -- load on Forever), listed so the profile import/export checklists drop it.
     EllesmereUIDragonRiding = true,
@@ -1698,6 +1701,100 @@ do
             end
             return { r = 1, g = 1, b = 1 }
         end
+    end
+end
+
+-- Stat letters for an item: its secondaries by amount, largest first ("MH"),
+-- and its tertiaries the same way ("L"), returned apart so callers can show
+-- the tertiaries smaller. Ties keep the list order. The letters stay English
+-- in every locale (the usual shorthand). Shared by the equipment flyout and
+-- the character sheet slots. Memoized per link (the link carries the bonus
+-- IDs, so catalyst variants of one item differ); an item whose stats have not
+-- loaded yet is not recorded.
+do
+    local SECONDARY = {
+        { "ITEM_MOD_CRIT_RATING_SHORT",    "C" },
+        { "ITEM_MOD_HASTE_RATING_SHORT",   "H" },
+        { "ITEM_MOD_MASTERY_RATING_SHORT", "M" },
+        { "ITEM_MOD_VERSATILITY",          "V" },
+    }
+    local TERTIARY = {
+        { "ITEM_MOD_CR_LIFESTEAL_SHORT", "L" },
+        { "ITEM_MOD_CR_AVOIDANCE_SHORT", "A" },
+        { "ITEM_MOD_CR_SPEED_SHORT",     "S" },
+    }
+
+    local function Letters(stats, list)
+        local picked = {}
+        for i = 1, #list do
+            local v = stats[list[i][1]]
+            if type(v) == "number" and v > 0 then picked[#picked + 1] = i end
+        end
+        table.sort(picked, function(a, b)
+            local va, vb = stats[list[a][1]], stats[list[b][1]]
+            if va ~= vb then return va > vb end
+            return a < b
+        end)
+        local out = ""
+        for n = 1, #picked do out = out .. list[picked[n]][2] end
+        return out
+    end
+
+    -- Stat amounts read off the item's tooltip data, for items whose stats
+    -- C_Item.GetItemStats leaves empty (gems: "+16 Versatility & +7 Critical
+    -- Strike"). Each listed stat's localized name (_G[key]) is found in a line
+    -- and paired with the last number before it. C_TooltipInfo only: never a
+    -- scanning tooltip frame.
+    local function TooltipStats(itemLink)
+        if not (C_TooltipInfo and C_TooltipInfo.GetHyperlink) then return nil end
+        local data = C_TooltipInfo.GetHyperlink(itemLink)
+        local lines = data and data.lines
+        if not lines then return nil end
+        local stats
+        for _, list in ipairs({ SECONDARY, TERTIARY }) do
+            for i = 1, #list do
+                local key = list[i][1]
+                local name = _G[key]
+                if type(name) == "string" and name ~= "" then
+                    for _, line in ipairs(lines) do
+                        local text = line.leftText
+                        local pos = type(text) == "string" and text:find(name, 1, true)
+                        if pos then
+                            local num = text:sub(1, pos - 1):match("(%d[%d%.,]*)%D*$")
+                            local v = num and tonumber((num:gsub("%D", "")))
+                            if v and v > 0 then
+                                stats = stats or {}
+                                stats[key] = v
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        return stats
+    end
+
+    local secCache, terCache, cacheN = {}, {}, 0
+    function EllesmereUI.GetItemStatLetters(itemLink)
+        if type(itemLink) ~= "string" then return "", "" end
+        local sec = secCache[itemLink]
+        if sec then return sec, terCache[itemLink] end
+        local stats = C_Item.GetItemStats and C_Item.GetItemStats(itemLink)
+        local fromTooltip = false
+        if not stats or next(stats) == nil then
+            stats, fromTooltip = TooltipStats(itemLink), true
+        end
+        if not stats then return "", "" end
+        local ter
+        sec, ter = Letters(stats, SECONDARY), Letters(stats, TERTIARY)
+        -- A tooltip read before the item's data loads can come back short:
+        -- only a read that found letters is recorded.
+        if fromTooltip and sec == "" and ter == "" then return sec, ter end
+        if cacheN >= 2000 then wipe(secCache); wipe(terCache); cacheN = 0 end
+        secCache[itemLink], terCache[itemLink] = sec, ter
+        cacheN = cacheN + 1
+        return sec, ter
     end
 end
 
