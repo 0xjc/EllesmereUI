@@ -1428,6 +1428,7 @@ local DEFAULTS = {
             timerSide     = "right",  -- "left" | "right" (duration position; "None" = showTimer false)
             timerR = 1, timerG = 1, timerB = 1, timerA = 1,  -- Duration Text colour (white = untinted)
             showSpellText = true,
+            showSpellRank = false,
             spellTextSize = 11,
             spellTextX    = 0,
             spellTextY    = 0,
@@ -10228,6 +10229,15 @@ function ns.ActivateCastBar()
     EllesmereUI.SetElementVisibility(castBarFrame, true)
 end
 
+-- Spell name plus its rank subtext ("Name (Rank 2)") when Show Spell Rank is on.
+function ns.CastDisplayName(cb, name, spellID)
+    if cb.showSpellRank and spellID and C_Spell and C_Spell.GetSpellSubtext then
+        local ok, rank = pcall(C_Spell.GetSpellSubtext, spellID)
+        if ok and type(rank) == "string" and rank ~= "" then return name .. " (" .. rank .. ")" end
+    end
+    return name
+end
+
 OnCastStart = function()
     if not castBarFrame then return end
     local cb = ERB.db.profile.castBar
@@ -10245,7 +10255,7 @@ OnCastStart = function()
     castBarFrame._spellName = name
     castBarFrame._spellID = spellID
     castBarFrame._totalDurSuffix = " / " .. format("%.1f", (endTimeMS - startTimeMS) / 1000)
-    castBarFrame._nameText:SetText(name)
+    castBarFrame._nameText:SetText(ns.CastDisplayName(cb, name, spellID))
     ns.ERB_SetBlizzCastFill("cast")
     if not ns.ApplyCastTimer("cast") then
         local castDur = endTimeMS - startTimeMS
@@ -10304,7 +10314,7 @@ OnChannelStart = function()
     castBarFrame._spellName = name
     castBarFrame._spellID = spellID
     castBarFrame._totalDurSuffix = " / " .. format("%.1f", (endTimeMS - startTimeMS) / 1000)
-    castBarFrame._nameText:SetText(name)
+    castBarFrame._nameText:SetText(ns.CastDisplayName(cb, name, spellID))
     ns.ERB_SetBlizzCastFill("channel")
     if not ns.ApplyCastTimer("channel") then
         local chanDur = endTimeMS - startTimeMS
@@ -10590,7 +10600,7 @@ OnEmpowerStart = function()
     castBarFrame._spellID = spellID
     castBarFrame._totalDurSuffix = " / " .. format("%.1f", (endTimeMS - startTimeMS) / 1000)
     HideLatencyOverlay()
-    castBarFrame._nameText:SetText(name)
+    castBarFrame._nameText:SetText(ns.CastDisplayName(cb, name, spellID))
     ns.ERB_SetBlizzCastFill("cast")
     if not ns.ApplyCastTimer("empower") then
         local empDur = endTimeMS - startTimeMS
