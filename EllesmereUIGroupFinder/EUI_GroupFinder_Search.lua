@@ -2177,20 +2177,32 @@ end
 -- settings page no longer lists them).
 XF.GROUP_MENU = {
     { title = "Listing" },
-    { key = "nameColors",     label = "Colored Group Names" },
-    { key = "leaderRating",   label = "Leader Rating" },
-    { key = "missingRoles",   label = "Show Missing Roles" },
-    { key = "specIcons",      label = "Show Specialization" },
-    { key = "leaderCrown",    label = "Show Group Leader" },
-    { key = "classTooltip",   label = "Members in Tooltip" },
+    { key = "nameColors",     label = "Colored Group Names",
+      tip = "Group names turn green when the group is new since your last search, and red when you were declined or are locked out of that instance. The leader rating also uses Raider.IO's colors while Raider.IO is loaded." },
+    { key = "leaderRating",   label = "Leader Rating",
+      tip = "Shows the group leader's Mythic+ rating next to the role icons." },
+    { key = "missingRoles",   label = "Show Missing Roles",
+      tip = "Empty slots in 5-player groups show the role the group still needs." },
+    { key = "specIcons",      label = "Show Specialization",
+      tip = "Shows each member's specialization icon in place of the class icon." },
+    { key = "leaderCrown",    label = "Show Group Leader",
+      tip = "Puts a small crown above the group leader's icon." },
+    { key = "classTooltip",   label = "Members in Tooltip",
+      tip = "Group tooltips list every member: role, specialization, class and name." },
     { title = "Sign Up" },
-    { key = "cancelOldest",   label = "Cancel Oldest Application", signUp = true },
-    { key = "signUpDeclined", label = "Sign Up to Declined Groups", signUp = true },
-    { key = "keepNote",       label = "Keep Sign Up Note", signUp = true },
-    { key = "oneClick",       label = "One Click Sign Up" },
+    { key = "cancelOldest",   label = "Cancel Oldest Application", signUp = true,
+      tip = "At the application limit, clicking a group cancels your oldest pending application so you can sign up." },
+    { key = "signUpDeclined", label = "Sign Up to Declined Groups", signUp = true,
+      tip = "Lets you sign up again to groups that declined you, once they relist." },
+    { key = "keepNote",       label = "Keep Sign Up Note", signUp = true,
+      tip = "Keeps your note to the group leader filled in between sign-ups." },
+    { key = "oneClick",       label = "One Click Sign Up",
+      tip = "A single click on a group opens its sign-up." },
     { title = "Misc" },
-    { key = "applicantColumns", label = "Score Column" },
-    { key = "iconSize",       label = "Role Icon Size", stepper = { min = 100, max = 160, step = 5 } },
+    { key = "applicantColumns", label = "Score Column",
+      tip = "Your own listing's applicant list shows each applicant's Mythic+ score. Mythic+ listings keep Blizzard's Rating column instead." },
+    { key = "iconSize",       label = "Role Icon Size", stepper = { min = 100, max = 160, step = 5 },
+      tip = "Size of the role and specialization icons in the group list." },
 }
 XF.MENU_SW_W, XF.MENU_SW_H = 22, 12
 
@@ -2228,8 +2240,16 @@ function XF.SwitchItem(m, y, spec)
     local hl = item:CreateTexture(nil, "ARTWORK", nil, -1)
     hl:SetAllPoints()
     hl:SetColorTexture(1, 1, 1, 0)
-    item:SetScript("OnEnter", function() item.label:SetTextColor(1, 1, 1, 1); hl:SetColorTexture(1, 1, 1, CM.DD_ITEM_HL_A or 0.08) end)
-    item:SetScript("OnLeave", function() item.label:SetTextColor(tR, tG, tB, tA); hl:SetColorTexture(1, 1, 1, 0) end)
+    item:SetScript("OnEnter", function(self)
+        self.label:SetTextColor(1, 1, 1, 1)
+        hl:SetColorTexture(1, 1, 1, CM.DD_ITEM_HL_A or 0.08)
+        if spec.tip then XF.Tip(self, spec.label, spec.tip) end
+    end)
+    item:SetScript("OnLeave", function(self)
+        self.label:SetTextColor(tR, tG, tB, tA)
+        hl:SetColorTexture(1, 1, 1, 0)
+        XF.Untip()
+    end)
     function item:Paint()
         local on = XF.GroupOpt(spec.key)
         self.sw.knob:ClearAllPoints()
@@ -2268,6 +2288,11 @@ function XF.StepperItem(m, y, spec)
     item.label:SetJustifyH("LEFT")
     item.label:SetTextColor(tR, tG, tB, tA)
     item.label:SetText(spec.label)
+    if spec.tip then
+        item:EnableMouse(true)
+        item:SetScript("OnEnter", function(self) XF.Tip(self, spec.label, spec.tip) end)
+        item:SetScript("OnLeave", XF.Untip)
+    end
     local function Step(text, dir)
         -- A small box in the menu's checkbox look, so it reads as a button.
         local b = CreateFrame("Button", nil, item)
