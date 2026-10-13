@@ -1515,6 +1515,13 @@ local DEFAULTS = {
             queueHighlight = true,  -- melee rows take the queue colour + spell name while an on-next-swing attack is queued
             queueR = 1, queueG = 0.70, queueB = 0.20, queueA = 1,   -- Heroic Strike / Maul
             queueCleaveR = 0.95, queueCleaveG = 0.35, queueCleaveB = 0.25, queueCleaveA = 1,   -- Cleave
+            activeHighlight = false, -- rows take the active colour while their auto attack is on (melee: Auto Attack; ranged: Shoot / Auto Shot), and sit full while it is on with no swing running
+            activeR = 0.047, activeG = 0.824, activeB = 0.616, activeA = 1,   -- EUI teal #0CD29D
+            latencyEnabled = false,  -- latency zone at the end of each running swing
+            latencyR = 0.835, latencyG = 0.290, latencyB = 0.290, latencyA = 1,   -- cast bar latency default
+            pendingEnabled = false,  -- a row whose attack is on with no swing running fills with the pending colour
+            pendingR = 0.659, pendingG = 0.502, pendingB = 0.949, pendingA = 1,   -- violet #A880F2
+            smoothTiming = false,    -- start each swing from the expected rhythm, nudged by each arrival, not at the event's arrival
             borderSize    = 1,
             borderR       = 0, borderG = 0, borderB = 0, borderA = 1,
             borderTexture = "solid",
