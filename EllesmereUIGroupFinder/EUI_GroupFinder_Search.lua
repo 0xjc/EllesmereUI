@@ -1385,6 +1385,10 @@ function XF.DecorateApplicant(button, id)
     local info = C_LFGList.GetApplicantInfo(id)
     local n = info and info.numMembers
     if IsSecret(n) then n = nil end
+    -- Scores only for pending applicants: Blizzard writes the outcome
+    -- (Declined, Cancelled, Invited ...) across the row once there is one.
+    local st, pst = info and info.applicationStatus, info and info.pendingApplicationStatus
+    local pending = st == "applied" and not IsSecret(st) and (pst == nil or (not IsSecret(pst) and pst == ""))
     for i, member in ipairs(button.Members) do
         local d = FFD[member]
         if not d then
@@ -1394,18 +1398,21 @@ function XF.DecorateApplicant(button, id)
             f:SetAllPoints(member)
             f:EnableMouse(false)
             d.score = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            d.score:SetPoint("CENTER", member, "LEFT", 213, 0)
+            d.score:SetJustifyH("LEFT")
+            d.score:SetPoint("LEFT", member, "LEFT", 200, 0)
         end
         d.score:Hide()
-        -- Centred under their headers (measured; the old fixed offsets until
-        -- the headers are laid out).
+        -- Left-aligned with the Score header's label (measured; a fixed
+        -- offset until the header is laid out).
         local ml = member.GetLeft and member:GetLeft()
-        local sc = XF.hdrScore and XF.hdrScore:IsShown() and XF.hdrScore:GetCenter()
-        if ml and sc then
+        local hl = XF.hdrScore and XF.hdrScore:IsShown() and XF.hdrScore:GetLeft()
+        local lab = XF.hdrScore and XF.hdrScore.GetFontString and XF.hdrScore:GetFontString()
+        local tl = lab and lab:GetLeft()
+        if ml and (tl or hl) then
             d.score:ClearAllPoints()
-            d.score:SetPoint("CENTER", member, "LEFT", sc - ml, 0)
+            d.score:SetPoint("LEFT", member, "LEFT", (tl or hl) - ml, 0)
         end
-        if on and type(n) == "number" and i <= n then
+        if on and pending and type(n) == "number" and i <= n then
             local name, _, _, _, _, _, _, _, _, _, _, dungeonScore = C_LFGList.GetApplicantMemberInfo(id, i)
             local prof = XF.RIOProfile(name)
             local mk = prof and prof.mythicKeystoneProfile
