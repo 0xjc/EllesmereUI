@@ -119,13 +119,12 @@ initFrame:SetScript("OnEvent", function(self)
               getValue=function() return APGet("scope", "character") end,
               setValue=function(v) APSet("scope", v) end });  y = y - h
 
-        local tex, names, order = EUI.BuildBarTextureTables()
+        -- Built-in textures, then SharedMedia's after a divider.
+        local tex, names, order = ns.BarTextureTables()
         local texValues, texOrder = {}, {}
         for _, key in ipairs(order) do
-            if key ~= "---" then
-                texValues[key] = names[key] or key
-                texOrder[#texOrder + 1] = key
-            end
+            if key ~= "---" then texValues[key] = names[key] or key end
+            texOrder[#texOrder + 1] = key
         end
         texValues._menuOpts = { itemHeight = 28, background = function(key) return tex[key] end }
         row, h = W:DualRow(parent, y,

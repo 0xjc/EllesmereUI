@@ -46,7 +46,14 @@ local SEGMENTS = {
 local SCOPES = { "session", "character", "account" }
 local SCOPE_LABEL = { session = "Session", character = "Character", account = "Account" }
 
-local barTextures = CM.BuildBarTextureTables and CM.BuildBarTextureTables() or {}
+-- The bar textures: the suite's built-in set plus LibSharedMedia's statusbar
+-- textures (the host keeps the tables current as other addons register more).
+local barTextures, barTexNames, barTexOrder = {}, {}, {}
+if CM.BuildBarTextureTables then
+    barTextures, barTexNames, barTexOrder = CM.BuildBarTextureTables()
+    if CM.AppendSharedMediaTextures then CM.AppendSharedMediaTextures(barTexNames, barTexOrder, nil, barTextures) end
+end
+ns.BarTextureTables = function() return barTextures, barTexNames, barTexOrder end
 
 local function Cfg() return ns.AppsCfg() end
 
