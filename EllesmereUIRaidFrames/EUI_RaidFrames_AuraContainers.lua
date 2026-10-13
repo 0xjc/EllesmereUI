@@ -943,7 +943,7 @@ local function ApplyDebuffConfig(container, d, s)
     -- Park every group (record variants and tile containers park via DM_ParkGroups).
     local declared = d.rfcDebuffGroups or {}
     for k in pairs(declared) do
-        container:SetAuraGroupMaxFrameCount(k, 0)
+        EllesmereUI.AuraKit.SetGroupCap(container, k, 0)
     end
     if ns.DM_ParkGroups then ns.DM_ParkGroups(container, declared, d) end
 end
@@ -1007,7 +1007,7 @@ local function ApplyDispLocConfig(container, d, s)
     for i = 1, #DEBUFF_GROUPS do
         local g = DEBUFF_GROUPS[i]
         if declared[g.key] then
-            container:SetAuraGroupMaxFrameCount(g.key, DispLocGroupWanted(s, g.key) and cap or 0)
+            EllesmereUI.AuraKit.SetGroupCap(container, g.key, DispLocGroupWanted(s, g.key) and cap or 0)
             container:SetAuraGroupCandidateFilters(g.key, cand)
             container:SetAuraGroupLayout(g.key, layout)
         end
@@ -2050,7 +2050,7 @@ local function AnchorBmChainContainer(container, health, members, iscale)
                 if cap > rem then cap = rem end
                 budgets[mi] = rem - cap
             end
-            container:SetAuraGroupMaxFrameCount(gk, cap)
+            EllesmereUI.AuraKit.SetGroupCap(container, gk, cap)
         end
     end
 end
@@ -2338,7 +2338,7 @@ local function BmParkUnbound(d, counters)
             if not bound and not entry.parked then
                 entry.parked = true
                 for j = 1, (entry.groups or 1) do
-                    entry.container:SetAuraGroupMaxFrameCount(
+                    EllesmereUI.AuraKit.SetGroupCap(entry.container, 
                         (j == 1) and "chain" or ("chain" .. j), 0)
                 end
                 entry.container:SetShown(false)
@@ -3336,6 +3336,8 @@ bmRegen:RegisterEvent("PLAYER_ENTERING_WORLD")
 bmRegen:RegisterEvent("UI_SCALE_CHANGED")
 bmRegen:RegisterEvent("DISPLAY_SIZE_CHANGED")
 function ns.RFC_PixelGridChanged()
+    -- Compact / Grid Mode re-lay their frames once their one pixel has moved.
+    ns.RF_CompactScaleChanged()
     if InCombatLockdown() then ns._rfcScaleDirty = true else ns.RFC_ReloadAll() end
 end
 _G._ERF_PixelGridChanged = ns.RFC_PixelGridChanged

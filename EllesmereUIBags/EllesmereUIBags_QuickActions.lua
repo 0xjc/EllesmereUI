@@ -73,7 +73,7 @@ end
 -- is never offered to Disenchant.
 local function SpellFor(bag, slot, info)
     local itemID = info.itemID
-    if SCROLLS[itemID] then
+    if EUI.IS_FOREVER and SCROLLS[itemID] then
         return Known(COMPREHEND) and COMPREHEND or nil
     end
     local _, _, _, _, _, classID, subID = C_Item.GetItemInfoInstant(itemID)
@@ -219,8 +219,10 @@ local function Marks(btn)
     m.shade:SetAllPoints(host)
     m.shade:SetColorTexture(0, 0, 0, SHADE_ALPHA)
     m.spell = host:CreateTexture(nil, "OVERLAY", nil, 7)
-    m.spell:SetSize(16, 16)
+    -- The item's top-right quarter: 16 px on a grid slot, smaller on a List
+    -- row's icon, which it would otherwise cover.
     m.spell:SetPoint("TOPRIGHT", host, "TOPRIGHT", -1, -1)
+    m.spell:SetPoint("BOTTOMLEFT", host, "CENTER")
     m.spell:SetTexCoord(0.08, 0.92, 0.08, 0.92)
     marks[btn] = m
     return m
@@ -302,10 +304,13 @@ local function BuildIcon()
     b.icon:SetSize(18, 18)
     b.icon:SetPoint("CENTER")
     b.icon:SetAlpha(0.9)
-    -- Only WoW Forever's Mages comprehend scrolls.
-    local tip = EUI.IS_FOREVER
-        and EllesmereUI.L("Highlights the items your spells can work on (Disenchant, Pick Lock, Comprehend Scroll). Click a matching item while this mode is on, or Alt-click it. Out of combat only.")
-        or EllesmereUI.L("Highlights the items your spells can work on (Disenchant, Pick Lock). Click a matching item while this mode is on, or Alt-click it. Out of combat only.")
+    -- The spells by the client's own names (only WoW Forever's Mages
+    -- comprehend scrolls).
+    local names = {}
+    for _, id in ipairs(EUI.IS_FOREVER and { DISENCHANT, PICK_LOCK, COMPREHEND } or { DISENCHANT, PICK_LOCK }) do
+        names[#names + 1] = C_Spell.GetSpellName(id)
+    end
+    local tip = EllesmereUI.Lf("Highlights the items your spells can work on (%s). Click a matching item while this mode is on, or Alt-click it. Out of combat only.", table.concat(names, ", "))
     b:SetScript("OnEnter", function(self)
         self.icon:SetAlpha(1)
         EUI.ShowWidgetTooltip(self, active and EllesmereUI.L("Leave Quick Actions.") or tip)

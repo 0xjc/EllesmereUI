@@ -126,6 +126,25 @@ local PANDEMIC_THRESHOLD = 0.3
 local LIFEBLOOM_SPELL_ID = 33763
 local _lbName               -- cached Lifebloom spell name (resolved lazily once)
 local _scanLast, _scanResult = 0, false
+-- How much of the aura's remaining time a refresh would carry over: the
+-- pandemic window as the client sees it (talents and effects that stretch
+-- the cap included). 12.1.5 answers directly; 12.1.0 derives it as Blizzard's
+-- own viewer did there (refreshed duration minus base duration). nil when
+-- neither API exists or the answer is secret: the caller then uses 30%.
+local function CarryOver(unit, auraInstanceID)
+    local U = C_UnitAuras
+    local ok, carry
+    if U.GetRefreshCarryOverDuration then
+        ok, carry = pcall(U.GetRefreshCarryOverDuration, unit, auraInstanceID)
+    elseif U.GetRefreshExtendedDuration and U.GetAuraBaseDuration then
+        local ok1, ext = pcall(U.GetRefreshExtendedDuration, unit, auraInstanceID)
+        local ok2, base = pcall(U.GetAuraBaseDuration, unit, auraInstanceID)
+        if ok1 and ok2 and ext and base and not issecretvalue(ext) and not issecretvalue(base) then
+            ok, carry = true, ext - base
+        end
+    end
+    if ok and carry and not issecretvalue(carry) then return carry end
+end
 -- Pandemic fallback for auras Blizzard never flags (currently only Lifebloom).
 -- bar._isLifebloom is cached on our own frame; the call site skips entirely once a
 -- bar is known not to be Lifebloom, so only Lifebloom reaches the throttled scan.
@@ -154,7 +173,15 @@ local function LifebloomPandemic(bar, blzChild)
         local isSec = issecretvalue
         if isSec and (isSec(dur) or isSec(exp)) then return end -- shouldn't be secret, for safety
         if dur <= 0 then return end
-        if (exp - now) <= dur * PANDEMIC_THRESHOLD then result = true end
+        local remaining = exp - now
+        -- The carry-over equals the remaining time once inside the window and
+        -- the cap before it (a hair of slack for the two clock reads).
+        local carry = aura.auraInstanceID and CarryOver(unit, aura.auraInstanceID)
+        if carry then
+            if carry > 0 and remaining <= carry + 0.05 then result = true end
+        elseif remaining <= dur * PANDEMIC_THRESHOLD then
+            result = true
+        end
     end
 
     -- Player first, then the group; stop as soon as one Lifebloom is in pandemic.

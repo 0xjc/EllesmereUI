@@ -3828,7 +3828,7 @@ end
 -- ledger (addons.EllesmereUIDataBars.characters) and the QoL upgrade calculator's
 -- per-character scan state (addons.EllesmereUIQoL.chars) sat at profile scope, so
 -- exported profiles carried the sharer's character names, realms and gold. Both stores
--- are account-wide now (EllesmereUIDB.dataBarsGold / .qolUpgradeCalcChars); module init
+-- are account-wide now (EllesmereUIDB.goldLedger, which absorbed .dataBarsGold, / .qolUpgradeCalcChars); module init
 -- drops the keys from the ACTIVE profile, this sweep drops them from every stored
 -- profile (cleanup, not the safety line -- string export paths strip them too).
 -- Deliberately DROP rather than merge into the account stores: any profile may be an

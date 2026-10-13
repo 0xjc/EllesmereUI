@@ -1224,12 +1224,17 @@ end
                 local nm, col = _getMountedAuraName(unit)
                 mountName = nm or false
                 mountCollected = col
-                -- Drop expired entries first, or the cache grows with every player hovered;
-                -- only the last few seconds of hovers survive, so this loop stays tiny.
+                -- Expired entries are dropped, so only the last few seconds of hovers stay
+                -- cached and this loop stays tiny; this player's stale entry is refreshed
+                -- in place rather than replaced.
                 for g, e in pairs(_mountCache) do
-                    if (now - e.time) >= _mountCacheTTL then _mountCache[g] = nil end
+                    if e ~= cached and (now - e.time) >= _mountCacheTTL then _mountCache[g] = nil end
                 end
-                _mountCache[guid] = { name = mountName, collected = mountCollected, time = now }
+                if cached then
+                    cached.name, cached.collected, cached.time = mountName, mountCollected, now
+                else
+                    _mountCache[guid] = { name = mountName, collected = mountCollected, time = now }
+                end
             end
             if mountName then
                 -- Green check / red X for whether YOU own this mount (nil = unknown, no marker).

@@ -372,16 +372,18 @@ AttachExtraBarHoverHooks = function(info)
 end
 
 -- WoW Forever: while the variant renders and no eye position is saved, the
--- queue eye sits at its stock minimap spot and is never captured: on the
--- ring where Blizzard's Forever layout puts it while the minimap draws that
--- ring (its spot helper answers), else at that layout's anchor on the map.
--- Anchored to the map, so a move carries it; the minimap's apply pass calls
--- the relayout below on a resize, and its button row reads the predicate to
--- start past the eye. An unlock-mode drag saves a position, which wins until
--- the look changes (every switch to the variant clears it). Once per
--- profile, while the ring is drawn, a spot saved before the variant placed
--- the eye (a login capture) gives way; the stamp is set as soon as nothing
--- is saved, so every later spot is the player's own.
+-- queue eye sits at a minimap spot and is never captured: the one the
+-- minimap's spot helper gives while it answers (on the ring where Blizzard's
+-- Forever layout puts it while the minimap draws that ring, or diagonally
+-- off the map's bottom-left corner under Forever Square), else Blizzard's
+-- Forever layout anchor on the map. Anchored to the map, so a move carries
+-- it; the minimap's apply pass calls the relayout below on a resize, and a
+-- button row starting at the ring's bottom-left reads the predicate to start
+-- past the eye. An unlock-mode drag saves a position, which wins until the
+-- look changes (every switch to the variant clears it). Once per profile,
+-- while the spot helper answers, a spot saved before the variant placed the
+-- eye (a login capture) gives way; the stamp is set as soon as nothing is
+-- saved, so every later spot is the player's own.
 function ns.AB_ForeverEyeParked()
     if not ns.AB_Forever() then return false end
     local p = EAB.db.profile
@@ -420,6 +422,43 @@ function ns.AB_ForeverEyeRelayout()
     ns.AB_ForeverEyePark(extraBarHolders.QueueStatus)
 end
 
+-- Blizzard Style on the WoW Forever client: that client frames the micro menu
+-- (MicroMenu.BackgroundArt and BorderArt) and the bag bar (the BagsBar frame
+-- and strip atlases), which the retail look has none of, so they fade, as the
+-- Blizzard Skins+ cards fade them when they skin these bars. Alpha only on
+-- Blizzard's own textures: nothing is hidden, reparented, hooked or written
+-- as a key in that tree. Run with each bar's follow pass (setup, Edit Mode
+-- re-anchors and resizes); the bag bar's art is found once. The WoW Forever
+-- look keeps the art.
+local FV_BAG_ART = { "actionbar-frame", "iconframe-background" }
+local fvBagArt
+local function FadeForeverBarArt(barKey)
+    if not (EllesmereUI.IS_FOREVER and ns.AB_Style() == "blizzard" and not ns.AB_Forever()) then return end
+    if barKey == "MicroBar" then
+        local mm = _G.MicroMenu
+        if mm and mm.BackgroundArt then mm.BackgroundArt:SetAlpha(0) end
+        if mm and mm.BorderArt then mm.BorderArt:SetAlpha(0) end
+        return
+    end
+    local bar = _G.BagsBar
+    if not bar then return end
+    if not fvBagArt then
+        fvBagArt = {}
+        local regions = { bar:GetRegions() }
+        for i = 1, #regions do
+            local r = regions[i]
+            local atlas = r.GetAtlas and r:GetAtlas()
+            if atlas then
+                local la = atlas:lower()
+                for j = 1, #FV_BAG_ART do
+                    if la:find(FV_BAG_ART[j], 1, true) then fvBagArt[#fvBagArt + 1] = r; break end
+                end
+            end
+        end
+    end
+    for i = 1, #fvBagArt do fvBagArt[i]:SetAlpha(0) end
+end
+
 local function SetupExtraBarHolder(barKey, frameName, barInfo)
     local blizzFrame = _G[frameName]
     if not blizzFrame then return end
@@ -452,6 +491,7 @@ local function SetupExtraBarHolder(barKey, frameName, barInfo)
             holder:SetPoint("CENTER", blizzFrame, "CENTER", 0, 0)
             -- The bar's end caps follow the frame's size and orientation.
             ns.AB_ExtraCaps(barKey)
+            FadeForeverBarArt(barKey)
         end
         SyncFollow()
         blizzFrame:HookScript("OnSizeChanged", function() SyncFollow() end)

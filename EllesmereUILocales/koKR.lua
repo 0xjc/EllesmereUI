@@ -3,7 +3,30 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 -- Encoding: UTF-8 without BOM. See CONTRIBUTING_TRANSLATIONS.md.
 -- Seed locale: high-frequency common vocabulary. Run /euiloc dump koKR in-game
 -- to generate the full remaining key list. Untranslated keys fall back to English.
--- + bag keystone Korean-cut engine at the bottom (파일 하단에 가방 쐐기돌 한글컷 엔진 포함)
+-- + bag keystone Korean-cut engine below this header (가방 쐐기돌 한글컷 엔진 포함)
+
+-- Bag keystone dungeon abbreviation overrides (koKR). AbbrevDungeon in
+-- EllesmereUIBags cuts the localized dungeon name to first-letters, which in
+-- Korean yields awkward 2-char cuts; remap those to cleaner short names. DATA
+-- ONLY -- EllesmereUIBags applies it after computing the abbreviation (no
+-- global SetText hook, no per-call cost). "마정"/"하늘탑" already correct.
+-- (가방 쐐기돌 한글컷 -> 단축명. 순수 한글 키는 본체 L() 불가라 자체 처리)
+-- To reuse for another locale, check in-game how that client cuts the localized
+-- dungeon names, then add its own guarded override table the same way.
+-- The dungeon names follow the client locale, not the display language, so
+-- this runs before the catalog's early return.
+if GetLocale() == "koKR" and EllesmereUI then
+    EllesmereUI._dungeonAbbrevOverride = {
+        ["공투"] = "투기장",
+        ["세사"] = "세스랄",
+        ["송제"] = "송곳니",
+        ["눈골"] = "골짜기",
+        ["루생웅"] = "루비",
+        ["죽골"] = "골목",
+        ["날소"] = "날로라크",
+        ["왕안"] = "왕안",
+    }
+end
 
 local L = EllesmereUI.RegisterLocale("koKR")
 if not L then return end
@@ -33,9 +56,12 @@ L["Font"]              = "글꼴"
 L["Font Size"]         = "글꼴 크기"
 L["Frame Strata"]      = "프레임 레이어(Strata)"
 L["Growth Direction"]  = "성장 방향"
+L["Match Frames"]      = "프레임에 맞추기"
+L["Match Frames grows the pets the same way as the frames."] = "프레임에 맞추기: 소환수가 프레임과 같은 방향으로 늘어납니다."
 L["Height"]            = "높이"
 L["Icon Size"]         = "아이콘 크기"
 L["Icon Spacing"]      = "아이콘 간격"
+L["Prices that don't fit show only their largest coin."] = "자리가 부족한 가격은 가장 큰 단위의 동전만 표시합니다."
 L["Opacity"]           = "투명도"
 L["Orientation"]       = "방향"
 L["Outline"]           = "외곽선"
@@ -558,6 +584,7 @@ L["Y Offset"]          = "세로 위치"
 
 -- == State / common verbs (상태 / 공용 동사) ===============================
 L["Always"]            = "항상"
+L["Group or Pet"]      = "파티 또는 소환수"
 L["Custom"]            = "사용자 지정"
 L["Default"]           = "기본값"
 L["Disable"]           = "비활성화"
@@ -1402,7 +1429,14 @@ L["Remove Anchor"] = "고정 제거"
 L["Rename Profile"] = "프로필 이름 변경"
 L["Reposition freely with"] = "자유롭게 위치 조정:"
 L["Resample Sharpening - Enabled (crisper image)"] = "리샘플 선명화 - 켬 (더 또렷한 화면)"
-L["Reset ALL EUI Addon Settings"] = "모든 EUI 애드온 설정 초기화"
+L["Reset EUI Module Settings"] = "EUI 모듈 설정 초기화"
+L["Pick a module, or ALL, to return to defaults."] = "기본값으로 되돌릴 모듈 또는 전체를 선택하세요."
+L["ALL Settings"] = "모든 설정"
+L["Only your current profile is reset; your other profiles keep their settings."] = "현재 프로필만 초기화되며, 다른 프로필은 설정이 유지됩니다."
+L["These settings are shared by every profile, so all of them are reset."] = "이 설정은 모든 프로필이 공유하므로 모든 프로필에서 초기화됩니다."
+L["Only this character's settings are reset."] = "이 캐릭터의 설정만 초기화됩니다."
+L["Reload to finish the reset."] = "초기화를 마치려면 UI를 다시 불러오세요."
+L["Are you sure you want to reset the data bar selected on the Data Bars page (%1$s) to its default look? Its blocks are kept. This will reload your UI."] = "데이터 바 페이지에서 선택한 데이터 바(%1$s)를 기본 모양으로 초기화하시겠습니까? 블록은 유지됩니다. UI를 다시 불러옵니다."
 L["Reset ALL Settings"] = "모든 설정 초기화"
 L["Restoration"] = "회복"
 L["Retribution"] = "징벌"
@@ -1592,7 +1626,11 @@ L["Spring"] = "봄"
 L["Summer"] = "여름"
 L["Fall"] = "가을"
 L["Winter"] = "겨울"
-L["Seasonal Top Donors"] = "시즌 최고 후원자"
+L["SEASONAL LEGEND"] = "시즌 레전드"
+L["ALL-TIME LEGEND"] = "역대 레전드"
+L["Celebrating the donors and team behind EllesmereUI."] = "EllesmereUI 를 만들어 가는 후원자와 스태프를 기립니다."
+L["Want to join the Legends? Check the leaderboard and donate through %s!"] = "Legends 에 합류하고 싶으신가요? 순위표를 확인하고 %s에서 후원해 주세요!"
+L["Ellesmere's Twitch stream"] = "Ellesmere 의 Twitch 방송"
 L["Unclaimed"] = "주인 없음"
 L["Border Width Offset"] = "테두리 너비 조정"
 L["Border Height Offset"] = "테두리 높이 조정"
@@ -3082,6 +3120,14 @@ L["Group "] = "그룹 "
 L["Group Number"] = "그룹 번호"
 L["Group Number Offset"] = "그룹 번호 위치"
 L["Group Spacing"] = "그룹 간격"
+L["Compact Mode"] = "압축 모드"
+L["Grid Mode"] = "격자 모드"
+L["Joins each group's frames into one bordered block."] = "각 그룹의 프레임을 테두리가 있는 하나의 블록으로 합칩니다."
+L["Joins the raid groups into one grid."] = "공격대 그룹을 하나의 격자로 합칩니다."
+L["Joins the party frames into one bordered block."] = "파티 프레임을 테두리가 있는 하나의 블록으로 합칩니다."
+L["This option requires a Pixels or Pixels Textured border above size 0 on the EllesmereUI look."] = "이 설정은 EllesmereUI 외형에서 크기가 0보다 큰 Pixels 또는 Pixels Textured 테두리가 필요합니다."
+L["This option requires a Pixels or Pixels Textured border above size 0 on the EllesmereUI look, with Party Targets off or beside the frame stack."] = "이 설정은 EllesmereUI 외형에서 크기가 0보다 큰 Pixels 또는 Pixels Textured 테두리가 필요하며, 파티 대상은 꺼져 있거나 프레임 줄 옆에 있어야 합니다."
+L["Move Party Targets beside the frame stack or turn off Compact Mode."] = "파티 대상을 프레임 줄 옆으로 옮기거나 압축 모드를 끄세요."
 L["heal absorb"] = "치유 흡수"
 L["Heal Absorb Bar"] = "치유 흡수 바"
 L["Heal Absorb Bar Rendering"] = "치유 흡수 바 표현 방식"
@@ -3711,6 +3757,7 @@ L["Choose the spec to copy racials, pots & trinkets from"] = "종족 특성, 물
 L["Charges/Stacks Only (No Icon)"] = "충전/중첩만 표시 (아이콘 없음)"
 L["Class Colored Glow"] = "직업 색상 반짝임"
 L["Click a bar to edit it"] = "편집할 바를 클릭하세요"
+L["Click spell for alert settings"] = "주문을 클릭하여 알림 설정"
 L["Click to assign a buff"] = "클릭해서 강화 효과 할당"
 L["Click to edit this bar"] = "클릭하여 이 바 편집"
 L["Cooldown Saturation"] = "재사용 대기 중"
@@ -4565,6 +4612,7 @@ L["Laced Zoomshots"] = "특수 성분 첨가 고속탄"
 L["Layout Settings"] = "배치 설정"
 L["Left Click to apply buffs (out of combat), Middle Click to hide until next load screen"] = "좌클릭으로 강화 효과 적용 (전투 종료 상태), 휠 클릭으로 다음 로딩 화면까지 숨기기"
 L["Lightning/Water Shield"] = "번개/물 보호막"
+L["Shield (No Orbit)"] = "보호막 (궤도 없음)"
 L["Magister's Terrace"] = "마법학자의 정원"
 L["Main"] = "주장비"   -- ShortLabel renders first word only of "Main Hand" -> weapon-enchant reminder label (ShortLabel 이 "Main Hand" 첫 단어만 렌더 -> 무기 마부 알림 라벨)
 L["Mana-Infused Stew"] = "마나 주입 스튜"
@@ -5025,6 +5073,7 @@ L["Heroic Raid"] = "영웅 공격대"
 L["Hide Local/World Label"] = "로컬/월드 글자 숨기기"
 L["Hide Crafted Items"] = "제작 아이템 숨기기"
 L["Hide Error Messages"] = "오류 메시지 숨기기"
+L["Hidden error messages come back after a UI reload."] = "숨긴 오류 메시지는 UI를 다시 불러온 후 다시 표시됩니다."
 L["Hide Item Transforms"] = "아이템 변신 숨기기"
 L["Hide Screenshot Status"] = "스크린샷 상태 숨김"
 L["Hide Talking Head"] = "NPC 대화창 숨김"
@@ -5460,7 +5509,8 @@ L["Equip"] = "장착"
 L["Equipment"] = "장비"
 L["Equipped!"] = "장착됨!"
 L["Font Size Scale"] = "글꼴 크기 비율"
-L["Gear Flyout Item Levels"] = "장비 목록 아이템 레벨 표시"
+L["Show Item Levels"] = "아이템 레벨 표시"
+L["GEAR FLYOUT"] = "장비 목록"
 L["Gear Sets"] = "장비 세트"
 L["Gem Socketing"] = "보석 홈 장착"
 L["Guild & Communities"] = "길드 및 커뮤니티"
@@ -8359,7 +8409,7 @@ L["Travel"] = "여행"
 L["Warn At (%)"] = "경고 기준 (%)"
 L["100% is where you pull aggro."] = "100%에 도달하면 어그로를 획득합니다."
 L["Not While Tanking"] = "방어 전담 시 경고 안 함"
-L["No warning while you have the tank role, or are in Bear Form or Defensive Stance."] = "방어 전담 역할이거나 곰 변신, 방어 태세 중일 때는 경고를 울리지 않습니다."
+L["No warning while you are the tank."] = "방어 전담일 때는 경고하지 않습니다."
 L["Show Header"] = "상단 제목 표시"
 L["A title row with the name of the mob whose threat is shown."] = "위협 수준을 추적 중인 대상 몬스터의 이름을 상단 행에 표시합니다."
 L["Grow Upward"] = "위로 확장"
@@ -8913,10 +8963,8 @@ L["Hash Marker"] = "눈금 표시"
 -- 2026-10-01 신규 (경험치 및 평판 바: 채우기 스타일/애니메이션/눈금 9.3.5)
 
 -- 2026-10-01 신규 (잠금 해제 모드: 대체/오버라이드 앵커 및 정렬 9.3.5)
-L["Forever"] = true
 
 -- 2026-10-01 신규 (툴팁: 생명력 스트립 및 추가 정보 9.3.5)
-L["iLvl"] = true
 
 -- 2026-10-01 신규 (재사용 대기시간 관리자: 영웅 특성 및 AND 반짝임 조건 9.3.5)
 
@@ -8971,7 +9019,7 @@ L["Positive values move both end caps away from the bar."] = "양수 값을 입�
 L["Pull % reaches 100 where a player would take aggro, Tank % where they match the tank's threat."] = "'어그로 %'는 플레이어가 어그로를 획득하는 순간 100%에 도달하며, '탱커 %'는 탱커의 위협과 동일해지는 지점입니다."
 L["This class has ten debuffs."] = "이 직업은 이미 최대 개수(10개)의 디버프가 등록되어 있습니다."
 L["Thickens the border by this many pixels while it shows a debuff color."] = "약화 효과 색상이 표시되는 동안 테두리를 이 픽셀만큼 두껍게 만듭니다."
-L["Where nameplates use the threat colors below. Instances covers dungeons, raids and delves."] = "이름표에 아래의 위협 색상을 적용할 장소입니다. 인스턴스는 던전, 공격대 및 구렁을 포함합니다."
+L["Where nameplates show threat colors."] = "이름표에 위협 색상을 표시할 위치입니다."
 L["Also applies the target Border Color and Border Size effects to friendly nameplates."] = "아군 이름표에도 대상 테두리 색상 및 테두리 크기 효과를 함께 적용합니다."
 L["Which enemy buffs show on nameplates. Important shows the buffs Blizzard flags for enemy nameplates plus anything dispellable; Only Dispellable shows just the buffs that can be dispelled, purged or soothed; Show All shows every buff. With a Dispel Glow style set, every dispellable buff shown glows."] = "이름표에 표시할 적의 강화 효과를 선택합니다. '중요'는 블리자드가 적 이름표용으로 지정한 버프와 해제 가능한 효과를 표시합니다. '해제 가능만'은 마법 해제, 마법 훔치기 또는 격노 해제가 가능한 효과만 표시합니다. '모두 표시'는 모든 강화 효과를 표시합니다. 해제 반짝임 스타일이 설정되어 있으면 표시되는 모든 해제 가능 버프가 반짝입니다."
 L["Choose this text's slot position."] = "이 글자가 표시될 슬롯 위치를 선택합니다."
@@ -9352,9 +9400,6 @@ L["Blessings by Role"] = "역할군별 축복"
 L["Tank Blessing"] = "방어 전담 축복"
 L["Healer Blessing"] = "치유 전담 축복"
 L["DPS Blessing"] = "공격 전담 축복"
-L["Reminds you while a tank lacks this blessing. Members with no assigned role count any blessing."] = "방어 전담에게 이 축복이 없을 때 알림을 표시합니다. 역할이 지정되지 않은 파티원은 어떤 축복이든 유효한 것으로 처리합니다."
-L["Reminds you while a healer lacks this blessing."] = "치유 전담에게 이 축복이 없을 때 알림을 표시합니다."
-L["Reminds you while a damage dealer lacks this blessing."] = "공격 전담에게 이 축복이 없을 때 알림을 표시합니다."
 L["Thorns Only on Tank"] = "방어 전담에만 가시"
 L["Thorns shows on tanks only while the group has one, and on you while solo or without a tank."] = "파티에 방어 전담이 있을 때는 방어 전담에게만 가시 버프를 표시하고, 솔로 플레이거나 방어 전담이 없을 때는 자신에게 표시합니다."
 L["Latest"] = "최신"
@@ -9414,23 +9459,163 @@ L["The swing timer's Highlight Queued Attacks now also lights up for the Hunter'
 L["Rogues now have their own class resource setting under the EllesmereUI style, hidden until you turn it on, so a rogue's choice no longer changes other classes on the same profile."] = "도적이 EllesmereUI 스타일에서 독립적인 직업 자원 설정을 가지게 되어, 도적의 설정이 동일 프로필의 다른 직업에 영향을 주지 않습니다."
 L["Brazilian Portuguese, German, Simplified Chinese and Traditional Chinese translations updated for the latest options, and the Cooldown Manager's add-by-ID popups now show their error messages in your language."] = "최신 옵션에 맞춰 번역이 업데이트되었으며, 재사용 대기시간 관리자의 주문 ID 추가 팝업에서 오류 메시지가 한국어로 정상 표시됩니다."
 
--- Bag keystone dungeon abbreviation overrides (koKR). AbbrevDungeon in
--- EllesmereUIBags cuts the localized dungeon name to first-letters, which in
--- Korean yields awkward 2-char cuts; remap those to cleaner short names. DATA
--- ONLY -- EllesmereUIBags applies it after computing the abbreviation (no
--- global SetText hook, no per-call cost). "마정"/"하늘탑" already correct.
--- (가방 쐐기돌 한글컷 -> 단축명. 순수 한글 키는 본체 L() 불가라 자체 처리)
--- To reuse for another locale, check in-game how that client cuts the localized
--- dungeon names, then add its own guarded override table the same way.
-if GetLocale() == "koKR" and EllesmereUI then
-    EllesmereUI._dungeonAbbrevOverride = {
-        ["공투"] = "투기장",
-        ["세사"] = "세스랄",
-        ["송제"] = "송곳니",
-        ["눈골"] = "골짜기",
-        ["루생웅"] = "루비",
-        ["죽골"] = "골목",
-        ["날소"] = "날로라크",
-        ["왕안"] = "왕안",
-    }
-end
+-- == DataBars Gold ==========================================================
+L["Account gold tracking is disabled"] = "계정 골드 추적이 비활성화되어 있습니다"
+
+-- == Loadout Manager ========================================================
+L["Loadout Manager"] = "구성 관리자"
+L["Applies gear sets and talent loadouts automatically per instance type and specialization."] = "인스턴스 유형과 전문화에 따라 장비 세트와 특성 구성을 자동으로 적용합니다."
+L["Enable Loadout Manager"] = "구성 관리자 활성화"
+L["Swaps gear and talents as you change content."] = "콘텐츠가 바뀔 때 장비와 특성을 전환합니다."
+L["CURRENT LOCATION"] = "현재 위치"
+L["SELECTED LOADOUT"] = "선택한 구성"
+L["INSTANCES"] = "인스턴스"
+L["CONTENT TYPE DEFAULTS"] = "콘텐츠 유형별 기본값"
+L["Auto-Swap"] = "자동 전환"
+L["Choose what swaps on its own."] = "자동으로 전환할 항목을 선택합니다."
+L["Equip the assigned gear set."] = "지정된 장비 세트를 장착합니다."
+L["Talent Loadouts"] = "특성 구성"
+L["Load the assigned talent loadout."] = "지정된 특성 구성을 불러옵니다."
+L["Queue In Combat"] = "전투 중 대기"
+L["Apply a swap due in combat once it ends."] = "전투 중에 필요해진 전환을 전투가 끝나면 적용합니다."
+L["Re-Swap On Spec Change"] = "전문화 변경 시 다시 전환"
+L["Swap again on a spec change in an instance."] = "인스턴스 안에서 전문화를 바꾸면 다시 전환합니다."
+L["Talent-Change Warning"] = "특성 변경 경고"
+L["Show DON'T MOVE while talents change."] = "특성이 바뀌는 동안 '움직이지 마세요'를 표시합니다."
+L["Announce Swaps In Chat"] = "대화창에 전환 알림"
+L["Check Now"] = "지금 확인"
+L["Check Now applies what is assigned here."] = "'지금 확인'은 여기에 지정된 것을 적용합니다."
+L["Specialization"] = "전문화"
+L["Spec assignments win over All Specs."] = "전문화별 지정이 '모든 전문화'보다 우선합니다."
+L["Gear Here"] = "이곳의 장비"
+L["The gear set that applies here."] = "이곳에 적용되는 장비 세트입니다."
+L["Talents Here"] = "이곳의 특성"
+L["The talent loadout that applies here."] = "이곳에 적용되는 특성 구성입니다."
+L["Gear Set"] = "장비 세트"
+L["The gear set the Save buttons assign."] = "저장 버튼이 지정하는 장비 세트입니다."
+L["Talent Loadout"] = "특성 구성"
+L["The talent loadout the Save buttons assign."] = "저장 버튼이 지정하는 특성 구성입니다."
+L["No gear set"] = "장비 세트 없음"
+L["No talent loadout"] = "특성 구성 없음"
+L["Verify Assigned Sets"] = "지정된 세트 확인"
+L["Assign For"] = "지정 대상"
+L["Which specs the Save buttons apply to."] = "저장 버튼이 적용될 전문화입니다."
+L["Equip Selection"] = "선택 항목 적용"
+L["Equip Now"] = "지금 적용"
+L["Equip the picked gear and talents now."] = "선택한 장비와 특성을 지금 적용합니다."
+L["Copy Into %1$s"] = "%1$s(으)로 복사"
+L["Copy From %1$s"] = "%1$s에서 복사"
+L["Replace every %1$s assignment with a copy of the %2$s assignments?"] = "%1$s의 모든 지정을 %2$s 지정의 복사본으로 바꾸시겠습니까?"
+L["Save the picked loadout here for %1$s."] = "선택한 구성을 %1$s 대상으로 여기에 저장합니다."
+L["Clear what is saved here for %1$s."] = "여기에 %1$s 대상으로 저장된 내용을 지웁니다."
+L["Nothing saved here for %1$s."] = "여기에 %1$s 대상으로 저장된 내용이 없습니다."
+L["Any Difficulty"] = "모든 난이도"
+L["This instance on any difficulty."] = "모든 난이도의 이 인스턴스입니다."
+L["This Difficulty"] = "이 난이도"
+L["This instance on this difficulty only."] = "이 난이도의 이 인스턴스에만 적용됩니다."
+L["Pick a gear set or talent loadout first."] = "먼저 장비 세트나 특성 구성을 선택하세요."
+L["Enter a dungeon, raid or other instance first."] = "먼저 던전, 공격대 또는 다른 인스턴스에 입장하세요."
+L["Set Assign For to All Specs or your spec."] = "'지정 대상'을 '모든 전문화' 또는 현재 전문화로 설정하세요."
+L["Saved Instances"] = "저장된 인스턴스"
+L["Every instance saved for %1$s."] = "%1$s 대상으로 저장된 모든 인스턴스입니다."
+L["Pick an instance"] = "인스턴스 선택"
+L["Assignment"] = "지정"
+L["What the picked instance holds."] = "선택한 인스턴스에 저장된 내용입니다."
+L["Clear the picked instance for %1$s."] = "%1$s 대상의 선택한 인스턴스를 지웁니다."
+L["Pick a saved instance first."] = "먼저 저장된 인스턴스를 선택하세요."
+L["Applies when you leave an instance."] = "인스턴스를 나갈 때 적용됩니다."
+L["Mythic and Mythic+ dungeons."] = "신화 및 신화+ 던전입니다."
+L["Timewalking dungeons and raids."] = "시간여행 던전 및 공격대입니다."
+L["Dungeon / Party"] = "던전 / 파티"
+L["Mythic+ Keystone"] = "신화+ 쐐기돌"
+L["Battleground / PvP"] = "전장 / PvP"
+L["Instance"] = "인스턴스"
+L["(this instance, %1$s only, %2$s)"] = "(이 인스턴스, %1$s 전용, %2$s)"
+L["(this instance, %1$s)"] = "(이 인스턴스, %1$s)"
+L["(%1$s default, %2$s)"] = "(%1$s 기본값, %2$s)"
+L["not set"] = "설정 안 됨"
+L["no gear"] = "장비 없음"
+L["no talents"] = "특성 없음"
+L["nothing assigned here"] = "여기에 지정된 것 없음"
+L["not in an instance"] = "인스턴스 밖"
+L["open world"] = "야외 지역"
+L["unknown"] = "알 수 없음"
+L["pick a saved instance"] = "저장된 인스턴스를 선택하세요"
+L["nothing saved for %1$s"] = "%1$s 대상으로 저장된 것 없음"
+L["Spec %s"] = "전문화 %s"
+L["Skipped %d talent loadout(s) that belong to other specializations."] = "다른 전문화의 특성 구성 %d개를 건너뛰었습니다."
+L["DON'T MOVE - CHANGING TALENTS"] = "움직이지 마세요 - 특성 변경 중"
+L["Wait until the loadout finishes."] = "구성 적용이 끝날 때까지 기다리세요."
+L["Difficulty %s"] = "난이도 %s"
+L["Instance %s"] = "인스턴스 %s"
+L["%1$s (%2$s Only)"] = "%1$s (%2$s 전용)"
+L["%s (Any Difficulty)"] = "%s (모든 난이도)"
+L["Talent changes are blocked during this encounter."] = "이 우두머리 전투 중에는 특성을 변경할 수 없습니다."
+L["Talent changes are blocked while a PvP match clears."] = "PvP 경기가 정리되는 동안에는 특성을 변경할 수 없습니다."
+L["Talent changes are blocked right after combat."] = "전투 직후에는 특성을 변경할 수 없습니다."
+L["Queued for after combat."] = "전투가 끝나면 진행합니다."
+L["The gear swap waits until you are alive."] = "부활하면 장비를 교체합니다."
+L["The talent swap waits until you are alive."] = "부활하면 특성을 전환합니다."
+L["The swap runs once they are allowed again."] = "다시 허용되면 전환합니다."
+L["It retries on its own."] = "자동으로 다시 시도합니다."
+L["Gear swap skipped: you are in combat."] = "장비 교체 건너뜀: 전투 중입니다."
+L["Talent swap skipped: you are in combat."] = "특성 전환 건너뜀: 전투 중입니다."
+L["Retry limit reached; try again when ready."] = "재시도 한도에 도달했습니다. 준비되면 다시 시도하세요."
+L["Equipment sets are not available yet."] = "장비 세트를 아직 사용할 수 없습니다."
+L["Gear set %s not found; it may have been renamed or deleted."] = "장비 세트 %s을(를) 찾을 수 없습니다. 이름이 바뀌었거나 삭제되었을 수 있습니다."
+L["Gear set %s is already equipped."] = "장비 세트 %s을(를) 이미 착용하고 있습니다."
+L["You are in combat."] = "전투 중입니다."
+L["You are dead."] = "죽은 상태입니다."
+L["Gear swap held: an item is locked or you are casting."] = "장비 교체 대기: 아이템이 잠겨 있거나 시전 중입니다."
+L["Gear set %1$s has %2$d missing item(s), maybe in your bank. Equipping the rest."] = "장비 세트 %1$s의 아이템 %2$d개가 없습니다 (은행에 있을 수 있음). 나머지를 장착합니다."
+L["Could not equip gear set %s."] = "장비 세트 %s을(를) 장착할 수 없습니다."
+L["Equipping gear set %1$s (%2$s)."] = "장비 세트 %1$s 장착 중 (%2$s)."
+L["Equipping gear set %s."] = "장비 세트 %s 장착 중."
+L["Loadout %s"] = "구성 %s"
+L["Talent loadout %s did not fully apply."] = "특성 구성 %s이(가) 완전히 적용되지 않았습니다."
+L["The talent change was interrupted."] = "특성 변경이 중단되었습니다."
+L["Talent changes are locked once a PvP match starts. Talent swap skipped."] = "PvP 경기가 시작되면 특성이 잠깁니다. 특성 전환을 건너뜁니다."
+L["Talents cannot be changed here yet."] = "아직 여기서는 특성을 변경할 수 없습니다."
+L["The selected talent loadout belongs to another specialization."] = "선택한 특성 구성은 다른 전문화의 구성입니다."
+L["Talent loadouts are not available yet."] = "특성 구성을 아직 사용할 수 없습니다."
+L["The assigned talent loadout was not found for your current specialization."] = "현재 전문화에서 지정된 특성 구성을 찾을 수 없습니다."
+L["Talent swap held: a talent change is in progress."] = "특성 전환 대기: 특성 변경이 진행 중입니다."
+L["Talent swap held: you have unsaved talent changes."] = "특성 전환 대기: 저장하지 않은 특성 변경 사항이 있습니다."
+L["Talent loadout %s is already active."] = "특성 구성 %s이(가) 이미 활성화되어 있습니다."
+L["Talent swap skipped: another loadout has the same name. Rename one, then use Check Now."] = "특성 전환 건너뜀: 같은 이름의 구성이 또 있습니다. 하나의 이름을 바꾼 뒤 '지금 확인'을 사용하세요."
+L["Could not load talent loadout %s."] = "특성 구성 %s을(를) 불러올 수 없습니다."
+L["Loading talent loadout %1$s (%2$s)."] = "특성 구성 %1$s 불러오는 중 (%2$s)."
+L["Loading talent loadout %s."] = "특성 구성 %s 불러오는 중."
+L["%s default"] = "%s 기본값"
+L["Nothing is assigned for %s."] = "%s에 지정된 것이 없습니다."
+L["Nothing is assigned for the open world."] = "야외 지역에 지정된 것이 없습니다."
+L["Gear set %s did not finish equipping."] = "장비 세트 %s의 장착이 끝나지 않았습니다."
+L["Gear set %1$s did not fully equip: %2$d item(s) missing (check your bank)."] = "장비 세트 %1$s을(를) 모두 장착하지 못했습니다: 아이템 %2$d개 없음 (은행을 확인하세요)."
+L["Gear set %1$s did not fully equip: %2$d item(s) missing."] = "장비 세트 %1$s을(를) 모두 장착하지 못했습니다: 아이템 %2$d개 없음."
+L["Talents not saved: %1$s belongs to %2$s."] = "특성 저장 안 됨: %1$s은(는) %2$s 전문화의 구성입니다."
+L["Nothing selected to assign."] = "지정할 항목을 선택하지 않았습니다."
+L["You are not inside a dungeon, raid or other instance."] = "던전, 공격대 또는 다른 인스턴스 안에 있지 않습니다."
+L["Equipment sets are still loading; try again in a moment."] = "장비 세트를 아직 불러오는 중입니다. 잠시 후 다시 시도하세요."
+L["All gear assignments point to existing Equipment Manager sets."] = "모든 장비 지정이 장비 관리자에 있는 세트를 가리킵니다."
+L["%d assignment(s) point to missing gear sets (listed above)."] = "%d개의 지정이 존재하지 않는 장비 세트를 가리킵니다 (위 목록 참고)."
+L["Talent loadout %s did not load."] = "특성 구성 %s을(를) 불러오지 못했습니다."
+L["Save the picked loadout as the %1$s default for %2$s."] = "선택한 구성을 %2$s 대상의 %1$s 기본값으로 저장합니다."
+L["Clear the %1$s default for %2$s."] = "%2$s 대상의 %1$s 기본값을 지웁니다."
+L["No %1$s default saved for %2$s."] = "%2$s 대상으로 저장된 %1$s 기본값이 없습니다."
+
+-- == What's New =============================================================
+L["Thank you to all of our %s!"] = "모든 %s 여러분께 감사드립니다!"
+L["contributors"] = "기여자"
+
+-- == Raid Frames: Missing Buffs blessing lists (WoW Forever) ================
+L["Drag to set priority"] = "드래그하여 우선순위 설정"
+L["Class Exceptions"] = "직업별 예외"
+L["Tank Exceptions"] = "방어 전담 예외"
+L["Healer Exceptions"] = "치유 전담 예외"
+L["DPS Exceptions"] = "공격 전담 예외"
+L["Use the Tank List"] = "방어 전담 목록 사용"
+L["Use the Healer List"] = "치유 전담 목록 사용"
+L["Use the DPS List"] = "공격 전담 목록 사용"
+L["Reminds you of the first checked blessing a tank lacks, top to bottom."] = "방어 전담에게 없는 첫 번째 체크된 축복을 위에서부터 순서대로 알려줍니다."
+L["Reminds you of the first checked blessing a healer lacks, top to bottom."] = "치유 전담에게 없는 첫 번째 체크된 축복을 위에서부터 순서대로 알려줍니다."
+L["Reminds you of the first checked blessing a damage dealer lacks, top to bottom. Members with no assigned role use this list too."] = "공격 전담에게 없는 첫 번째 체크된 축복을 위에서부터 순서대로 알려줍니다. 역할이 지정되지 않은 파티원도 이 목록을 사용합니다."

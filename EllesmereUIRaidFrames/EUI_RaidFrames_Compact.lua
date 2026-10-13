@@ -1,20 +1,40 @@
 if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_RaidFrames_Compact.lua
+--  Compact Mode (the raid and party Frame Spacing cogs) and Grid Mode (the
+--  raid Group Spacing cog). With a visible Pixels or Pixels Textured border,
+--  frames sit one physical pixel apart and each group draws one shared
+--  outline with separators between its frames instead of a border per frame;
+--  Grid Mode sets the raid groups one pixel apart too and fills each occupied
+--  group to five with empty backgrounds, under one outline while the groups
+--  make a rectangle. Grouped pets follow their tab's mode. Nothing is built,
+--  hooked or registered until a mode is first on; a mode turned off hides its
+--  pieces, and the hooks it left on the unit buttons return at once.
+-------------------------------------------------------------------------------
 local _, ns = ...
 local I = ns._internals
 if not I or I.broken then return end
 I.broken = true
 
 local EUI = ns.EllesmereUI
-local CreateFrame, C_Timer = CreateFrame, C_Timer
+local CreateFrame, InCombatLockdown = CreateFrame, InCombatLockdown
+local PixelSnap, FFD, GetFFD, defaults = I.PixelSnap, I.FFD, I.GetFFD, I.defaults
+local allButtons, separatedHdrs = I.allButtons, I.separatedHdrs
 local db, container, solidStyle
 I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
 I.containerFrameSetters[#I.containerFrameSetters + 1] = function(v) container = v end
 
+-------------------------------------------------------------------------------
+--  Gates and spacing
+-------------------------------------------------------------------------------
+-- The border either mode needs: a Pixels style above size 0, on the EllesmereUI look.
 function ns.RF_CompactEligible(s)
-    return s and (s.borderTexture == "pixels" or s.borderTexture == "pixels-textured")
-        and not ns.RF_Stock() and (s.borderSize or 1) > 0
+    return s and EUI._pixelArtBorders[s.borderTexture] and not ns.RF_Stock() and (s.borderSize or 1) > 0
 end
 
+-- Compact Mode in effect for settings s (party: the Party tab's choice). The party
+-- side also stands down under the Party Frames kit and while target frames sit along
+-- the stack; a saved choice that cannot apply stays saved.
 function ns.RF_CompactOn(s, party)
     if not s or not (party and s.partyCompactMode == true or not party and s.raidCompactMode == true) then return false end
     local style = s
@@ -25,30 +45,42 @@ function ns.RF_CompactOn(s, party)
         and not ns.PT_AlongStack(s, s.partyShowTargets == true))
 end
 
+-- The options pages' check for the tab they show (party: the Party tab).
+function ns.RF_CompactOnTab(party)
+    return ns.RF_CompactOn(party and ns._partyProxy or db.profile, party)
+end
+
 function ns.RF_GridOn(s)
     return s.raidGridMode == true and ns.RF_CompactOn(s, false)
 end
 
+-- One physical pixel at the container's scale.
 function ns.RF_OnePixel(party)
     local frame = party and ns._partyContainerFrame or container
     return EUI.PP.perfect / (frame and frame:GetEffectiveScale() or UIParent:GetEffectiveScale())
 end
 
+-- The spacing the layout uses: one pixel under the mode, else the saved slider value.
 function ns.RF_CellSpacing(s, party)
     if ns.RF_CompactOn(s, party) then return ns.RF_OnePixel(party) end
-    return I.PixelSnap(party and (s.partyCellSpacing or s.cellSpacing or 2) or (s.cellSpacing or 2))
+    return PixelSnap(party and (s.partyCellSpacing or s.cellSpacing or 2) or (s.cellSpacing or 2))
 end
 
 function ns.RF_GroupSpacing(s)
-    return ns.RF_GridOn(s) and ns.RF_OnePixel(false) or I.PixelSnap(s.groupSpacing or 8)
+    return ns.RF_GridOn(s) and ns.RF_OnePixel(false) or PixelSnap(s.groupSpacing or 8)
 end
 
+-------------------------------------------------------------------------------
+--  Per-frame borders under the mode: the frame's own border stands down for the
+--  shared outline, and hover and target draw a solid border of their own size.
+-------------------------------------------------------------------------------
 function ns.RF_ButtonCompact(d, s)
     return not d._isExtra and ns.RF_CompactOn(s, d._isParty == true)
 end
 
+-- A grouped pet: a header pet while its tab's mode is on, or a grouped preview pet.
 function ns.RF_PetCompactOn(button, s)
-    local d = I.FFD[button]
+    local d = FFD[button]
     if not d then return false end
     if d._petGroupedPreview then return ns.RF_CompactOn(s, d._petPreviewParty) end
     local pf = ns._PF
@@ -56,7 +88,7 @@ function ns.RF_PetCompactOn(button, s)
 end
 
 function ns.RF_PetCompactHighlight(button, s)
-    local d = I.GetFFD(button)
+    local d = GetFFD(button)
     d._hovered, d._isTarget = ns._FB.hov[button], ns._FB.tgt[button]
     ns.RF_CompactHighlight(button._borderFrame, d, s, button)
 end
@@ -64,10 +96,10 @@ end
 function ns.RF_CompactHighlight(frame, d, s, button)
     local c, a, size, px
     if d._hovered and s.hoverBorderEnabled ~= false then
-        c, a, size = s.hoverBorderColor or I.defaults.profile.hoverBorderColor, s.hoverBorderAlpha or 1, s.hoverBorderSize or 1
+        c, a, size = s.hoverBorderColor or defaults.profile.hoverBorderColor, s.hoverBorderAlpha or 1, s.hoverBorderSize or 1
         px = EUI.BorderPx(s.hoverBorderSizePx, size, "solid")
     elseif d._isTarget and s.targetBorderEnabled ~= false then
-        c, a, size = s.targetBorderColor or I.defaults.profile.targetBorderColor, s.targetBorderAlpha or 1, s.targetBorderSize or 1
+        c, a, size = s.targetBorderColor or defaults.profile.targetBorderColor, s.targetBorderAlpha or 1, s.targetBorderSize or 1
         px = EUI.BorderPx(s.targetBorderSizePx, size, "solid")
     end
     solidStyle = solidStyle or { borderTexture = "solid" }
@@ -83,13 +115,23 @@ function ns.RF_CompactHighlight(frame, d, s, button)
     end
 end
 
-local raid, party, pets, raidPreview, partyPreview, petPreview, events, eventsOn
+-------------------------------------------------------------------------------
+--  Shared outlines. A state is one set of frames (the live raid, party or pet
+--  header, or an options preview): its cells (each frame's rect), the style its
+--  pieces draw in, and its pooled pieces -- outline hosts, separators and Grid
+--  Mode's empty backgrounds. Draw runs only when a cell or the style changed,
+--  and a piece takes the style again only when the style changed since it last
+--  did (styleGen), so a roster change only moves pieces.
+-------------------------------------------------------------------------------
+local raid, party, pets, raidPreview, partyPreview, petPreview
+
 local function HideState(st)
     if not st or not st.shown then return end
     for _, host in ipairs(st.hosts) do
         if host:IsShown() then
             EUI.HideBorderStyle(host)
             host:Hide()
+            host._sg = nil
         end
     end
     for _, f in ipairs(st.empty) do if f:IsShown() then f:Hide() end end
@@ -99,15 +141,15 @@ end
 
 local function NewState(owner, isParty)
     return { owner = owner, isParty = isParty,
-        groups = {}, hosts = {}, empty = {}, seams = {}, style = {}, dirty = true }
+        groups = {}, hosts = {}, empty = {}, seams = {}, style = {}, styleGen = 0, dirty = true }
 end
 
 local function PutStyle(st, key, value)
-    if st.style[key] ~= value then st.style[key], st.dirty = value, true end
+    if st.style[key] ~= value then st.style[key], st.dirty, st.styleDirty = value, true, true end
 end
 
 local function UpdateStyle(st, s)
-    local c = s.borderColor or I.defaults.profile.borderColor
+    local c = s.borderColor or defaults.profile.borderColor
     local grid = not st.isParty and ns.RF_GridOn(s)
     local r, g, b, a
     if grid and not st.isPet then
@@ -124,6 +166,7 @@ local function UpdateStyle(st, s)
     PutStyle(st, "grid", grid)
 end
 
+-- Records frame f as the index-th cell of group gi (rect in the owner's scale, top-left).
 local function Cell(st, gi, index, f)
     local group = st.groups[gi]
     if not group then group = { cells = {} }; st.groups[gi] = group end
@@ -143,6 +186,7 @@ local function Cell(st, gi, index, f)
     return true
 end
 
+-- Cells in screen order: left to right, then top to bottom.
 local function Along(a, b)
     if a.x == b.x then return a.y > b.y end
     return a.x < b.x
@@ -155,6 +199,7 @@ local function FinishGroup(st, gi, count, growth)
     if group.growth ~= growth then group.growth, st.dirty = growth, true end
 end
 
+-- An outline host round one box (x, y: its top-left in the owner's scale).
 local function Host(st, index, first, x, y, w, h)
     local host = st.hosts[index]
     if not host then host = CreateFrame("Frame", nil, st.owner); st.hosts[index] = host end
@@ -165,11 +210,15 @@ local function Host(st, index, first, x, y, w, h)
     host:ClearAllPoints()
     host:SetPoint("TOPLEFT", first.frame, "TOPLEFT", x - first.x, y - first.y)
     host:SetSize(w, h)
-    EUI.ApplyBorderStyle(host, v.size, v.r, v.g, v.b, v.a, v.tex,
-        v.offX, v.offY, v.shiftX, v.shiftY, "unitframes", v.size, nil, v.px)
+    if host._sg ~= st.styleGen or host._w ~= w or host._h ~= h then
+        host._sg, host._w, host._h = st.styleGen, w, h
+        EUI.ApplyBorderStyle(host, v.size, v.r, v.g, v.b, v.a, v.tex,
+            v.offX, v.offY, v.shiftX, v.shiftY, "unitframes", v.size, nil, v.px)
+    end
     host:Show()
 end
 
+-- A separator along one join (x, y: the join's top-left in the owner's scale).
 local function Seam(st, index, first, x, y, length, vertical)
     local t = st.seams[index]
     if not t then
@@ -180,26 +229,37 @@ local function Seam(st, index, first, x, y, length, vertical)
     end
     local v = st.style
     local host = st.seamHost
-    host:SetFrameStrata(first.strata)
-    host:SetFrameLevel(v.behind and math.max(0, first.level - 1) or first.level + ns.LVL_AURA + 2)
+    local level = v.behind and math.max(0, first.level - 1) or first.level + ns.LVL_AURA + 2
+    if host._level ~= level or host._strata ~= first.strata then
+        host._level, host._strata = level, first.strata
+        host:SetFrameStrata(first.strata)
+        host:SetFrameLevel(level)
+    end
+    if t._sg ~= st.styleGen or t._vertical ~= vertical then
+        t._sg, t._vertical = st.styleGen, vertical
+        t:SetDrawLayer("OVERLAY", vertical and 0 or 1)
+        t:SetTexture(vertical and v.sepV or v.sepH)
+        t:SetTexCoord(0, 1, 0, 1)
+        t:SetVertexColor(v.r, v.g, v.b, v.a)
+    end
     t:ClearAllPoints()
-    t:SetDrawLayer("OVERLAY", vertical and 0 or 1)
-    t:SetTexture(vertical and v.sepV or v.sepH)
-    t:SetTexCoord(0, 1, 0, 1)
     t:SetPoint("TOPLEFT", first.frame, "TOPLEFT", x - first.x - (vertical and v.lead or 0), y - first.y + (vertical and 0 or v.lead))
     t:SetSize(vertical and v.thick or length, vertical and length or v.thick)
-    t:SetVertexColor(v.r, v.g, v.b, v.a)
     t:Show()
 end
 
 local function Draw(st)
     if not st.dirty then return end
     local v = st.style
-    local scale = st.owner:GetEffectiveScale()
-    v.thick = EUI.BorderCompanionThickness(v.tex, v.size, v.px, scale)
-    -- Both separator textures put their bright line at texel 5 of 32.
-    v.lead = EUI.PP.SnapForES(v.thick * 5 / 32, scale)
-    v.sepV, v.sepH = EUI.GetBorderCompanion(v.tex, "sepV"), EUI.GetBorderCompanion(v.tex, "sepH")
+    if st.styleDirty then
+        st.styleDirty = false
+        st.styleGen = st.styleGen + 1
+        local scale = st.owner:GetEffectiveScale()
+        v.thick = EUI.BorderCompanionThickness(v.tex, v.size, v.px, scale)
+        -- Both separator textures put their bright line at texel 5 of 32.
+        v.lead = EUI.PP.SnapForES(v.thick * 5 / 32, scale)
+        v.sepV, v.sepH = EUI.GetBorderCompanion(v.tex, "sepV"), EUI.GetBorderCompanion(v.tex, "sepH")
+    end
     local gap = st.layoutPixel or v.one
     local hostCount, emptyCount, seamCount = 0, 0, 0
     local minX, maxY, maxX, minY, area, first = nil, nil, nil, nil, 0, nil
@@ -218,6 +278,8 @@ local function Draw(st)
             local x, y = c.x, c.y
             local w = horizontal and (n * c.w + (n - 1) * gap) or c.w
             local h = horizontal and c.h or (n * c.h + (n - 1) * gap)
+            -- Grid Mode: an occupied group fills to five with empty backgrounds past
+            -- its last frame along its growth.
             if v.grid and not st.isPet and n < 5 then
                 local missing = 5 - n
                 if group.growth == "LEFT" then x = x - missing * (c.w + gap) end
@@ -239,7 +301,11 @@ local function Draw(st)
                     local dy = not horizontal and offset * (c.h + gap) * (group.growth == "UP" and 1 or -1) or 0
                     f:ClearAllPoints(); f:SetPoint("TOPLEFT", endCell.frame, "TOPLEFT", dx, dy)
                     f:SetSize(c.w, c.h); f:SetFrameStrata(c.strata); f:SetFrameLevel(c.level)
-                    f.bg:SetColorTexture(v.bgR, v.bgG, v.bgB, v.bgA); f:Show()
+                    if f._sg ~= st.styleGen then
+                        f._sg = st.styleGen
+                        f.bg:SetColorTexture(v.bgR, v.bgG, v.bgB, v.bgA)
+                    end
+                    f:Show()
                 end
                 n = 5
             end
@@ -255,6 +321,8 @@ local function Draw(st)
             end
         end
     end
+    -- One outline round the groups only while they tile a rectangle (their padded
+    -- areas fill the bounding box); any other shape keeps an outline per group.
     local rectangular = first and v.grid and math.abs(area - (maxX - minX + gap) * (maxY - minY + gap)) < gap * gap / 2
     if rectangular then
         hostCount = 1
@@ -267,6 +335,7 @@ local function Draw(st)
                 hostCount = hostCount + 1
                 Host(st, hostCount, group.sorted[1], group.x, group.y, group.w, group.h)
             else
+                -- Separators where two joined groups meet, along their shared length.
                 for gj = gi + 1, st.count do
                     local other = st.groups[gj]
                     if other.count > 0 then
@@ -289,18 +358,36 @@ local function Draw(st)
         end
     end
     for i = hostCount + 1, #st.hosts do
-        if st.hosts[i]:IsShown() then EUI.HideBorderStyle(st.hosts[i]); st.hosts[i]:Hide() end
+        local host = st.hosts[i]
+        if host:IsShown() then EUI.HideBorderStyle(host); host:Hide(); host._sg = nil end
     end
     for i = emptyCount + 1, #st.empty do if st.empty[i]:IsShown() then st.empty[i]:Hide() end end
     for i = seamCount + 1, #st.seams do if st.seams[i]:IsShown() then st.seams[i]:Hide() end end
     st.shown, st.dirty = first ~= nil, false
 end
 
-local RefreshLive
+-------------------------------------------------------------------------------
+--  Live states. Hooks on the unit buttons queue a redraw, flushed once by a
+--  hidden frame's one-shot OnUpdate in the same frame, after the header's own
+--  pass and before the render.
+-------------------------------------------------------------------------------
+local RefreshLive, flusher
+local function Flush(self)
+    self:Hide()
+    if raid and raid.pending then RefreshLive(raid) end
+    if party and party.pending then RefreshLive(party) end
+    if pets and pets.pending then RefreshLive(pets) end
+end
+
 local function Queue(st)
     if not st.on or st.pending then return end
     st.pending = true
-    C_Timer.After(0, st.flush)
+    if not flusher then
+        flusher = CreateFrame("Frame")
+        flusher:Hide()
+        flusher:SetScript("OnUpdate", Flush)
+    end
+    flusher:Show()
 end
 
 local function Hook(st, f)
@@ -312,10 +399,11 @@ local function Hook(st, f)
     f:HookScript("OnAttributeChanged", st.assigned)
 end
 
+-- A mode turning on or off restyles the frames' own borders, threat and dispel rings.
 local function RefreshButtonBorders(st, on)
     local changed = false
-    for _, f in ipairs(st.isParty and ns._partyAllButtons or I.allButtons) do
-        local d = I.GetFFD(f)
+    for _, f in ipairs(st.isParty and ns._partyAllButtons or allButtons) do
+        local d = GetFFD(f)
         if not d._isExtra and d.UpdateBorder and (on or d._compactBorder) and d._compactBorder ~= on then
             d.UpdateBorder()
             changed = true
@@ -380,7 +468,7 @@ local function CollectLive(st, s)
         end
     else
         for gi = 1, 8 do
-            local hdr = I.separatedHdrs[gi]
+            local hdr = separatedHdrs[gi]
             CollectGroup(st, hdr, 1, 5, gi, HeaderGrowth(hdr))
         end
         count = 8
@@ -388,10 +476,16 @@ local function CollectLive(st, s)
     if st.count ~= count then st.count, st.dirty = count, true end
 end
 
+-- The settings a live state draws from.
+local function StateSource(st)
+    if st.isPet then return ns._PF.StyleSource() end
+    return st.isParty and ns._partyProxy or db.profile
+end
+
 RefreshLive = function(st)
     st.pending = nil
     if not st.on then return end
-    local s = st.isPet and ns._PF.StyleSource() or (st.isParty and ns._partyProxy or db.profile)
+    local s = StateSource(st)
     UpdateStyle(st, s)
     CollectLive(st, s)
     Draw(st)
@@ -400,54 +494,12 @@ end
 local function NewLiveState(owner, isParty)
     local st = NewState(owner, isParty)
     st.hooked = setmetatable({}, { __mode = "k" })
-    st.flush = function() RefreshLive(st) end
     st.queue = function() Queue(st) end
     st.assigned = function(_, name) if name == "unit" then Queue(st) end end
     return st
 end
 
-local function ScaleState(st)
-    if not st or not st.on or not ns.RF_CompactOn(st.isParty and ns._partyProxy or db.profile, st.isParty)
-        or st.layoutPixel == ns.RF_OnePixel(st.isParty) then return end
-    ns.CombatQueue.Defer(st.isParty and "compact-party-scale" or "compact-raid-scale", function()
-        if not st.on or not ns.RF_CompactOn(st.isParty and ns._partyProxy or db.profile, st.isParty)
-            or st.layoutPixel == ns.RF_OnePixel(st.isParty) then return end
-        if st.isParty then ns._LayoutPartyFrames() else I.LayoutGroups() end
-    end)
-end
-
-local function ScalePets()
-    local st = pets
-    local pf = ns._PF
-    if not st or not st.on or not pf.active or not ns.RF_CompactOn(pf.StyleSource(), st.isParty)
-        or st.layoutPixel == ns.RF_OnePixel(st.isParty) then return end
-    ns.CombatQueue.Defer("compact-pet-scale", function()
-        if not st.on or not pf.active or not ns.RF_CompactOn(pf.StyleSource(), st.isParty)
-            or st.layoutPixel == ns.RF_OnePixel(st.isParty) then return end
-        pf.Layout()
-    end)
-end
-
-local function ScaleChanged()
-    ScaleState(raid)
-    ScaleState(party)
-    ScalePets()
-end
-
-local function SyncEvents()
-    local active = ((raid and raid.on) or (party and party.on) or (pets and pets.on)) and true or false
-    if active and not events then
-        events = CreateFrame("Frame")
-        events:SetScript("OnEvent", ScaleChanged)
-    end
-    if events and active ~= eventsOn then
-        eventsOn = active
-        if active then
-            events:RegisterEvent("UI_SCALE_CHANGED"); events:RegisterEvent("DISPLAY_SIZE_CHANGED")
-        else events:UnregisterAllEvents() end
-    end
-end
-
+-- Called at the end of every raid and party layout pass.
 function ns.RF_SyncCompact(isParty)
     local s = isParty and ns._partyProxy or db.profile
     local on = ns.RF_CompactOn(s, isParty)
@@ -462,9 +514,9 @@ function ns.RF_SyncCompact(isParty)
     st.on = on
     if wasOn ~= on then RefreshButtonBorders(st, on) end
     if on then st.layoutPixel = ns.RF_OnePixel(isParty); Queue(st) else HideState(st) end
-    SyncEvents()
 end
 
+-- Called at the end of every pet layout pass and when the pet header stands down.
 function ns.RF_SyncPetCompact()
     local pf = ns._PF
     local isParty = pf and pf.styleCtx == "party"
@@ -479,7 +531,7 @@ function ns.RF_SyncPetCompact()
     if st.on ~= on then
         st.on = on
         for _, f in ipairs(pf.buttons) do
-            local d = I.GetFFD(f)
+            local d = GetFFD(f)
             if f._borderFrame and (on or d._petCompactBorder) and d._petCompactBorder ~= on then
                 ns._FB.StyleBorder(f)
             end
@@ -487,9 +539,36 @@ function ns.RF_SyncPetCompact()
     end
     st.isParty = isParty
     if on then st.layoutPixel = ns.RF_OnePixel(isParty); Queue(st) else HideState(st) end
-    SyncEvents()
 end
 
+-------------------------------------------------------------------------------
+--  A new pixel grid (UI_SCALE_CHANGED, DISPLAY_SIZE_CHANGED and EUI's own UI
+--  Scale, all through ns.RFC_PixelGridChanged): a live mode whose one pixel
+--  moved re-lays its frames, at once out of combat and when combat ends in it,
+--  and an attached boss group takes the new pitch (ns.FB_Repitch).
+-------------------------------------------------------------------------------
+local function Rescale(st)
+    if not (st and st.on) or (st.isPet and not ns._PF.active) then return end
+    if not ns.RF_CompactOn(StateSource(st), st.isParty) or st.layoutPixel == ns.RF_OnePixel(st.isParty) then return end
+    if InCombatLockdown() then
+        ns.CombatQueue.Defer(st.isPet and "compact-pet-scale" or st.isParty and "compact-party-scale"
+            or "compact-raid-scale", function() Rescale(st) end)
+        return
+    end
+    if st.isPet then ns._PF.Layout()
+    elseif st.isParty then ns._LayoutPartyFrames()
+    else I.LayoutGroups() end
+end
+
+function ns.RF_CompactScaleChanged()
+    Rescale(raid); Rescale(party); Rescale(pets)
+    ns.FB_Repitch()
+end
+
+-------------------------------------------------------------------------------
+--  Options previews: the same pieces over the preview frames (party: the party
+--  preview; growth: the preview's unit growth).
+-------------------------------------------------------------------------------
 local function PreviewCompact(st, frames, s, isParty, growth, isPet)
     if not frames or not ns.RF_CompactOn(s, isParty) then HideState(st); return st end
     local owner

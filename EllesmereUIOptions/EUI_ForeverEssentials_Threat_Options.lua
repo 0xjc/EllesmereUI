@@ -255,7 +255,7 @@ _G._EUI_BuildThreatMeterPage = function(pageName, parent, yOffset)
               getValue = function() return Get("warnAt") end,
               setValue = function(v) Store("warnAt", v) end },
             Toggle("warnSkipTank", "Not While Tanking",
-                "No warning while you have the tank role, or are in Bear Form or Defensive Stance.",
+                "No warning while you are the tank.",
                 function(v) Store("warnSkipTank", v) end)
         );  y = y - h
     else

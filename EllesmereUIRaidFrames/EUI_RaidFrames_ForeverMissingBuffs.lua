@@ -9,11 +9,11 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --  rank or the group version is in the player's spellbook. On the member
 --  every rank and the group version count (looked up by name). A member gets
 --  at most one blessing: the first of the priority list their assigned role
---  takes (Tank / Healer / DPS Blessing; empty = no reminder) that the player
---  can cast and the member lacks, or, with no role assigned, any blessing
---  counts (shown with the Kings icon). Solo, only Kings is reminded, on the
---  player, whatever the role. Thorns Only on Tank keeps Thorns to the
---  group's tanks, and to the player while solo or in a group without one.
+--  takes (Tank / Healer / DPS Blessing; empty = no reminder; no role assigned
+--  = the DPS list) that the player can cast and the member lacks. Solo, only
+--  Kings is reminded, on the player, whatever the role. Thorns Only on Tank
+--  keeps Thorns to the group's tanks, and to the player while solo or in a
+--  group without one.
 --  Settings (Indicators section, same shape as the raid marker):
 --  showMissingBuffs, missingBuffsPosition, missingBuffsSize,
 --  missingBuffsOffsetX/Y, one switch per buff (missingBuffsFort/Mark/Spirit/
@@ -91,22 +91,18 @@ for i = 1, NUM_FAMILIES do
     fam.names, fam.ranks, fam.ids = names, ranks, ids
 end
 local FAMILY_BY_ID = {}  -- spell id -> family index
-local BLESSINGS, BLESS_INDEX = {}, {}  -- blessing family indices; key -> index
+local BLESS_INDEX = {}  -- blessing key -> family index
 for i = 1, NUM_FAMILIES do
     for _, id in ipairs(FAMILIES[i].ids) do FAMILY_BY_ID[id] = i end
-    if FAMILIES[i].blessing then
-        BLESSINGS[#BLESSINGS + 1] = i
-        BLESS_INDEX[FAMILIES[i].key] = i
-    end
+    if FAMILIES[i].blessing then BLESS_INDEX[FAMILIES[i].key] = i end
 end
 
--- The blessings a role takes in a settings table (raw reads, nil = unset):
--- a priority list of blessing keys, first = most wanted (empty = none); nil
--- for a member with no assigned role (any blessing counts for them). A saved
--- value is a list, or the older single key / "none". Unset takes the role's
--- default, or none while the retired single Paladin Blessings switch reads
--- false (its users had turned blessings off). The options page reads through
--- the same function.
+-- The blessings a role (TANK, HEALER or DAMAGER) takes in a settings table
+-- (raw reads, nil = unset): a priority list of blessing keys, first = most
+-- wanted (empty = none). A saved value is a list, or the older single key /
+-- "none". Unset takes the role's default, or none while the retired single
+-- Paladin Blessings switch reads false (its users had turned blessings off).
+-- The options page reads through the same function.
 local BLESS_KEY = { TANK = "missingBuffsBlessingTank", HEALER = "missingBuffsBlessingHealer",
     DAMAGER = "missingBuffsBlessingDPS" }
 local BLESS_DEFAULT = { TANK = "might", HEALER = "wisdom", DAMAGER = "salvation" }
@@ -119,7 +115,6 @@ local NO_BLESSINGS = {}
 local OLD_SINGLE = {}  -- the older single-key form, one cached list per key
 local function Choice(s, role, class)
     local key = BLESS_KEY[role]
-    if not key then return nil end
     if class then
         local ex = s[EX_KEY[role]]
         local own = type(ex) == "table" and ex[class]
@@ -164,7 +159,7 @@ end
 -- (unknown); inst[unit] = the aura instances found, for the removed-aura probe.
 local state, inst = {}, {}
 local provider = {}      -- key -> the player can cast it (a rank in the spellbook)
-local blessCaster = false  -- the player can cast any blessing (every blessing is then read)
+local blessCaster = false  -- the player can cast any blessing (the role lists then apply)
 local groupTank = false  -- a group member has the tank role (full passes)
 local solo = true        -- not in a group (full passes)
 local wantFam = {}       -- key -> switched on where the indicator shows (raid, party or Extra Frames)
@@ -231,13 +226,11 @@ local function FamOn(s, fam)
     return s[fam.setting] ~= false
 end
 
--- Worth reading: the player can cast it and it is switched on somewhere.
--- Every blessing is read while the player casts any: a member with no role
--- counts any of them, other paladins' included.
+-- Worth reading: the player can cast it and it is switched on somewhere. A
+-- blessing the player cannot cast never shows and can never be theirs.
 local function Tracked(i)
-    local fam = FAMILIES[i]
-    local can = fam.blessing and blessCaster or provider[fam.key]
-    return can and wantFam[fam.key]
+    local key = FAMILIES[i].key
+    return provider[key] and wantFam[key]
 end
 
 -- The member's assigned role ("TANK", "HEALER", "DAMAGER", "NONE"), or nil
@@ -273,10 +266,10 @@ end
 -- member has a blessing of the player's (a paladin keeps one per target) or
 -- while that is unknown. Otherwise: solo, Kings on the player whatever the
 -- role (one reminder, no role picks); in a group, the first blessing of their
--- role's priority list that the player can cast and the member lacks, so one
+-- role's priority list (no role assigned: the DPS list, since many groups
+-- never assign roles) that the player can cast and the member lacks, so one
 -- another paladin gave moves the pick down the list (one the player cannot
--- cast is skipped; one the member reads unknown for stops the walk); with no
--- role the Kings icon while they lack every blessing.
+-- cast is skipped; one the member reads unknown for stops the walk).
 local function MissingBlessing(s, st, unit)
     if st.mine ~= false then return nil end
     if solo then
@@ -285,25 +278,20 @@ local function MissingBlessing(s, st, unit)
     end
     local role = RoleOf(unit)
     if not role then return nil end
+    if not BLESS_KEY[role] then role = "DAMAGER" end
     local _, class = UnitClass(unit)
     if issecretvalue(class) then class = nil end
     local want = Choice(s, role, class)
-    if want then
-        for w = 1, #want do
-            local key = want[w]
-            local i = BLESS_INDEX[key]
-            if i and provider[key] then
-                local has = st[key]
-                if has == nil then return nil end
-                if has == false then return i end
-            end
+    for w = 1, #want do
+        local key = want[w]
+        local i = BLESS_INDEX[key]
+        if i and provider[key] then
+            local has = st[key]
+            if has == nil then return nil end
+            if has == false then return i end
         end
-        return nil
     end
-    for b = 1, #BLESSINGS do
-        if st[FAMILIES[BLESSINGS[b]].key] ~= false then return nil end  -- has it, or unknown
-    end
-    return BLESS_INDEX.kings
+    return nil
 end
 
 -------------------------------------------------------------------------------

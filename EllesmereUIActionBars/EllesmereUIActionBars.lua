@@ -1953,8 +1953,15 @@ local function HideBlizzardBars()
             end
         end
     end
-    ActionBar_PageUp = function() ChangeManualPage(1) end
-    ActionBar_PageDown = function() ChangeManualPage(-1) end
+    -- Not under WoW Forever's Gamepad interface style: its controller bars page
+    -- through secure "actionbar" buttons that call these globals, and a
+    -- replacement of ours would run that paging insecure (blocked bar moves
+    -- and errors in the gamepad buttons, in combat). A global once written
+    -- stays tainted, so this is decided here, once, as the bars are taken.
+    if not EllesmereUI.PadGamepadUI() then
+        ActionBar_PageUp = function() ChangeManualPage(1) end
+        ActionBar_PageDown = function() ChangeManualPage(-1) end
+    end
 
     -- Hide status tracking bar manager (unless user wants Blizzard data bars)
     if not (EAB.db and EAB.db.profile.useBlizzardDataBars) then
@@ -8295,6 +8302,10 @@ function EAB:FinishSetup()
     -- populated on login (PetActionBar was unregistered from all events, so Blizzard's
     -- own update never fires). PET_BAR_UPDATE_USABLE fires when action usability
     -- changes so icon dimming stays current; UNIT_AURA "pet" can also affect usability.
+    -- PET_ATTACK_START / PET_ATTACK_STOP start and stop the Attack button's flash
+    -- (no PET_BAR_UPDATE marks a pet that stops attacking on its own, e.g. as
+    -- combat ends; Blizzard's bar catches it through UNIT_FLAGS, which fires on
+    -- every pet flag change).
     -- Coalesced: any event burst schedules ONE deferred pass per frame through a cached
     -- closure. "full" absorbs "cd": every full path repaints cooldowns too. A hidden
     -- pet bar skips all of it -- the secure
@@ -8490,6 +8501,8 @@ function EAB:FinishSetup()
     _petEventFrame:RegisterEvent("PET_BAR_UPDATE_COOLDOWN")
     _petEventFrame:RegisterEvent("PET_BAR_UPDATE_USABLE")
     _petEventFrame:RegisterEvent("PET_UI_UPDATE")
+    _petEventFrame:RegisterEvent("PET_ATTACK_START")
+    _petEventFrame:RegisterEvent("PET_ATTACK_STOP")
     _petEventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     _petEventFrame:RegisterUnitEvent("UNIT_PET", "player")
     _petEventFrame:RegisterUnitEvent("UNIT_AURA", "pet")

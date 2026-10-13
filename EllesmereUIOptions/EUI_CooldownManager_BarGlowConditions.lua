@@ -515,6 +515,7 @@ local ARROW_DOWN  = "Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-arrow-dow
 local ARROW_RIGHT = "Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-arrow-right.png"
 
 function ns.BuildBarGlowHeader(parent, y, entry, aIdx)
+    if not EllesmereUI._prebuilding then EllesmereUI._passReadSearchFlag = true end  -- reads the search flag below
     if EllesmereUI._prebuilding or EllesmereUI._lessCommonSearchActive then return y, true end
     local collapsed = entry.collapsed == true
     if aIdx > 1 then y = y - 8 end

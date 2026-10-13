@@ -794,7 +794,8 @@ function ns.ERB_BuildCastBarPage(pageName, parent, yOffset)
     end
 
 
-    -- Row 5: Show Spell Rank
+    -- Row 5: Show Spell Rank (spell ranks exist only on WoW Forever)
+    if EllesmereUI.IS_FOREVER then
     _, h = W:DualRow(parent, y,
         { type = "toggle", text = "Show Spell Rank",
           tooltip = "Appends the spell's rank to the spell name, for spells that have one.",
@@ -810,6 +811,7 @@ function ns.ERB_BuildCastBarPage(pageName, parent, yOffset)
           end },
         EllesmereUI.BlankRowCfg()
     );  y = y - h
+    end -- IS_FOREVER
 
 
     -- MARKS section

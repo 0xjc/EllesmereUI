@@ -254,6 +254,27 @@ do
     end
 end
 
+-- An icon's texcoords under a style. A shaped icon (iconShape with a mask) keeps
+-- its button's rect and takes coordinates past 0-1, as Action Bars' shaped icons
+-- do: the mask's opening is the button's middle visRatio (each shape's art leaves
+-- shapeInsetPx of its 128 clear on every side), and the art's middle (1 - 2 * zoom)
+-- fills it, the crop an unshaped icon takes at the same Icon Zoom. Shared with the
+-- Player Aura Bars options preview.
+function AK.IconTexCoord(style)
+    if style.iconShape and style.iconShape ~= "none" and style.shapeMaskPath then
+        local visRatio = (128 - 2 * (style.shapeInsetPx or 17)) / 128
+        local half = (0.5 - (style.iconZoom or 0.055)) / visRatio
+        return 0.5 - half, 0.5 + half, 0.5 - half, 0.5 + half
+    end
+    local tc = style.texCoord
+    if tc then return tc[1], tc[2], tc[3], tc[4] end
+    if style.iconCrop then
+        local z = style.iconZoom or 0.07
+        return z, 1 - z, z, 1 - z
+    end
+    return 0, 1, 0, 1
+end
+
 local function ApplyStyleToRegions(button, style)
     local d = bd[button]
     if not d then return end
@@ -286,52 +307,24 @@ local function ApplyStyleToRegions(button, style)
     end
 
     if d.icon then
-        if style.texCoord then
-            d.icon:SetTexCoord(style.texCoord[1], style.texCoord[2], style.texCoord[3], style.texCoord[4])
-        elseif style.iconCrop then
-            local z = style.iconZoom or 0.07
-            d.icon:SetTexCoord(z, 1 - z, z, 1 - z)
-        else
-            d.icon:SetTexCoord(0, 1, 0, 1)
-        end
+        d.icon:SetTexCoord(AK.IconTexCoord(style))
 
+        -- AddMaskTexture is change-guarded and deferred like d.borderHost's anchor
+        -- below: denied while auras are secret, retried once the restriction lifts.
         if shapeActive then
-            -- Grows the icon past button's rect to fill the mask's inset opening
-            -- edge-to-edge. SetPoint against button is change-guarded/deferred like
-            -- d.borderHost's anchor below; AddMaskTexture rides the same guard so a
-            -- denial rolls back mask + geometry together.
-            local insetPx = style.shapeInsetPx or 17
-            local visRatio = (128 - 2 * insetPx) / 128
-            local fullExpand = ((1 / visRatio) - 1) * 0.5
-            -- Coupled to Icon Zoom, mirroring Action Bars' shape-fill expansion: below
-            -- the zoom default the forced mask-fill magnification shrinks too (floor 0
-            -- -- button's own rect, no oversizing, at zoom 0), above it it grows past
-            -- fullExpand. 0.055 is PAB's own iconZoom default (BuildStyle), so a bar
-            -- that never touches the zoom slider renders identically to before.
-            local zoom = style.iconZoom or 0.055
-            local expand = math.max(fullExpand * (zoom / 0.055), 0)
-            local iconShapeKey = style.iconShape .. "|" .. w .. "|" .. h .. "|" .. zoom
-            if d.akIconShapeKey ~= iconShapeKey then
+            if d.akIconShapeKey ~= style.iconShape then
                 local ok = pcall(function()
                     pcall(d.icon.RemoveMaskTexture, d.icon, d.shapeMask)
                     d.icon:AddMaskTexture(d.shapeMask)
-                    d.icon:ClearAllPoints()
-                    d.icon:SetPoint("TOPLEFT", button, "TOPLEFT", -expand * w, expand * h)
-                    d.icon:SetPoint("BOTTOMRIGHT", button, "BOTTOMRIGHT", expand * w, -expand * h)
                 end)
                 if ok then
-                    d.akIconShapeKey = iconShapeKey
+                    d.akIconShapeKey = style.iconShape
                 elseif d.styleKey and AK.AurasRestricted() then
                     deferredRestyles[d.styleKey] = true
                 end
             end
         elseif d.akIconShapeKey then
-            if d.shapeMask then pcall(d.icon.RemoveMaskTexture, d.icon, d.shapeMask) end
-            local ok = pcall(function()
-                d.icon:ClearAllPoints()
-                d.icon:SetAllPoints(button)
-            end)
-            if ok then
+            if not d.shapeMask or pcall(d.icon.RemoveMaskTexture, d.icon, d.shapeMask) then
                 d.akIconShapeKey = nil
             elseif d.styleKey and AK.AurasRestricted() then
                 deferredRestyles[d.styleKey] = true
@@ -1586,6 +1579,23 @@ function AK.AddGroupToContainer(container, g)
         initializeFrame = AK.MakeInitializer(g.style, g.extraInit),
         layout = g.layout,
     })
+end
+
+-- A declared group's frame cap. Where the client can (12.1.5+), a cap of 0
+-- also switches the group off: a disabled group is neither parsed nor
+-- refreshed, and a container whose groups and slots are all off stops
+-- watching UNIT_AURA. Before that build a cap of 0 only hides its frames.
+-- Every cap write goes through here, so a group switched off always wakes
+-- with its next cap. Both setters return at once on an unchanged value, so
+-- only a real flip costs anything (the container re-parses, once per frame).
+function AK.SetGroupCap(container, key, cap)
+    if container.SetAuraGroupEnabled then
+        if cap > 0 then container:SetAuraGroupEnabled(key, true) end
+        container:SetAuraGroupMaxFrameCount(key, cap)
+        if cap <= 0 then container:SetAuraGroupEnabled(key, false) end
+        return
+    end
+    container:SetAuraGroupMaxFrameCount(key, cap)
 end
 
 function AK.AddSlotToContainer(container, s)

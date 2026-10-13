@@ -68,14 +68,15 @@ end
 -- The painter's Pet Health Color read (one setting for both tabs, off the per-tab view).
 PF.ColorSettings = PF.Raw
 
--- The Party and Raid tabs each keep their own Position, Extra Width/Height and Free Move spot. A tab
--- reads the shared key until it sets its own: a view over the saved table that never writes on
--- read. Every other key (the tab toggles, Pet Health Color, Pet Side) is the saved one.
+-- The Party and Raid tabs each keep their own Position, Extra Width/Height, Free Move spot and Free
+-- Move Growth Direction. A tab reads the shared key until it sets its own: a view over the saved
+-- table that never writes on read. Every other key (the tab toggles, Pet Health Color, Pet Side) is
+-- the saved one.
 PF.TAB_KEY = {
     party = { position = "party_position", extraWidth = "party_extraWidth", extraHeight = "party_extraHeight",
-              freePos = "party_freePos", freeRect = "party_freeRect" },
+              freePos = "party_freePos", freeRect = "party_freeRect", freeGrowth = "party_freeGrowth" },
     raid  = { position = "raid_position", extraWidth = "raid_extraWidth", extraHeight = "raid_extraHeight",
-              freePos = "raid_freePos", freeRect = "raid_freeRect" },
+              freePos = "raid_freePos", freeRect = "raid_freeRect", freeGrowth = "raid_freeGrowth" },
 }
 PF.views = {}
 PF.View = function(ctx)
@@ -732,6 +733,7 @@ end
 
 -- A tab's pet size (its frames' size plus that tab's Extra Width/Height), spacing and growth: the
 -- party frames' size and stacking on the Party tab, the raid frame size and growth on the Raid tab.
+-- Free Move takes the tab's Growth Direction when one is set, its columns turned across it.
 PF.Geometry = function(ctx)
     local s = ns._scaledProfile or db.profile
     local w, h, sp, unitGrowth, groupGrowth
@@ -747,6 +749,13 @@ PF.Geometry = function(ctx)
         sp = ns.RF_OnePixel(ctx == "party")
     end
     local v = PF.View(ctx)
+    local fg = v.position == "free" and v.freeGrowth
+    if fg then
+        unitGrowth = fg
+        if ns._RFGrowthIsVertical(fg) == ns._RFGrowthIsVertical(groupGrowth) then
+            groupGrowth = ns._RFGrowthIsVertical(fg) and "RIGHT" or "DOWN"
+        end
+    end
     w = PixelSnap(math.max(10, w + (v.extraWidth or 0)))
     h = PixelSnap(math.max(10, h + (v.extraHeight or 0)))
     return w, h, sp, unitGrowth, groupGrowth

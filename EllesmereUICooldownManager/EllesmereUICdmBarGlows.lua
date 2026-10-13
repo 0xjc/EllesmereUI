@@ -331,19 +331,16 @@ local function RawButtonSpell(btn)
             if subType ~= "assistedcombat" then sid = ns.SlotSpellID(slot) end
         end
     end
-    if type(sid) ~= "number" or sid <= 0 or (issecretvalue and issecretvalue(sid)) then return nil end
+    if type(sid) ~= "number" or issecretvalue(sid) or sid <= 0 then return nil end
     return sid
 end
 
 local function BaseSpell(sid)
-    return (C_Spell.GetBaseSpell and C_Spell.GetBaseSpell(sid)) or sid
+    return C_Spell.GetBaseSpell(sid) or sid
 end
 
 local function LiveSpell(sid)
-    if C_SpellBook and C_SpellBook.FindSpellOverrideByID then
-        return C_SpellBook.FindSpellOverrideByID(sid) or sid
-    end
-    return sid
+    return C_SpellBook.FindSpellOverrideByID(sid) or sid
 end
 
 -- Glows on an action bar button are saved per ability ("spell_<base spellID>"),
@@ -392,7 +389,15 @@ end
 -- The icon Hidden Until Usable shows: off cooldown (the GCD does not count) and usable.
 local function UsablePressable(sid)
     local onCD = usableOnCD[sid]
-    if onCD == nil then onCD = ReadRealCooldown(sid); usableOnCD[sid] = onCD end
+    if onCD == nil then
+        onCD = ReadRealCooldown(sid); usableOnCD[sid] = onCD
+    elseif onCD then
+        -- isActive can be trusted outside the event (only isOnGCD cannot): a
+        -- cooldown that has ended reads inactive, so the glow comes back without
+        -- waiting for the next cooldown event.
+        local info = C_Spell.GetSpellCooldown(sid)
+        if not (info and info.isActive) then onCD = false; usableOnCD[sid] = false end
+    end
     return not onCD and not ns.CdmSpellNotUsable(sid)
 end
 
@@ -611,7 +616,7 @@ function ns.QueueBarGlowRebind(event, slot)
     if not rebindFlush then return end
     if event == "ACTIONBAR_SLOT_CHANGED" and slot and slot ~= 0 and ns.SlotSpellID then
         local now = ns.SlotSpellID(slot)
-        now = type(now) == "number" and now > 0 and not (issecretvalue and issecretvalue(now)) and BaseSpell(now) or nil
+        now = type(now) == "number" and not issecretvalue(now) and now > 0 and BaseSpell(now) or nil
         local was = slotBase[slot]
         slotBase[slot] = now
         if not ((now and glowedAbilities[now]) or (was and glowedAbilities[was])) then return end

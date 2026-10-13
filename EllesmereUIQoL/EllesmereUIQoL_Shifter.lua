@@ -120,12 +120,11 @@ local EXTRA_DRAG_TARGETS = {
 -- PVEFrame is deliberately NOT here: EllesmereUIBlizzardSkin_GroupFinder.lua owns that
 -- pairing instead, docking CharacterFrame beside PVEFrame (rather than the reverse)
 -- with room-detection that also accounts for third-party companion panels bolted onto
--- PVEFrame (e.g. RaiderIO's Mythic+ panel). Having both mechanisms active fought each
--- other: this one's plain room check has no idea RaiderIO's panel exists, so it could
--- re-dock PVEFrame right back on top of it the moment CharacterFrame got any saved/temp
--- Shifter position at all. PVEFrame being protected already skipped this module's
--- strata/Raise writes too (see the `else` branch below), so dropping it here leaves it
--- entirely to GroupFinder.lua, with nothing lost.
+-- PVEFrame. Both mechanisms at once would fight: this one's plain room check knows
+-- nothing of such a panel, so it could re-dock PVEFrame right on top of it the moment
+-- CharacterFrame got any saved/temp Shifter position at all. PVEFrame being protected
+-- already skips this module's strata/Raise writes (see the `else` branch below), so
+-- leaving it entirely to GroupFinder.lua loses nothing.
 local DOCKING_COMPANIONS = {
     ItemUpgradeFrame = true,
     TransmogFrame = true,
@@ -812,9 +811,9 @@ end
 --  Unlock Mode. The mover drags a proxy frame we own; the saved position
 --  reaches the Blizzard window through the shared frame placer
 --  (EllesmereUI.SetFramePlacer), which puts it back after every Blizzard
---  SetPoint (in the same frame when Blizzard re-anchors from an event, one
---  frame later from a timer or OnUpdate) and writes nothing on the Blizzard
---  frame. No script hook either: the windows show inside
+--  SetPoint (the container as the column's layout returns, before it is
+--  drawn) and writes nothing on the Blizzard frame. No script hook either:
+--  the windows show inside
 --  GroupLootContainer_Update, and code run from their OnShow would leave the
 --  rest of that update, the managed column layout, under our taint.
 --  Protected or forbidden frames are skipped entirely, and no mouse state is
