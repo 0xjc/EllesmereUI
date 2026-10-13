@@ -4142,6 +4142,7 @@ function ns.UFO_BuildUnitPreview(parent, unitKey, side)
     pf._nameFS = leftFS
     pf._hpFS = rightFS
     pf._centerFS = centerFS
+    pf._extraFS = extraFS
     pf._portraitFrame = portraitFrame
     pf._buffIcons = buffIcons
     pf._debuffIcons = debuffIcons
