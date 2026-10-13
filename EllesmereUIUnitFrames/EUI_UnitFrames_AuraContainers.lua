@@ -1876,38 +1876,53 @@ local function secretNum(v)
 end
 
 -- How far the Resource Bars stack hangs below the PLAYER frame, in the frame's LOCAL
--- units (so it composes with the cast bar's -cbH). Resource Bars computes the active
--- stack's STABLE bounding box in its OWN context (EllesmereUI.ERB_PlayerStackExtent --
--- plain numbers, not secret; stable across combat/target/group visibility because it is
+-- units (so it composes with the cast bar's -cbH). Resource Bars hands us the active
+-- stack's per-bar rects in its OWN context (EllesmereUI.ERB_PlayerStackBars -- plain
+-- numbers, not secret; stable across combat/target/group visibility because it is
 -- predicate-based, not alpha-based). Here we only read our OWN player frame
--- (secret-safe) and compare. x-overlap gated; reserves the span from the frame bottom
--- down to the stack bottom.
+-- (secret-safe) and reserve the span down to the lowest bar actually DOCKED under the
+-- frame -- walking the chain so a bar sitting elsewhere is never reserved.
 local function ResourceStackBelowFrame(unit, frame)
     if unit ~= "player" then return 0 end
     frame = frame or _G[CB_FRAME_NAMES.player]
-    local extent = EllesmereUI.ERB_PlayerStackExtent
-    if not (frame and extent) then return 0 end
-    local sl, sr, stop, sbot, topH = extent()
-    if not (sl and sr and stop and sbot and topH) then return 0 end
+    local getBars = EllesmereUI.ERB_PlayerStackBars
+    if not (frame and getBars) then return 0 end
+    local bars = getBars()
+    if not bars then return 0 end
     local fl = secretNum(frame:GetLeft())
     local fr = secretNum(frame:GetRight())
     local fb = secretNum(frame:GetBottom())
     if not (fl and fr and fb) then return 0 end
     local fs = frame:GetEffectiveScale() or 1
     if fs == 0 then fs = 1 end
-    fl, fr, fb = fl * fs, fr * fs, fb * fs -- physical, matching the extent
-    -- Beside the frame rather than under it: nothing to reserve.
-    if sl >= fr or sr <= fl then return 0 end
-    -- Dock test: only reserve while the stack is DOCKED under the frame -- flush,
-    -- overlapping up into it (the normal EUI layout: the resource bars sit partly within
-    -- the unit frame, so the stack TOP is usually at/above the frame bottom), or a small
-    -- gap below. A DETACHED cluster floats far below; reject it so the auras do not chase
-    -- it down. "Far" = more than the stack's own height below the frame top. Overlap is
-    -- always fine; a stack entirely at/above the frame is caught by the gap check.
-    local stackH = stop - sbot
-    local drop = fb - stop -- how far the stack TOP sits below the frame bottom
-    if stackH > 0 and drop > stackH then return 0 end
-    local gap = fb - sbot
+    fl, fr, fb = fl * fs, fr * fs, fb * fs -- physical, matching the bar rects
+    -- Walk the chain of bars actually DOCKED under the frame. Each must overlap the
+    -- frame horizontally and dock to the boundary above it (the frame bottom first,
+    -- then each docked bar's bottom). "Docked" mirrors CastbarBelowFrame: the gap from
+    -- the boundary down to the bar's top is less than the bar's own height, and overlap
+    -- up into the boundary is allowed within CB_STRIP_SLACK. A bar placed elsewhere
+    -- (e.g. a bottom-center class resource while the power bar is docked) never joins
+    -- the chain, so it is not reserved and the auras do not chase it down.
+    local boundary, lowest, used = fb, nil, {}
+    while true do
+        local best, bestT, bestI
+        for i = 1, #bars do
+            local b = bars[i]
+            if b and not used[i] and b.l < fr and b.r > fl then
+                local h = b.t - b.b
+                local drop = boundary - b.t
+                if h > 0 and drop < h and drop >= -CB_STRIP_SLACK then
+                    if not bestT or b.t > bestT then best, bestT, bestI = b, b.t, i end
+                end
+            end
+        end
+        if not best then break end
+        used[bestI] = true
+        if not lowest or best.b < lowest then lowest = best.b end
+        boundary = best.b
+    end
+    if not lowest then return 0 end
+    local gap = fb - lowest
     if gap <= 0 then return 0 end
     return gap / fs
 end
@@ -3255,11 +3270,11 @@ end
 -- Mirrors the reloadThrottle pattern in EllesmereUIUnitFrames.lua. Zero cost when idle:
 -- no registered events, and non-bottom-anchored players never arm anything. Per-bar
 -- VISIBILITY modes (combat/target/group alpha) are intentionally NOT handled -- the
--- footprint (ERB_PlayerStackExtent) is predicate-based, so alpha toggles do not move it.
+-- footprint (ERB_PlayerStackBars) is predicate-based, so alpha toggles do not move it.
 do
     local function BottomAnchored(a) return a == "bottomleft" or a == "bottomright" end
     local function PlayerWantsStackReserve()
-        if not EllesmereUI.ERB_PlayerStackExtent then return false end
+        if not EllesmereUI.ERB_PlayerStackBars then return false end
         local s = SettingsFor("player")
         return s ~= nil and (BottomAnchored(s.debuffAnchor) or BottomAnchored(s.buffAnchor))
     end

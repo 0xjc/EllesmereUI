@@ -1596,7 +1596,7 @@ local castBarFrame
 local gcdBarFrame
 local totemBarFrame
 
--- EllesmereUI.ERB_PlayerStackExtent() is defined further down, after IsPowerBarHidden /
+-- EllesmereUI.ERB_PlayerStackBars() is defined further down, after IsPowerBarHidden /
 -- IsSpecDisabled (its domain predicates), near the end of the resolver helpers.
 local _totemBorderOverlays = setmetatable({}, { __mode = "k" })
 local _totemHooked = false
@@ -2384,22 +2384,26 @@ end
 -- bar's height (for the aura dock test), or nil when nothing is active. Read-only; the
 -- unit frame aura code (EUI_UnitFrames_AuraContainers.lua) compares this to the player
 -- frame in its OWN context, so no cross-addon geometry (and no secret value) is involved.
-function EllesmereUI.ERB_PlayerStackExtent()
+-- Per-bar rects of the active player resource stack, in PHYSICAL pixels, one
+-- { l, r, t, b } entry per SHOWN bar. The aura-container dock test walks the chain
+-- of bars actually docked under the player frame (see ResourceStackBelowFrame)
+-- rather than one merged box, so a bar placed elsewhere -- e.g. a bottom-center
+-- class resource while the power bar is docked -- is not reserved. Plain numbers,
+-- NOT a secret value, because Resource Bars owns these frames. Returns nil when
+-- nothing is shown. Stable across combat/target/group alpha (predicate-gated).
+function EllesmereUI.ERB_PlayerStackBars()
     local p = ERB and ERB.db and ERB.db.profile
     if not p then return nil end
-    local lft, rgt, top, bot, topH
+    local bars, n = nil, 0
     local function add(f)
         if not (f and f.GetBottom and f.GetTop) then return end
         local fb, ft = f:GetBottom(), f:GetTop()
         if not (fb and ft) then return end
         local s = f:GetEffectiveScale() or 1
-        fb, ft = fb * s, ft * s
-        local fl = (f:GetLeft() or 0) * s
-        local fr = (f:GetRight() or 0) * s
-        if not bot or fb < bot then bot = fb end
-        if not lft or fl < lft then lft = fl end
-        if not rgt or fr > rgt then rgt = fr end
-        if not top or ft > top then top = ft; topH = ft - fb end
+        bars = bars or {}
+        n = n + 1
+        bars[n] = { l = (f:GetLeft() or 0) * s, r = (f:GetRight() or 0) * s,
+                    t = ft * s, b = fb * s }
     end
     if not IsPowerBarHidden() then add(primaryBar) end
     local sp = p.secondary
@@ -2409,8 +2413,7 @@ function EllesmereUI.ERB_PlayerStackExtent()
         add(secondaryBar)
     end
     if ns._FDMStackBottomFrame then add(ns._FDMStackBottomFrame()) end
-    if not bot then return nil end
-    return lft, rgt, top, bot, topH
+    return bars
 end
 
 -- Unlock mode: register with shared EllesmereUI unlock system
