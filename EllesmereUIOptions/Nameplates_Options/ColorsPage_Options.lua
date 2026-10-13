@@ -44,8 +44,8 @@ if EllesmereUI.IS_FOREVER then
             GapColor("threatGapAheadColor", "Ahead Color", "When your threat is higher."),
             GapColor("threatGapBehindColor", "Behind Color", "When theirs is higher."),
             Slider("threatPctSize", "Size", 6, 20),
-            Slider("threatPctXOffset", "X Offset", -100, 100),
-            Slider("threatPctYOffset", "Y Offset", -100, 100),
+            Slider("threatPctXOffset", "X Offset", -300, 300),
+            Slider("threatPctYOffset", "Y Offset", -300, 300),
         }
     end
 end
