@@ -3687,10 +3687,7 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                                 end)
                             end
                         end,
-                        { disabled = function()
-                              return not (CD_GLOW_EFFECT[ss.cdStateEffect]
-                                  or (ss.glowWhenVisible and ns.CD_STATE_HIDE[ss.cdStateEffect]))
-                          end,
+                        { disabled = function() return not CD_GLOW_EFFECT[ss.cdStateEffect] end,
                           apply = { keys = { "cdStateGlowStyle", "cdStateGlowAlpha" },
                                     -- The Blackout opacity rides along with the Blackout value
                                     -- only: a spell that set its own opacity pushes it to the bar
@@ -3700,18 +3697,6 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                                         t.cdStateGlowStyle = v
                                         t.cdStateGlowAlpha = (v == 8) and ss.cdStateGlowAlpha or nil
                                     end } })
-
-                    -- Glow When Visible: with a Hidden effect (e.g. Hidden Until Usable) the icon
-                    -- glows, in the Glow Style above, whenever it is shown.
-                    local gvOpts = { disabled = function() return not ns.CD_STATE_HIDE[ss.cdStateEffect] end,
-                                     disabledTooltip = "Needs a Hidden effect in Cooldown State Effect",
-                                     apply = GLOW_VISIBLE_APPLY.apply }
-                    MakeSubnavRow("Glow when Visible", GLOW_VISIBLE_ITEMS,
-                        function() return ss.glowWhenVisible and true or nil end,
-                        SetGlowWhenVisible,
-                        function() return ss.glowWhenVisible == nil end,
-                        nil,
-                        gvOpts)
                 end
 
                 -- 4a. Threshold Text: decimals/color change on this spell's countdowns

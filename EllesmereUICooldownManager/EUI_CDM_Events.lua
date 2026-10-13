@@ -194,7 +194,7 @@ local BAR_REBIND_EVENTS = {
 
 eventFrame:SetScript("OnEvent", function(_, event, unit, updateInfo, arg3)
     if not ECME.db then return end
-    if ns._barGlowRebindOn and BAR_REBIND_EVENTS[event] then ns.QueueBarGlowRebind() end
+    if ns._barGlowRebindOn and BAR_REBIND_EVENTS[event] then ns.QueueBarGlowRebind(event, unit) end
     if event == "PLAYER_LOGOUT" then
         ns.SaveCachedBarSizes()
         return

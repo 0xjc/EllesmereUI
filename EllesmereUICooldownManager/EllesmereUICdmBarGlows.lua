@@ -363,6 +363,39 @@ local UpdateOverlayVisuals  -- forward: defined below
 local usableEventsOn = false
 local usableFlush, usableEvents  -- built on the first Glow When Usable entry
 
+-- Blizzard only guarantees GetSpellCooldown's isOnGCD inside the cooldown event itself:
+-- a frame later, at the end of a GCD, it reads as a real cooldown for ~0.25s. So whether
+-- each USABLE spell is on a real cooldown is worked out in the SPELL_UPDATE_COOLDOWN /
+-- CHARGES handler and kept here; the next-frame flush and the buff ticker read the kept
+-- answer. A spell not yet seen is read once, outside an event, and kept until the next one.
+local usableOnCD = {}  -- [live spellID] = true when on a real cooldown
+local function ReadRealCooldown(sid)
+    local info = C_Spell.GetSpellCooldown(sid)
+    return (info and info.isActive and not info.isOnGCD) or false
+end
+
+local function UsableSpellOf(overlay)
+    return overlay._abilitySid and LiveSpell(overlay._abilitySid) or ButtonSpellID(overlay:GetParent())
+end
+
+-- Re-read every tracked USABLE spell; called from the cooldown event handler.
+local function RefreshUsableCooldowns()
+    wipe(usableOnCD)
+    for _, overlay in pairs(overlayFrames) do
+        if overlay:IsShown() and overlay._assignEntry and overlay._assignEntry.mode == "USABLE" then
+            local sid = UsableSpellOf(overlay)
+            if sid and usableOnCD[sid] == nil then usableOnCD[sid] = ReadRealCooldown(sid) end
+        end
+    end
+end
+
+-- The icon Hidden Until Usable shows: off cooldown (the GCD does not count) and usable.
+local function UsablePressable(sid)
+    local onCD = usableOnCD[sid]
+    if onCD == nil then onCD = ReadRealCooldown(sid); usableOnCD[sid] = onCD end
+    return not onCD and not ns.CdmSpellNotUsable(sid)
+end
+
 local function SyncUsableEvents(on)
     if on == usableEventsOn then return end
     usableEventsOn = on
@@ -375,7 +408,10 @@ local function SyncUsableEvents(on)
                 if UpdateOverlayVisuals then UpdateOverlayVisuals() end
             end)
             usableEvents = ns.TakeShell()
-            usableEvents:SetScript("OnEvent", function() usableFlush:Show() end)
+            usableEvents:SetScript("OnEvent", function(_, event)
+                if event ~= "SPELL_UPDATE_USABLE" then RefreshUsableCooldowns() end
+                usableFlush:Show()
+            end)
         end
         usableEvents:RegisterEvent("SPELL_UPDATE_USABLE")
         usableEvents:RegisterEvent("SPELL_UPDATE_COOLDOWN")
@@ -383,59 +419,77 @@ local function SyncUsableEvents(on)
     elseif usableEvents then
         usableEvents:UnregisterAllEvents()
         usableFlush:Hide()
+        wipe(usableOnCD)
     end
 end
 
 -- Existing position keys ("<bar>_<button>") become ability keys once per spec,
--- by the ability saved with the entry (else the one on the button now); a slot
--- holding an item or nothing keeps its position key.
+-- by the ability saved with each entry. An entry saved before actionSpellID
+-- existed stays on its position key: the button's ability right now (a form or
+-- stance may have repaged the bar) could be the wrong one, and the move deletes
+-- the old key.
 local function MigrateAbilityKeys(bg)
     if bg._abilityKeysMigrated or not IsLoggedIn() or not GetActionBarButton(1, 1) then return end
     bg._abilityKeysMigrated = true
-    local moves
+    local moves  -- { { oldKey, newKey, entry }, ... }
     for key, list in pairs(bg.assignments) do
         local barIdx, btnIdx = key:match("^(%d+)_(%d+)$")
         barIdx, btnIdx = tonumber(barIdx), tonumber(btnIdx)
-        if barIdx and btnIdx and barIdx <= #BAR_OFFSETS and type(list) == "table" and #list > 0 then
-            local sid
+        if barIdx and btnIdx and barIdx <= #BAR_OFFSETS and type(list) == "table" then
             for _, e in ipairs(list) do
-                if e.actionSpellID then sid = e.actionSpellID; break end
-            end
-            if not sid then
-                local btn = GetActionBarButton(barIdx, btnIdx)
-                sid = btn and RawButtonSpell(btn)
-            end
-            if sid then
-                moves = moves or {}
-                moves[key] = "spell_" .. BaseSpell(sid)
+                local sid = tonumber(e.actionSpellID)
+                if sid and sid > 0 then
+                    moves = moves or {}
+                    moves[#moves + 1] = { key, "spell_" .. BaseSpell(sid), e }
+                end
             end
         end
     end
     if not moves then return end
-    for old, new in pairs(moves) do
+    for _, m in ipairs(moves) do
+        local old, new, e = m[1], m[2], m[3]
         local dst = bg.assignments[new]
         if not dst then dst = {}; bg.assignments[new] = dst end
-        for _, e in ipairs(bg.assignments[old]) do dst[#dst + 1] = e end
-        bg.assignments[old] = nil
+        dst[#dst + 1] = e
+        local src = bg.assignments[old]
+        for i = #src, 1, -1 do
+            if src[i] == e then table.remove(src, i); break end
+        end
+        if #src == 0 then bg.assignments[old] = nil end
     end
 end
 
 -- The action buttons currently showing each ability: base spellID -> { {btn, tag}, ... }.
+-- Every table is reused by the next scan (it runs on each form shift or bar change):
+-- the target record and its tag are built once per button, the lists wiped and refilled.
+local scanMap = {}
+local scanTargets = {}  -- [btn] = { btn =, tag = }
+local slotBase = {}     -- [action slot] = base spellID the last scan found there
+local glowedAbilities = {}  -- base spellIDs a "spell_<id>" glow is saved for (last BindOverlays)
+
 local function ScanActionButtons()
-    local map = {}
+    for _, t in pairs(scanMap) do wipe(t) end
+    wipe(slotBase)
     for barIdx = 1, #BAR_OFFSETS do
         for btnIdx = 1, 12 do
             local btn = GetActionBarButton(barIdx, btnIdx)
             local sid = btn and RawButtonSpell(btn)
             if sid then
                 local base = BaseSpell(sid)
-                local t = map[base]
-                if not t then t = {}; map[base] = t end
-                t[#t + 1] = { btn = btn, tag = "b" .. barIdx .. "x" .. btnIdx }
+                local t = scanMap[base]
+                if not t then t = {}; scanMap[base] = t end
+                local target = scanTargets[btn]
+                if not target then
+                    target = { btn = btn, tag = "b" .. barIdx .. "x" .. btnIdx }
+                    scanTargets[btn] = target
+                end
+                t[#t + 1] = target
+                local slot = btn.GetAttribute and btn:GetAttribute("action") or btn.action
+                if slot then slotBase[slot] = base end
             end
         end
     end
-    return map
+    return scanMap
 end
 
 -- Create / re-parent one overlay per glow entry on every button it applies to,
@@ -445,6 +499,7 @@ local function BindOverlays(bg)
     local glowSids = {}  -- every assigned glow's spellID, for AnyTargetAura
     local anyHero, anyUsable, anySpellKey
     local abilityButtons  -- ScanActionButtons(), built on the first ability key
+    wipe(glowedAbilities)
 
     local activeKeys = {}
     for assignKey, buffList in pairs(bg.assignments) do
@@ -462,6 +517,7 @@ local function BindOverlays(bg)
                 -- Action bar ability: "spell_<base spellID>"
                 anySpellKey = true
                 abilitySid = tonumber(spellKey)
+                glowedAbilities[abilitySid] = true
                 abilityButtons = abilityButtons or ScanActionButtons()
                 targets = abilityButtons[abilitySid]
             else
@@ -548,8 +604,19 @@ local function SyncRebindEvents(on)
     end
 end
 
-function ns.QueueBarGlowRebind()
-    if rebindFlush then rebindFlush:Show() end
+-- A slot change only matters when the slot holds, or held at the last scan, an ability
+-- a glow is saved for (slot is ACTIONBAR_SLOT_CHANGED's payload; 0 or nil = any slot).
+-- The slot's new ability is recorded either way so the next change compares against it.
+function ns.QueueBarGlowRebind(event, slot)
+    if not rebindFlush then return end
+    if event == "ACTIONBAR_SLOT_CHANGED" and slot and slot ~= 0 and ns.SlotSpellID then
+        local now = ns.SlotSpellID(slot)
+        now = type(now) == "number" and now > 0 and not (issecretvalue and issecretvalue(now)) and BaseSpell(now) or nil
+        local was = slotBase[slot]
+        slotBase[slot] = now
+        if not ((now and glowedAbilities[now]) or (was and glowedAbilities[was])) then return end
+    end
+    rebindFlush:Show()
 end
 
 --- Rebuild overlay frames from assignments
@@ -616,9 +683,8 @@ UpdateOverlayVisuals = function()
 
             local shouldGlow
             if mode == "USABLE" then
-                local btnSid = overlay._abilitySid and LiveSpell(overlay._abilitySid)
-                    or ButtonSpellID(overlay:GetParent())
-                shouldGlow = btnSid ~= nil and ns.CdmSpellPressable(btnSid)
+                local btnSid = UsableSpellOf(overlay)
+                shouldGlow = btnSid ~= nil and UsablePressable(btnSid)
             elseif mode == "MISSING" then
                 shouldGlow = not auraActive
             else
