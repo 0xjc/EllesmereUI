@@ -89,7 +89,7 @@ local ACTIVE_COLOR    = { r = 0.047, g = 0.824, b = 0.616 }
 local AUTO_ATTACK     = 6603
 local MAX_ACTION_SLOT = 180
 
--- Shot Pending: the colour of a waiting row (attack on, no swing running: its
+-- Attack Pending: the colour of a waiting row (attack on, no swing running: its
 -- timer ran out, or the attack started out of range or behind a cast).
 local PENDING_COLOR = { r = 0.659, g = 0.502, b = 0.949 }
 
@@ -487,7 +487,7 @@ local function StartRow(row, dur, cfg)
 end
 
 -- Waiting (attack on, no swing running): parked full, in the pending colour
--- with Shot Pending, else the active one. Entered from a finished swing or from
+-- with Attack Pending, else the active one. Entered from a finished swing or from
 -- idle; the row counts as live (Hide When Idle keeps it) but the ticker skips
 -- it. The next swing (StartRow) or an attack-stop edge (IdleRow) ends it,
 -- never a timer.
@@ -543,7 +543,7 @@ end, 0.05)
 -- Fill colour: the row's own (or class) colour; the active colour while its
 -- auto attack is on; the queued attack's own colour on a melee row while an
 -- on-next-swing attack is queued; the pending colour while the row waits with
--- Shot Pending on (each wins over the ones before). A combined off-hand row
+-- Attack Pending on (each wins over the ones before). A combined off-hand row
 -- paints no fill: its bar keeps running under its spark, unseen.
 function ApplyRowFill(row, cfg)
     local fillTex = row._bar:GetStatusBarTexture()
@@ -952,7 +952,7 @@ local function ApplyQueueEvents(cfg)
 end
 
 -- The auto attack and auto-repeat edges, only while Highlight Active Attack
--- or Shot Pending is on.
+-- or Attack Pending is on.
 local function ApplyActiveEvents(cfg)
     if not S.events then return end
     if TracksAttack(cfg) then

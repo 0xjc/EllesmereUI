@@ -627,10 +627,10 @@ function ns.ERB_BuildSwingTimerPage(pageName, parent, yOffset)
             "latencyEnabled", "Latency Overlay", "Latency Color")
     end
 
-    -- Row: Show Shot Pending (+ pending color swatch) | Smooth Swing Timing
+    -- Row: Show Attack Pending (+ pending color swatch) | Smooth Swing Timing
     local pendingRow
     pendingRow, h = W:DualRow(parent, y,
-        { type = "toggle", text = "Show Shot Pending",
+        { type = "toggle", text = "Show Attack Pending",
           tooltip = "While a row's attack is on but no swing is running (its timer ran out, or you started attacking out of range or queued a shot behind a cast), the row fills with this color until a swing lands.",
           disabled = stOff, disabledTooltip = ST_TIP,
           getValue = function() local p = DB(); return p and p.swingTimer.pendingEnabled == true end,
@@ -643,7 +643,7 @@ function ns.ERB_BuildSwingTimerPage(pageName, parent, yOffset)
     );  y = y - h
     if not EllesmereUI._prebuilding then
         ToggleSwatch(pendingRow, pendingRow._leftRegion, "pending", { 0.659, 0.502, 0.949 },
-            "pendingEnabled", "Show Shot Pending", "Shot Pending Color")
+            "pendingEnabled", "Show Attack Pending", "Attack Pending Color")
     end
 
     return math.abs(y)
