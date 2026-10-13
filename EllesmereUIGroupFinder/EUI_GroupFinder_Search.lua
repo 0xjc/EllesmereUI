@@ -2324,6 +2324,9 @@ XF.GROUP_MENU = {
     { key = "signUpDeclined", label = "Sign Up to Declined Groups", signUp = true },
     { key = "keepNote",       label = "Keep Sign Up Note", signUp = true },
     { key = "oneClick",       label = "One Click Sign Up" },
+    { title = "Misc" },
+    { key = "iconSize",       label = "Role Icon Size", stepper = { min = 100, max = 160, step = 5 } },
+    { key = "applicantColumns", label = "Score and Progress Columns" },
 }
 XF.MENU_SW_W, XF.MENU_SW_H = 22, 12
 
@@ -2387,6 +2390,59 @@ function XF.SwitchItem(m, y, spec)
     return item
 end
 
+-- A menu row with a value and - / + buttons (Role Icon Size, % of Blizzard's).
+function XF.StepperItem(m, y, spec)
+    local st = spec.stepper
+    local item = CreateFrame("Frame", nil, m)
+    item:SetHeight(ITEM_H)
+    item:SetPoint("TOPLEFT", m, "TOPLEFT", 1, -y)
+    item:SetPoint("TOPRIGHT", m, "TOPRIGHT", -1, -y)
+    local tR, tG, tB, tA = CM.TEXT_DIM_R or 0.7, CM.TEXT_DIM_G or 0.7, CM.TEXT_DIM_B or 0.7, CM.TEXT_DIM_A or 0.85
+    item.label = item:CreateFontString(nil, "OVERLAY")
+    item.label:SetFont(Font(), ITEM_FONT, "")
+    item.label:SetPoint("LEFT", item, "LEFT", 8, 0)
+    item.label:SetJustifyH("LEFT")
+    item.label:SetTextColor(tR, tG, tB, tA)
+    item.label:SetText(spec.label)
+    local function Step(text, dir)
+        local b = CreateFrame("Button", nil, item)
+        b:SetSize(16, 16)
+        b.t = b:CreateFontString(nil, "OVERLAY")
+        b.t:SetFont(Font(), ITEM_FONT + 2, "")
+        b.t:SetPoint("CENTER")
+        b.t:SetText(text)
+        b.t:SetTextColor(tR, tG, tB, tA)
+        b:SetScript("OnEnter", function(self) self.t:SetTextColor(1, 1, 1, 1) end)
+        b:SetScript("OnLeave", function(self) self.t:SetTextColor(tR, tG, tB, tA) end)
+        b:SetScript("OnClick", function()
+            local c = Cfg()
+            local v = tonumber(c[spec.key]) or (ns.DEFAULTS and ns.DEFAULTS[spec.key]) or st.min
+            v = math.max(st.min, math.min(st.max, v + dir * st.step))
+            c[spec.key] = v
+            PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
+            item:Paint()
+            Refilter()
+        end)
+        return b
+    end
+    local plus = Step("+", 1)
+    plus:SetPoint("RIGHT", item, "RIGHT", -6, 0)
+    item.value = item:CreateFontString(nil, "OVERLAY")
+    item.value:SetFont(Font(), ITEM_FONT, "")
+    item.value:SetTextColor(1, 1, 1, 1)
+    item.value:SetJustifyH("CENTER")
+    item.value:SetWidth(34)
+    item.value:SetPoint("RIGHT", plus, "LEFT", -2, 0)
+    local minus = Step("-", -1)
+    minus:SetPoint("RIGHT", item.value, "LEFT", -2, 0)
+    function item:Paint()
+        local v = tonumber(Cfg()[spec.key]) or (ns.DEFAULTS and ns.DEFAULTS[spec.key]) or st.min
+        self.value:SetText(v .. "%")
+    end
+    item:Paint()
+    return item
+end
+
 function XF.BuildGroupMenu()
     local m = CreateFrame("Frame", nil, SP)
     XF.groupMenu = m
@@ -2394,7 +2450,7 @@ function XF.BuildGroupMenu()
     m:EnableMouse(true)   -- not click-through
     m:SetFrameLevel(300)
     m:SetClampedToScreen(true)
-    m:SetWidth(190)
+    m:SetWidth(200)
     local bg = m:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints()
     local r, g, b = ThemeFill()
@@ -2407,7 +2463,7 @@ function XF.BuildGroupMenu()
         if spec.title then
             y = AddSection(m, y, spec.title)
         else
-            m.items[#m.items + 1] = XF.SwitchItem(m, y, spec)
+            m.items[#m.items + 1] = spec.stepper and XF.StepperItem(m, y, spec) or XF.SwitchItem(m, y, spec)
             y = y + ITEM_H
         end
     end

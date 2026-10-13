@@ -69,42 +69,9 @@ initFrame:SetScript("OnEvent", function(self)
               end },
             pgfNote);  y = y - h
 
-        -- Result rows and tooltip (refreshed on the next list update).
-        local function Toggle(key, text, tooltip, default, disabled, disabledTooltip)
-            return { type = "toggle", text = text, tooltip = tooltip,
-                disabled = disabled, disabledTooltip = disabledTooltip,
-                getValue = function() return Get(key, default) ~= false end,
-                setValue = function(v)
-                    Set(key, v and true or false)
-                    local SP = LFGListFrame and LFGListFrame.SearchPanel
-                    if SP and SP:IsShown() and LFGListSearchPanel_UpdateResultList then LFGListSearchPanel_UpdateResultList(SP) end
-                    EUI:RefreshPage()
-                end }
-        end
-
-        -- Colored names, leader rating, missing roles, specialization, leader
-        -- crown, members in tooltip and the sign-up options are in the Group
-        -- Settings menu on the search panel (the person button, row 2).
-        _, h = W:SectionHeader(parent, "GROUP LIST", y); y = y - h
-        _, h = W:DualRow(parent, y,
-            { type = "slider", text = "Role Icon Size", min = 100, max = 160, step = 5,
-              tooltip = "Size of the role / specialization icons in the group list, in % of Blizzard's size. The group and activity names get shorter to make room.",
-              getValue = function() return Get("iconSize", 125) end,
-              setValue = function(v)
-                  Set("iconSize", v)
-                  local SP = LFGListFrame and LFGListFrame.SearchPanel
-                  if SP and SP:IsShown() and LFGListSearchPanel_UpdateResultList then LFGListSearchPanel_UpdateResultList(SP) end
-              end },
-            EUI.BlankRowCfg());  y = y - h
-
-        _, h = W:SectionHeader(parent, "APPLICANTS", y); y = y - h
-        _, h = W:DualRow(parent, y,
-            { type = "toggle", text = "Score and Progress Columns",
-              tooltip = "Your applicant list shows each applicant's Mythic+ score (Raider.IO's while it is loaded) after iLvl, and for raid listings their best progress in that raid (for example 4/8m). Mythic+ listings keep Blizzard's own Rating column instead.",
-              getValue = function() return Get("applicantColumns", true) ~= false end,
-              setValue = function(v) Set("applicantColumns", v and true or false) end },
-            EUI.BlankRowCfg());  y = y - h
-
+        -- The group list's look, the sign-up helpers, Role Icon Size and the
+        -- applicant columns are in the Group Settings menu on the search panel
+        -- (the person button, row 2).
         y = AddAppsSections(parent, y)
 
         _, h = W:Spacer(parent, y, 20); y = y - h
@@ -153,8 +120,6 @@ initFrame:SetScript("OnEvent", function(self)
               disabled=APOff, disabledTooltip="Show in Group Finder",
               getValue=function() return APGet("scope", "character") end,
               setValue=function(v) APSet("scope", v) end });  y = y - h
-
-        row, h = W:SectionHeader(parent, "APPLICATIONS BAR", y); y = y - h
 
         local tex, names, order = EUI.BuildBarTextureTables()
         local texValues, texOrder = {}, {}
