@@ -45,7 +45,11 @@ function XF.Tip(owner, title, ...)
     local text = title
     for i = 1, select("#", ...) do
         local line = select(i, ...)
-        if line then text = text .. "\n|cffb3b3b3" .. line .. "|r" end
+        if line then
+            -- a line with its own colour (e.g. class coloured) keeps it
+            if line:sub(1, 2) == "|c" then text = text .. "\n" .. line
+            else text = text .. "\n|cffb3b3b3" .. line .. "|r" end
+        end
     end
     XF.tipOwner = owner
     if CM.ShowWidgetTooltip then
@@ -55,6 +59,11 @@ function XF.Tip(owner, title, ...)
         GameTooltip:SetText(text, 1, 1, 1, 1, true)
         GameTooltip:Show()
     end
+end
+-- A tooltip line in a class's colour.
+function XF.ClassLine(classFile, text)
+    local c = C_ClassColor and C_ClassColor.GetClassColor and C_ClassColor.GetClassColor(classFile)
+    return c and c:WrapTextInColorCode(text) or text
 end
 function XF.Untip()
     XF.tipOwner = nil
@@ -1672,13 +1681,13 @@ local function AddRoleItems(m, y, raids)
     end
     y = XF.AddFlagItem(m, y, "hasLust", "Has Bloodlust", {
         "A member whose class has one of these spells:",
-        "Bloodlust / Heroism (Shaman)", "Time Warp (Mage)",
-        "Primal Rage (Hunter pet)", "Fury of the Aspects (Evoker)",
+        XF.ClassLine("SHAMAN", "Bloodlust / Heroism (Shaman)"), XF.ClassLine("MAGE", "Time Warp (Mage)"),
+        XF.ClassLine("HUNTER", "Primal Rage (Hunter pet)"), XF.ClassLine("EVOKER", "Fury of the Aspects (Evoker)"),
         "Drums and other items don't count." })
     y = XF.AddFlagItem(m, y, "hasBrez", "Has Battle Res", {
         "A member whose class has one of these spells:",
-        "Rebirth (Druid)", "Raise Ally (Death Knight)",
-        "Soulstone (Warlock)", "Intercession (Paladin)",
+        XF.ClassLine("DRUID", "Rebirth (Druid)"), XF.ClassLine("DEATHKNIGHT", "Raise Ally (Death Knight)"),
+        XF.ClassLine("WARLOCK", "Soulstone (Warlock)"), XF.ClassLine("PALADIN", "Intercession (Paladin)"),
         "Engineering and other items don't count." })
     for _, r in ipairs(XF.COUNT_ROLES) do y = XF.AddCountRow(m, y, r.key, r.label) end
     return y
