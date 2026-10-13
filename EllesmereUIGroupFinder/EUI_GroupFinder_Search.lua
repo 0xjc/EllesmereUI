@@ -70,7 +70,8 @@ local XF = {}
 -- Glyph grey of our white icons (cog, reset X, cancel X): Search Again's
 -- glyph is Blizzard's gold refresh art desaturated, which reads at about this.
 XF.GLYPH = 0.78
-XF.SCORE_W = 46   -- applicant list: the Score column (Progress fills the rest)
+XF.SCORE_W = 46   -- applicant list: the Score column (stretched to the refresh button)
+XF.CHECK_TEX = "Interface\\AddOns\\" .. ADDON_NAME .. "\\media\\icons\\check.png"   -- Invite
 XF.PERSON_TEX = "Interface\\AddOns\\" .. ADDON_NAME .. "\\media\\icons\\person.png"   -- Group Settings
 
 local SP                -- LFGListFrame.SearchPanel
@@ -1314,26 +1315,18 @@ end
 ns.Search_ApplySignUp = function() XF.ApplySignUp() end
 
 -------------------------------------------------------------------------------
---  Applicant list (your own listing): a "Score" column after iLvl, and for
---  raid listings a "Progress" column (best kills in that raid from Raider.IO,
---  e.g. 4/8m). Not on Mythic+ / rated PvP listings, where Blizzard's own Rating
---  column is there. Score = Raider.IO's current Mythic+ score while it is
+--  Applicant list (your own listing): a "Score" column after iLvl. Not on
+--  Mythic+ / rated PvP listings, where Blizzard's own Rating column is there. Score = Raider.IO's current Mythic+ score while it is
 --  loaded, else Blizzard's dungeon score. Pending applicants get Blizzard's
 --  small Invite button (the one it uses beside its Rating column) so the wide
 --  one does not cover the columns; its enabled state and height are copied
 --  from the wide one. Upstream keeps its skin off this viewer (it sits in a
 --  protected tree, and writes there once caused secret-compare errors for raid
 --  leaders); the small Invite swap and the Invite / Decline look below are
---  alpha, size and textures of ours only (no values written on Blizzard's rows).
+--  alpha, size and frames of ours only (no values written on Blizzard's rows).
 --  Settings: search.applicantColumns (on by default).
 -------------------------------------------------------------------------------
-XF.DIFF_TAG = {
-    [1] = { "n", 0.12, 1, 0 },        -- Normal
-    [2] = { "h", 0.64, 0.21, 0.93 },  -- Heroic
-    [3] = { "m", 1, 0.5, 0 },         -- Mythic
-}
-
--- On, and the raid's instance map for a raid listing.
+-- Whether the columns show for the current listing.
 function XF.ApplicantMode()
     if Cfg().applicantColumns == false then return false end
     local e = C_LFGList.GetActiveEntryInfo and C_LFGList.GetActiveEntryInfo()
@@ -1342,7 +1335,7 @@ function XF.ApplicantMode()
     if not act or IsSecret(act) then return false end
     local ai = C_LFGList.GetActivityInfoTable(act)
     if not ai or ai.isMythicPlusActivity or ai.isRatedPvpActivity then return false end
-    return true, ((ai.maxNumPlayers or 5) > 5) and ai.mapID or nil
+    return true
 end
 
 function XF.RIOProfile(name)
@@ -1353,24 +1346,7 @@ function XF.RIOProfile(name)
     return ok and type(p) == "table" and p or nil
 end
 
--- Best kills in the raid (highest difficulty with any): "4/8m", r, g, b.
-function XF.RaidProgress(profile, mapID)
-    local rp = profile and profile.raidProfile
-    local list = type(rp) == "table" and type(rp.progress) == "table" and rp.progress or {}
-    local best
-    for _, pr in ipairs(list) do
-        local raid = type(pr) == "table" and pr.raid
-        if raid and raid.mapId == mapID and (tonumber(pr.progressCount) or 0) > 0
-            and (not best or (pr.difficulty or 0) > (best.difficulty or 0)) then
-            best = pr
-        end
-    end
-    if not best then return nil end
-    local tag = XF.DIFF_TAG[best.difficulty] or { "", 1, 1, 1 }
-    return ("%d/%d%s"):format(best.progressCount, best.raid.bossCount or 0, tag[1]), tag[2], tag[3], tag[4]
-end
-
-function XF.ApplicantHeaders(on, raid)
+function XF.ApplicantHeaders(on)
     local AV = LFGListFrame and LFGListFrame.ApplicationViewer
     if not (AV and AV.ItemLevelColumnHeader) then return end
     if not XF.hdrScore then
@@ -1391,17 +1367,14 @@ function XF.ApplicantHeaders(on, raid)
         end
         XF.hdrScore = Hdr("Score", XF.SCORE_W)
         XF.hdrScore:SetPoint("LEFT", AV.ItemLevelColumnHeader, "RIGHT", 0, 0)
-        XF.hdrProg = Hdr("Progress", 48)
-        XF.hdrProg:SetPoint("LEFT", XF.hdrScore, "RIGHT", 0, 0)
     end
     XF.hdrScore:SetShown(on and true or false)
-    XF.hdrProg:SetShown((on and raid) and true or false)
     if XF.LayoutViewer then XF.LayoutViewer() end
 end
 
 function XF.DecorateApplicant(button, id)
-    local on, raidMap = XF.ApplicantMode()
-    XF.ApplicantHeaders(on, raidMap ~= nil)
+    local on = XF.ApplicantMode()
+    XF.ApplicantHeaders(on)
     if type(button) ~= "table" or type(button.Members) ~= "table" then return end
     -- Rows as wide as the (widened) list: Blizzard's rows are a fixed 309,
     -- their background and Invite / Decline follow the right edge.
@@ -1422,23 +1395,15 @@ function XF.DecorateApplicant(button, id)
             f:EnableMouse(false)
             d.score = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
             d.score:SetPoint("CENTER", member, "LEFT", 213, 0)
-            d.prog = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            d.prog:SetPoint("CENTER", member, "LEFT", 253, 0)
         end
         d.score:Hide()
-        d.prog:Hide()
         -- Centred under their headers (measured; the old fixed offsets until
         -- the headers are laid out).
         local ml = member.GetLeft and member:GetLeft()
         local sc = XF.hdrScore and XF.hdrScore:IsShown() and XF.hdrScore:GetCenter()
-        local pc = XF.hdrProg and XF.hdrProg:IsShown() and XF.hdrProg:GetCenter()
         if ml and sc then
             d.score:ClearAllPoints()
             d.score:SetPoint("CENTER", member, "LEFT", sc - ml, 0)
-        end
-        if ml and pc then
-            d.prog:ClearAllPoints()
-            d.prog:SetPoint("CENTER", member, "LEFT", pc - ml, 0)
         end
         if on and type(n) == "number" and i <= n then
             local name, _, _, _, _, _, _, _, _, _, _, dungeonScore = C_LFGList.GetApplicantMemberInfo(id, i)
@@ -1451,14 +1416,6 @@ function XF.DecorateApplicant(button, id)
                 d.score:SetTextColor(RatingColor(score))
                 d.score:Show()
             end
-            if raidMap then
-                local text, r, g, b = XF.RaidProgress(prof, raidMap)
-                if text then
-                    d.prog:SetText(text)
-                    d.prog:SetTextColor(r, g, b)
-                    d.prog:Show()
-                end
-            end
         end
     end
     -- Blizzard's small Invite button instead of the wide one (out of combat).
@@ -1469,35 +1426,48 @@ function XF.DecorateApplicant(button, id)
         wide:Hide()
         small:Show()
     end
-    XF.ApplicantButtonLook(small)
-    XF.ApplicantButtonLook(button.DeclineButton)
+    XF.ApplicantButtonLook(small, XF.CHECK_TEX, 0.3, 0.9, 0.35)
+    XF.ApplicantButtonLook(button.DeclineButton, X_TEX, 1, 0.15, 0.15)
 end
 
--- Invite (check) and Decline (X) in the skinned buttons' look: Blizzard's
--- button art faded (its Icon kept), our fill, theme border and hover wash.
--- Textures and a border frame of ours only; Blizzard's button keeps its click.
-function XF.ApplicantButtonLook(b)
-    if type(b) ~= "table" or not b.GetRegions or FFD[b] then return end
-    FFD[b] = true
-    for _, r in ipairs({ b:GetRegions() }) do
-        if r ~= b.Icon and r.SetAlpha then r:SetAlpha(0) end
+-- Invite (check) and Decline (X) as our glyph buttons, as Cancel Application:
+-- Blizzard's button art faded, our button laid over it taking no mouse, so
+-- Blizzard's keeps the click. On hover a green (Invite) or red (Decline)
+-- border and glyph. Dimmed while Blizzard disables it.
+function XF.ApplicantButtonLook(b, tex, r, g, bl)
+    if type(b) ~= "table" or not b.GetRegions or not XF.GlyphButton then return end
+    local d = FFD[b]
+    if not d then
+        d = {}
+        FFD[b] = d
+        for _, reg in ipairs({ b:GetRegions() }) do
+            if reg.SetAlpha then reg:SetAlpha(0) end
+        end
+        for _, getter in ipairs({ "GetNormalTexture", "GetPushedTexture", "GetHighlightTexture", "GetDisabledTexture" }) do
+            local t = b[getter] and b[getter](b)
+            if t then t:SetAlpha(0) end
+        end
+        local look = XF.GlyphButton(b, ROW1_H - 4, tex)
+        look:EnableMouse(false)
+        look:SetPoint("CENTER", b, "CENTER", 0, 0)
+        look:SetFrameLevel(b:GetFrameLevel() + 1)
+        look.Glyph:SetSize(11, 11)
+        look.Glyph:SetVertexColor(XF.GLYPH, XF.GLYPH, XF.GLYPH, 1)
+        d.look = look
+        b:HookScript("OnEnter", function(self)
+            if not self:IsEnabled() then return end
+            SetBorderColor(d.look, r, g, bl, 1)
+            d.look.Glyph:SetVertexColor(r, g, bl, 1)
+            d.look.Glyph:SetAlpha(1)
+        end)
+        b:HookScript("OnLeave", function(self)
+            SetBorderColor(d.look, ThemeBorder())
+            d.look.Glyph:SetVertexColor(XF.GLYPH, XF.GLYPH, XF.GLYPH, 1)
+            d.look.Glyph:SetAlpha(self:IsEnabled() and 0.8 or 0.35)
+        end)
     end
-    for _, g in ipairs({ "GetNormalTexture", "GetPushedTexture", "GetHighlightTexture", "GetDisabledTexture" }) do
-        local t = b[g] and b[g](b)
-        if t and t ~= b.Icon then t:SetAlpha(0) end
-    end
-    local S = Skin()
-    local T = S and S.Theme
-    local fill = b:CreateTexture(nil, "BACKGROUND", nil, 7)
-    fill:SetAllPoints()
-    if T and T.bgR then fill:SetColorTexture(T.bgR, T.bgG, T.bgB, 0.95) else fill:SetColorTexture(0.08, 0.08, 0.08, 0.95) end
-    local edge = CreateFrame("Frame", nil, b)
-    edge:SetAllPoints()
-    edge:EnableMouse(false)
-    if S and S.AddBorder then S.AddBorder(edge) else CM.MakeBorder(edge, ThemeBorder()) end
-    local hover = b:CreateTexture(nil, "HIGHLIGHT")
-    hover:SetAllPoints()
-    hover:SetColorTexture(1, 1, 1, 0.1)
+    d.look:SetShown(b:IsShown())
+    d.look.Glyph:SetAlpha(b:IsEnabled() and 0.8 or 0.35)
 end
 
 local function DecorateEntry(entry)
@@ -2325,7 +2295,7 @@ XF.GROUP_MENU = {
     { key = "keepNote",       label = "Keep Sign Up Note", signUp = true },
     { key = "oneClick",       label = "One Click Sign Up" },
     { title = "Misc" },
-    { key = "applicantColumns", label = "Score & Progress Columns" },
+    { key = "applicantColumns", label = "Score Column" },
     { key = "iconSize",       label = "Role Icon Size", stepper = { min = 100, max = 160, step = 5 } },
 }
 XF.MENU_SW_W, XF.MENU_SW_H = 22, 12
@@ -2631,6 +2601,7 @@ function XF.CancelLook(entry)
 end
 
 ns.GlyphButton = GlyphButton   -- the rail's settings cog (Rail.lua)
+XF.GlyphButton = GlyphButton   -- the applicant buttons (defined before it)
 ns.GLYPH = XF.GLYPH
 
 local function SquareEnter(self)
@@ -3339,11 +3310,6 @@ function XF.LayoutViewer()
         XF.hdrScore:SetPoint("LEFT", ilvlH, "RIGHT", SQ_GAP, 0)
         XF.hdrScore:SetWidth(XF.SCORE_W - SQ_GAP)
         fill = XF.hdrScore
-        if XF.hdrProg and XF.hdrProg:IsShown() then
-            XF.hdrProg:ClearAllPoints()
-            XF.hdrProg:SetPoint("LEFT", XF.hdrScore, "RIGHT", SQ_GAP, 0)
-            fill = XF.hdrProg
-        end
     end
     if fill then fill:SetPoint("RIGHT", rb, "LEFT", -SQ_GAP, 0) end
 end
@@ -4064,8 +4030,7 @@ local function Init()
     end
     if LFGListApplicationViewer_UpdateInfo then
         hooksecurefunc("LFGListApplicationViewer_UpdateInfo", function()
-            local on, raidMap = XF.ApplicantMode()
-            XF.ApplicantHeaders(on, raidMap ~= nil)
+            XF.ApplicantHeaders(XF.ApplicantMode())
             XF.LayoutViewer()
         end)
         local AV = LFGListFrame.ApplicationViewer
