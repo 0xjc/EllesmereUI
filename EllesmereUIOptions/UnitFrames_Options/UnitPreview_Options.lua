@@ -522,7 +522,8 @@ function ns.UFO_BuildUnitPreview(parent, unitKey, side)
             local maxHP = UnitHealthMax("player") or 1
             local pct = optState._previewHealthPct or 0.70
             local curHP = math.floor(maxHP * pct)
-            if content == "curhpshort" or content == "healthshort" then return _pvAbbrev(curHP)
+            if content == "healthshort" then return ns.AbbreviateShortHealth(curHP)
+            elseif content == "curhpshort" then return _pvAbbrev(curHP)
             elseif content == "curmaxhp" then return _pvAbbrev(curHP) .. " / " .. _pvAbbrev(maxHP)
             elseif content == "perhp" then return _pvPct(pct) .. "%"
             elseif content == "perhpnosign" then return _pvPct(pct)
