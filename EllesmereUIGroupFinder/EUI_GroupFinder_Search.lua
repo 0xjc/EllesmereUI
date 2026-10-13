@@ -1863,13 +1863,18 @@ end
 
 -- Our on/off items shared by both menus (Party Fit, Not Declined, Bloodlust,
 -- Battle Res): Cfg()[key], our side, at once.
-function XF.AddFlagItem(m, y, key, text)
-    m.items["flag_" .. key] = MenuItem(m, y, text, function()
+function XF.AddFlagItem(m, y, key, text, tip)
+    local item = MenuItem(m, y, text, function()
         local c = Cfg()
         c[key] = (not c[key]) or nil
         Refilter()
         Paint()
     end)
+    m.items["flag_" .. key] = item
+    if tip then
+        item:HookScript("OnEnter", function(self) XF.Tip(self, text, tip) end)
+        item:HookScript("OnLeave", XF.Untip)
+    end
     return y + ITEM_H
 end
 
@@ -1908,9 +1913,15 @@ local function AddRatingRow(m, y)
     rowF:SetHeight(ITEM_H + 4)
     rowF:SetPoint("TOPLEFT", m, "TOPLEFT", 1, -y)
     rowF:SetPoint("TOPRIGHT", m, "TOPRIGHT", -1, -y)
+    local RATING_TIP = "Only groups whose leader has at least this Mythic+ rating. Applied on Search Again."
+    rowF:EnableMouse(true)
+    rowF:SetScript("OnEnter", function(self) XF.Tip(self, "Min. Rating", RATING_TIP) end)
+    rowF:SetScript("OnLeave", XF.Untip)
     local cb = CreateFrame("Button", nil, rowF)
     cb:SetSize(CHECK_SZ, CHECK_SZ)
     cb:SetPoint("LEFT", rowF, "LEFT", 8, 0)
+    cb:SetScript("OnEnter", function(self) XF.Tip(self, "Min. Rating", RATING_TIP) end)
+    cb:SetScript("OnLeave", XF.Untip)
     local cbg = cb:CreateTexture(nil, "BACKGROUND")
     cbg:SetAllPoints()
     cbg:SetColorTexture(0.12, 0.12, 0.12, 1)
@@ -2052,8 +2063,8 @@ local function BuildSidePanel(m, raids)
     y = AddRegionItems(side, y)
     y = AddPlaystyleItems(side, y, raids)
     y = AddSection(side, y, "Misc")
-    y = XF.AddFlagItem(side, y, "partyFit", "Party Fit")
-    y = XF.AddFlagItem(side, y, "notDeclined", "Not Declined")
+    y = XF.AddFlagItem(side, y, "partyFit", "Party Fit", "Only groups with open slots for your role, or for your whole party's roles.")
+    y = XF.AddFlagItem(side, y, "notDeclined", "Not Declined", "Hides groups that have declined you this session.")
     if not raids then y = AddRatingRow(side, y) end
     -- One rectangle: both columns the same height, one border around both
     -- (on a frame of the side panel's, so it shows and hides with it).
@@ -2178,7 +2189,7 @@ end
 XF.GROUP_MENU = {
     { title = "Listing" },
     { key = "nameColors",     label = "Colored Group Names",
-      tip = "Group names turn green when the group is new since your last search, and red when you were declined or are locked out of that instance. The leader rating also uses Raider.IO's colors while Raider.IO is loaded." },
+      tip = "Green name when a group is new, Red name when you were declined or instance locked. Uses Raider.IO colors when loaded." },
     { key = "leaderRating",   label = "Leader Rating",
       tip = "Shows the group leader's Mythic+ rating next to the role icons." },
     { key = "missingRoles",   label = "Show Missing Roles",
