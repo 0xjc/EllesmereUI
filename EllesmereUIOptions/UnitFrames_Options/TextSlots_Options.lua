@@ -107,8 +107,6 @@ function ns.UFO_BuildTextSlots(W, parent, y, opts)
         disabled=function() return Full() or Candidate() == nil end,
         disabledTooltip="Every text position is full." }
     cells[#cells + 1] = addCfg
-    -- Mini frames retain Smooth Health Bars beside the last text-list cell.
-    if opts.trailing then cells[#cells + 1] = opts.trailing end
     local function Config(c)
         if not c then return EllesmereUI.BlankRowCfg() end
         return c.cfg or c

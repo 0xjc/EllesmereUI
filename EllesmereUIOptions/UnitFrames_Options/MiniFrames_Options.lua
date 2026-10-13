@@ -481,7 +481,7 @@ local function BuildMiniTextAndSize(W, parent, y, settingsTable, unitKey, enable
         end
     end
 
-    -- Mini frames keep Smooth Health Bars beside the text-slot list below;
+    -- Mini frames pair Smooth Health Bars with Vertical Fill below;
     -- boss frames keep it beside Reverse Fill.
     local smoothBarsWidget = { type="toggle", text="Smooth Health Bars",
           getValue=function() return MVal("smoothBars", false) end,
@@ -554,7 +554,7 @@ local function BuildMiniTextAndSize(W, parent, y, settingsTable, unitKey, enable
           tooltip="Fill the health bar bottom-to-top instead of left-to-right. Reverse Fill flips it to top-to-bottom.",
           getValue=function() return settingsTable.healthVerticalFill end,
           setValue=function(v) settingsTable.healthVerticalFill = v; ReloadAndUpdate() end }),
-        { type="spacer" });  y = y - h
+        unitKey ~= "boss" and smoothBarsWidget or EllesmereUI.BlankRowCfg());  y = y - h
 
     -- Blizzard Style: the stock level number in the boss art's level circle
     -- (the small frames' stock art carries none), with its size and
@@ -1104,7 +1104,7 @@ local function BuildMiniTextAndSize(W, parent, y, settingsTable, unitKey, enable
         unit=unitKey, page=unitKey == "boss" and "Boss Frames" or "Mini Frames",
         db=function() return settingsTable end,
         liveDB=function() return db.profile[unitKey] end,
-        apply=ReloadAndUpdate, trailing=unitKey ~= "boss" and smoothBarsWidget or nil,
+        apply=ReloadAndUpdate,
     })
 
     -- POWER BAR section (mini units with a power bar: boss, and the pet on WoW Forever).
