@@ -28,7 +28,7 @@ end
 -- events/scripts. No release -- throwaways use CreateFrame directly.
 do
     local pool = {}
-    local n = 44 -- keep above every shell this module takes, with spare
+    local n = 47 -- keep above every shell this module takes, with spare
     for i = 1, n do pool[i] = CreateFrame("Frame") end
     ns.TakeShell = function()
         if n > 0 then

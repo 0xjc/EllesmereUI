@@ -1442,6 +1442,19 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                     { val = nil,  label = "Off" },
                     { val = true, label = "Reverse Swipe" },
                 }
+                -- Glow When Visible (per-spell): the icon glows whenever it is shown, so a
+                -- Show When Missing buff or a Hidden Until Usable ability lights up on appearing.
+                local GLOW_VISIBLE_ITEMS = {
+                    { val = nil,  label = "Off" },
+                    { val = true, label = "On" },
+                }
+                local function SetGlowWhenVisible(v)
+                    EnsureSS(); SetOwn("glowWhenVisible", v or nil)
+                    if v then ns._cdmAnyGlowVisible = true end
+                    if ns.RefreshCDMIconAppearance then ns.RefreshCDMIconAppearance(barKey) end
+                end
+                local GLOW_VISIBLE_APPLY = { apply = { keys = { "glowWhenVisible" },
+                                                       write = function(t, v) t.glowWhenVisible = v or false end } }
                 -- Cooldown Swipe (cd/utility spells + presets): a 3-way single-select over
                 -- two independent keys (reverseSwipe, hideCDSwipe). "Off" clears both; getVal/setVal below map the selection to the keys.
                 local CD_SWIPE_ITEMS = {
@@ -2231,6 +2244,15 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                         nil,
                         { apply = { keys = { "buffGlow" },
                                     write = function(t, v) t.buffGlow = v end } })
+
+                    -- Glow When Visible: glows while the icon shows (Show When Missing placeholder
+                    -- or present buff), using the Buff Glow style above (Modern WoW Glow if None).
+                    MakeSubnavRow("Glow when Visible", GLOW_VISIBLE_ITEMS,
+                        function() return ss.glowWhenVisible and true or nil end,
+                        SetGlowWhenVisible,
+                        function() return ss.glowWhenVisible == nil end,
+                        nil,
+                        GLOW_VISIBLE_APPLY)
 
                     local BUFF_GLOW_COLOR_ITEMS = {
                         { val = nil,      label = "Default" },
