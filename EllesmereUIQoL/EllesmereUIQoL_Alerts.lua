@@ -218,7 +218,7 @@ local function RegisterUnlock()
     if not (EUI.RegisterUnlockElements and EUI.MakeUnlockElement) then return end
     EUI:RegisterUnlockElements({
         EUI.MakeUnlockElement({
-            key      = "EUI_Alerts",
+            key      = "EUI_CombatAlert",
             label    = "Alerts",
             group    = "Quality of Life",
             order    = 721,
@@ -358,26 +358,36 @@ do
     end
 
     -- Item IDs only (no per-slot tables); each item is classified once.
-    local function ScanBags()
-        if not (GetInstant and GetUseSpell) then return end
-        for bag = 0, NUM_BAG_SLOTS do
-            for slot = 1, C_Container.GetContainerNumSlots(bag) do
-                local id = C_Container.GetContainerItemID(bag, slot)
-                if id and seen[id] == nil then
-                    local _, _, _, _, _, classID, subID = GetInstant(id)
-                    if classID == POTION_CLASS and subID == POTION_SUBCLASS then
-                        local _, spellID = GetUseSpell(id)
-                        if spellID then spellToItem[spellID] = id; seen[id] = true end
-                    else
-                        seen[id] = false
-                    end
+    local function ScanBag(bag)
+        for slot = 1, C_Container.GetContainerNumSlots(bag) do
+            local id = C_Container.GetContainerItemID(bag, slot)
+            if id and seen[id] == nil then
+                local _, _, _, _, _, classID, subID = GetInstant(id)
+                if classID == POTION_CLASS and subID == POTION_SUBCLASS then
+                    local _, spellID = GetUseSpell(id)
+                    if spellID then spellToItem[spellID] = id; seen[id] = true end
+                else
+                    seen[id] = false
                 end
             end
         end
     end
 
-    local function OnEvent(_, event, _, _, spellID)
+    -- Every bag when turned on; afterwards only the bags BAG_UPDATE flagged.
+    local dirtyBags = {}
+    local function ScanBags(onlyDirty)
+        if not (GetInstant and GetUseSpell) then return end
+        for bag = 0, NUM_BAG_SLOTS do
+            if not onlyDirty or dirtyBags[bag] then
+                dirtyBags[bag] = nil
+                ScanBag(bag)
+            end
+        end
+    end
+
+    local function OnEvent(_, event, ...)
         if event == "UNIT_SPELLCAST_SUCCEEDED" then
+            local _, _, spellID = ...
             if IsSecret(spellID) then return end
             local itemID = spellToItem[spellID]
             if not itemID then return end
@@ -399,8 +409,11 @@ do
                     OnReady()
                 end
             end
+        elseif event == "BAG_UPDATE" then
+            local bag = ...
+            if bag then dirtyBags[bag] = true end
         elseif event == "BAG_UPDATE_DELAYED" then
-            ScanBags()
+            ScanBags(true)
         end
     end
 
@@ -408,6 +421,7 @@ do
         local on = DB("potionAlertEnabled")
         if on and not installed then
             watcher:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+            watcher:RegisterEvent("BAG_UPDATE")
             watcher:RegisterEvent("BAG_UPDATE_DELAYED")
             installed = true
             ScanBags()

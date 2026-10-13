@@ -205,7 +205,7 @@ _G._EUI_BuildAlertsSection = function(parent, yOffset, W, PP)
                     if EllesmereUI._combatAlertPreview then EllesmereUI._combatAlertPreview("leave") end
                   end },
             },
-            footer = { unlockKey = "EUI_Alerts" },
+            footer = { unlockKey = "EUI_CombatAlert" },
             gap = 9, disabled = caOff, disabledTooltip = "Combat Alert",
         })
     end
@@ -216,7 +216,7 @@ _G._EUI_BuildAlertsSection = function(parent, yOffset, W, PP)
             title = "Potion Ready Alert Settings",
             minWidth = 300,
             rows = AlertCogRows("potionAlert", "_potionAlertFrame", "_potionAlertPreview"),
-            footer = { unlockKey = "EUI_Alerts" },
+            footer = { unlockKey = "EUI_CombatAlert" },
             gap = 9,
             disabled = function() return not (EllesmereUIDB and EllesmereUIDB.potionAlertEnabled) end,
             disabledTooltip = "Potion Ready Alert",
@@ -225,7 +225,7 @@ _G._EUI_BuildAlertsSection = function(parent, yOffset, W, PP)
             title = "Unspent Talents Alert Settings",
             minWidth = 300,
             rows = AlertCogRows("talentAlert", "_talentAlertFrame", "_talentAlertPreview"),
-            footer = { unlockKey = "EUI_Alerts" },
+            footer = { unlockKey = "EUI_CombatAlert" },
             gap = 9,
             disabled = function() return not (EllesmereUIDB and EllesmereUIDB.talentAlertEnabled) end,
             disabledTooltip = "Unspent Talents Alert",
