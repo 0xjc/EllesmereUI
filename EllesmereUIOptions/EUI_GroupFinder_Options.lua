@@ -54,9 +54,8 @@ initFrame:SetScript("OnEvent", function(self)
               setValue = function(v)
                   v = v and true or false
                   if v == ns.Enabled() then return end
-                  -- Saved only once the reload is confirmed; until then the
-                  -- toggle shows the current state again.
-                  EUI:RefreshPage()
+                  -- Saved only once the reload is confirmed; Cancel (or a
+                  -- dismiss) puts the toggle back.
                   EUI:ShowConfirmPopup({
                       title       = v and "Enable Group Finder" or "Disable Group Finder",
                       message     = v and "Your UI will reload to turn on the Group Finder."
@@ -65,6 +64,7 @@ initFrame:SetScript("OnEvent", function(self)
                       cancelText  = "Cancel",
                       reload      = true,
                       onConfirm   = function() ns.SetEnabled(v) end,
+                      onCancel    = function() EUI:RefreshPage() end,
                   })
               end },
             pgfNote);  y = y - h
