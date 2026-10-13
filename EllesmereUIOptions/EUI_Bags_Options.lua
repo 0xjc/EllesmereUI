@@ -819,6 +819,7 @@ initFrame:SetScript("OnEvent", function(self)
                 local TOP_BAR_ICONS = {
                     { key = "bagShowBagsIcon", label = "Bags Icon" },
                     { key = "bagShowJunkIcon", label = "Junk Icon" },
+                    { key = "bagShowQuickIcon", label = "Quick Actions Icon" },
                     { key = "bagShowSortIcon", label = "Sort Icon" },
                 }
                 local leftRgn = iconsRow._leftRegion
