@@ -143,6 +143,7 @@ local function BuildVisualIndicators(parent, y, W, onSection, EYE, CustomBorderO
             -- resolver over the page's raw, party-aware reads, so an unset
             -- role shows what it does.
             local blessOrder = { "none", "might", "wisdom", "kings", "salvation", "light" }
+            local blessItems = {}
             local BLESS_ID = { might = 19740, wisdom = 19742, kings = 20217, salvation = 1038, light = 19977 }
             local BLESS_EN = { might = "Might", wisdom = "Wisdom", kings = "Kings", salvation = "Salvation", light = "Light" }
             local blessValues = { none = "None" }
@@ -162,12 +163,105 @@ local function BuildVisualIndicators(parent, y, W, onSection, EYE, CustomBorderO
                 local k = blessOrder[i]
                 local n = full and full[k]
                 blessValues[k] = (n and cut) and n:sub(#cut + 1) or n or BLESS_EN[k]
+                blessItems[#blessItems + 1] = { key = k, label = blessValues[k] }
             end
             local view = setmetatable({}, { __index = function(_, k) return SGet(k) end })
+            -- A priority list per role: the checked blessings in the order
+            -- shown (drag to reorder); the first one the member lacks shows.
+            -- Each open lists the checked ones first, in priority order.
+            -- A blessing list row: picked() = the list it shows, write(list)
+            -- saves a new one, which keeps the order shown.
+            local function ListRow(label, picked, write)
+                local function Save(order, key, on)
+                    local keep = {}
+                    for _, k in ipairs(picked()) do keep[k] = true end
+                    if key then keep[key] = on or nil end
+                    local list = {}
+                    for _, k in ipairs(order) do
+                        if keep[k] then list[#list + 1] = k end
+                    end
+                    write(list)
+                end
+                return { type="reordercheck", label=label, ddWidth=170, grip=true,
+                  hint="Drag to set priority", items=blessItems,
+                  get=function(key)
+                      for _, k in ipairs(picked()) do
+                          if k == key then return true end
+                      end
+                      return false
+                  end,
+                  set=function(key, on, order) Save(order, key, on) end,
+                  setOrder=function(keys) Save(keys) end,
+                  openOrder=picked }
+            end
+            -- Class exceptions: the classes that can fill each role, one list
+            -- each in a popup beside this one; a class's own list replaces
+            -- the role's list for members of that class.
+            local ROLE_CLASSES = {
+                TANK = { "DRUID", "PALADIN", "WARRIOR" },
+                HEALER = { "DRUID", "PALADIN", "PRIEST", "SHAMAN" },
+                DAMAGER = { "DRUID", "HUNTER", "MAGE", "PALADIN", "PRIEST", "ROGUE",
+                    "SHAMAN", "WARLOCK", "WARRIOR" },
+            }
+            local ROLE_TITLE = { TANK = "Tank Exceptions", HEALER = "Healer Exceptions", DAMAGER = "DPS Exceptions" }
             local function BlessRow(label, tip, role)
-                return { type="dropdown", label=label, tooltip=tip, values=blessValues, order=blessOrder,
-                  get=function() return ns.RF_FvBlessingChoice(view, role) end,
-                  set=function(v) SSet(ns.RF_FvBlessingKey[role], v) end }
+                local function Picked() return ns.RF_FvBlessingChoice(view, role) end
+                local exKey = ns.RF_FvBlessingExKey[role]
+                local function Own(class)
+                    local ex = SGet(exKey)
+                    local list = type(ex) == "table" and ex[class]
+                    return type(list) == "table" and list or nil
+                end
+                -- A fresh table on every save: the saved one is also what the
+                -- runtime reads.
+                local function SetOwn(class, list)
+                    local ex = {}
+                    local old = SGet(exKey)
+                    if type(old) == "table" then
+                        for k, v in pairs(old) do ex[k] = v end
+                    end
+                    ex[class] = list
+                    SSet(exKey, next(ex) ~= nil and ex or nil)
+                end
+                local exShow, exAnchor
+                local function OpenExceptions(_, ddBtn)
+                    if not exShow then
+                        local reset = "Use the " .. label:gsub(" Blessing", "") .. " List"
+                        local rows = {}
+                        for _, token in ipairs(ROLE_CLASSES[role]) do
+                            local name = LOCALIZED_CLASS_NAMES_MALE[token] or token
+                            local c = RAID_CLASS_COLORS[token]
+                            local r = ListRow(c and c:WrapTextInColorCode(name) or name,
+                                function() return Own(token) or Picked() end,
+                                function(list) SetOwn(token, list) end)
+                            r.tail = { { key="reset", label=reset } }
+                            r.onTail = function() SetOwn(token, nil) end
+                            r.tailSelected = function() return Own(token) == nil end
+                            rows[#rows + 1] = r
+                        end
+                        local pf = ddBtn:GetParent()
+                        local _, show = EllesmereUI.BuildCogPopup({ title = ROLE_TITLE[role], rows = rows, noOwnerDim = true })
+                        exShow = show
+                        -- Cog popups hang below their anchor: this one sits on
+                        -- the cog popup's top edge, so the list opens beside it.
+                        exAnchor = CreateFrame("Frame", nil, pf)
+                        exAnchor:SetSize(1, 1)
+                        exAnchor:SetScript("OnHide", function()
+                            local f = exShow._popupFrame
+                            if f and f:IsShown() then f:Hide() end
+                        end)
+                    end
+                    exShow(exAnchor)
+                    local f = exShow._popupFrame
+                    exAnchor:ClearAllPoints()
+                    exAnchor:SetPoint("BOTTOM", exAnchor:GetParent(), "TOPRIGHT", 4 + f:GetWidth() / 2, 5)
+                    ddBtn._sidePopup = f
+                end
+                local r = ListRow(label, Picked, function(list) SSet(ns.RF_FvBlessingKey[role], list) end)
+                r.tooltip = tip
+                r.tail = { { key="exceptions", label="Class Exemption" } }
+                r.onTail = OpenExceptions
+                return r
             end
             local rows = {
                 -- One switch per buff (all on by default). The list is the
@@ -192,9 +286,9 @@ local function BuildVisualIndicators(parent, y, W, onSection, EYE, CustomBorderO
                   disabledTooltip="Thorns",
                   get=function() return SVal("missingBuffsThornsTank", false) end,
                   set=function(v) SSet("missingBuffsThornsTank", v and true or false) end },
-                BlessRow("Tank Blessing", "Reminds you while a tank lacks this blessing. Members with no assigned role count any blessing.", "TANK"),
-                BlessRow("Healer Blessing", "Reminds you while a healer lacks this blessing.", "HEALER"),
-                BlessRow("DPS Blessing", "Reminds you while a damage dealer lacks this blessing.", "DAMAGER"),
+                BlessRow("Tank Blessing", "Reminds you of the first checked blessing a tank lacks, top to bottom. Members with no assigned role count any blessing.", "TANK"),
+                BlessRow("Healer Blessing", "Reminds you of the first checked blessing a healer lacks, top to bottom.", "HEALER"),
+                BlessRow("DPS Blessing", "Reminds you of the first checked blessing a damage dealer lacks, top to bottom.", "DAMAGER"),
                 { type="slider", label="Offset X", min=-50, max=50, step=1,
                   get=function() return SVal("missingBuffsOffsetX", 0) end,
                   set=function(v) SSet("missingBuffsOffsetX", v) end },
