@@ -330,6 +330,9 @@ local defaults = {
         frameHeight      = 60,
         cellSpacing      = -1,
         groupSpacing     = -1,
+        raidCompactMode  = false,
+        raidGridMode     = false,
+        partyCompactMode = false,
         groupGrowth      = "RIGHT",  -- "DOWN", "UP", "RIGHT", "LEFT", "DOWNRIGHT" (grid: ns._RF_GRID_ROWS per column)
         unitGrowth       = "DOWN",   -- any direction; same-axis as groupGrowth = one continuous line
         sortMode         = "ROLE",   -- "INDEX" (by group) or "ROLE" (by assigned role)
@@ -1181,7 +1184,8 @@ function ns.RF_PaintThreat(d, s, unit)
     local tf = d.threatFrame
     if not tf then return end
     local bs = s.threatBorderSize or 0
-    local rc = s.threatCustomBorder == true and ns.RF_CustomBorderOn(s)
+    local compact = ns.RF_ButtonCompact(d, s)
+    local rc = not compact and s.threatCustomBorder == true and ns.RF_CustomBorderOn(s)
     local status
     if bs > 0 or rc then
         status = UnitThreatSituation(unit)
