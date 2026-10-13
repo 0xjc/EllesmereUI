@@ -1026,8 +1026,14 @@ local function BuildVisualIndicators(parent, y, W, onSection, EYE, CustomBorderO
                   disabled=CustomBorderOff,
                   disabledTooltip=CustomBorderOffTip,
                   requireState="disabled",
-                  get=function() return SVal("dispelCustomBorder", false) end,
-                  set=function(v) SSet("dispelCustomBorder", v) end },
+                  get=function()
+                      return not ns.RF_CompactOn(optState._partyCtx and ns._partyProxy or db.profile, optState._partyCtx)
+                          and SVal("dispelCustomBorder", false)
+                  end,
+                  set=function(v)
+                      if v and CustomBorderOff() then return end
+                      SSet("dispelCustomBorder", v)
+                  end },
             },
         })
     end

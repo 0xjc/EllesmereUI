@@ -341,7 +341,7 @@ local function BuildMainPage(pageName, parent, yOffset)
     local growthValues, KeepGrowthPerpendicular, PP, ReloadAndUpdate = env.growthValues, env.KeepGrowthPerpendicular, env.PP, env.ReloadAndUpdate
     local groupGrowthValues, groupGrowthOrder, ReadGroupGrowth = env.groupGrowthValues, env.groupGrowthOrder, env.ReadGroupGrowth
     local SGet, SGetPx, SSet, SVal = env.SGet, env.SGetPx, env.SSet, env.SVal
-    local SWrite = env.SWrite
+    local SWrite, optState = env.SWrite, env.optState
     local W = EllesmereUI.Widgets
     local _, h
     local row
@@ -729,13 +729,40 @@ local function BuildMainPage(pageName, parent, yOffset)
         return cfg
     end
 
-    _, h = W:DualRow(parent, y,
+    local spacingRow
+    spacingRow, h = W:DualRow(parent, y,
         { type="slider", pixel=true, text="Frame Spacing", min=-5, max=15, step=1,
           getValue=function() return SVal("cellSpacing", 2) end,
           setValue=function(v) SSet("cellSpacing", v) end },
         { type="slider", pixel=true, text="Group Spacing", min=-5, max=15, step=1,
           getValue=function() return SVal("groupSpacing", 8) end,
           setValue=function(v) SSet("groupSpacing", v) end });  y = y - h
+    if not EllesmereUI._prebuilding then
+        EllesmereUI.BuildInlineCog(spacingRow._leftRegion, { title = "Frame Spacing", rows = {
+            { type="toggle", label="Compact Mode",
+              tooltip="Shares borders within each group at +1 physical pixel spacing. Your saved Frame Spacing is preserved.",
+              get=function() return db.profile.raidCompactMode == true end,
+              set=function(v)
+                  if v and not ns.RF_CompactEligible(db.profile) then return end
+                  db.profile.raidCompactMode = v
+                  ReloadAndUpdate(); EllesmereUI:RefreshPage()
+              end,
+              disabled=function() return not db.profile.raidCompactMode and not ns.RF_CompactEligible(db.profile) end,
+              disabledTooltip="Requires Pixels or Pixels Textured with a visible border in the EllesmereUI frame style." },
+        } })
+        EllesmereUI.BuildInlineCog(spacingRow._rightRegion, { title = "Group Spacing", rows = {
+            { type="toggle", label="Grid Mode",
+              tooltip="Joins compact groups at +1 physical pixel spacing and fills incomplete groups with empty backgrounds. Your saved Group Spacing is preserved.",
+              get=function() return db.profile.raidGridMode == true end,
+              set=function(v)
+                  if v and not ns.RF_CompactOn(db.profile, false) then return end
+                  db.profile.raidGridMode = v
+                  ReloadAndUpdate(); EllesmereUI:RefreshPage()
+              end,
+              disabled=function() return not db.profile.raidGridMode and not ns.RF_CompactOn(db.profile, false) end,
+              disabledTooltip="Requires Compact Mode and Pixels or Pixels Textured." },
+        } })
+    end
 
     -- Border Style (+ options cog) | Border Size (+ Border swatch). Mirrors Unit Frames: ONE border recolored by state (hover/target), full SharedMedia support. Hover/Target swatches live on the row below.
     local bdrTexValues, bdrTexOrder = EllesmereUI.GetBorderTextureDropdown()
@@ -945,13 +972,13 @@ local function BuildMainPage(pageName, parent, yOffset)
         local targetBlocked = EllesmereUI.BlizzStyle
             and EllesmereUI.BlizzStyle.BlockInline("raidframes", targetSwatch) or false
 
-        -- Highlight thickness. Shown only while the frame is borderless (Border Size 0):
-        -- with a border drawn the highlight recolors THAT and these sizes do nothing.
+        -- Highlight thickness when borderless or compact; a drawn individual border is recolored.
         -- Exact pixel sizes (hover/targetBorderSizePx beside the steps) in the frame's
         -- border style; under a stock style the hover border draws solid, so the
         -- slider reads and writes against Solid there. The floor stays at 1.
         local function HlTex()
-            if ns.RF_Stock and ns.RF_Stock() then return "solid" end
+            if (ns.RF_Stock and ns.RF_Stock())
+                or ns.RF_CompactOn(optState._partyCtx and ns._partyProxy or db.profile, optState._partyCtx) then return "solid" end
             return SGet("borderTexture") or "solid"
         end
         local hoverPx = EllesmereUI.BorderPxSliderCfg({
@@ -987,7 +1014,9 @@ local function BuildMainPage(pageName, parent, yOffset)
             -- Under a stock style the EllesmereUI border is stood down, so
             -- the hover border draws on its own at this size.
             local bs = (ns.RF_Stock and ns.RF_Stock()) and 0 or SVal("borderSize", 1)
-            if bs > 0 then hlCog:Hide() else hlCog:Show() end
+            if bs > 0 and not ns.RF_CompactOn(optState._partyCtx and ns._partyProxy or db.profile, optState._partyCtx) then
+                hlCog:Hide()
+            else hlCog:Show() end
         end
         EllesmereUI.RegisterWidgetRefresh(UpdateHLCogVis)
         UpdateHLCogVis()
@@ -1567,8 +1596,18 @@ local function BuildPartyPage(pageName, parent, yOffset)
     local pSortRow
     pSortRow, h = W:DualRow(parent, y,
         { type="toggle", text="Horizontal Frames",
+          disabled=function()
+              local p = db.profile
+              return p.partyCompactMode and p.partyShowTargets
+                  and ns.PT_PositionAlongStack(p.partyTargetPosition, not p.partyHorizontal)
+          end,
+          disabledTooltip="Move Party Targets beside the frame stack or turn off Compact Mode.", requireState="disabled",
           getValue=function() return db.profile.partyHorizontal end,
-          setValue=function(v) db.profile.partyHorizontal = v; PartyReloadAndUpdate(); EllesmereUI:RefreshPage() end },
+          setValue=function(v)
+              local p = db.profile
+              if p.partyCompactMode and p.partyShowTargets and ns.PT_PositionAlongStack(p.partyTargetPosition, v) then return end
+              p.partyHorizontal = v; PartyReloadAndUpdate(); EllesmereUI:RefreshPage()
+          end },
         { type="dropdown", text="Sort By",
           values={ __placeholder = "Group" }, order={ "__placeholder" },
           getValue=function() return "__placeholder" end,
@@ -1660,6 +1699,21 @@ local function BuildPartyPage(pageName, parent, yOffset)
           setValue=function(v) PSSet(ns.RF_PartyKit() and "partyKitSpacing" or "partyCellSpacing", v) end }));  y = y - h
     -- Auto Resize Icons sits in the LEFT slot here; same conversion pattern as the Frames tab.
     if not EllesmereUI._prebuilding then
+        EllesmereUI.BuildInlineCog(partyAutoResizeRow._rightRegion, { title = "Frame Spacing", rows = {
+            { type="toggle", label="Compact Mode",
+              tooltip="Shares party borders at +1 physical pixel spacing. Your saved Frame Spacing is preserved. Targets along the frame stack must be disabled or moved beside the frames.",
+              get=function() return db.profile.partyCompactMode == true end,
+              set=function(v)
+                  if v and (not ns.RF_CompactEligible(ns._partyProxy)
+                      or ns.PT_AlongStack(db.profile, db.profile.partyShowTargets == true)) then return end
+                  PSSet("partyCompactMode", v); EllesmereUI:RefreshPage()
+              end,
+              disabled=function()
+                  return not db.profile.partyCompactMode and (not ns.RF_CompactEligible(ns._partyProxy)
+                      or ns.PT_AlongStack(db.profile, db.profile.partyShowTargets == true))
+              end,
+              disabledTooltip="Requires Pixels or Pixels Textured and no party targets along the frame stack." },
+        } })
         local leftRgn = partyAutoResizeRow._leftRegion
         if leftRgn._control then leftRgn._control:Hide() end
         local arKeyMap = { indicators = "partyAutoResizeIndicators", trackedBuffs = "partyAutoResizeTrackedBuffs" }
