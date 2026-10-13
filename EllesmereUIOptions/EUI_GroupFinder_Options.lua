@@ -38,9 +38,17 @@ initFrame:SetScript("OnEvent", function(self)
         parent._showRowDivider = true
 
         -- Everything here is off until enabled; turning it on or off reloads.
+        -- Premade Groups Filter works the same panel: while it is loaded the
+        -- module cannot be turned on (it stands down if it already is).
+        local function PGFLoaded() return C_AddOns.IsAddOnLoaded("PremadeGroupsFilter") end
+        local pgfNote = PGFLoaded()
+            and { type = "label", text = "|cffff6060Premade Groups Filter is loaded. Disable it to use the Group Finder.|r" }
+            or EUI.BlankRowCfg()
         _, h = W:SectionHeader(parent, "GROUP FINDER", y); y = y - h
         _, h = W:DualRow(parent, y,
             { type = "toggle", text = "Enable Group Finder",
+              disabled = function() return PGFLoaded() and not ns.Enabled() end,
+              disabledTooltip = "Premade Groups Filter", requireState = "disabled",
               tooltip = "Premade Groups search filters, group list and applicant tools, the M+ applications bar and the Dungeon Finder / Raid Finder layout in the Dungeons & Raids window. Requires a reload.",
               getValue = function() return ns.Enabled() end,
               setValue = function(v)
@@ -59,7 +67,7 @@ initFrame:SetScript("OnEvent", function(self)
                       onConfirm   = function() ns.SetEnabled(v) end,
                   })
               end },
-            EUI.BlankRowCfg());  y = y - h
+            pgfNote);  y = y - h
 
         -- Result rows and tooltip (refreshed on the next list update).
         local function Toggle(key, text, tooltip, default, disabled, disabledTooltip)
