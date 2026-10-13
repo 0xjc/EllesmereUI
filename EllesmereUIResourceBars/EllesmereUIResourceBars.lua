@@ -728,8 +728,10 @@ end
 -- Resolve the active thresholdSpecs entry for the current spec, or nil. Priority:
 -- 1) spec match + active talent gate  2) spec match, no gate  3) All Specs
 -- (specID 0) + active gate  4) All Specs, no gate. Entries with an inactive
--- talent gate are skipped. Druid "form specific" power-bar mode (advanced only):
--- entries keyed by the form's power type via entry.formKey. Wrapped in a do-block
+-- talent gate are skipped. A druid Power Bar still saved in the retired
+-- "form specific" mode (thresholdFormMode, entries keyed by the form's power
+-- type via entry.formKey) takes the form's entry in that form and the scan
+-- above in any form without one. Wrapped in a do-block
 -- so cache state/helpers free main-chunk local slots (200-local cap); only
 -- ResolveThresholdSpecEntry stays a main-chunk local, others reached via
 -- ns.InvalidateThresholdCaches / _G._ERB_ResolveSpecIDCached.
@@ -832,18 +834,19 @@ ResolveThresholdSpecEntry = function(sp)
     local entries = sp.thresholdSpecs
     if not entries or #entries == 0 then return nil end
 
-    -- Form-specific mode (druid power bar): pick the entry matching the current
-    -- form. Moonkin (31/35) is checked directly by form ID since it shares
+    -- Form-specific mode (druid power bar): the entry matching the current
+    -- form wins. Moonkin (31/35) is checked directly by form ID since it shares
     -- Mana with Caster on GetPrimaryPowerType() and would otherwise collide
-    -- with the "mana" bucket.
+    -- with the "mana" bucket. A form with no entry falls through to the spec
+    -- scan (form entries carry no specIDs, so the scan never picks one).
     if sp.thresholdFormMode then
         local form = GetShapeshiftFormID()
         local key = (form == 31 or form == 35) and "moonkin" or FORM_THRESHOLD_KEY[GetPrimaryPowerType()]
-        if not key then return nil end
-        for _, entry in ipairs(entries) do
-            if entry.formKey == key then return entry end
+        if key then
+            for _, entry in ipairs(entries) do
+                if entry.formKey == key then return entry end
+            end
         end
-        return nil
     end
 
     local specID = ResolveSpecIDCached()
@@ -1428,6 +1431,7 @@ local DEFAULTS = {
             timerSide     = "right",  -- "left" | "right" (duration position; "None" = showTimer false)
             timerR = 1, timerG = 1, timerB = 1, timerA = 1,  -- Duration Text colour (white = untinted)
             showSpellText = true,
+            showSpellRank = false,
             spellTextSize = 11,
             spellTextX    = 0,
             spellTextY    = 0,
@@ -1595,9 +1599,6 @@ local secondaryPipTicks = {}  -- tick mark texture cache for pip-type secondary 
 local castBarFrame
 local gcdBarFrame
 local totemBarFrame
-
--- EllesmereUI.ERB_PlayerStackBars() is defined further down, after IsPowerBarHidden /
--- IsSpecDisabled (its domain predicates), near the end of the resolver helpers.
 local _totemBorderOverlays = setmetatable({}, { __mode = "k" })
 local _totemHooked = false
 local _totemOrigParent
@@ -2373,30 +2374,23 @@ local function IsPowerBarHidden()
     return false
 end
 
--- Bounding box (physical px) of the player's STABLE resource stack -- the bars that are
--- part of the active layout for the CURRENT SPEC/FORM, judged by domain predicate, NOT
--- by live alpha. Per-bar visibility modes (combat/target/group) only alpha-fade a bar
--- that stays laid out at full size, so reading the structural "would be shown" state
--- keeps the footprint stable and stops the auras jumping on combat/target edges. Power:
--- not IsPowerBarHidden(). Class resource: the UpdateVisibility structural test minus the
--- transient ShouldShowBar. Shapeshift mana (Forever): ns._FDMStackBottomFrame hands back
--- its host only while shown for the form. Returns left, right, top, bottom and the TOP
--- bar's height (for the aura dock test), or nil when nothing is active. Read-only; the
--- unit frame aura code (EUI_UnitFrames_AuraContainers.lua) compares this to the player
--- frame in its OWN context, so no cross-addon geometry (and no secret value) is involved.
--- Per-bar rects of the active player resource stack, in PHYSICAL pixels, one
--- { l, r, t, b } entry per SHOWN bar. The aura-container dock test walks the chain
--- of bars actually docked under the player frame (see ResourceStackBelowFrame)
--- rather than one merged box, so a bar placed elsewhere -- e.g. a bottom-center
--- class resource while the power bar is docked -- is not reserved. Plain numbers,
--- NOT a secret value, because Resource Bars owns these frames. Returns nil when
--- nothing is shown. Stable across combat/target/group alpha (predicate-gated).
+-- Per-bar rects of the player's resource stack for the current spec and form, in
+-- physical pixels: one { l, r, t, b } entry per bar in the layout, or nil when there
+-- is none. A bar counts by its layout predicate (Power: not IsPowerBarHidden; Class
+-- Resource: the structural part of UpdateVisibility, without the transient
+-- ShouldShowBar; the Forever shapeshift mana bar: ns._FDMStackBottomFrame, its host
+-- only while shown for the form) and by not being hidden, never by its alpha: the
+-- combat/target/group visibility modes only fade a bar that keeps its place, so the
+-- footprint holds still through them. The unused class resource container is hidden
+-- and keeps its old rect, so it never counts. The unit frame auras walk the chain of
+-- these bars docked under the player frame (EUI_UnitFrames_AuraContainers.lua,
+-- ResourceStackBelowFrame), so a bar placed elsewhere is never reserved.
 function EllesmereUI.ERB_PlayerStackBars()
     local p = ERB and ERB.db and ERB.db.profile
     if not p then return nil end
     local bars, n = nil, 0
     local function add(f)
-        if not (f and f.GetBottom and f.GetTop) then return end
+        if not (f and f:IsShown()) then return end
         local fb, ft = f:GetBottom(), f:GetTop()
         if not (fb and ft) then return end
         local s = f:GetEffectiveScale() or 1
@@ -4529,13 +4523,10 @@ local function BuildBars()
     -- restyled after every Power Bar build; nil on every other client/class.
     if ns.FDM_Apply then ns.FDM_Apply(primaryBar, pp, g) end
 
-    -- The stack layout just settled (this is the convergence point for build / spec /
-    -- form / expand / shift / options). Tell the unit frame to re-anchor its player
-    -- auras to the new footprint. This only ARMS a one-shot throttle on the UnitFrames
-    -- side -- no geometry is read here -- so nothing runs in Resource Bars' tainted
-    -- context; the throttle's OnUpdate reads the player frame next frame in UnitFrames'
-    -- OWN (owner) context, where it is not a secret value. No-op when the player does
-    -- not bottom-anchor auras (gated on the UnitFrames side).
+    -- The stack layout just settled (build, spec, form, expand, shift and options all
+    -- end here): ask Unit Frames to re-anchor its bottom-anchored player auras to the
+    -- new footprint. This only arms its one-shot re-anchor for the next frame (no
+    -- geometry is read here), and does nothing unless the player bottom-anchors auras.
     if EllesmereUI.UF_RequestResourceReanchor then EllesmereUI.UF_RequestResourceReanchor() end
 end
 
@@ -10283,6 +10274,17 @@ function ns.ActivateCastBar()
     EllesmereUI.SetElementVisibility(castBarFrame, true)
 end
 
+-- Spell name plus its rank subtext ("Name (Rank 2)") when Show Spell Rank is on.
+-- Spell ranks exist only on WoW Forever (retail's subtext is "Racial" and the
+-- like), so the option and this read are Forever-only.
+function ns.CastDisplayName(cb, name, spellID)
+    if cb.showSpellRank and spellID and EllesmereUI.IS_FOREVER then
+        local rank = C_Spell.GetSpellSubtext(spellID)
+        if rank and rank ~= "" then return name .. " (" .. rank .. ")" end
+    end
+    return name
+end
+
 OnCastStart = function()
     if not castBarFrame then return end
     local cb = ERB.db.profile.castBar
@@ -10300,7 +10302,7 @@ OnCastStart = function()
     castBarFrame._spellName = name
     castBarFrame._spellID = spellID
     castBarFrame._totalDurSuffix = " / " .. format("%.1f", (endTimeMS - startTimeMS) / 1000)
-    castBarFrame._nameText:SetText(name)
+    castBarFrame._nameText:SetText(ns.CastDisplayName(cb, name, spellID))
     ns.ERB_SetBlizzCastFill("cast")
     if not ns.ApplyCastTimer("cast") then
         local castDur = endTimeMS - startTimeMS
@@ -10359,7 +10361,7 @@ OnChannelStart = function()
     castBarFrame._spellName = name
     castBarFrame._spellID = spellID
     castBarFrame._totalDurSuffix = " / " .. format("%.1f", (endTimeMS - startTimeMS) / 1000)
-    castBarFrame._nameText:SetText(name)
+    castBarFrame._nameText:SetText(ns.CastDisplayName(cb, name, spellID))
     ns.ERB_SetBlizzCastFill("channel")
     if not ns.ApplyCastTimer("channel") then
         local chanDur = endTimeMS - startTimeMS
@@ -10645,7 +10647,7 @@ OnEmpowerStart = function()
     castBarFrame._spellID = spellID
     castBarFrame._totalDurSuffix = " / " .. format("%.1f", (endTimeMS - startTimeMS) / 1000)
     HideLatencyOverlay()
-    castBarFrame._nameText:SetText(name)
+    castBarFrame._nameText:SetText(ns.CastDisplayName(cb, name, spellID))
     ns.ERB_SetBlizzCastFill("cast")
     if not ns.ApplyCastTimer("empower") then
         local empDur = endTimeMS - startTimeMS
@@ -11256,7 +11258,9 @@ UpdateGCDBar = function(_dt)
     end
 
     -- Animate from the start/duration captured at the cast event (set in the
-    -- OnEvent handler). No per-frame cooldown polling.
+    -- OnEvent handler). The cooldown is polled only while a secret-value window
+    -- is open (the isActive check below, at the GCD ticker's 20 Hz): that
+    -- window's length is only a ceiling, and the poll ends it with the GCD.
     local startT, dur = gcdBarFrame._gcdStart, gcdBarFrame._gcdDur
     local active = startT and dur
     local elapsed

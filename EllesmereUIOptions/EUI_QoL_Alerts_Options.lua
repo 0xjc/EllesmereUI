@@ -83,7 +83,7 @@ _G._EUI_BuildAlertsSection = function(parent, yOffset, W, PP)
     local row2
     row2, h = W:DualRow(parent, y,
         { type="toggle", text="Unspent Talents Alert",
-          tooltip="Shows on-screen text while you have unspent talent points. It stays up until you spend them or middle-click it away, and returns when new points appear. Use the cog to set the text, size and color; use Unlock Mode to reposition the alerts.",
+          tooltip="Shows on-screen text while you have unspent talent points. It stays up until you spend them or open your talents, and returns after a level-up. Use the cog to set the text, size and color; use Unlock Mode to reposition the alerts.",
           getValue=function()
               return EllesmereUIDB and EllesmereUIDB.talentAlertEnabled or false
           end,
@@ -236,33 +236,9 @@ _G._EUI_BuildAlertsSection = function(parent, yOffset, W, PP)
             return not (EllesmereUIDB and EllesmereUIDB.announceGroupDeaths)
         end
 
-        -- Sound dropdown values (mirrors Chat's "Whisper Sound"): shallow-copy
-        -- the runtime name table and attach _menuOpts so each row gets a
-        -- click-to-preview speaker icon.
-        local gdSoundPaths = EllesmereUI._groupDeathSoundPaths or {}
-        local gdSoundNames = EllesmereUI._groupDeathSoundNames or { none = "None" }
-        local gdSoundOrder = EllesmereUI._groupDeathSoundOrder or { "none" }
-        local gdSoundValues = {}
-        for k, v in pairs(gdSoundNames) do gdSoundValues[k] = v end
-        gdSoundValues._menuOpts = {
-            itemHeight = 26,
-            maxTextWidthPct = 0.8,
-            searchable = true,
-            iconAtlas = function(key)
-                if key == "none" then return nil end
-                if not gdSoundPaths[key] then return nil end
-                return EllesmereUI.SOUND_ICON_ATLAS
-            end,
-            iconPressedAtlas = function(key)
-                if key == "none" then return nil end
-                return EllesmereUI.SOUND_ICON_PRESSED_ATLAS
-            end,
-            iconOnClick = function(key)
-                local path = gdSoundPaths[key]
-                if path then PlaySoundFile(path, "Master") end
-            end,
-            iconTooltip = function() return "Preview Sound" end,
-        }
+        -- Sound dropdown: the group death sounds with a click-to-preview
+        -- speaker icon on each row.
+        local gdSoundValues, gdSoundOrder = EllesmereUI.BuildSoundDropdownValues()
 
         EllesmereUI.BuildInlineCog(row2._rightRegion, {
             title = "Group Death Alert Settings",

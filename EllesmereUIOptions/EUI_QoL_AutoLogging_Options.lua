@@ -351,12 +351,6 @@ local function BuildAutoLoggingPage(pageName, parent, yOffset)
         y = y - lustH
     end
 
-    ---------------------------------------------------------------------------
-    --  JUNK ITEMS (the cheapest junk stacks in your bags; the builder's file
-    --  loads first and shares this file's module gate)
-    ---------------------------------------------------------------------------
-    y = y - _G._EUI_BuildJunkListSection(parent, y, W)
-
     return math.abs(y - yOffset)
 end
 

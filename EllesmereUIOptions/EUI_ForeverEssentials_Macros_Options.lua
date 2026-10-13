@@ -281,8 +281,14 @@ local function AttachSuggest(box, onPick, list)
     end
     box:HookScript("OnTextChanged", function(_, user) if user then Show() end end)
     box:HookScript("OnEditFocusGained", Show)
+    -- A plain mouse down drops the box's focus before a row of the list gets
+    -- that press (a modified click keeps the focus), so the list closes a frame
+    -- later: a pick on it still lands, a press anywhere else still closes it.
+    local function CloseIfUnfocused()
+        if suggestOwner == box and not box:HasFocus() then HideSuggest() end
+    end
     box:HookScript("OnEditFocusLost", function()
-        if EllesmereUI.ContextMenuOwner() == box then HideSuggest() end
+        if EllesmereUI.ContextMenuOwner() == box then C_Timer.After(0, CloseIfUnfocused) end
     end)
     box:HookScript("OnTabPressed", function()
         if EllesmereUI.ContextMenuOwner() == box and suggestShown[1] then Pick(suggestShown[1].text) end
@@ -333,6 +339,7 @@ local function OpenPicker(onPick)
         for i = 1, COLS * ROWS do
             local b = NewCell(popup)
             b:SetSize(SIZE - 4, SIZE - 4)
+            b:SetFrameLevel(popup:GetFrameLevel() + 2)   -- above the scroll frame below
             b:SetPoint("TOPLEFT", 20 + ((i - 1) % COLS) * SIZE, -70 - floor((i - 1) / COLS) * SIZE)
             -- Left clicks only, and no drag: a drag would swallow the click.
             b:RegisterForClicks("LeftButtonUp")
@@ -341,6 +348,26 @@ local function OpenPicker(onPick)
             b:SetScript("OnClick", PickerClick)
             p.buttons[i] = b
         end
+        -- The shared scroll bar on an empty scroll frame under the grid: its
+        -- child is as tall as every icon row, and the scroll value picks the
+        -- first row the grid shows (the grid itself stays put).
+        local sf = CreateFrame("ScrollFrame", nil, popup)
+        sf:SetFrameLevel(popup:GetFrameLevel() + 1)
+        sf:SetPoint("TOPLEFT", popup, "TOPLEFT", 20, -70)
+        sf:SetSize(COLS * SIZE + 12, ROWS * SIZE)
+        p.child = CreateFrame("Frame", nil, sf)
+        p.child:SetSize(COLS * SIZE, ROWS * SIZE)
+        sf:SetScrollChild(p.child)
+        p.updateThumb, p.scrollTo = EllesmereUI.AttachSmoothScrollbar(sf, {
+            step = SIZE, child = p.child,
+            onScroll = function(v)
+                local off = floor(v / SIZE + 0.5) * COLS
+                if off ~= p.offset then
+                    p.offset = off
+                    p.Update()
+                end
+            end,
+        })
         function p.Update()
             for i, b in ipairs(p.buttons) do
                 local icon = PickerIcon(p.offset + i)
@@ -355,13 +382,6 @@ local function OpenPicker(onPick)
                 end
             end
         end
-        popup:EnableMouseWheel(true)
-        popup:SetScript("OnMouseWheel", function(_, d)
-            local total = 1 + #p.spells + #baseIcons
-            local maxOff = max(0, math.ceil(total / COLS) * COLS - COLS * ROWS)
-            p.offset = Clamp(p.offset - d * COLS, 0, maxOff)
-            p.Update()
-        end)
         p.cancel = EllesmereUI.MakePopupButton(popup, "BOTTOM", popup, "BOTTOM", 0, 18,
             1, 1, 1, 0.75, 1, 1, 1, 1, 1, 1, 1, 0.25, 1, 1, 1, 0.5)
         p.cancel._lbl:SetText(EllesmereUI.L("Cancel"))
@@ -383,13 +403,19 @@ local function OpenPicker(onPick)
     picker.cancel._resetAnim()
     picker.Update()
     picker.dimmer:Show()
+    -- The bar's range: one row per COLS icons, back at the top on every open.
+    picker.child:SetHeight(math.ceil((1 + #spells + #baseIcons) / COLS) * SIZE)
+    picker.scrollTo(0)
+    picker.updateThumb()
 end
 
 -------------------------------------------------------------------------------
 --  Dropdown value tables
 -------------------------------------------------------------------------------
 -- Line types in one flyout per group (the { group } rows of B.KINDS). The
--- groups' lists are built once; onSelect(kind) belongs to each menu.
+-- groups' lists are built once; onSelect(kind) belongs to each menu. A hidden
+-- kind is in its group's values but not its order: a line read as one shows
+-- its label, and the menu never offers it.
 local kindGroups
 local function KindValues(onSelect)
     if not kindGroups then
@@ -399,9 +425,9 @@ local function KindValues(onSelect)
             if k.group then
                 g = { key = "group" .. (#kindGroups + 1), text = k.group, values = {}, order = {} }
                 kindGroups[#kindGroups + 1] = g
-            elseif not k.hidden then
+            else
                 g.values[k.key] = k.label
-                g.order[#g.order + 1] = k.key
+                if not k.hidden then g.order[#g.order + 1] = k.key end
             end
         end
     end
@@ -491,7 +517,7 @@ local function LineHeader(body, y, ctx, i, l)
     local row, h = W:DualRow(body, y, { type = "label", text = LineCode(i, l) })
     local rgn = row._leftRegion
     local label = rgn._label
-    EllesmereUI.ApplyModuleFont(label, nil, 13, "essentials")
+    label:SetFont(EllesmereUI.EXPRESSWAY, 13, "")
     ctx.headers[#ctx.headers + 1] = { fs = label, i = i, l = l }
     if open then
         local ac = Accent()
@@ -678,8 +704,8 @@ local function LineRows(body, y, ctx, l)
                 function() return v.stance ~= "" and v.stance or "any" end,
                 function(s) v.stance = s == "any" and "" or s; Changed() end,
                 "Numbers follow your stance bar; 0 = no stance or normal form."))
-            -- Checking a condition with a value adds its value row: the page
-            -- rebuilds once the menu closes.
+            -- Checking a condition with a value adds its value row, and Not
+            -- renames it ("not ..."): the page rebuilds once the menu closes.
             local addedRows
             local cond = Dropdown("Conditions", { _p = "" }, { "_p" }, function() return "_p" end, function() end,
                 "The line only runs while the left ones are true and the right (Not) ones are false.")
@@ -703,6 +729,7 @@ local function LineRows(body, y, ctx, l)
                                 v.params[#v.params + 1] = prm
                                 addedRows = true
                             end
+                            if (prm.no == true) ~= (neg == true) then addedRows = true end
                             prm.no = neg == true
                         elseif prm and (prm.no == true) == (neg == true) then
                             table.remove(v.params, j)
@@ -1217,6 +1244,7 @@ end
 local function WatchEvents(parent)
     if not evf then
         evf = CreateFrame("Frame")
+        evf._searchIgnore = true  -- the inline search never hides it
         evf:SetScript("OnEvent", OnEvent)
         evf:SetScript("OnShow", function(self)
             shown = true

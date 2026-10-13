@@ -2448,9 +2448,9 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
 
             if not selectedSpecKey then return end
 
-            -- Rebuild spell items for the (possibly changed) spec
-            if popup and popup._rebuildSpells then
-                popup._rebuildSpells()
+            -- Relabel the Filters and Extra Spells dropdowns (OnHide wiped the picks)
+            if popup and popup._refreshDDs then
+                popup._refreshDDs()
             end
 
             if not popup then
@@ -2550,11 +2550,14 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                 local exDDY = py
                 py = py - ROW_H - DD_GAP
 
-                -- Rebuilt per open (filter list / Selected grouping go stale); pending picks survive rebuilds, wiped on hide.
+                -- Built once: both menus re-read their items on every open, so a
+                -- reopen only relabels the two dropdowns (OnHide wiped the picks).
                 local function BuildV2DDs()
-                    if popup._fltDD then popup._fltDD:Hide(); popup._fltDD:SetParent(nil) end
-                    if popup._exDD then popup._exDD:Hide(); popup._exDD:SetParent(nil) end
-                    popup._fltDD, popup._exDD = nil, nil
+                    if popup._fltDD then
+                        popup._fltRefresh()
+                        popup._exRefresh()
+                        return
+                    end
 
                     -- Dynamic items: fresh per menu open (adds/renames live).
                     -- Two-lane rows: Show picks (popup._v2Filters) and Hide picks
@@ -2572,7 +2575,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                         end
                         return fItems
                     end
-                    local fltDD = EllesmereUI.BuildVisOptsCBDropdown(
+                    local fltDD, fltRefresh = EllesmereUI.BuildVisOptsCBDropdown(
                         popup, ddW, popup:GetFrameLevel() + 2,
                         FItems,
                         function(k, neg)
@@ -2591,7 +2594,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                         nil, 12)
                     fltDD:SetSize(ddW, ROW_H)
                     fltDD:SetPoint("TOPLEFT", popup, "TOPLEFT", POPUP_PAD, fltDDY)
-                    popup._fltDD = fltDD
+                    popup._fltDD, popup._fltRefresh = fltDD, fltRefresh
 
                     local function SpellEntry(id)
                         -- Curated name first (distinguishes variants the client
@@ -2664,7 +2667,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                         for i = 1, #rest do eItems[#eItems + 1] = rest[i] end
                         return eItems
                     end
-                    local exDD = EllesmereUI.BuildVisOptsCBDropdown(
+                    local exDD, exRefresh = EllesmereUI.BuildVisOptsCBDropdown(
                         popup, ddW, popup:GetFrameLevel() + 2,
                         EItems,
                         function(k) return popup._v2Extras[k] and true or false end,
@@ -2672,10 +2675,10 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
                         nil, 10, true)
                     exDD:SetSize(ddW, ROW_H)
                     exDD:SetPoint("TOPLEFT", popup, "TOPLEFT", POPUP_PAD, exDDY)
-                    popup._exDD = exDD
+                    popup._exDD, popup._exRefresh = exDD, exRefresh
                 end
                 BuildV2DDs()
-                popup._rebuildSpells = BuildV2DDs
+                popup._refreshDDs = BuildV2DDs
 
                 -- Create button
                 local cBtn = CreateFrame("Button", nil, popup)

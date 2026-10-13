@@ -23,8 +23,9 @@ local function BuildVisualIndicators(parent, y, W, onSection, EYE, CustomBorderO
     local indicatorHeader
     indicatorHeader, h = W:SectionHeader(parent, "INDICATORS", y); y = y - h
 
-    -- Eyeball: toggle indicator visibility on preview (raid + party)
-    do
+    -- Eyeball: toggle indicator visibility on preview (raid + party); none in
+    -- the search pre-build (it indexes nothing, and the header is a stand-in there)
+    if not EllesmereUI._prebuilding then
         local EYE_VISIBLE   = EllesmereUI.EYE_VISIBLE_ICON
         local EYE_INVISIBLE = EllesmereUI.EYE_INVISIBLE_ICON
 
@@ -230,8 +231,8 @@ local function BuildVisualIndicators(parent, y, W, onSection, EYE, CustomBorderO
                         local rows = {}
                         for _, token in ipairs(ROLE_CLASSES[role]) do
                             local name = LOCALIZED_CLASS_NAMES_MALE[token] or token
-                            local c = RAID_CLASS_COLORS[token]
-                            local r = ListRow(c and c:WrapTextInColorCode(name) or name,
+                            local c = EllesmereUI.GetClassColor(token)
+                            local r = ListRow(EllesmereUI.HexColor(c.r, c.g, c.b) .. name .. "|r",
                                 function() return Own(token) or Picked() end,
                                 function(list) SetOwn(token, list) end)
                             r.tail = { { key="reset", label=reset } }
@@ -259,7 +260,7 @@ local function BuildVisualIndicators(parent, y, W, onSection, EYE, CustomBorderO
                 end
                 local r = ListRow(label, Picked, function(list) SSet(ns.RF_FvBlessingKey[role], list) end)
                 r.tooltip = tip
-                r.tail = { { key="exceptions", label="Class Exemption" } }
+                r.tail = { { key="exceptions", label="Class Exceptions" } }
                 r.onTail = OpenExceptions
                 return r
             end
@@ -286,9 +287,9 @@ local function BuildVisualIndicators(parent, y, W, onSection, EYE, CustomBorderO
                   disabledTooltip="Thorns",
                   get=function() return SVal("missingBuffsThornsTank", false) end,
                   set=function(v) SSet("missingBuffsThornsTank", v and true or false) end },
-                BlessRow("Tank Blessing", "Reminds you of the first checked blessing a tank lacks, top to bottom. Members with no assigned role count any blessing.", "TANK"),
+                BlessRow("Tank Blessing", "Reminds you of the first checked blessing a tank lacks, top to bottom.", "TANK"),
                 BlessRow("Healer Blessing", "Reminds you of the first checked blessing a healer lacks, top to bottom.", "HEALER"),
-                BlessRow("DPS Blessing", "Reminds you of the first checked blessing a damage dealer lacks, top to bottom.", "DAMAGER"),
+                BlessRow("DPS Blessing", "Reminds you of the first checked blessing a damage dealer lacks, top to bottom. Members with no assigned role use this list too.", "DAMAGER"),
                 { type="slider", label="Offset X", min=-50, max=50, step=1,
                   get=function() return SVal("missingBuffsOffsetX", 0) end,
                   set=function(v) SSet("missingBuffsOffsetX", v) end },
@@ -875,8 +876,9 @@ local function BuildVisualIndicators(parent, y, W, onSection, EYE, CustomBorderO
     if onSection then onSection("indicators", _secY, y) end; _secY = y
     dispelHeader, h = W:SectionHeader(parent, "DISPELS", y); y = y - h
 
-    -- Eyeball: toggle dispel visibility on preview (raid + party)
-    do
+    -- Eyeball: toggle dispel visibility on preview (raid + party); none in
+    -- the search pre-build (it indexes nothing, and the header is a stand-in there)
+    if not EllesmereUI._prebuilding then
         local EYE_VISIBLE   = EllesmereUI.EYE_VISIBLE_ICON
         local EYE_INVISIBLE = EllesmereUI.EYE_INVISIBLE_ICON
 
@@ -1026,8 +1028,14 @@ local function BuildVisualIndicators(parent, y, W, onSection, EYE, CustomBorderO
                   disabled=CustomBorderOff,
                   disabledTooltip=CustomBorderOffTip,
                   requireState="disabled",
-                  get=function() return SVal("dispelCustomBorder", false) end,
-                  set=function(v) SSet("dispelCustomBorder", v) end },
+                  get=function()
+                      return not ns.RF_CompactOnTab(optState._partyCtx)
+                          and SVal("dispelCustomBorder", false)
+                  end,
+                  set=function(v)
+                      if v and CustomBorderOff() then return end
+                      SSet("dispelCustomBorder", v)
+                  end },
             },
         })
     end
@@ -1656,7 +1664,17 @@ local function BuildVisualIndicators(parent, y, W, onSection, EYE, CustomBorderO
 
         local placement = PFPlacement()
         if placement == "free" then
-            row, h = W:DualRow(parent, y, { type="label", text="Free Move Position" }, BLANK()); y = y - h
+            row, h = W:DualRow(parent, y, { type="label", text="Free Move Position" },
+                { type="dropdown", text="Growth Direction",
+                  tooltip="Match Frames grows the pets the same way as the frames.",
+                  values = { frames="Match Frames", DOWN="Down", UP="Up", RIGHT="Right", LEFT="Left" },
+                  order  = { "frames", "DOWN", "UP", "RIGHT", "LEFT" },
+                  getValue = function() return PFTab().freeGrowth or "frames" end,
+                  setValue = function(v)
+                      PFTab().freeGrowth = (v ~= "frames") and v or nil
+                      ns.PF_Apply()
+                      ns.PF_PlaceMover(tabKey)
+                  end }); y = y - h
             ns.RF_OptMoveFramesButton(row, row._leftRegion, {
                 isShown = function() return ns.PF_IsMoverShown(tabKey) end,
                 setShown = function(show) ns.PF_SetMoverShown(show, tabKey) end,

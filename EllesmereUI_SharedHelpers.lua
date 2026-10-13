@@ -172,10 +172,13 @@ end
 --  Post-hooks installed at the frame's first registration watch writes from
 --  anyone but us. A SetPoint or SetAllPoints marks the frame and a
 --  ClearAllPoints does not (Blizzard re-anchors through SetPoint when it
---  shows the frame again). One hidden frame of ours places every marked
---  frame from its OnUpdate right after Blizzard's layout (the same frame
---  when Blizzard re-anchors from an event, one frame later when it does so
---  from a timer or another OnUpdate). The anchor such a write leaves is
+--  shows the frame again). A frame in a managed column (its layoutParent)
+--  is placed as the column's Layout returns, whatever ran it, so Blizzard's
+--  anchor is never drawn: one post-hook per column, which costs one check
+--  while nothing is marked. One hidden frame of ours places every frame
+--  still marked from its OnUpdate (the same frame when Blizzard re-anchors
+--  from an event, one frame later when it does so from a timer, an
+--  animation or another OnUpdate). The anchor such a write leaves is
 --  Blizzard's new one, unless the frame then has more than one point: those
 --  anchors stay, except that a point a SetPoint adds beside ours (no clear
 --  first) puts ours back on alone. A placement or hand-back that cannot run
@@ -299,8 +302,13 @@ do
         PlacerApply(frame, st, st.bp, st.br, st.brp, st.bx, st.by)
     end
 
-    local function PlacerFlush(self)
-        self:Hide()
+    -- Shown exactly while a state is marked, so its OnUpdate runs only in a
+    -- frame where one was.
+    local placerDriver = CreateFrame("Frame")
+    placerDriver:Hide()
+
+    local function PlacerFlush()
+        placerDriver:Hide()
         for frame, st in pairs(placerStates) do
             if st.dirty then
                 st.dirty = false
@@ -308,11 +316,15 @@ do
             end
         end
     end
-
-    -- Hidden while idle: its OnUpdate runs only in a frame where one was marked.
-    local placerDriver = CreateFrame("Frame")
-    placerDriver:Hide()
     placerDriver:SetScript("OnUpdate", PlacerFlush)
+
+    -- Post-hook of a managed column's Layout. Whatever runs the layout (an
+    -- event, a timer, an animation that ends, the column's own OnUpdate), the
+    -- frames it re-anchored are placed as it returns, before anything draws.
+    local function PlacerSettle()
+        if placerDriver:IsShown() then PlacerFlush() end
+    end
+    local placerColumns = {}
 
     local function PlacerMark(st)
         st.dirty = true
@@ -351,6 +363,12 @@ do
         hooksecurefunc(frame, "ClearAllPoints", function()
             if not st.applying then st.placed, st.over = false, false end
         end)
+        local column = frame.layoutParent
+        if type(column) == "table" and type(column.Layout) == "function"
+           and not placerColumns[column] then
+            placerColumns[column] = true
+            hooksecurefunc(column, "Layout", PlacerSettle)
+        end
         return st
     end
 

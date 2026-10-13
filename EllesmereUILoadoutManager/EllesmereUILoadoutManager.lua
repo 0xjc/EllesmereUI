@@ -10,16 +10,27 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 -------------------------------------------------------------------------------
 
 local ADDON_NAME, ns = ...
-if not (EllesmereUI and EllesmereUI._ModuleNS and EllesmereUI.HexColor and EllesmereUI.COLOR_CODES and EllesmereUI.NewCombatQueue) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring
+if not (EllesmereUI and EllesmereUI._ModuleNS and EllesmereUI.HexColor and EllesmereUI.COLOR_CODES and EllesmereUI.NewCombatQueue and EllesmereUI.ApplyModuleFont and EllesmereUI.HELD_BACK_ADDONS) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring
+-- Held back from this release (EllesmereUI.HELD_BACK_ADDONS): nothing runs,
+-- and with no namespace published the options page never registers.
+if EllesmereUI.HELD_BACK_ADDONS[ADDON_NAME] then return end
 EllesmereUI._ModuleNS[ADDON_NAME] = ns  -- LOD options file reads this module ns via the registry
 
--- Built together on first need (automation switched on, or a button press):
--- the event frame and the combat queue that holds a swap due after combat.
-local IGS, CombatQueue
+-- Both frames are born here, so their work bills this addon, and both stay
+-- inert while the module is off: the event frame registers events only for
+-- live automation, a pending swap or the open settings page, and the combat
+-- queue only while it holds a swap.
+ns.CombatQueue = EllesmereUI.NewCombatQueue(CreateFrame("Frame"))
+local CombatQueue = ns.CombatQueue
+local eventFrame = CreateFrame("Frame")
+local LM = EllesmereUI.Lite.NewAddon(ADDON_NAME)
 
 -- Chat colours follow the live EllesmereUI accent.
 local function AC() return EllesmereUI.HexColor(EllesmereUI.GetAccentColor()) end
 local ERR = EllesmereUI.COLOR_CODES.BAD
+local function Hi(text) return AC() .. tostring(text) .. "|r" end
+local function Bad(text) return ERR .. tostring(text) .. "|r" end
+local NO_ENTRIES = {} -- read-only stand-in for a missing table in a loop
 
 local DEFAULTS = {
     -- Off until the user opts in; switching it on is what registers events.
@@ -42,16 +53,17 @@ local DEFAULTS = {
     -- Spec-aware layer: [specID] = the same six mapping tables as above.
     -- The root tables above act as the "All Specs" fallback layer.
     specDefaults = {},
-    specSwap = true, -- re-run swaps when your specialization changes inside an instance
-    specWarning = true,  -- our themed "DONT MOVE" panel
+    specSwap = true,     -- re-run swaps when your specialization changes inside an instance
+    specWarning = true,  -- the DON'T MOVE panel while a talent loadout loads
 }
 
+-- Labels are the settings page's English row text; its widgets translate them.
 local INSTANCE_TYPE_ORDER = {
-    { key = "world", label = "Open World", hint = "Applied when you LEAVE an instance and return to the open world. Leave empty to keep whatever you are wearing." },
+    { key = "world", label = "Open World" },
     { key = "party", label = "Dungeon / Party" },
-    { key = "mplus", label = "Mythic+ Keystone", hint = "Mythic and Keystone dungeons. Beats the Dungeon / Party default." },
-    { key = "timewalking", label = "Timewalking", hint = "Timewalking dungeons and raids. Beats their normal type default." },
-    { key = "delve", label = "Delve", hint = "Delves. Beats the Scenario default." },
+    { key = "mplus", label = "Mythic+ Keystone" },
+    { key = "timewalking", label = "Timewalking" },
+    { key = "delve", label = "Delve" },
     { key = "raid", label = "Raid" },
     { key = "scenario", label = "Scenario" },
     { key = "arena", label = "Arena" },
@@ -62,61 +74,99 @@ local INSTANCE_TYPE_ORDER = {
 -- never by its internal key.
 local TYPE_LABELS = {}
 for _, info in ipairs(INSTANCE_TYPE_ORDER) do TYPE_LABELS[info.key] = info.label end
-local function TypeLabel(key) return TYPE_LABELS[key] or tostring(key) end
+local function TypeLabel(key) return EllesmereUI.L(TYPE_LABELS[key] or tostring(key)) end
 
-local SetEventsEnabled -- forward: defined with the event gating at the end
-local UpdateRequestEvents -- forward: same
+local UpdateRequestEvents -- forward: the event gating near the end
+local TryEquipSet, TryLoadTalentLoadout, VerifyEquippedSet, CheckTalentCompletion
+local RetryRequest, FinishRequest, CancelRequests, RequestIsCurrent
+local HideSpecChangeWarning
 
--- One request per channel. Deferred event work retains request identity so an
--- older operation cannot apply after another selection, reset, or context.
+-- One request per channel. Deferred event work keeps the request identity,
+-- so an older operation cannot apply after another selection, reset, or
+-- context.
 local requests = {}
 local REQUEST_KINDS = { "gear", "talent" }
 local lastTalentRequest
 local MAX_SWAP_RETRIES = 10
 local autoCheckSerial = 0
-local lastAutoInstanceKey = nil
-local GetCurrentSpecID, BuildAutoInstanceKey
-local TryEquipSet, TryLoadTalentLoadout, VerifyEquippedSet
-local RetryRequest, FinishRequest, CancelRequests, RequestIsCurrent
-local HideSpecChangeWarning
+-- The place (an instance on a difficulty, or the open world) and the spec
+-- automation last saw: a new place is an entry, a new spec a spec change.
+local lastPlaceKey, lastSpecID
+-- True while the settings page is on screen (ns.SetPageShown).
+local pageShown = false
+-- Bumped by every assignment write and scope change (the page's list memo).
+local assignVersion = 0
 
 -- Selection + edit scope shared with the options page (the page reads and
 -- writes these through the ns API rather than owning any state itself).
 local UI = {
     selectedSet = nil,
     selectedTalent = nil,
-    assignScope = nil, -- nil = All Specs layer; otherwise a specID
+    assignScope = nil, -- nil = All Specs layer, where every session starts; otherwise a specID
 }
 
--- Coalesce a burst of events into one refresh of the settings page, and only
--- while that page is open.
-local refreshScheduled = false
-local function RequestRefresh()
-    if EllesmereUI:GetActiveModule() ~= ADDON_NAME then return end
-    if refreshScheduled then return end
-    refreshScheduled = true
-    C_Timer.After(0, function()
-        refreshScheduled = false
-        -- A value refresh repaints the page's live widgets; a forced rebuild
-        -- would orphan any menu open on it.
-        if ns.OnStateChanged then ns.OnStateChanged() end
-    end)
-end
-
--- EllesmereUI's taint-safe print (it mutes itself in raid combat and keys).
-local function Print(msg) EllesmereUI.Print(AC() .. "Loadout Manager|r", msg) end
-
--- Fill defaults once per session; dbReady resets when saved variables load.
-local dbReady = false
+-- The saved table. Reading never creates it, so a character that never
+-- changes a setting keeps none: reads fall back to DEFAULTS, which nothing
+-- writes. Defaults are merged once into each table the global holds.
+local mergedDB
 local function EnsureDB()
-    if dbReady and EllesmereUILoadoutManagerDB then return end
-    if type(EllesmereUILoadoutManagerDB) ~= "table" then EllesmereUILoadoutManagerDB = {} end
-    EllesmereUI.Lite.DeepMergeDefaults(EllesmereUILoadoutManagerDB, DEFAULTS)
-    dbReady = true
+    local db = EllesmereUILoadoutManagerDB
+    if db ~= nil and db == mergedDB then return db end
+    if type(db) ~= "table" then
+        db = {}
+        EllesmereUILoadoutManagerDB = db
+    end
+    EllesmereUI.Lite.DeepMergeDefaults(db, DEFAULTS)
+    mergedDB = db
+    return db
 end
+
+local function ReadDB()
+    if type(EllesmereUILoadoutManagerDB) ~= "table" then return DEFAULTS end
+    return EnsureDB()
+end
+
+-- Automation can act: the module is on with at least one Auto-Swap channel.
+local function AutomationLive()
+    local db = ReadDB()
+    return (db.enabled and (db.gearEnabled or db.talentEnabled)) and true or false
+end
+
+-- EllesmereUI's taint-safe print (it drops lines in raid and PvP combat and
+-- during a running key).
+local function Print(msg) EllesmereUI.Print(AC() .. EllesmereUI.L("Loadout Manager") .. ":|r", msg) end
 
 local function Announce(msg)
-    if EllesmereUILoadoutManagerDB and EllesmereUILoadoutManagerDB.announce then Print(msg) end
+    if ReadDB().announce then Print(msg) end
+end
+
+-- A button press always gets its line; automatic swaps follow Announce.
+local function Notify(request, msg)
+    if request.manual then Print(msg) else Announce(msg) end
+end
+
+-- Coalesce a burst of events into one refresh of the settings page, and only
+-- while that page is the active one.
+local refreshScheduled = false
+local function FlushRefresh()
+    refreshScheduled = false
+    -- A value refresh repaints the page's live widgets; a forced rebuild
+    -- would orphan any menu open on it.
+    if ns.OnStateChanged then ns.OnStateChanged() end
+end
+local function RequestRefresh()
+    if refreshScheduled or EllesmereUI:GetActiveModule() ~= ADDON_NAME then return end
+    refreshScheduled = true
+    C_Timer.After(0, FlushRefresh)
+end
+
+-- The spec info call reports 0, not nil, for a slot with no specialization.
+local function GetCurrentSpecID()
+    local index = C_SpecializationInfo.GetSpecialization()
+    if not index then return nil end
+    local specID = C_SpecializationInfo.GetSpecializationInfo(index)
+    if specID and specID ~= 0 then return specID end
+    return nil
 end
 
 
@@ -132,14 +182,15 @@ local SPEC_TABLE_KEYS = {
     "talentInstanceSets", "talentDifficultySets", "talentTypeDefaults",
 }
 
+-- A spec's bucket; create makes it (and the saved table) when missing.
 local function GetSpecTables(specID, create)
     if not specID then return nil end
-    EnsureDB()
-    local bucket = EllesmereUILoadoutManagerDB.specDefaults[specID]
+    local db = create and EnsureDB() or ReadDB()
+    local bucket = db.specDefaults[specID]
     if not bucket then
         if not create then return nil end
         bucket = {}
-        EllesmereUILoadoutManagerDB.specDefaults[specID] = bucket
+        db.specDefaults[specID] = bucket
     end
     for i = 1, #SPEC_TABLE_KEYS do
         local k = SPEC_TABLE_KEYS[i]
@@ -169,18 +220,8 @@ local function SpecName(specID)
     for i = 1, #list do
         if list[i].id == specID then return list[i].name end
     end
-    return "Spec " .. tostring(specID)
+    return EllesmereUI.Lf("Spec %s", tostring(specID))
 end
-
-local function ScopeSuffix(scopeID)
-    if scopeID then return " for " .. AC() .. tostring(SpecName(scopeID)) .. "|r" end
-    return " for " .. AC() .. "all specs|r"
-end
-
--- Copy every assignment table from another scope into the active one.
--- Talent entries belong to a spec: copying into a spec scope keeps only that
--- spec's loadouts; the All Specs destination keeps everything.
-local CopyScopeFrom -- assigned below (needs Print upvalue resolved late)
 
 -- Read-only stand-in when a spec has no bucket yet.
 local EMPTY_SCOPE = {
@@ -192,25 +233,31 @@ local function GetWriteTables()
     if UI.assignScope then
         return GetSpecTables(UI.assignScope, true), UI.assignScope
     end
-    EnsureDB()
-    return EllesmereUILoadoutManagerDB, nil
+    return EnsureDB(), nil
 end
 
-CopyScopeFrom = function(sourceID)
-    EnsureDB()
+local function GetReadTables()
+    if UI.assignScope then
+        return GetSpecTables(UI.assignScope, false) or EMPTY_SCOPE, UI.assignScope
+    end
+    return ReadDB(), nil
+end
+
+-- Copy every assignment table from another scope into the one being edited.
+-- Talent entries belong to a spec: copying into a spec scope keeps only that
+-- spec's loadouts; the All Specs destination keeps everything.
+local function CopyScopeFrom(sourceID)
     local dst, dstID = GetWriteTables()
-    local srcT = sourceID and (GetSpecTables(sourceID, false) or EMPTY_SCOPE) or EllesmereUILoadoutManagerDB
+    local srcT = sourceID and (GetSpecTables(sourceID, false) or EMPTY_SCOPE) or EnsureDB()
     local skippedTalents = 0
     for _, k in ipairs(SPEC_TABLE_KEYS) do
         local copy = {}
-        for key, v in pairs(srcT[k] or {}) do
+        for key, v in pairs(srcT[k] or NO_ENTRIES) do
             if type(v) == "table" then
                 if dstID and v.specID and tonumber(v.specID) ~= tonumber(dstID) then
                     skippedTalents = skippedTalents + 1
                 else
-                    local t2 = {}
-                    for a, b in pairs(v) do t2[a] = b end
-                    copy[key] = t2
+                    copy[key] = CopyTable(v)
                 end
             else
                 copy[key] = v
@@ -218,47 +265,32 @@ CopyScopeFrom = function(sourceID)
         end
         dst[k] = copy
     end
-    local srcName = sourceID and tostring(SpecName(sourceID)) or "All Specs"
-    local msg = "Copied assignments from " .. AC() .. srcName .. "|r" .. ScopeSuffix(dstID) .. "."
+    assignVersion = assignVersion + 1
+    -- The page shows the copy; only what it left out gets a line.
     if skippedTalents > 0 then
-        msg = msg .. " Skipped " .. skippedTalents .. " talent entr" .. (skippedTalents == 1 and "y" or "ies") ..
-            " belonging to other specs."
+        Print(EllesmereUI.Lf("Skipped %d talent loadout(s) that belong to other specializations.", skippedTalents))
     end
-    Print(msg)
     RequestRefresh()
 end
 
-local function GetReadTables()
-    if UI.assignScope then
-        return GetSpecTables(UI.assignScope, false) or EMPTY_SCOPE, UI.assignScope
-    end
-    EnsureDB()
-    return EllesmereUILoadoutManagerDB, nil
-end
-
-local specChangeWarningFrame = nil
+-- The DON'T MOVE panel shown while a talent loadout loads.
+local warningFrame = nil
 HideSpecChangeWarning = function()
-    if specChangeWarningFrame then specChangeWarningFrame:Hide() end
+    if warningFrame then warningFrame:Hide() end
 end
 
-local function ShowSpecChangeWarning(message)
-    EnsureDB()
-    if not EllesmereUILoadoutManagerDB.specWarning then return end
-    message = message or "DONT MOVE - CHANGING TALENTS"
-
-    if not specChangeWarningFrame then
-        local f = CreateFrame("Frame", nil, UIParent)
+local function ShowSpecChangeWarning()
+    if not ReadDB().specWarning then return end
+    local f = warningFrame
+    if not f then
+        f = CreateFrame("Frame", nil, UIParent)
         f:SetFrameStrata("FULLSCREEN_DIALOG")
         f:SetSize(560, 92)
         f:SetPoint("CENTER", UIParent, "CENTER", 0, 170)
-        f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalHuge")
+        f.title = f:CreateFontString(nil, "OVERLAY")
         f.title:SetPoint("CENTER", f, "CENTER", 0, 13)
-        f.title:SetTextColor(1, 0.12, 0.08, 1)
-
-        f.subtitle = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        f.subtitle = f:CreateFontString(nil, "OVERLAY")
         f.subtitle:SetPoint("TOP", f.title, "BOTTOM", 0, -6)
-        f.subtitle:SetTextColor(1, 1, 0.25, 1)
-        f.subtitle:SetText("Wait until the loadout finishes.")
 
         -- Styled with the parent's primitives so it follows the active theme.
         local bgc = EllesmereUI.DARK_BG
@@ -266,11 +298,6 @@ local function ShowSpecChangeWarning(message)
         bg:SetAllPoints()
         bg:SetColorTexture(bgc.r, bgc.g, bgc.b, 0.92)
         EllesmereUI.MakeBorder(f, 1, 1, 1, 0.08)
-        local font = EllesmereUI.GetFontPath()
-        if font then
-            f.title:SetFont(font, 26, "OUTLINE")
-            f.subtitle:SetFont(font, 16, "")
-        end
         local line = f:CreateTexture(nil, "OVERLAY")
         line:SetPoint("BOTTOMLEFT", 1, 1)
         line:SetPoint("BOTTOMRIGHT", -1, 1)
@@ -278,16 +305,19 @@ local function ShowSpecChangeWarning(message)
         f.accentLine = line
 
         f:Hide()
-        specChangeWarningFrame = f
+        warningFrame = f
     end
 
-    -- Re-tint per show: the accent may have changed since the panel was built.
+    -- Font and accent are read per show, so a change since the last one lands.
+    EllesmereUI.ApplyModuleFont(f.title, nil, 26)
+    EllesmereUI.ApplyModuleFont(f.subtitle, nil, 16)
     local ar, ag, ab = EllesmereUI.GetAccentColor()
-    specChangeWarningFrame.accentLine:SetColorTexture(ar, ag, ab, 0.9)
-    specChangeWarningFrame.subtitle:SetTextColor(ar, ag, ab, 1)
-
-    specChangeWarningFrame.title:SetText(message)
-    specChangeWarningFrame:Show()
+    f.accentLine:SetColorTexture(ar, ag, ab, 0.9)
+    f.title:SetTextColor(1, 0.12, 0.08, 1)
+    f.subtitle:SetTextColor(ar, ag, ab, 1)
+    f.title:SetText(EllesmereUI.L("DON'T MOVE - CHANGING TALENTS"))
+    f.subtitle:SetText(EllesmereUI.L("Wait until the loadout finishes."))
+    f:Show()
 end
 
 -- A started key reports Mythic Keystone (8), but entries are at Mythic (23)
@@ -306,13 +336,13 @@ end
 local function DifficultyName(difficultyID)
     local name = difficultyID and GetDifficultyInfo(difficultyID)
     if name and name ~= "" then return name end
-    return "Difficulty " .. tostring(difficultyID)
+    return EllesmereUI.Lf("Difficulty %s", tostring(difficultyID))
 end
 
 local function InstanceName(instanceID)
     local name = instanceID and GetRealZoneText(instanceID)
     if name and name ~= "" then return name end
-    return "Instance " .. tostring(instanceID)
+    return EllesmereUI.Lf("Instance %s", tostring(instanceID))
 end
 
 -- An instance assignment key ("2657" or "2657:15") as the page shows it:
@@ -320,24 +350,47 @@ end
 local function AssignmentLabel(key)
     local instanceID, difficultyID = tostring(key):match("^(%d+):(%d+)$")
     if instanceID then
-        return InstanceName(tonumber(instanceID)) .. " (" .. DifficultyName(tonumber(difficultyID)) .. " Only)"
+        return EllesmereUI.Lf("%1$s (%2$s Only)", InstanceName(tonumber(instanceID)), DifficultyName(tonumber(difficultyID)))
     end
-    return InstanceName(tonumber(key)) .. " (Any Difficulty)"
+    return EllesmereUI.Lf("%s (Any Difficulty)", InstanceName(tonumber(key)))
 end
 
--- One reused table: callers consume the result at once and never keep it.
-local contextCache = {}
-local function GetCurrentInstanceContext()
+-- Fills ctx with where you are. GetCurrentInstanceContext reuses one table:
+-- callers consume the result at once and never keep it.
+local function ReadContext(ctx)
     local inInstance, instanceType = IsInInstance()
     local name, instanceType2, difficultyID, difficultyName, _, _, _, instanceID = GetInstanceInfo()
-    local ctx = contextCache
     ctx.inInstance = inInstance
     ctx.instanceType = instanceType2 or instanceType or "none"
-    ctx.name = name or "Unknown"
+    ctx.name = name or EllesmereUI.L("Unknown")
     ctx.difficultyID = difficultyID
     ctx.difficultyName = difficultyName
     ctx.instanceID = instanceID
     return ctx
+end
+
+local contextCache = {}
+local function GetCurrentInstanceContext() return ReadContext(contextCache) end
+
+-- "world", or instance type, ID and assignment difficulty (nil inside an
+-- instance that reports no ID).
+local function BuildPlaceKey(ctx)
+    if not ctx.inInstance then return "world" end
+    if not ctx.instanceID then return nil end
+    return tostring(ctx.instanceType or "none") .. ":" .. tostring(ctx.instanceID) .. ":" ..
+        tostring(AssignmentDifficulty(ctx.difficultyID) or 0)
+end
+
+-- A request's context: the place plus the spec. Either changing ends it.
+local function BuildAutoInstanceKey(ctx)
+    local place = BuildPlaceKey(ctx)
+    if not place then return nil end
+    return place .. ":" .. tostring(GetCurrentSpecID() or 0)
+end
+
+local function NoteCurrentPlace()
+    lastPlaceKey = BuildPlaceKey(GetCurrentInstanceContext())
+    lastSpecID = GetCurrentSpecID()
 end
 
 -- -----------------------------------------------------------------------------
@@ -364,7 +417,7 @@ local function GetEquipmentSetIDByName(setName)
     if not setName or setName == "" then return nil end
 
     local wanted = tostring(setName):lower()
-    for _, setID in ipairs(GetEquipmentSetIDs() or {}) do
+    for _, setID in ipairs(GetEquipmentSetIDs() or NO_ENTRIES) do
         local name = C_EquipmentSet.GetEquipmentSetInfo(setID)
         if name and name:lower() == wanted then
             return setID, name
@@ -373,12 +426,12 @@ local function GetEquipmentSetIDByName(setName)
     return nil
 end
 
+-- setID, name, isEquipped, numItems, numEquipped, numLost for a set name.
 local function GetSetInfoByName(setName)
     local setID, canonicalName = GetEquipmentSetIDByName(setName)
     if not setID then return nil end
     local _, _, _, isEquipped, numItems, numEquipped, _, numLost = C_EquipmentSet.GetEquipmentSetInfo(setID)
-    return { setID = setID, name = canonicalName, isEquipped = isEquipped,
-             numItems = numItems, numEquipped = numEquipped, numLost = numLost }
+    return setID, canonicalName, isEquipped, numItems, numEquipped, numLost
 end
 
 local function ByNameAsc(a, b) return a.name < b.name end
@@ -387,7 +440,7 @@ local function ByNameLowerAsc(a, b) return tostring(a.name):lower() < tostring(b
 -- Read live: only the settings page lists sets, and only while it is open.
 local function ListEquipmentSetsDetailed()
     local sets = {}
-    for _, setID in ipairs(GetEquipmentSetIDs() or {}) do
+    for _, setID in ipairs(GetEquipmentSetIDs() or NO_ENTRIES) do
         local name, icon = C_EquipmentSet.GetEquipmentSetInfo(setID)
         if name then table.insert(sets, { name = name, icon = icon }) end
     end
@@ -399,29 +452,33 @@ local function SetExists(setName)
     return GetEquipmentSetIDByName(setName) ~= nil
 end
 
-local GetAssignedSetForContext -- defined after GetCurrentSpecID (spec-aware)
-
-local function InActiveKeystone()
-    local ok, active = pcall(C_ChallengeMode.IsChallengeModeActive)
-    return ok and active == true
-end
-
 local function RestrictionActive(kind)
     local restriction = Enum.AddOnRestrictionType[kind]
     return restriction ~= nil and C_RestrictedActions.IsAddOnRestrictionActive(restriction)
 end
 
--- SwitchToLoadoutByName is flagged as restricted, so the talent load waits out
--- the add-on restrictions below. Map is not one of them: Midnight raids,
--- dungeons and arenas keep it up, and the load works there (tested on the
--- live client). Combat is last because it only lags the end of lockdown.
+-- A running key locks gear and talents for the whole run: nothing at all
+-- happens then, and nothing is said.
+local function KeystoneRunning()
+    local ok, active = pcall(C_ChallengeMode.IsChallengeModeActive)
+    return (ok and active == true) or RestrictionActive("ChallengeMode")
+end
+
+-- SwitchToLoadoutByName is restricted, so a talent load waits out these
+-- add-on restrictions. Map is not one of them: raids, dungeons and arenas
+-- keep it up and the load works there. Combat is last because it only lags
+-- the end of lockdown.
 local SWAP_RESTRICTIONS = { "PvPMatch", "Encounter", "Combat" }
-local RESTRICTION_TEXT = { Encounter = "during this encounter",
-    PvPMatch = "while a PvP match clears", Combat = "right after combat" }
+
+local function RestrictionText(kind)
+    if kind == "Encounter" then return EllesmereUI.L("Talent changes are blocked during this encounter.") end
+    if kind == "PvPMatch" then return EllesmereUI.L("Talent changes are blocked while a PvP match clears.") end
+    return EllesmereUI.L("Talent changes are blocked right after combat.")
+end
 
 -- An arena or battleground keeps the PvP match restriction up in the
--- preparation area too, where the load works (tested on the live client);
--- once the match is under way talents stay locked until it is over.
+-- preparation area too, where the load works; once the match is under way
+-- talents stay locked until it is over.
 local function PvPMatchBlock()
     local instanceType = GetCurrentInstanceContext().instanceType
     if instanceType ~= "arena" and instanceType ~= "pvp" then return "PvPMatch" end
@@ -431,7 +488,7 @@ end
 -- The first reason a talent load cannot start now. Cheap checks only: the
 -- talent tree is never read while one of them holds.
 local function TalentLoadBlocker()
-    if InActiveKeystone() or RestrictionActive("ChallengeMode") then return "keystone" end
+    if KeystoneRunning() then return "keystone" end
     if InCombatLockdown() then return "combat" end
     if UnitIsDeadOrGhost("player") then return "dead" end
     for i = 1, #SWAP_RESTRICTIONS do
@@ -450,11 +507,12 @@ end
 -- to a context; explicit button actions also work with automation switched off.
 RequestIsCurrent = function(request)
     if not request or requests[request.kind] ~= request then return false end
-    local db = EllesmereUILoadoutManagerDB
-    if not db or (not request.manual and (not db.enabled
-        or not db[request.kind == "gear" and "gearEnabled" or "talentEnabled"])) then
-        FinishRequest(request)
-        return false
+    if not request.manual then
+        local db = ReadDB()
+        if not (db.enabled and db[request.kind == "gear" and "gearEnabled" or "talentEnabled"]) then
+            FinishRequest(request)
+            return false
+        end
     end
     if request.contextKey ~= BuildAutoInstanceKey(GetCurrentInstanceContext()) then
         FinishRequest(request)
@@ -490,20 +548,60 @@ local function BeginRequest(kind, value, reason, manual)
     return request
 end
 
+-- One flush per frame serves every queued request, after the handlers of a
+-- burst of native events have unwound. No elapsed duration decides whether
+-- data is ready or a swap succeeded.
+local flushQueued = false
+local function FlushRequests()
+    flushQueued = false
+    for i = 1, #REQUEST_KINDS do
+        local request = requests[REQUEST_KINDS[i]]
+        if request and request.resumeQueued then
+            local verify = request.resumeCheckOnly
+            request.resumeQueued, request.resumeCheckOnly = nil, nil
+            if RequestIsCurrent(request) then RetryRequest(request, verify) end
+        end
+    end
+end
+
+-- checkOnly re-checks a swap in progress without spending a try.
 local function ScheduleRequest(request, checkOnly)
-    if not RequestIsCurrent(request) then return end
+    if not request then return end
     if request.resumeQueued then
         if not checkOnly then request.resumeCheckOnly = false end
         return
     end
+    if not RequestIsCurrent(request) then return end
     request.resumeQueued, request.resumeCheckOnly = true, checkOnly
-    -- Batch one burst of native events after their handlers have unwound.
-    -- No elapsed duration decides whether data is ready or a swap succeeded.
-    C_Timer.After(0, function()
-        local verify = request.resumeCheckOnly
-        request.resumeQueued, request.resumeCheckOnly = nil, nil
-        if RequestIsCurrent(request) then RetryRequest(request, verify) end
-    end)
+    if not flushQueued then
+        flushQueued = true
+        C_Timer.After(0, FlushRequests)
+    end
+end
+
+-- Run once combat ends. The queue has no cancel, so each re-reads its
+-- channel's live request and skips one that ended or stopped waiting on combat.
+local RESUME_AFTER_COMBAT = {
+    gear = function()
+        local request = requests.gear
+        if request and request.waitReason == "combat" then ScheduleRequest(request) end
+    end,
+    talent = function()
+        local request = requests.talent
+        if request and request.waitReason == "combat" then ScheduleRequest(request) end
+    end,
+}
+
+-- The second sentence of a wait's chat line: when the swap runs.
+local function WaitSuffix(request)
+    local reason = request.waitReason
+    if reason == "combat" then return EllesmereUI.L("Queued for after combat.") end
+    if reason == "alive" then
+        if request.kind == "gear" then return EllesmereUI.L("The gear swap waits until you are alive.") end
+        return EllesmereUI.L("The talent swap waits until you are alive.")
+    end
+    if reason == "restricted" then return EllesmereUI.L("The swap runs once they are allowed again.") end
+    return EllesmereUI.L("It retries on its own.")
 end
 
 -- quiet: announce no wait (automatic swaps held while you are dead, short
@@ -514,103 +612,101 @@ local function DeferRequest(request, message, combat, waitReason, quiet)
     local silent = quiet and not (request.announcedWait or request.announcedCombat)
     -- Queue In Combat off drops a swap that comes due in combat, but not one
     -- waiting out a restriction: an encounter usually ends in combat.
-    if combat and not EllesmereUILoadoutManagerDB.queueInCombat and request.waitReason ~= "restricted" then
-        if not silent then Announce("In combat. " .. (request.kind == "gear" and "Gear" or "Talent") .. " swap skipped.") end
+    if combat and not ReadDB().queueInCombat and request.waitReason ~= "restricted" then
+        if not silent then
+            if request.kind == "gear" then
+                Notify(request, EllesmereUI.L("Gear swap skipped: you are in combat."))
+            else
+                Notify(request, EllesmereUI.L("Talent swap skipped: you are in combat."))
+            end
+        end
         FinishRequest(request)
         return
     end
     -- Every wake-up spends one try (RetryRequest), so a wait cannot retry forever.
     if request.tries >= MAX_SWAP_RETRIES then
-        if not silent then Print(message .. " Retry limit reached; use Check Now when ready.") end
+        if not silent then Print(message .. " " .. EllesmereUI.L("Retry limit reached; try again when ready.")) end
         FinishRequest(request)
         return
     end
     request.waitReason = combat and "combat" or waitReason or "availability"
-    if combat then
-        -- The queue has no cancel: a request that ended meanwhile is skipped.
-        CombatQueue.Defer(request.kind, function()
-            if requests[request.kind] == request and request.waitReason == "combat" then ScheduleRequest(request) end
-        end)
-    end
+    if combat then CombatQueue.Defer(request.kind, RESUME_AFTER_COMBAT[request.kind]) end
     -- One line per kind of wait. Combat lines can be muted (EllesmereUI.Print
     -- in raid combat) and quiet waits print nothing; neither may swallow a
     -- later wait's line.
     local flag = combat and "announcedCombat" or "announcedWait"
     if not request[flag] and not quiet then
         request[flag] = true
-        Announce(message .. (combat and " Queued for after combat."
-            or request.waitReason == "alive" and (request.kind == "gear" and " Gear" or " Talent") .. " swap waits until you are alive."
-            or request.waitReason == "restricted" and " The swap waits until they are allowed again."
-            or " Waiting for a game update; Check Now can retry."))
+        Notify(request, message .. " " .. WaitSuffix(request))
     end
     UpdateRequestEvents()
 end
 
 TryEquipSet = function(request)
-    if not RequestIsCurrent(request) then return end
-    if request.verifying then return end
+    if not RequestIsCurrent(request) or request.verifying then return end
+    if KeystoneRunning() then FinishRequest(request) return end -- gear is locked mid-key
 
     local setName = strtrim(tostring(request.value or ""))
-    if setName == "" then FinishRequest(request); return end
-    local info = GetSetInfoByName(setName)
-    if not info then
+    if setName == "" then FinishRequest(request) return end
+    local setID, name, isEquipped, _, _, numLost = GetSetInfoByName(setName)
+    if not setID then
         if not EquipmentCacheReady() then
-            DeferRequest(request, "Equipment sets are not available yet.", false, "catalog")
+            DeferRequest(request, EllesmereUI.L("Equipment sets are not available yet."), false, "catalog")
         else
-            Print("Could not find Equipment Manager set named " .. ERR .. setName ..
-                "|r. It may have been renamed or deleted - Verify Assigned Sets (the Gear Set cog) finds stale assignments.")
+            Print(EllesmereUI.Lf("Gear set %s not found; it may have been renamed or deleted.", Bad(setName)))
             FinishRequest(request)
         end
         return
     end
     -- Already worn: nothing to do, and nothing to wait for. Automatic checks
     -- stay quiet (most entries need no change); a button press says so.
-    if info.isEquipped then
-        if request.manual then Print("Gear set " .. AC() .. info.name .. "|r is already equipped.") end
+    if isEquipped then
+        if request.manual then Print(EllesmereUI.Lf("Gear set %s is already equipped.", Hi(name))) end
         FinishRequest(request)
         return
     end
-    if InActiveKeystone() then FinishRequest(request) return end -- gear is locked mid-key
     if InCombatLockdown() then
-        DeferRequest(request, "In combat.", true)
+        DeferRequest(request, EllesmereUI.L("You are in combat."), true)
         return
     end
     if UnitIsDeadOrGhost("player") then
-        DeferRequest(request, "You are dead.", false, "alive", not request.manual)
+        DeferRequest(request, EllesmereUI.L("You are dead."), false, "alive", not request.manual)
+        return
+    end
+    -- Blizzard's own Equip button refuses while the set holds a locked item
+    -- or you are casting; wait that out like any other availability hold.
+    -- The cast name can read secret: only its type is tested.
+    local castName = UnitCastingInfo("player")
+    if C_EquipmentSet.EquipmentSetContainsLockedItems(setID) or type(castName) ~= "nil" then
+        DeferRequest(request, EllesmereUI.L("Gear swap held: an item is locked or you are casting."), false, "availability")
         return
     end
     request.waitReason = nil
 
-    if info.numLost and info.numLost > 0 then
-        Announce("Gear set " .. AC() .. info.name .. "|r has " .. tostring(info.numLost) ..
-            " missing item(s) - they may be in the bank or void storage. Equipping the rest.")
+    if numLost and numLost > 0 then
+        Announce(EllesmereUI.Lf("Gear set %1$s has %2$d missing item(s), maybe in your bank. Equipping the rest.", Hi(name), numLost))
     end
-    request.setID, request.setName = info.setID, info.name
-    request.verifying = true
-    request.swapFinished = nil
+    request.setID, request.setName = setID, name
+    request.verifying, request.swapFinished = true, nil
     UpdateRequestEvents()
-    local okCall, result = pcall(C_EquipmentSet.UseEquipmentSet, info.setID)
+    local okCall, result = pcall(C_EquipmentSet.UseEquipmentSet, setID)
     if not RequestIsCurrent(request) then return end
     if not okCall or result == false then
         request.verifying = nil
-        DeferRequest(request, "Gear swap could not apply " .. AC() .. info.name .. "|r.")
+        DeferRequest(request, EllesmereUI.Lf("Could not equip gear set %s.", Bad(name)))
         return
     end
-    Announce("Equipping gear " .. AC() .. info.name .. "|r" ..
-        (request.reason and (" (" .. request.reason .. ")") or "") .. ".")
+    if request.reason then
+        Announce(EllesmereUI.Lf("Equipping gear set %1$s (%2$s).", Hi(name), request.reason))
+    else
+        Announce(EllesmereUI.Lf("Equipping gear set %s.", Hi(name)))
+    end
     ScheduleRequest(request, true)
 end
 
 -- -----------------------------------------------------------------------------
 -- Talent loadouts
 -- -----------------------------------------------------------------------------
-
--- The spec info call reports 0, not nil, for a slot with no specialization.
-GetCurrentSpecID = function()
-    local specID = C_SpecializationInfo.GetSpecializationInfo(C_SpecializationInfo.GetSpecialization())
-    if specID and specID ~= 0 then return specID end
-    return nil
-end
 
 local function NormalizeTalentStored(stored)
     if not stored then return nil end
@@ -654,7 +750,7 @@ local function GetTalentLoadoutInfoByID(configID)
     if not belongsToSpec then return nil end
     local okInfo, info = pcall(C_Traits.GetConfigInfo, configID)
     if not okInfo or not info then return nil end
-    return { configID = configID, name = info.name or ("Loadout " .. tostring(configID)), specID = specID }
+    return { configID = configID, name = info.name or EllesmereUI.Lf("Loadout %s", tostring(configID)), specID = specID }
 end
 
 local function FindTalentLoadoutByName(name)
@@ -700,30 +796,12 @@ local function TalentDisplayName(stored)
     if info and info.name then return info.name end
     stored = NormalizeTalentStored(stored)
     if stored and stored.name then return stored.name end
-    if stored and stored.configID then return "Loadout " .. tostring(stored.configID) end
+    if stored and stored.configID then return EllesmereUI.Lf("Loadout %s", tostring(stored.configID)) end
     return nil
 end
 
 local function TalentExists(stored)
     return GetTalentLoadoutFromStored(stored) ~= nil
-end
-
--- Difficulty IDs that map onto pseudo-types. Delves report as scenarios and
--- Timewalking keeps its parent type, so both are identified by difficulty.
-local MPLUS_DIFFICULTIES = { [8] = true, [23] = true }        -- Keystone, Mythic
-local TIMEWALKING_DIFFICULTIES = { [24] = true, [33] = true } -- TW dungeon, TW raid
-local DELVE_DIFFICULTIES = { [208] = true }                    -- Delves
-
--- Ordered list of type keys to try for a context, most specific first.
-local function TypeKeysForContext(ctx)
-    if not ctx or not ctx.inInstance then return { "world" } end
-    local diff = ctx.difficultyID
-    local base = ctx.instanceType
-    if diff and TIMEWALKING_DIFFICULTIES[diff] then return { "timewalking", base } end
-    if base == "scenario" and diff and DELVE_DIFFICULTIES[diff] then return { "delve", base } end
-    if base == "party" and diff and MPLUS_DIFFICULTIES[diff] then return { "mplus", base } end
-    if base then return { base } end
-    return {}
 end
 
 -- A stored talent loadout is only usable by the spec it belongs to.
@@ -733,42 +811,75 @@ local function TalentMatchesSpec(stored, specID)
     return tonumber(sid) == tonumber(specID)
 end
 
+-- The talent pick, or nil while it belongs to another spec than yours.
+local function SelectedTalent()
+    local selected = UI.selectedTalent
+    if selected and not TalentMatchesSpec(selected, GetCurrentSpecID()) then return nil end
+    return selected
+end
+
+-- Difficulty IDs that map onto pseudo-types. Delves report as scenarios and
+-- Timewalking keeps its parent type, so both are identified by difficulty.
+local MPLUS_DIFFICULTIES = { [8] = true, [23] = true }        -- Keystone, Mythic
+local TIMEWALKING_DIFFICULTIES = { [24] = true, [33] = true } -- TW dungeon, TW raid
+local DELVE_DIFFICULTIES = { [208] = true }                    -- Delves
+
+-- The type keys to try for a context, most specific first (one or two).
+local function TypeKeysForContext(ctx)
+    if not ctx.inInstance then return "world" end
+    local diff, base = ctx.difficultyID, ctx.instanceType
+    if diff and TIMEWALKING_DIFFICULTIES[diff] then return "timewalking", base end
+    if base == "scenario" and diff and DELVE_DIFFICULTIES[diff] then return "delve", base end
+    if base == "party" and diff and MPLUS_DIFFICULTIES[diff] then return "mplus", base end
+    return base
+end
+
+local function Pick(tbl, key, validator, specID)
+    local value = tbl and key and tbl[key]
+    if value and (not validator or validator(value, specID)) then return value end
+end
+
+-- One type key: the current spec's assignment, then the All Specs one.
+local function PickType(db, spec, kType, key, validator, specID)
+    if not key then return nil end
+    local value = spec and Pick(spec[kType], key, validator, specID)
+    if value then return value, "type", key, specID end
+    value = Pick(db[kType], key, validator, specID)
+    if value then return value, "type", key, nil end
+end
+
 -- Shared resolver. Within each specificity level (difficulty > instance > type)
 -- the current spec's assignment wins over the All Specs assignment. Returns
 -- value, source, key, scopeSpecID (nil scope = matched the All Specs layer).
 local function ResolveForContext(ctx, kInst, kDiff, kType, validator)
-    EnsureDB()
-    local DB = EllesmereUILoadoutManagerDB
+    local db = ReadDB()
     local specID = GetCurrentSpecID()
-    local spec = specID and DB.specDefaults[specID] or nil
-    local candidates = {}
+    local spec = specID and db.specDefaults[specID] or nil
+    local value
     if ctx.inInstance then
         if not ctx.instanceID then return nil, "missing-instance-id" end
-        local instanceKey = tostring(ctx.instanceID)
         local diffKey = BuildDifficultyKey(ctx.instanceID, ctx.difficultyID)
-        candidates = {
-            { spec and spec[kDiff], diffKey, "difficulty", specID },
-            { DB[kDiff], diffKey, "difficulty", nil },
-            { spec and spec[kInst], instanceKey, "instance", specID },
-            { DB[kInst], instanceKey, "instance", nil },
-        }
+        value = spec and Pick(spec[kDiff], diffKey, validator, specID)
+        if value then return value, "difficulty", diffKey, specID end
+        value = Pick(db[kDiff], diffKey, validator, specID)
+        if value then return value, "difficulty", diffKey, nil end
+        local instanceKey = tostring(ctx.instanceID)
+        value = spec and Pick(spec[kInst], instanceKey, validator, specID)
+        if value then return value, "instance", instanceKey, specID end
+        value = Pick(db[kInst], instanceKey, validator, specID)
+        if value then return value, "instance", instanceKey, nil end
     end
     -- Type keys, most specific first; outside an instance that is just "world".
-    for _, key in ipairs(TypeKeysForContext(ctx)) do
-        candidates[#candidates + 1] = { spec and spec[kType], key, "type", specID }
-        candidates[#candidates + 1] = { DB[kType], key, "type", nil }
-    end
-    for i = 1, #candidates do
-        local c = candidates[i]
-        local value = c[1] and c[2] and c[1][c[2]]
-        if value and (not validator or validator(value, specID)) then
-            return value, c[3], c[2], c[4]
-        end
-    end
+    local key1, key2 = TypeKeysForContext(ctx)
+    local source, key, scope
+    value, source, key, scope = PickType(db, spec, kType, key1, validator, specID)
+    if value then return value, source, key, scope end
+    value, source, key, scope = PickType(db, spec, kType, key2, validator, specID)
+    if value then return value, source, key, scope end
     return nil, "unassigned"
 end
 
-GetAssignedSetForContext = function(ctx)
+local function GetAssignedSetForContext(ctx)
     return ResolveForContext(ctx, "instanceSets", "difficultySets", "typeDefaults")
 end
 
@@ -781,6 +892,14 @@ local function HasStagedTalentChanges(activeID)
     local ok, staged = pcall(C_Traits.ConfigHasStagedChanges, activeID)
     if ok and type(staged) == "boolean" then return staged end
     return nil
+end
+
+-- A talent commit casting now (the talent UI's Apply, or an earlier load)
+-- refuses another load until it ends. The cast's spell can read secret.
+local function CommitCastRunning()
+    local spellID = select(9, UnitCastingInfo("player"))
+    if type(spellID) == "nil" or issecretvalue(spellID) then return false end
+    return spellID == Constants.TraitConsts.COMMIT_COMBAT_TRAIT_CONFIG_CHANGES_SPELL_ID
 end
 
 local function GetTalentSelection(configID)
@@ -847,10 +966,14 @@ local function CompleteTalentRequest(request)
     RequestRefresh()
 end
 
-local function CheckTalentCompletion(request)
+-- final: combat started, so the load ends here whatever the evidence says.
+CheckTalentCompletion = function(request, final)
     if not RequestIsCurrent(request) or not request.inFlight or request.callingLoad or request.commitFailed then return end
     local activeID = C_ClassTalents.GetActiveConfigID()
-    if not activeID or HasStagedTalentChanges(activeID) == true then return end
+    if not activeID or HasStagedTalentChanges(activeID) == true then
+        if final then FinishRequest(request) end
+        return
+    end
     local matches = ActiveTalentsMatch(request)
     -- The UI command has no acceptance result. An unrelated active-config
     -- update alone cannot prove it was accepted when node data is missing.
@@ -859,6 +982,13 @@ local function CheckTalentCompletion(request)
     elseif matches == nil and request.commitCastSucceeded and request.commitSignal
         and C_ClassTalents.GetLastSelectedSavedConfigID(request.specID) == request.configID then
         CompleteTalentRequest(request)
+    elseif matches == false and request.commitCastSucceeded and request.updatedAfterCast then
+        -- The commit went through and the active build updated since, yet it
+        -- still differs: part of the loadout could not be applied.
+        Notify(request, EllesmereUI.Lf("Talent loadout %s did not fully apply.", Bad(request.loadoutName)))
+        FinishRequest(request)
+    elseif final then
+        FinishRequest(request)
     end
 end
 
@@ -867,7 +997,8 @@ local function TalentCommitUpdated(request, configID)
     if not RequestIsCurrent(request) or not request.inFlight then return end
     local activeID = C_ClassTalents.GetActiveConfigID()
     if not activeID or configID ~= activeID then return end
-    request.commitSignal = "active configuration update"
+    request.commitSignal = true
+    if request.commitCastSucceeded then request.updatedAfterCast = true end
     ScheduleRequest(request, true)
 end
 
@@ -880,7 +1011,7 @@ local function TalentCommitFailed(request, configID)
     if request.callingLoad then return end
     request.inFlight = nil
     HideSpecChangeWarning()
-    DeferRequest(request, "Talent change was interrupted.", InCombatLockdown())
+    DeferRequest(request, EllesmereUI.L("The talent change was interrupted."), InCombatLockdown())
 end
 
 local function TalentCastEvent(event, unit, castGUID, spellID)
@@ -896,13 +1027,13 @@ local function TalentCastEvent(event, unit, castGUID, spellID)
         end
         request.commitCastGUID = castGUID
         request.casting = true
-        if not request.callingLoad then ShowSpecChangeWarning("DONT MOVE - CHANGING TALENTS") end
+        if not request.callingLoad then ShowSpecChangeWarning() end
     elseif request.commitCastGUID and request.commitCastGUID == castGUID then
         request.casting = nil
         HideSpecChangeWarning()
         if event == "UNIT_SPELLCAST_SUCCEEDED" then
             request.commitCastSucceeded = true
-            request.commitSignal = "talent cast succeeded"
+            request.commitSignal = true
             ScheduleRequest(request, true)
         elseif event == "UNIT_SPELLCAST_STOP" then
             ScheduleRequest(request, true)
@@ -917,54 +1048,64 @@ end
 local function HoldTalentRequest(request, blocker, quiet)
     if blocker == "match" then
         -- Locked until the match is over: a load on the scoreboard helps no one.
-        if not quiet then Announce("Talent changes are locked once a PvP match starts. Talent swap skipped.") end
+        if not quiet then Notify(request, EllesmereUI.L("Talent changes are locked once a PvP match starts. Talent swap skipped.")) end
         FinishRequest(request)
     elseif blocker == "combat" then
-        DeferRequest(request, "In combat.", true, nil, quiet)
+        DeferRequest(request, EllesmereUI.L("You are in combat."), true, nil, quiet)
     elseif blocker == "dead" then
-        DeferRequest(request, "You are dead.", false, "alive", quiet or not request.manual)
+        DeferRequest(request, EllesmereUI.L("You are dead."), false, "alive", quiet or not request.manual)
     elseif blocker == "edit" then
-        DeferRequest(request, "Cannot change talents here yet.", false, nil, quiet)
+        DeferRequest(request, EllesmereUI.L("Talents cannot be changed here yet."), false, nil, quiet)
     else
-        -- A restriction: resume when it lifts. The Combat one outlasts
-        -- lockdown by moments, and a PvP match outside its arena or
-        -- battleground is clearing, so neither announces its wait.
+        -- A restriction: resume when it lifts. An automatic swap waits out the
+        -- Combat one (it outlasts lockdown by moments) and a PvP match
+        -- clearing outside its arena or battleground without a word.
         request.restriction = blocker
-        DeferRequest(request, "Talent changes are blocked " .. RESTRICTION_TEXT[blocker] .. ".", false, "restricted",
-            quiet or blocker == "Combat" or blocker == "PvPMatch")
+        DeferRequest(request, RestrictionText(blocker), false, "restricted",
+            quiet or (not request.manual and (blocker == "Combat" or blocker == "PvPMatch")))
     end
 end
 
 TryLoadTalentLoadout = function(request)
-    if not RequestIsCurrent(request) then return end
-    if request.inFlight then return end
+    if not RequestIsCurrent(request) or request.inFlight then return end
+    local blocker = TalentLoadBlocker()
+    if blocker == "keystone" then FinishRequest(request) return end -- talents are locked for the whole run
     local stored = NormalizeTalentStored(request.value)
-    if not stored then FinishRequest(request); return end
+    if not stored then FinishRequest(request) return end
     if not TalentMatchesSpec(stored, GetCurrentSpecID()) then
-        Print("The selected talent loadout belongs to a different specialization. Select a loadout for your current spec.")
+        Print(EllesmereUI.L("The selected talent loadout belongs to another specialization."))
         FinishRequest(request)
         return
     end
-    local blocker = TalentLoadBlocker()
-    if blocker == "keystone" then FinishRequest(request) return end -- talents are locked for the whole run
 
     local loadout = GetTalentLoadoutFromStored(stored)
     if not loadout then
         if #ListTalentLoadouts() == 0 then
-            DeferRequest(request, "Talent loadouts are not available for your current spec yet.", false, "catalog")
+            DeferRequest(request, EllesmereUI.L("Talent loadouts are not available yet."), false, "catalog")
         else
-            Print("Could not find the assigned talent loadout for your current spec.")
+            Print(EllesmereUI.L("The assigned talent loadout was not found for your current specialization."))
             FinishRequest(request)
         end
         return
     end
-    request.configID, request.specID = loadout.configID, loadout.specID
+    request.configID, request.specID, request.loadoutName = loadout.configID, loadout.specID, loadout.name
     local selected = C_ClassTalents.GetLastSelectedSavedConfigID(loadout.specID) == loadout.configID
     if blocker then
         -- Nothing reads the talent tree while a check blocks the load. A
         -- selected loadout is most likely in place already, so an automatic
         -- swap holds it without a word; the comparison below settles it.
         HoldTalentRequest(request, blocker, selected and not request.manual)
+        return
+    end
+    if CommitCastRunning() then
+        DeferRequest(request, EllesmereUI.L("Talent swap held: a talent change is in progress."), false, "availability")
+        return
+    end
+    -- The load drops changes staged in the talent UI without the confirmation
+    -- Blizzard's own loadout menu asks for, so an automatic swap waits, without
+    -- a word while its loadout is selected (most likely in place already).
+    if not request.manual and HasStagedTalentChanges(C_ClassTalents.GetActiveConfigID()) == true then
+        DeferRequest(request, EllesmereUI.L("Talent swap held: you have unsaved talent changes."), false, "availability", selected)
         return
     end
     request.waitReason, request.restriction = nil, nil
@@ -975,14 +1116,14 @@ TryLoadTalentLoadout = function(request)
     if selected then
         request.talentSelection = GetTalentSelection(loadout.configID)
         if ActiveTalentsMatch(request) == true then
-            if request.manual then Print("Talent loadout " .. AC() .. loadout.name .. "|r is already active.") end
+            if request.manual then Print(EllesmereUI.Lf("Talent loadout %s is already active.", Hi(loadout.name))) end
             FinishRequest(request)
             return
         end
     end
 
     if not HasUniqueLoadoutName(loadout) then
-        Print("Talent swap skipped: the assigned loadout needs a unique saved name. Check for duplicate names, then use Check Now.")
+        Print(EllesmereUI.L("Talent swap skipped: another loadout has the same name. Rename one, then use Check Now."))
         FinishRequest(request)
         return
     end
@@ -996,10 +1137,9 @@ TryLoadTalentLoadout = function(request)
     lastTalentRequest = request
     request.callingLoad, request.inFlight = true, true
     request.commitSignal, request.commitCastGUID, request.commitFailed = nil, nil, nil
-    request.commitCastSucceeded = nil
-    request.casting = nil
+    request.commitCastSucceeded, request.updatedAfterCast, request.casting = nil, nil, nil
     UpdateRequestEvents()
-    local okLoad, loadError = pcall(C_ClassTalents.SwitchToLoadoutByName, loadout.name)
+    local okLoad = pcall(C_ClassTalents.SwitchToLoadoutByName, loadout.name)
     -- This command has no load-result return. Confirm through native events
     -- and applied-node evidence, never merely because the call returned.
     request.callingLoad = nil
@@ -1007,13 +1147,15 @@ TryLoadTalentLoadout = function(request)
     if not okLoad or request.commitFailed then
         request.inFlight = nil
         HideSpecChangeWarning()
-        DeferRequest(request, "Could not apply talent loadout " .. ERR .. loadout.name .. "|r" ..
-            (loadError and (": " .. tostring(loadError)) or "."))
+        DeferRequest(request, EllesmereUI.Lf("Could not load talent loadout %s.", Bad(loadout.name)))
         return
     end
-    if request.casting then ShowSpecChangeWarning("DONT MOVE - CHANGING TALENTS") end
-    Announce("Requesting talents " .. AC() .. loadout.name .. "|r" ..
-        (request.reason and (" (" .. request.reason .. ")") or "") .. ".")
+    if request.casting then ShowSpecChangeWarning() end
+    if request.reason then
+        Announce(EllesmereUI.Lf("Loading talent loadout %1$s (%2$s).", Hi(loadout.name), request.reason))
+    else
+        Announce(EllesmereUI.Lf("Loading talent loadout %s.", Hi(loadout.name)))
+    end
     ScheduleRequest(request, true)
 end
 
@@ -1037,33 +1179,34 @@ end
 -- Where a resolved assignment came from, for the swap's chat line:
 -- "Nerub-ar Palace", "Nerub-ar Palace, Heroic" or "Mythic+ Keystone default".
 local function SourceLabel(ctx, source, key)
-    if source == "type" then return TypeLabel(key) .. " default" end
+    if source == "type" then return EllesmereUI.Lf("%s default", TypeLabel(key)) end
     if source == "difficulty" then
         return ctx.name .. ", " .. DifficultyName(AssignmentDifficulty(ctx.difficultyID))
     end
     return ctx.name
 end
 
-local function CheckAndSwap(reason, manual)
-    EnsureDB()
-    local db = EllesmereUILoadoutManagerDB
+local function CheckAndSwap(manual)
+    local db = ReadDB()
     if not manual and not db.enabled then return end
+    if KeystoneRunning() then return end -- gear and talents are locked mid-key
     -- This check expresses new intent, including the absence of an assignment.
     -- Cancel an older request before resolving the new context.
     CancelRequests()
 
-    if InActiveKeystone() then return end -- gear and talents are locked mid-key
-
     local ctx = GetCurrentInstanceContext()
-    local setName, gearSource, gearKey = GetAssignedSetForContext(ctx)
-    local talentStored, talentSource, talentKey = GetAssignedTalentForContext(ctx)
-    if not (manual or db.gearEnabled) then setName = nil end
-    if not (manual or db.talentEnabled) then talentStored = nil end
+    local setName, gearSource, gearKey, talentStored, talentSource, talentKey
+    if manual or db.gearEnabled then setName, gearSource, gearKey = GetAssignedSetForContext(ctx) end
+    if manual or db.talentEnabled then talentStored, talentSource, talentKey = GetAssignedTalentForContext(ctx) end
     if not setName and not talentStored then
         -- Automatic checks stay silent (most places have nothing assigned,
         -- and outside instances only an Open World default applies).
         if manual then
-            Print("Nothing is assigned for " .. (ctx.inInstance and ctx.name or "the open world") .. ".")
+            if ctx.inInstance then
+                Print(EllesmereUI.Lf("Nothing is assigned for %s.", ctx.name))
+            else
+                Print(EllesmereUI.L("Nothing is assigned for the open world."))
+            end
         end
         return
     end
@@ -1077,118 +1220,128 @@ local function CheckAndSwap(reason, manual)
     end
 end
 
-local function QueueAutoCheck(reason)
-    EnsureDB()
+-- One automatic check per frame: the latest request wins, and CancelRequests
+-- (which bumps the serial) drops one still queued.
+local autoCheckQueued, autoCheckQueuedSerial, autoCheckKey = false, nil, nil
+local function RunAutoCheck()
+    autoCheckQueued = false
+    if autoCheckQueuedSerial ~= autoCheckSerial or not AutomationLive() then return end
+    if autoCheckKey ~= BuildAutoInstanceKey(GetCurrentInstanceContext()) then return end
+    CheckAndSwap(false)
+end
+
+local function QueueAutoCheck()
     autoCheckSerial = autoCheckSerial + 1
-    local serial = autoCheckSerial
-    local contextKey = BuildAutoInstanceKey(GetCurrentInstanceContext())
-    C_Timer.After(0, function()
-        if serial ~= autoCheckSerial or not EllesmereUILoadoutManagerDB.enabled then return end
-        if contextKey ~= BuildAutoInstanceKey(GetCurrentInstanceContext()) then return end
-        CheckAndSwap(reason)
-    end)
+    autoCheckQueuedSerial = autoCheckSerial
+    autoCheckKey = BuildAutoInstanceKey(GetCurrentInstanceContext())
+    if not autoCheckQueued then
+        autoCheckQueued = true
+        C_Timer.After(0, RunAutoCheck)
+    end
 end
 
-BuildAutoInstanceKey = function(ctx)
-    if not ctx then return nil end
-    if not ctx.inInstance then return "world:" .. tostring(GetCurrentSpecID() or 0) end
-    if not ctx.instanceID then return nil end
-    return tostring(ctx.instanceType or "none") .. ":" .. tostring(ctx.instanceID) .. ":" ..
-        tostring(AssignmentDifficulty(ctx.difficultyID) or 0) .. ":" .. tostring(GetCurrentSpecID() or 0)
-end
-
-local function HandlePossibleInstanceEntry(reason)
-    EnsureDB()
-    local ctx = GetCurrentInstanceContext()
-    local key = BuildAutoInstanceKey(ctx)
-    if key == lastAutoInstanceKey then return end
-    lastAutoInstanceKey = key
+local function HandlePossibleInstanceEntry()
+    local place = BuildPlaceKey(GetCurrentInstanceContext())
+    if place == lastPlaceKey then return end
+    lastPlaceKey = place
+    lastSpecID = GetCurrentSpecID()
     -- Switched off, only button presses run, and RequestIsCurrent already
-    -- drops one whose context changed; the untracked key proves nothing.
-    if not EllesmereUILoadoutManagerDB.enabled then return end
+    -- drops one whose context changed.
+    if not AutomationLive() then return end
     CancelRequests()
-    if not key then return end
-    QueueAutoCheck(not ctx.inInstance and "left instance" or reason or "entered instance")
+    if place then QueueAutoCheck() end
 end
 
+-- A gear swap ends once its set is worn or a swap has finished; a set that
+-- is not worn by then gets a line naming what did not equip. The set can read
+-- unworn for a moment after the swap finishes (its last items still landing,
+-- which re-run this), so the verdict waits 1.5s from the swap's end.
 VerifyEquippedSet = function(request)
     if not RequestIsCurrent(request) or not request.verifying then return end
     local wanted = request.setName
-    local info = GetSetInfoByName(wanted)
-    if not request.swapFinished and (not info or not info.isEquipped) then return end
+    local setID, _, isEquipped, numItems, numEquipped, numLost = GetSetInfoByName(wanted)
+    if not isEquipped then
+        if not request.swapFinished then return end
+        local left = request.swapFinished + 1.5 - GetTime()
+        if left > 0 then
+            if not request.settleTimer then
+                request.settleTimer = true
+                C_Timer.After(left, function()
+                    request.settleTimer = nil
+                    if RequestIsCurrent(request) and request.verifying then ScheduleRequest(request, true) end
+                end)
+            end
+            return
+        end
+    end
     request.verifying = nil
     FinishRequest(request)
-    if not info then return end
-    if not info.isEquipped then
-        local missing = (tonumber(info.numItems) or 0) - (tonumber(info.numEquipped) or 0)
-        if missing > 0 then
-            Print("Gear set " .. ERR .. wanted .. "|r did not fully equip - " .. missing ..
-                " item(s) missing" .. ((info.numLost and info.numLost > 0) and " (check bank/void storage)" or "") .. ".")
+    if setID and not isEquipped then
+        local missing = (tonumber(numItems) or 0) - (tonumber(numEquipped) or 0)
+        if missing <= 0 then
+            Print(EllesmereUI.Lf("Gear set %s did not finish equipping.", Bad(wanted)))
+        elseif numLost and numLost > 0 then
+            Print(EllesmereUI.Lf("Gear set %1$s did not fully equip: %2$d item(s) missing (check your bank).", Bad(wanted), missing))
         else
-            Print("Gear set " .. ERR .. wanted .. "|r did not finish equipping. Press Check Now to retry.")
+            Print(EllesmereUI.Lf("Gear set %1$s did not fully equip: %2$d item(s) missing.", Bad(wanted), missing))
         end
     end
     RequestRefresh()
 end
 
 local function ResumeRequests(waitReason)
-    for _, kind in ipairs(REQUEST_KINDS) do
-        local request = requests[kind]
+    for i = 1, #REQUEST_KINDS do
+        local request = requests[REQUEST_KINDS[i]]
         if request and (not waitReason or request.waitReason == waitReason) then
             ScheduleRequest(request)
         end
     end
-    UpdateRequestEvents()
 end
 
--- One assignment slot for chat: "Holy Raid / Elle Raid", "Holy Raid / no talents".
-local function PairText(gear, talentStored)
-    return tostring(gear or "no gear") .. " / " .. tostring(TalentDisplayName(talentStored) or "no talents")
+-- One slot's gear and talent tables in an assignment layer: a type default,
+-- an instance ("2657") or an instance on one difficulty ("2657:15").
+local function SlotTables(layer, key, isType)
+    if isType then return layer.typeDefaults, layer.talentTypeDefaults end
+    if tostring(key):find(":", 1, true) then return layer.difficultySets, layer.talentDifficultySets end
+    return layer.instanceSets, layer.talentInstanceSets
 end
 
--- One slot's tables in the scope being edited: a type default, an instance
--- ("2657") or an instance on one difficulty ("2657:15").
-local function SlotTables(key, isType)
-    EnsureDB()
-    local W, scopeID = GetWriteTables()
-    if isType then return W.typeDefaults, W.talentTypeDefaults, scopeID end
-    if tostring(key):find(":", 1, true) then return W.difficultySets, W.talentDifficultySets, scopeID end
-    return W.instanceSets, W.talentInstanceSets, scopeID
-end
-
--- Save the selected set and/or loadout into one slot; an empty picker keeps
--- that half as saved. label names it in chat.
-local function SaveSlot(key, isType, label)
-    local gTbl, tTbl, scopeID = SlotTables(key, isType)
+-- Save the selected set and/or loadout into one slot of the scope being
+-- edited; an empty picker keeps that half as saved. The page shows the
+-- result, so only a refusal gets a chat line.
+local function SaveSlot(key, isType)
+    local layer, scopeID = GetWriteTables()
+    local gTbl, tTbl = SlotTables(layer, key, isType)
     local changed = false
-    if UI.selectedSet and SetExists(UI.selectedSet) then
-        gTbl[key] = UI.selectedSet
+    local setName = UI.selectedSet
+    if setName and SetExists(setName) then
+        gTbl[key] = setName
         changed = true
     end
-    if UI.selectedTalent and TalentExists(UI.selectedTalent) then
-        local stored = StoreTalentLoadout(UI.selectedTalent)
+    local talent = SelectedTalent()
+    if talent and TalentExists(talent) then
+        local stored = StoreTalentLoadout(talent)
         if scopeID and stored.specID and tonumber(stored.specID) ~= tonumber(scopeID) then
-            Print("Skipped talents: " .. AC() .. tostring(stored.name) .. "|r belongs to " .. tostring(SpecName(stored.specID)) ..
-                ". Switch specs to assign " .. tostring(SpecName(scopeID)) .. " talents.")
+            Print(EllesmereUI.Lf("Talents not saved: %1$s belongs to %2$s.", Hi(stored.name), SpecName(stored.specID)))
         else
             tTbl[key] = stored
             changed = true
         end
     end
     if changed then
-        Print(label:gsub("^%l", string.upper) .. ScopeSuffix(scopeID) .. " now uses " .. AC() .. PairText(gTbl[key], tTbl[key]) .. "|r.")
+        assignVersion = assignVersion + 1
     else
-        Print("Nothing selected to assign.")
+        Print(EllesmereUI.L("Nothing selected to assign."))
     end
     return changed
 end
 
-local function ClearSlot(key, isType, label)
-    local gTbl, tTbl, scopeID = SlotTables(key, isType)
-    local oldG, oldT = gTbl[key], tTbl[key]
-    if oldG == nil and oldT == nil then return false end
+local function ClearSlot(key, isType)
+    local gRead, tRead = SlotTables((GetReadTables()), key, isType)
+    if gRead[key] == nil and tRead[key] == nil then return false end
+    local gTbl, tTbl = SlotTables((GetWriteTables()), key, isType)
     gTbl[key], tTbl[key] = nil, nil
-    Print("Cleared " .. label .. ScopeSuffix(scopeID) .. " (was " .. PairText(oldG, oldT) .. ").")
+    assignVersion = assignVersion + 1
     return true
 end
 
@@ -1196,218 +1349,299 @@ end
 local function CurrentInstanceKey(perDifficulty)
     local ctx = GetCurrentInstanceContext()
     if not ctx.inInstance or not ctx.instanceID then
-        Print("You are not inside a dungeon, raid or other instance.")
+        Print(EllesmereUI.L("You are not inside a dungeon, raid or other instance."))
         return nil
     end
     return perDifficulty and BuildDifficultyKey(ctx.instanceID, ctx.difficultyID) or tostring(ctx.instanceID)
 end
 
+local function AddAssignments(list, byKey, tbl, field)
+    for key, value in pairs(tbl or NO_ENTRIES) do
+        local entry = byKey[key]
+        if not entry then
+            entry = { key = key, label = AssignmentLabel(key) }
+            byKey[key] = entry
+            list[#list + 1] = entry
+        end
+        entry[field] = value
+    end
+end
+
+local function ByLabelThenKey(a, b)
+    if a.label ~= b.label then return a.label < b.label end
+    return tostring(a.key) < tostring(b.key)
+end
+
 -- Every instance assignment in the scope being edited, sorted by name, for
 -- the settings page's Saved Instances list: { key, label, gear, talent }.
+-- One list per frame serves a whole page refresh; the scope, the saved table
+-- and every assignment write invalidate it.
+local listMemo, listStamp, listVersion, listScope, listDB
 local function ListInstanceAssignments()
+    local now, db = GetTime(), EllesmereUILoadoutManagerDB
+    if listMemo and listStamp == now and listVersion == assignVersion
+        and listScope == UI.assignScope and listDB == db then
+        return listMemo
+    end
     local R = GetReadTables()
     local list, byKey = {}, {}
-    local function Add(tbl, field)
-        for key, value in pairs(tbl or {}) do
-            local entry = byKey[key]
-            if not entry then
-                entry = { key = key, label = AssignmentLabel(key) }
-                byKey[key] = entry
-                list[#list + 1] = entry
-            end
-            entry[field] = value
-        end
-    end
-    Add(R.instanceSets, "gear")
-    Add(R.talentInstanceSets, "talent")
-    Add(R.difficultySets, "gear")
-    Add(R.talentDifficultySets, "talent")
-    table.sort(list, function(a, b)
-        if a.label ~= b.label then return a.label < b.label end
-        return tostring(a.key) < tostring(b.key)
-    end)
+    AddAssignments(list, byKey, R.instanceSets, "gear")
+    AddAssignments(list, byKey, R.talentInstanceSets, "talent")
+    AddAssignments(list, byKey, R.difficultySets, "gear")
+    AddAssignments(list, byKey, R.talentDifficultySets, "talent")
+    table.sort(list, ByLabelThenKey)
+    listMemo, listStamp, listVersion, listScope, listDB = list, now, assignVersion, UI.assignScope, db
     return list
 end
 
 -- -----------------------------------------------------------------------------
--- Slash commands and events
+-- Verify Assigned Sets (the settings page's Gear Set cog)
 -- -----------------------------------------------------------------------------
 
--- List every assignment pointing at an Equipment Manager set that no longer
--- exists. Driven by Verify Assigned Sets on the settings page's Gear Set cog.
+local GEAR_TABLE_KEYS = { "instanceSets", "difficultySets", "typeDefaults" }
+
+-- Lists, in chat, every assignment of one layer pointing at a set that no
+-- longer exists; returns how many.
+local function ListStaleSets(layer, scopeName)
+    local problems = 0
+    for i = 1, #GEAR_TABLE_KEYS do
+        local tableKey = GEAR_TABLE_KEYS[i]
+        for mapKey, setName in pairs(layer[tableKey] or NO_ENTRIES) do
+            if type(setName) == "string" and not SetExists(setName) then
+                problems = problems + 1
+                local where
+                if tableKey == "typeDefaults" then
+                    where = EllesmereUI.Lf("%s default", TypeLabel(mapKey))
+                else
+                    where = AssignmentLabel(mapKey)
+                end
+                EllesmereUI.Print("  " .. Bad(setName) .. " - " .. where .. ", " .. scopeName)
+            end
+        end
+    end
+    return problems
+end
+
 local function VerifyAssignments()
-    EnsureDB()
     if not EquipmentCacheReady(true) then
-        Print("Equipment sets are still loading - try again in a moment.")
+        Print(EllesmereUI.L("Equipment sets are still loading; try again in a moment."))
         return
     end
-    local problems = 0
-    local function CheckTables(tbl, scopeName)
-        for _, key in ipairs({ "instanceSets", "difficultySets", "typeDefaults" }) do
-            for mapKey, setName in pairs(tbl[key] or {}) do
-                if type(setName) == "string" and not SetExists(setName) then
-                    problems = problems + 1
-                    local where = key == "typeDefaults" and (TypeLabel(mapKey) .. " default") or AssignmentLabel(mapKey)
-                    EllesmereUI.Print("  " .. ERR .. setName .. "|r - " .. where .. ", " .. scopeName)
-                end
-            end
-        end
-    end
-    CheckTables(EllesmereUILoadoutManagerDB, "All Specs")
-    for specID, bucket in pairs(EllesmereUILoadoutManagerDB.specDefaults or {}) do
-        CheckTables(bucket, tostring(SpecName(specID)))
+    local db = ReadDB()
+    local problems = ListStaleSets(db, EllesmereUI.L("All Specs"))
+    for specID, bucket in pairs(db.specDefaults) do
+        problems = problems + ListStaleSets(bucket, tostring(SpecName(specID)))
     end
     if problems == 0 then
-        Print("All gear assignments point to existing Equipment Manager sets.")
+        Print(EllesmereUI.L("All gear assignments point to existing Equipment Manager sets."))
     else
-        Print(problems .. " assignment(s) point to missing gear sets (listed above). Reassign or clear them: "
-            .. "content type defaults on their own rows, instances under Saved Instances.")
+        Print(EllesmereUI.Lf("%d assignment(s) point to missing gear sets (listed above).", problems))
     end
 end
+
+-- -----------------------------------------------------------------------------
+-- Events
+-- -----------------------------------------------------------------------------
 
 local TALENT_CATALOG_EVENTS = {
-    TRAIT_CONFIG_UPDATED = true, TRAIT_CONFIG_CREATED = true, TRAIT_CONFIG_DELETED = true,
-    TRAIT_CONFIG_LIST_UPDATED = true, ACTIVE_COMBAT_CONFIG_CHANGED = true, SELECTED_LOADOUT_CHANGED = true,
+    "TRAIT_CONFIG_UPDATED", "TRAIT_CONFIG_CREATED", "TRAIT_CONFIG_DELETED",
+    "TRAIT_CONFIG_LIST_UPDATED", "ACTIVE_COMBAT_CONFIG_CHANGED", "SELECTED_LOADOUT_CHANGED",
 }
+local TALENT_REQUEST_EVENTS = { "CONFIG_COMMIT_FAILED", "PLAYER_TALENT_UPDATE", "TRAIT_NODE_CHANGED", "TRAIT_TREE_CHANGED" }
+local TALENT_CAST_EVENTS = { "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED" }
 
-local function OnEvent(self, event, ...)
-    if event == "PLAYER_ENTERING_WORLD" then
-        local initialLogin, reloading = ...
-        if initialLogin or reloading then
-            CancelRequests()
-            lastAutoInstanceKey = BuildAutoInstanceKey(GetCurrentInstanceContext())
-        else
-            HandlePossibleInstanceEntry("entering world")
-            ResumeRequests()
-        end
-        RequestRefresh()
-    elseif event == "ZONE_CHANGED_NEW_AREA" then
-        HandlePossibleInstanceEntry("zone changed")
-        ResumeRequests("availability")
-        RequestRefresh()
-    elseif event == "PLAYER_REGEN_DISABLED" then
-        HideSpecChangeWarning()
-    elseif event == "CHALLENGE_MODE_START" then
+local EVENT_HANDLERS = {}
+
+EVENT_HANDLERS.PLAYER_ENTERING_WORLD = function(_, initialLogin, reloading)
+    if initialLogin or reloading then
+        -- Logging in or reloading is no entry: note where you are.
         CancelRequests()
-    elseif event == "PLAYER_STOPPED_MOVING" or event == "PLAYER_UPDATE_RESTING" then
-        ResumeRequests("availability")
-    elseif event == "ADDON_RESTRICTION_STATE_CHANGED" then
-        -- Only the lift of the restriction the talent swap waits on resumes
-        -- it. The probe reads false during this dispatch, so the re-check
-        -- runs next frame.
-        local restriction, state = ...
-        local request = requests.talent
-        if not request or issecretvalue(restriction) or issecretvalue(state) then return end
-        if request.waitReason == "restricted" and state == Enum.AddOnRestrictionState.Inactive
-            and restriction == Enum.AddOnRestrictionType[request.restriction] then
-            ScheduleRequest(request)
-        end
-    elseif event == "PLAYER_ALIVE" or event == "PLAYER_UNGHOST" then
-        -- PLAYER_ALIVE also fires on release, when you are still a ghost.
-        if not UnitIsDeadOrGhost("player") then ResumeRequests("alive") end
-    elseif event == "PLAYER_SPECIALIZATION_CHANGED" then
-        -- It also fires without a spec change (entering an arena, for one);
-        -- only a real change, which changes the context key, cancels a
-        -- pending check and re-runs it.
-        if ... == "player" and BuildAutoInstanceKey(GetCurrentInstanceContext()) ~= lastAutoInstanceKey then
-            EnsureDB()
-            CancelRequests()
-            UI.selectedTalent = nil
-            local ctx = GetCurrentInstanceContext()
-            if EllesmereUILoadoutManagerDB.enabled and EllesmereUILoadoutManagerDB.specSwap and ctx.inInstance then
-                HandlePossibleInstanceEntry("spec change")
-            else
-                lastAutoInstanceKey = BuildAutoInstanceKey(ctx)
-            end
-            UI.assignScope = GetCurrentSpecID()
-            RequestRefresh()
-        end
-    elseif event == "CONFIG_COMMIT_FAILED" then
-        TalentCommitFailed(requests.talent, ...)
-    elseif event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_SUCCEEDED"
-        or event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_INTERRUPTED" then
-        TalentCastEvent(event, ...)
+        NoteCurrentPlace()
     else
-        if event == "EQUIPMENT_SETS_CHANGED" or event == "EQUIPMENT_SWAP_FINISHED"
-            or event == "BAG_UPDATE_DELAYED" or event == "PLAYER_EQUIPMENT_CHANGED" then
-            local request = requests.gear
-            if request then
-                if event == "EQUIPMENT_SWAP_FINISHED" and request.verifying then
-                    local _, setID = ...
-                    if issecretvalue(setID) then return end
-                    if not setID or setID == request.setID then
-                        request.swapFinished = true
-                        ScheduleRequest(request, true)
-                    end
-                elseif event ~= "EQUIPMENT_SWAP_FINISHED" and (request.verifying
-                    or request.waitReason == "catalog" or request.waitReason == "availability") then
-                    -- Combat and resurrection waits have their own wake-up event.
-                    ScheduleRequest(request)
-                end
-            end
-        end
-        if TALENT_CATALOG_EVENTS[event] then
-            local request = requests.talent
-            if request then
-                if event == "TRAIT_CONFIG_UPDATED" and request.inFlight then
-                    TalentCommitUpdated(request, ...)
-                elseif event == "TRAIT_CONFIG_DELETED" and ... == request.configID then
-                    FinishRequest(request)
-                elseif request.inFlight then
-                    ScheduleRequest(request, true)
-                elseif request.waitReason == "catalog" then
-                    ScheduleRequest(request)
-                end
-            end
-        elseif event == "PLAYER_TALENT_UPDATE" or event == "TRAIT_NODE_CHANGED" or event == "TRAIT_TREE_CHANGED" then
-            local request = requests.talent
-            if request and request.inFlight then ScheduleRequest(request, true) end
-        end
-        RequestRefresh()
+        HandlePossibleInstanceEntry()
+        ResumeRequests()
+    end
+    RequestRefresh()
+end
+
+EVENT_HANDLERS.ZONE_CHANGED_NEW_AREA = function()
+    HandlePossibleInstanceEntry()
+    ResumeRequests("availability")
+    RequestRefresh()
+end
+
+EVENT_HANDLERS.CHALLENGE_MODE_START = function()
+    CancelRequests()
+end
+
+-- Registered for the player only. It also fires without a spec change
+-- (entering an arena, for one): only a new spec ID counts, so a spec event
+-- that lands before the zone events of an entry never swallows the entry.
+EVENT_HANDLERS.PLAYER_SPECIALIZATION_CHANGED = function()
+    local specID = GetCurrentSpecID()
+    if specID == lastSpecID then return end
+    local known = lastSpecID ~= nil
+    lastSpecID = specID
+    if not known then return end
+    CancelRequests()
+    UI.selectedTalent = nil -- the picker lists only the current spec's loadouts
+    local ctx = GetCurrentInstanceContext()
+    if AutomationLive() and ReadDB().specSwap and ctx.inInstance then
+        -- Re-run the swap for the new spec; it covers this place too.
+        lastPlaceKey = BuildPlaceKey(ctx)
+        QueueAutoCheck()
+    end
+    RequestRefresh()
+end
+
+-- Registered only while a talent load is in flight.
+EVENT_HANDLERS.PLAYER_REGEN_DISABLED = function()
+    HideSpecChangeWarning()
+    local request = requests.talent
+    if not (request and request.inFlight) or request.casting or request.callingLoad then return end
+    if not request.commitCastGUID then
+        -- Blizzard's queued load can refuse without a word; one that never
+        -- started its commit cast by the time combat starts did not happen.
+        Notify(request, EllesmereUI.Lf("Talent loadout %s did not load.", Bad(request.loadoutName)))
+        FinishRequest(request)
+    else
+        CheckTalentCompletion(request, true)
     end
 end
 
-local CONTEXT_EVENTS = { "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "PLAYER_SPECIALIZATION_CHANGED", "CHALLENGE_MODE_START" }
-local GEAR_REQUEST_EVENTS = { "EQUIPMENT_SWAP_FINISHED", "BAG_UPDATE_DELAYED", "PLAYER_EQUIPMENT_CHANGED" }
-local TALENT_REQUEST_EVENTS = { "CONFIG_COMMIT_FAILED", "PLAYER_TALENT_UPDATE", "TRAIT_NODE_CHANGED", "TRAIT_TREE_CHANGED" }
-local TALENT_CAST_EVENTS = { "UNIT_SPELLCAST_START", "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED" }
-local eventsOn = false
-local registeredEvents
+EVENT_HANDLERS.PLAYER_STOPPED_MOVING = function()
+    ResumeRequests("availability")
+end
+EVENT_HANDLERS.PLAYER_UPDATE_RESTING = EVENT_HANDLERS.PLAYER_STOPPED_MOVING
 
+EVENT_HANDLERS.ADDON_RESTRICTION_STATE_CHANGED = function(_, restriction, state)
+    -- Only the lift of the restriction the talent swap waits on resumes it.
+    -- The probe reads false during this dispatch, so the re-check runs next
+    -- frame.
+    local request = requests.talent
+    if not request or issecretvalue(restriction) or issecretvalue(state) then return end
+    if request.waitReason == "restricted" and state == Enum.AddOnRestrictionState.Inactive
+        and restriction == Enum.AddOnRestrictionType[request.restriction] then
+        ScheduleRequest(request)
+    end
+end
+
+EVENT_HANDLERS.PLAYER_ALIVE = function()
+    -- PLAYER_ALIVE also fires on release, when you are still a ghost.
+    if not UnitIsDeadOrGhost("player") then ResumeRequests("alive") end
+end
+EVENT_HANDLERS.PLAYER_UNGHOST = EVENT_HANDLERS.PLAYER_ALIVE
+
+EVENT_HANDLERS.CONFIG_COMMIT_FAILED = function(_, configID)
+    TalentCommitFailed(requests.talent, configID)
+end
+
+local function OnTalentTreeEvent()
+    local request = requests.talent
+    if request and request.inFlight then ScheduleRequest(request, true) end
+end
+EVENT_HANDLERS.PLAYER_TALENT_UPDATE = OnTalentTreeEvent
+EVENT_HANDLERS.TRAIT_NODE_CHANGED = OnTalentTreeEvent
+EVENT_HANDLERS.TRAIT_TREE_CHANGED = OnTalentTreeEvent
+
+-- Player casts: the talent commit cast, and the end of any cast an
+-- availability wait (gear held by a cast) is waiting on.
+local function OnCastEvent(event, unit, castGUID, spellID)
+    TalentCastEvent(event, unit, castGUID, spellID)
+    if event == "UNIT_SPELLCAST_STOP" then ResumeRequests("availability") end
+end
+for i = 1, #TALENT_CAST_EVENTS do EVENT_HANDLERS[TALENT_CAST_EVENTS[i]] = OnCastEvent end
+
+EVENT_HANDLERS.EQUIPMENT_SWAP_FINISHED = function(_, _, setID)
+    local request = requests.gear
+    if not (request and request.verifying) or issecretvalue(setID) then return end
+    -- Any finished swap settles the verify: ours, or another set's that took
+    -- over (the check then reports what did not equip). Its time starts the
+    -- verdict's short wait (VerifyEquippedSet).
+    request.swapFinished = request.swapFinished or GetTime()
+    ScheduleRequest(request, true)
+end
+
+-- Combat and resurrection waits have their own wake-up event.
+local function OnGearChange()
+    local request = requests.gear
+    if request and (request.verifying or request.waitReason == "catalog" or request.waitReason == "availability") then
+        ScheduleRequest(request)
+    end
+end
+EVENT_HANDLERS.BAG_UPDATE_DELAYED = OnGearChange
+EVENT_HANDLERS.PLAYER_EQUIPMENT_CHANGED = OnGearChange
+EVENT_HANDLERS.EQUIPMENT_SETS_CHANGED = function()
+    OnGearChange()
+    RequestRefresh()
+end
+
+local function OnTalentCatalog(event, configID)
+    local request = requests.talent
+    if request then
+        if event == "TRAIT_CONFIG_UPDATED" and request.inFlight then
+            TalentCommitUpdated(request, configID)
+        elseif event == "TRAIT_CONFIG_DELETED" and not issecretvalue(configID) and configID == request.configID then
+            FinishRequest(request)
+        elseif request.inFlight then
+            ScheduleRequest(request, true)
+        elseif request.waitReason == "catalog" or request.waitReason == "availability" then
+            ScheduleRequest(request)
+        end
+    end
+    RequestRefresh()
+end
+for i = 1, #TALENT_CATALOG_EVENTS do EVENT_HANDLERS[TALENT_CATALOG_EVENTS[i]] = OnTalentCatalog end
+
+eventFrame:SetScript("OnEvent", function(_, event, ...)
+    local handler = EVENT_HANDLERS[event]
+    if handler then handler(event, ...) end
+end)
+
+local registeredEvents = {}
 local function SetEventState(event, wanted, playerOnly)
     wanted = wanted and true or false
-    if not IGS then
-        if not wanted then return end
-        IGS = CreateFrame("Frame")
-        IGS:SetScript("OnEvent", OnEvent)
-        CombatQueue = EllesmereUI.NewCombatQueue(CreateFrame("Frame"))
-        registeredEvents = {}
-    end
     if (registeredEvents[event] or false) == wanted then return end
     registeredEvents[event] = wanted or nil
     if not wanted then
-        IGS:UnregisterEvent(event)
+        eventFrame:UnregisterEvent(event)
     elseif playerOnly then
-        IGS:RegisterUnitEvent(event, "player")
+        eventFrame:RegisterUnitEvent(event, "player")
     else
-        IGS:RegisterEvent(event)
+        eventFrame:RegisterEvent(event)
     end
 end
 
+-- Each event is registered only for the phase that uses it.
 UpdateRequestEvents = function()
     local gear, talent = requests.gear, requests.talent
-    local db = EllesmereUILoadoutManagerDB
-    local wantWork = eventsOn or gear or talent
-    for _, event in ipairs(CONTEXT_EVENTS) do SetEventState(event, wantWork) end
-    SetEventState("EQUIPMENT_SETS_CHANGED", (eventsOn and db.gearEnabled) or gear)
-    for event in pairs(TALENT_CATALOG_EVENTS) do
-        SetEventState(event, (eventsOn and db.talentEnabled) or talent)
-    end
-    for _, event in ipairs(GEAR_REQUEST_EVENTS) do SetEventState(event, gear) end
-    for _, event in ipairs(TALENT_REQUEST_EVENTS) do SetEventState(event, talent) end
-    for _, event in ipairs(TALENT_CAST_EVENTS) do SetEventState(event, talent and talent.inFlight, true) end
-    SetEventState("PLAYER_REGEN_DISABLED", talent)
+    -- Context: live automation, a pending swap, or the open page. Coming back
+    -- on, they start from where you are, so the next zone event compares
+    -- against a current place.
+    local context = AutomationLive() or gear or talent or pageShown
+    if context and not registeredEvents.PLAYER_ENTERING_WORLD then NoteCurrentPlace() end
+    SetEventState("PLAYER_ENTERING_WORLD", context)
+    SetEventState("ZONE_CHANGED_NEW_AREA", context)
+    SetEventState("CHALLENGE_MODE_START", context)
+    SetEventState("PLAYER_SPECIALIZATION_CHANGED", context, true)
+    -- Catalogs: a request on that channel, or the open page.
+    SetEventState("EQUIPMENT_SETS_CHANGED", gear or pageShown)
+    for i = 1, #TALENT_CATALOG_EVENTS do SetEventState(TALENT_CATALOG_EVENTS[i], talent or pageShown) end
+    -- Gear: while a swap is verified, or waits on the catalog or availability.
+    local gearWait = gear and (gear.verifying or gear.waitReason == "catalog" or gear.waitReason == "availability")
+    SetEventState("EQUIPMENT_SWAP_FINISHED", gear and gear.verifying)
+    SetEventState("BAG_UPDATE_DELAYED", gearWait)
+    SetEventState("PLAYER_EQUIPMENT_CHANGED", gearWait)
+    -- Talents: while a load is in flight.
+    local inFlight = talent and talent.inFlight
+    for i = 1, #TALENT_REQUEST_EVENTS do SetEventState(TALENT_REQUEST_EVENTS[i], inFlight) end
+    SetEventState("PLAYER_REGEN_DISABLED", inFlight)
+    -- Availability waits wake on movement, resting and the end of a cast.
     local availability = (gear and gear.waitReason == "availability") or (talent and talent.waitReason == "availability")
+    for i = 1, #TALENT_CAST_EVENTS do
+        local event = TALENT_CAST_EVENTS[i]
+        SetEventState(event, inFlight or (availability and event == "UNIT_SPELLCAST_STOP"), true)
+    end
     SetEventState("PLAYER_STOPPED_MOVING", availability)
     SetEventState("PLAYER_UPDATE_RESTING", availability)
     SetEventState("ADDON_RESTRICTION_STATE_CHANGED", talent and talent.waitReason == "restricted")
@@ -1416,28 +1650,50 @@ UpdateRequestEvents = function()
     SetEventState("PLAYER_UNGHOST", alive)
 end
 
-SetEventsEnabled = function(on)
-    eventsOn = on and true or false
-    UpdateRequestEvents()
+-- /elm opens the settings page, one frame later so the panel build stays out
+-- of the chat edit box's execution.
+local function OpenSettingsPage()
+    if InCombatLockdown() then
+        EllesmereUI.PrintError(EllesmereUI.L("Cannot open options during combat."))
+        return
+    end
+    EllesmereUI:ShowModule(ADDON_NAME)
 end
-
--- Every setting lives on the settings page; /lm opens it.
-SLASH_EUILOADOUTMANAGER1 = "/lm"
-SlashCmdList.EUILOADOUTMANAGER = function() EllesmereUI:ShowModule(ADDON_NAME) end
+SLASH_EUILOADOUTMANAGER1 = "/elm"
+SlashCmdList.EUILOADOUTMANAGER = function() C_Timer.After(0, OpenSettingsPage) end
 
 -- -----------------------------------------------------------------------------
 -- Module namespace: everything the options page drives
 -- -----------------------------------------------------------------------------
 ns.INSTANCE_TYPE_ORDER = INSTANCE_TYPE_ORDER
 
-function ns.DB() EnsureDB() return EllesmereUILoadoutManagerDB end
+-- The settings as the page reads and writes them. Reading never creates the
+-- saved table; a write does. Nested tables are read-only here: assignments
+-- change through the actions below.
+local DB_VIEW = setmetatable({}, {
+    __index = function(_, key) return ReadDB()[key] end,
+    __newindex = function(_, key, value) EnsureDB()[key] = value end,
+})
+function ns.DB() return DB_VIEW end
+
+-- The page reports when it is on screen: the catalog and context events that
+-- keep its rows live are registered only then, or for a pending swap.
+function ns.SetPageShown(shown)
+    shown = shown and true or false
+    if pageShown == shown then return end
+    pageShown = shown
+    UpdateRequestEvents()
+end
 
 -- Selection + edit scope (the "Assign for" scope and the two pickers)
 function ns.GetScope() return UI.assignScope end
-function ns.SetScope(specID) UI.assignScope = specID end
+function ns.SetScope(specID)
+    UI.assignScope = specID
+    assignVersion = assignVersion + 1
+end
 function ns.GetSelectedSet() return UI.selectedSet end
 function ns.SetSelectedSet(name) UI.selectedSet = name end
-function ns.GetSelectedTalent() return UI.selectedTalent end
+function ns.GetSelectedTalent() return SelectedTalent() end
 function ns.SetSelectedTalent(stored) UI.selectedTalent = stored end
 function ns.TalentDisplayName(stored) return TalentDisplayName(stored) end
 function ns.StoreTalentLoadout(loadout) return StoreTalentLoadout(loadout) end
@@ -1449,10 +1705,19 @@ function ns.GetCurrentSpecID() return GetCurrentSpecID() end
 function ns.ListEquipmentSets() return ListEquipmentSetsDetailed() end
 function ns.ListTalentLoadouts() return ListTalentLoadouts() end
 
--- Current context and what resolves for it
-function ns.GetContext() return GetCurrentInstanceContext() end
-function ns.ResolveGear(ctx) return GetAssignedSetForContext(ctx or GetCurrentInstanceContext()) end
-function ns.ResolveTalent(ctx) return GetAssignedTalentForContext(ctx or GetCurrentInstanceContext()) end
+-- Current context and what resolves for it. One context read per frame
+-- serves every row of a page refresh (GetTime() is fixed within a frame).
+local pageCtx, pageCtxStamp = {}, nil
+function ns.GetContext()
+    local now = GetTime()
+    if pageCtxStamp ~= now then
+        pageCtxStamp = now
+        ReadContext(pageCtx)
+    end
+    return pageCtx
+end
+function ns.ResolveGear(ctx) return GetAssignedSetForContext(ctx or ns.GetContext()) end
+function ns.ResolveTalent(ctx) return GetAssignedTalentForContext(ctx or ns.GetContext()) end
 
 -- Reads for the settings page
 function ns.ReadTables() return GetReadTables() end
@@ -1460,67 +1725,65 @@ function ns.ListInstanceAssignments() return ListInstanceAssignments() end
 -- The key this instance's assignments are stored under (nil outside one),
 -- and the name of the difficulty a per-difficulty assignment here covers.
 function ns.AssignmentKey(ctx, perDifficulty)
-    ctx = ctx or GetCurrentInstanceContext()
+    ctx = ctx or ns.GetContext()
     if not ctx.inInstance or not ctx.instanceID then return nil end
     if perDifficulty then return BuildDifficultyKey(ctx.instanceID, ctx.difficultyID) end
     return tostring(ctx.instanceID)
 end
 function ns.DifficultyName(ctx)
-    ctx = ctx or GetCurrentInstanceContext()
+    ctx = ctx or ns.GetContext()
     return DifficultyName(AssignmentDifficulty(ctx.difficultyID))
 end
 
 -- Actions
-function ns.CheckAndSwap(reason) CheckAndSwap(reason or "manual", true) end
+function ns.CheckAndSwap() CheckAndSwap(true) end
 function ns.EquipSelected()
-    EnsureDB()
+    if KeystoneRunning() then return end -- nothing at all mid-key
     CancelRequests()
-    if UI.selectedSet then TryEquipSet(BeginRequest("gear", UI.selectedSet, "manual", true)) end
-    if UI.selectedTalent then
-        TryLoadTalentLoadout(BeginRequest("talent", StoreTalentLoadout(NormalizeTalentStored(UI.selectedTalent)), "manual", true))
+    local setName, talent = UI.selectedSet, SelectedTalent()
+    if setName then TryEquipSet(BeginRequest("gear", setName, nil, true)) end
+    if talent then
+        TryLoadTalentLoadout(BeginRequest("talent", StoreTalentLoadout(NormalizeTalentStored(talent)), nil, true))
     end
 end
 function ns.AssignCurrent(perDifficulty)
     CancelRequests(true)
     local key = CurrentInstanceKey(perDifficulty)
-    return key ~= nil and SaveSlot(key, false, AssignmentLabel(key))
+    return key ~= nil and SaveSlot(key, false)
 end
 function ns.ClearCurrent(perDifficulty)
     CancelRequests(true)
     local key = CurrentInstanceKey(perDifficulty)
-    return key ~= nil and ClearSlot(key, false, AssignmentLabel(key))
+    return key ~= nil and ClearSlot(key, false)
 end
-function ns.ClearInstanceAssignment(key) CancelRequests(true); return ClearSlot(key, false, AssignmentLabel(key)) end
-function ns.AssignType(key) CancelRequests(true); return SaveSlot(key, true, "the " .. TypeLabel(key) .. " default") end
-function ns.ClearType(key) CancelRequests(true); return ClearSlot(key, true, "the " .. TypeLabel(key) .. " default") end
+function ns.ClearInstanceAssignment(key) CancelRequests(true); return ClearSlot(key, false) end
+function ns.AssignType(key) CancelRequests(true); return SaveSlot(key, true) end
+function ns.ClearType(key) CancelRequests(true); return ClearSlot(key, true) end
 function ns.CopyScopeFrom(sourceID) CancelRequests(true); return CopyScopeFrom(sourceID) end
 
 -- The master switch also decides which events are registered: route through here.
 function ns.SetEnabled(value)
-    EnsureDB()
     CancelRequests()
-    EllesmereUILoadoutManagerDB.enabled = value and true or false
-    if UI.selectedTalent and not TalentMatchesSpec(UI.selectedTalent, GetCurrentSpecID()) then
-        UI.selectedTalent = nil
-    end
-    lastAutoInstanceKey = BuildAutoInstanceKey(GetCurrentInstanceContext())
-    SetEventsEnabled(EllesmereUILoadoutManagerDB.enabled)
+    EnsureDB().enabled = value and true or false
+    NoteCurrentPlace()
+    UpdateRequestEvents()
     RequestRefresh()
 end
 
 function ns.SetChannelEnabled(kind, value)
     if kind ~= "gear" and kind ~= "talent" then return end
-    EnsureDB()
-    EllesmereUILoadoutManagerDB[kind == "gear" and "gearEnabled" or "talentEnabled"] = value and true or false
+    local wasLive = AutomationLive()
+    EnsureDB()[kind == "gear" and "gearEnabled" or "talentEnabled"] = value and true or false
     local request = requests[kind]
     if not value and request and not request.manual then FinishRequest(request) end
+    -- Back from both channels off: start from where you are now.
+    if not wasLive and AutomationLive() then NoteCurrentPlace() end
     UpdateRequestEvents()
     RequestRefresh()
 end
 
 function ns.SetQueueInCombat(value)
-    EnsureDB()
-    EllesmereUILoadoutManagerDB.queueInCombat = value and true or false
+    EnsureDB().queueInCombat = value and true or false
     if not value then
         for _, kind in ipairs(REQUEST_KINDS) do
             local request = requests[kind]
@@ -1530,30 +1793,26 @@ function ns.SetQueueInCombat(value)
 end
 
 function ns.SetSpecWarning(value)
-    EnsureDB()
-    EllesmereUILoadoutManagerDB.specWarning = value and true or false
+    EnsureDB().specWarning = value and true or false
     if not value then HideSpecChangeWarning() end
 end
 function ns.Verify() VerifyAssignments() end
 
--- Reset hook for the page's Reset button (onReset)
+-- Reset hook for the page's Reset button (onReset): the character's saved
+-- table goes, and reads fall back to the defaults.
 function ns.ResetAll()
     CancelRequests()
-    lastAutoInstanceKey = BuildAutoInstanceKey(GetCurrentInstanceContext())
     EllesmereUILoadoutManagerDB = nil
-    dbReady = false
-    EnsureDB()
     UI.selectedSet, UI.selectedTalent, UI.assignScope = nil, nil, nil
-    SetEventsEnabled(EllesmereUILoadoutManagerDB.enabled)
+    assignVersion = assignVersion + 1
+    NoteCurrentPlace()
+    UpdateRequestEvents()
     RequestRefresh()
 end
 
--- Use the shared startup callback, which creates no module event frame or
--- event registration. Disabled characters do not build the runtime or DB.
-EventUtil.ContinueOnVariablesLoaded(function()
-    dbReady = false
-    if EllesmereUILoadoutManagerDB and EllesmereUILoadoutManagerDB.enabled then
-        EnsureDB()
-        SetEventsEnabled(true)
-    end
-end)
+-- Saved variables are loaded here (the module's own ADDON_LOADED). A
+-- character with automation on gets its events now; one that never changed
+-- a setting keeps no saved table, since reading never creates it.
+function LM:OnInitialize()
+    UpdateRequestEvents()
+end

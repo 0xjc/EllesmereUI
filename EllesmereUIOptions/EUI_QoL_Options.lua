@@ -628,7 +628,17 @@ initFrame:SetScript("OnEvent", function(self)
               setValue=function(v)
                   if not EllesmereUIDB then EllesmereUIDB = {} end
                   EllesmereUIDB.hideErrorMessages = v
-                  if EllesmereUI._applyHideErrorMessages then EllesmereUI._applyHideErrorMessages() end
+                  -- Turning it off takes effect at the next reload; the apply
+                  -- returns true while one is due.
+                  if EllesmereUI._applyHideErrorMessages and EllesmereUI._applyHideErrorMessages() then
+                      EllesmereUI:ShowConfirmPopup({
+                          title       = "Reload Required",
+                          message     = "Hidden error messages come back after a UI reload.",
+                          confirmText = "Reload Now",
+                          cancelText  = "Later",
+                          reload      = true,
+                      })
+                  end
               end },
             { type="toggle", text="Hide Tutorial Pop-ups",
               tooltip="Hides Blizzard's tutorial UI: the yellow HelpTip bubbles and the glowing (i) help-plate buttons on the spellbook, talents, map, collections, and other panels.",
@@ -2427,6 +2437,7 @@ initFrame:SetScript("OnEvent", function(self)
                 _G._EUI_RaidTools_Preview(pageName == PAGE_RAIDTOOLS)
             end
         end,
+        resetScope = "account",
         onReset = function()
             if EllesmereUIDB then
                 EllesmereUIDB.hideBlizzardPartyFrame = false
@@ -2497,9 +2508,9 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUIDB.targetDistancePos = nil
                 if EllesmereUIDB.unlockAnchors then
                     EllesmereUIDB.unlockAnchors.EUI_TargetDistance = nil
+                    EllesmereUIDB.unlockAnchors.EUI_CombatAlert = nil
                     EllesmereUIDB.unlockAnchors.EUI_BattleRes = nil
                     EllesmereUIDB.unlockAnchors.EUI_Bloodlust = nil
-                    EllesmereUIDB.unlockAnchors.EUI_JunkList = nil
                 end
                 EllesmereUIDB.hideTransforms = false
                 EllesmereUIDB.hideTransformItems = nil
@@ -2511,7 +2522,6 @@ initFrame:SetScript("OnEvent", function(self)
             EllesmereUIDB.autoLogging = nil
             if _G._EUI_ResetUpgradeCalc then _G._EUI_ResetUpgradeCalc() end
             if _G._EBS_ResetCursor then _G._EBS_ResetCursor() end
-            _G._EUI_JunkList_Reset()
             -- Battle Res and Bloodlust do not exist on WoW Forever.
             if _G._EUI_BattleRes_Reset then _G._EUI_BattleRes_Reset() end
             EllesmereUI._applyHideBlizzardPartyFrame()

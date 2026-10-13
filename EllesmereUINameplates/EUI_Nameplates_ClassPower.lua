@@ -867,8 +867,8 @@ local function EnableClassPowerWatcher()
         local isResto = (PLAYER_CLASS == "DRUID" and specIdx == 4)
         classPowerFormReq = isResto and (DRUID_CAT_FORM or 1) or nil
     end
-    -- Every spec change and setting toggle runs Disable + Enable, so the frame is
-    -- reused: WoW never frees a frame, and a new one per rebuild leaked.
+    -- Every spec change and setting toggle runs Disable + Enable: the one frame is
+    -- reused, since WoW never frees a frame.
     classPowerWatcherFrame = classPowerWatcherFrame or CreateFrame("Frame")
     classPowerWatcher = classPowerWatcherFrame
     classPowerWatcher:Show()  -- Disable hides it; OnUpdate needs it shown

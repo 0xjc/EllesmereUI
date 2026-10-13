@@ -4,7 +4,8 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --  Center-screen text alerts that share ONE movable anchor (Unlock Mode: Alerts).
 --  Each alert is a line stacked under the anchor, with its own text, size and
 --  color. Short alerts fade out by themselves; a persistent one stays until its
---  condition ends or it is middle-clicked.
+--  condition ends or its alert dismisses it. The lines never take the mouse, so
+--  nothing behind them is blocked.
 --    Combat Alert     (EllesmereUIQoL.lua)   short
 --    Potion Ready     (below)                short
 --    Unspent Talents  (below)                persistent
@@ -13,12 +14,10 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 
 local ns = select(2, ...)
 local EUI = EllesmereUI
-local FALLBACK_FONT = "Fonts\\FRIZQT__.TTF"
 local DEFAULT_SIZE = 22
 local DEFAULT_POS = { point = "CENTER", relPoint = "CENTER", x = 0, y = 169 }
 local GAP = 4
 
-local function IsSecret(v) return issecretvalue and issecretvalue(v) or false end
 local function DB(key) return EllesmereUIDB and EllesmereUIDB[key] end
 
 -------------------------------------------------------------------------------
@@ -104,16 +103,16 @@ local function Style(line)
         outline = (outline == "") and "OUTLINE" or (outline .. ", OUTLINE")
     end
     local size = SizeOf(line.def)
-    line.text:SetFont((EUI.GetFontPath("extras")) or EUI.EXPRESSWAY or FALLBACK_FONT, size, outline)
+    EUI.ApplyModuleFont(line.text, nil, size, "extras", outline)
     line.frame:SetSize(size * 7, size + 14)
 end
 
 local function NewLine(def)
     local line = { def = def }
-    local f = CreateFrame("Button", nil, UIParent)
+    local f = CreateFrame("Frame", nil, UIParent)
     f:SetFrameStrata("HIGH")
     f:SetFrameLevel(60)
-    f:EnableMouse(def.persistent == true)
+    f:EnableMouse(false)
     f:Hide()
     local fs = f:CreateFontString(nil, "OVERLAY")
     fs:SetPoint("CENTER")
@@ -140,15 +139,6 @@ local function NewLine(def)
         line.persistentShown = false
         Layout()
     end)
-
-    if def.persistent then
-        f:RegisterForClicks("MiddleButtonUp")
-        f:SetScript("OnClick", function(_, button)
-            if button == "MiddleButton" then line.Dismiss() end
-        end)
-        f:SetScript("OnEnter", function(self) EUI.ShowWidgetTooltip(self, "Middle click to dismiss") end)
-        f:SetScript("OnLeave", function() EUI.HideWidgetTooltip() end)
-    end
 
     -- preview: play the short animation even on a persistent line, and never
     -- disturb a real persistent alert that is already up.
@@ -206,8 +196,10 @@ end
 function Alerts.Color(prefix, dr, dg, db)
     if DB(prefix .. "UseClassColor") then
         local _, token = UnitClass("player")
-        local c = token and RAID_CLASS_COLORS and RAID_CLASS_COLORS[token]
-        if c then return c.r, c.g, c.b end
+        if token then
+            local c = EUI.GetClassColor(token)
+            return c.r, c.g, c.b
+        end
     end
     local c = DB(prefix .. "Color")
     if c then return c.r, c.g, c.b end
@@ -215,7 +207,6 @@ function Alerts.Color(prefix, dr, dg, db)
 end
 
 local function RegisterUnlock()
-    if not (EUI.RegisterUnlockElements and EUI.MakeUnlockElement) then return end
     EUI:RegisterUnlockElements({
         EUI.MakeUnlockElement({
             key      = "EUI_CombatAlert",
@@ -294,7 +285,7 @@ do
     -- start, duration; nil if the item has no cooldown data.
     local function ReadCD(itemID)
         local start, dur = C_Container.GetItemCooldown(itemID)
-        if not start or IsSecret(start) or IsSecret(dur) then return nil end
+        if not start or issecretvalue(start) or issecretvalue(dur) then return nil end
         return start, dur
     end
 
@@ -388,7 +379,7 @@ do
     local function OnEvent(_, event, ...)
         if event == "UNIT_SPELLCAST_SUCCEEDED" then
             local _, _, spellID = ...
-            if IsSecret(spellID) then return end
+            if issecretvalue(spellID) then return end
             local itemID = spellToItem[spellID]
             if not itemID then return end
             usedItem = itemID
@@ -455,8 +446,11 @@ end
 --  Unspent Talents (persistent)
 --  Same check and trigger events as Blizzard's own talent micro button alert
 --  (C_ClassTalents.HasUnspent*), evaluated once after a burst of events.
---  The line stays up while points are unspent, until middle-clicked; it comes
---  back when new points appear, and waits for combat to end before showing.
+--  The line stays up while points are unspent, until the talent window opens
+--  (Blizzard's PlayerSpellsFrame.TalentTab.Show, an EventRegistry callback); it
+--  comes back when new points appear (a level-up), and waits for combat to end
+--  before showing. One that came due while Unlock Mode was open shows once it
+--  closes.
 -------------------------------------------------------------------------------
 do
     -- Blizzard's own trigger events for its talent alert.
@@ -506,12 +500,23 @@ do
         C_Timer.After(0, Evaluate)   -- next frame: one pass per burst of events
     end
 
+    local listening = false
     local function Apply()
         local on = DB("talentAlertEnabled")
         if on and not installed then
             for _, e in ipairs(EVENTS) do watcher:RegisterEvent(e) end
             installed = true
             lastHad, dismissed = false, false
+            if not listening then
+                listening = true
+                EUI:RegisterUnlockModeListener("EUI_TalentAlert", function(active)
+                    if not active and installed then MarkDirty() end
+                end)
+                -- Opening the talents counts as seeing the alert.
+                EventRegistry:RegisterCallback("PlayerSpellsFrame.TalentTab.Show", function()
+                    if installed then Line().Dismiss() end
+                end, "EUI_TalentAlert")
+            end
             MarkDirty()
         elseif not on and installed then
             watcher:UnregisterAllEvents()
@@ -522,7 +527,11 @@ do
     end
 
     watcher = CreateFrame("Frame")
-    watcher:SetScript("OnEvent", MarkDirty)
+    watcher:SetScript("OnEvent", function(_, event)
+        -- A level-up brings new points: a dismissed alert shows again.
+        if event == "PLAYER_LEVEL_CHANGED" then dismissed = false end
+        MarkDirty()
+    end)
 
     EUI._applyTalentAlert = Apply
     EUI._talentAlertFrame = Alerts.Refresh

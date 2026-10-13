@@ -12,7 +12,6 @@ move-folders:
   EllesmereUI/EllesmereUIDataBars: EllesmereUIDataBars
   EllesmereUI/EllesmereUIForeverEssentials: EllesmereUIForeverEssentials
   EllesmereUI/EllesmereUIFriends: EllesmereUIFriends
-  EllesmereUI/EllesmereUILoadoutManager: EllesmereUILoadoutManager
   EllesmereUI/EllesmereUIGroupFinder: EllesmereUIGroupFinder
   EllesmereUI/EllesmereUILocales: EllesmereUILocales
   EllesmereUI/EllesmereUIMinimap: EllesmereUIMinimap
@@ -57,3 +56,4 @@ ignore:
   - README.md
   - CHANGELOG.md
   - AGENTS.md
+  - EllesmereUILoadoutManager

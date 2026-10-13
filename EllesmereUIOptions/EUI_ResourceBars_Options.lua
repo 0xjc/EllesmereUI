@@ -2361,14 +2361,16 @@ initFrame:SetScript("OnEvent", function(self)
             local MEDIA = "Interface\\AddOns\\EllesmereUI\\media\\"
             local eg = EllesmereUI.ELLESMERE_GREEN
 
+            -- Back: the styled button (bg / border / label hover), the arrow leading its label
             local backBtn = CreateFrame("Button", nil, thrPage)
             PP.Size(backBtn, BUTTON_W, BUTTON_H)
             PP.Point(backBtn, "TOPLEFT", thrPage, "TOPLEFT", SIDE_PAD, -INNERPAD)
             backBtn:SetFrameLevel(thrPage:GetFrameLevel() + 2)
-            local backBg = backBtn:CreateTexture(nil, "BACKGROUND")
-            backBg:SetAllPoints()
-            backBg:SetColorTexture(0.077, 0.068, 0.058, 0.50)
-            local backBrd = EllesmereUI.MakeBorder(backBtn, 1, 1, 1, 0.12, PP)
+            local _, _, backLbl = EllesmereUI.MakeStyledButton(backBtn, "", 12, {
+                0.077, 0.068, 0.058, 0.50,  0.119, 0.111, 0.104, 0.50,
+                1, 1, 1, 0.12,  1, 1, 1, 0.22,
+                1, 1, 1, 0.55,  1, 1, 1, 0.85,
+            }, function() thrPage:Hide() end)
             local backIcon = backBtn:CreateTexture(nil, "ARTWORK")
             backIcon:SetSize(14, 14)
             PP.Point(backIcon, "LEFT", backBtn, "LEFT", 10, 0)
@@ -2378,22 +2380,11 @@ initFrame:SetScript("OnEvent", function(self)
             if backIcon.SetSnapToPixelGrid then
                 backIcon:SetSnapToPixelGrid(false); backIcon:SetTexelSnappingBias(0)
             end
-            local backLbl = EllesmereUI.MakeFont(backBtn, 12, nil, 1, 1, 1, 0.55)
+            backLbl:ClearAllPoints()
             PP.Point(backLbl, "LEFT", backIcon, "RIGHT", 6, 0)
             backLbl:SetText(EllesmereUI.L("Back"))
-            backBtn:SetScript("OnEnter", function()
-                backBg:SetColorTexture(0.119, 0.111, 0.104, 0.50)
-                backBrd:SetColor(1, 1, 1, 0.22)
-                backIcon:SetAlpha(0.85)
-                backLbl:SetAlpha(0.85)
-            end)
-            backBtn:SetScript("OnLeave", function()
-                backBg:SetColorTexture(0.077, 0.068, 0.058, 0.50)
-                backBrd:SetColor(1, 1, 1, 0.12)
-                backIcon:SetAlpha(0.6)
-                backLbl:SetAlpha(0.55)
-            end)
-            backBtn:SetScript("OnClick", function() thrPage:Hide() end)
+            backBtn:HookScript("OnEnter", function() backIcon:SetAlpha(0.85) end)
+            backBtn:HookScript("OnLeave", function() backIcon:SetAlpha(0.6) end)
 
             -- Spec-assignment chrome: the spec dropdown + Add Specs, right of Back
             do
@@ -2488,22 +2479,11 @@ initFrame:SetScript("OnEvent", function(self)
                 PP.Size(addBtn, ADD_W, BUTTON_H)
                 addBtn:SetPoint("LEFT", specDDHost, "RIGHT", GAP_L, 0)
                 addBtn:SetFrameLevel(ddRow:GetFrameLevel() + 2)
-                local addBg = EllesmereUI.SolidTex(addBtn, "BACKGROUND", 0.069, 0.058, 0.047, 0.92)
-                addBg:SetAllPoints()
-                addBtn._border = EllesmereUI.MakeBorder(addBtn, 1, 1, 1, 0.4, PP)
-                local addLbl = EllesmereUI.MakeFont(addBtn, 11, nil, 1, 1, 1)
-                addLbl:SetAlpha(0.5)
-                addLbl:SetPoint("CENTER")
-                addLbl:SetText(EllesmereUI.L("Add Specs"))
-                addBtn:SetScript("OnEnter", function()
-                    addLbl:SetAlpha(0.7)
-                    if addBtn._border and addBtn._border.SetColor then addBtn._border:SetColor(1, 1, 1, 0.6) end
-                end)
-                addBtn:SetScript("OnLeave", function()
-                    addLbl:SetAlpha(0.5)
-                    if addBtn._border and addBtn._border.SetColor then addBtn._border:SetColor(1, 1, 1, 0.4) end
-                end)
-                addBtn:SetScript("OnClick", function()
+                local _, _, addLbl = EllesmereUI.MakeStyledButton(addBtn, "", 11, {
+                    0.069, 0.058, 0.047, 0.92,  0.069, 0.058, 0.047, 0.92,
+                    1, 1, 1, 0.4,  1, 1, 1, 0.6,
+                    1, 1, 1, 0.5,  1, 1, 1, 0.7,
+                }, function()
                     local bd = cfg.getBarData(); if not bd then return end
                     local ids = {}
                     if _tempSpecSel[0] then
@@ -2523,6 +2503,7 @@ initFrame:SetScript("OnEvent", function(self)
                     RedrawDetail()
                     cfg.refreshFn()
                 end)
+                addLbl:SetText(EllesmereUI.L("Add Specs"))
             end
 
             -- Scrollable entry container
@@ -2624,19 +2605,6 @@ initFrame:SetScript("OnEvent", function(self)
                 ibg:SetColorTexture(0.12, 0.12, 0.12, 0.8)
                 EllesmereUI.MakeBorder(ib, 1, 1, 1, 0.08, PP)
                 return ib
-            end
-
-            local function MakeCogBtn(rowParent)
-                local b = CreateFrame("Button", nil, rowParent)
-                b:SetSize(20, 20)
-                b:SetPoint("RIGHT", rowParent, "RIGHT", 0, 0)
-                b:SetFrameLevel(rowParent:GetFrameLevel() + 5)
-                b:SetAlpha(0.5)
-                local tex = b:CreateTexture(nil, "OVERLAY")
-                tex:SetAllPoints(); tex:SetTexture(EllesmereUI.COGS_ICON)
-                b:SetScript("OnEnter", function(self) self:SetAlpha(0.8) end)
-                b:SetScript("OnLeave", function(self) self:SetAlpha(0.5) end)
-                return b
             end
 
             -- Greys a row's controls and explains why (tooltip in blocker._tip), shown by RefreshDetail
@@ -2742,7 +2710,8 @@ initFrame:SetScript("OnEvent", function(self)
                 hashModeRow.disabled = function() return rules.pips end
                 hashModeRow.disabledTooltip = "Bar-type resources only (pips use stack counts)"
             end
-            local _, hashCogShow = EllesmereUI.BuildCogPopup({
+            -- Style cog, pinned inside the row's right edge
+            local hashCogBtn = EllesmereUI.BuildInlineCog(hashRow, {
                 title = "Hash Line Style", bgAlpha = 1, frameStrata = "FULLSCREEN_DIALOG", frameLevel = 500,
                 rows = {
                     hashModeRow,
@@ -2750,9 +2719,8 @@ initFrame:SetScript("OnEvent", function(self)
                       get = function() local ent = CurEntry(); return ent and ent.hashWidth or 1 end,
                       set = function(v) local ent = CurEntry(); if ent then ent.hashWidth = v; cfg.rebuildFn() end end },
                 },
+                size = 20, anchorTo = hashRow, relPoint = "RIGHT", gap = 0,
             })
-            local hashCogBtn = MakeCogBtn(hashRow)
-            hashCogBtn:SetScript("OnClick", function(self) hashCogShow(self) end)
             local hashSwatch, hashSwatchSnap = EllesmereUI.BuildColorSwatch(
                 hashRow, hashRow:GetFrameLevel() + 4,
                 function()
@@ -2793,12 +2761,11 @@ initFrame:SetScript("OnEvent", function(self)
             local threshCogBtn
             local tc = cfg.thresholdCog
             if tc then
-                local _, threshCogShow = EllesmereUI.BuildCogPopup({
+                threshCogBtn = EllesmereUI.BuildInlineCog(threshRow, {
                     title = tc.title, bgAlpha = 1, frameStrata = "FULLSCREEN_DIALOG", frameLevel = 500,
                     minWidth = tc.minWidth, rows = tc.rows(CurEntry, RedrawDetail),
+                    size = 20, anchorTo = threshRow, relPoint = "RIGHT", gap = 0,
                 })
-                threshCogBtn = MakeCogBtn(threshRow)
-                threshCogBtn:SetScript("OnClick", function(self) threshCogShow(self) end)
             end
             local threshEnable, _, threshEnableSnap = EllesmereUI.BuildToggleControl(
                 threshRow, DLVL + 4,

@@ -253,11 +253,25 @@ Register("minimap",      "EllesmereUIMinimap",         "Minimap",
     -- Either stock style, at each switch (the controls stay the user's
     -- afterwards): the Omnium Folio on the ring's bottom right spot (WoW
     -- Forever builds no folio), and the clock inside the map at the top,
-    -- 10px down. Classic WoW UI also centres the zone text in the banner's
-    -- text slot (its X/Y offsets back to 0).
-    function(p, styleKey)
+    -- 10px down, or, on a square (the WoW Forever look's Forever Square or
+    -- Blizzard Style's Square on the Forever client, each its Border Style
+    -- default there), at the map's bottom with no offset, its title bar
+    -- holding the zone name up top. The Border Style rows move the clock the
+    -- same way when a pick changes. Classic WoW UI also centres the zone text
+    -- in the banner's text slot (its X/Y offsets back to 0).
+    function(p, styleKey, isForever)
         if not EllesmereUI.IS_FOREVER then p.omniumFolioCorner = "BOTTOMRIGHT" end
-        p.clockMode, p.clockPosition, p.clockOffsetY = "inside", "top", -10
+        local square
+        if isForever then
+            square = p.foreverBorder ~= "circle" and EllesmereUI.ForeverHeavyOK()
+        else
+            square = styleKey == "blizzard" and EllesmereUI.IS_FOREVER and p.blizzBorder ~= "circle"
+        end
+        if square then
+            p.clockMode, p.clockPosition, p.clockOffsetY = "inside", "bottom", 0
+        else
+            p.clockMode, p.clockPosition, p.clockOffsetY = "inside", "top", -10
+        end
         if styleKey == "classic" then p.locationOffsetX, p.locationOffsetY = 0, 0 end
     end)
 Register("damagemeters", "EllesmereUIDamageMeters",    "Damage Meters",
@@ -858,6 +872,8 @@ end
 -- blocks clicks with the standard requirement tooltip while a stock style is
 -- active for the module. No-op otherwise, so existing pages are untouched.
 function BlizzStyle.BlockInline(key, widget, dimAlpha)
+    -- The search prebuild only indexes rows: no blocker (the widget is a stand-in there).
+    if EllesmereUI._prebuilding then return false end
     if not widget or not BlizzStyle.Get(key) then return false end
     widget:SetAlpha(dimAlpha or 0.3)
     local block = CreateFrame("Frame", nil, widget)

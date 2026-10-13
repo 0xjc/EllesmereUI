@@ -970,12 +970,13 @@ local function RefreshCDMIconAppearance(barKey)
                 local sd = ns.GetBarSpellData(bk)
                 -- Shared resolver: direct hit + full identity/override matching against the family store, with bar-tier fallback.
                 local ss = ns.ResolveSpellSettings and ns.ResolveSpellSettings(icon, sid, sd, bk)
-                local cse = ns.GetSpellCdStateEffect(icon, ss)
-                local isReadyGlow = (cse == "pixelGlowReady" or cse == "buttonGlowReady"
-                    or cse == "pixelGlowReadyUsable" or cse == "buttonGlowReadyUsable")
-                local isOnCdGlow = cse == "glowOnCD"
+                -- The glow half of the effect (any hide beside it runs below).
+                local glow = ns.CdStateGlowOf(ss, icon)
+                local isReadyGlow = (glow == "pixelGlowReady" or glow == "buttonGlowReady"
+                    or glow == "pixelGlowReadyUsable" or glow == "buttonGlowReadyUsable")
+                local isOnCdGlow = glow == "glowOnCD"
                 if (isReadyGlow or isOnCdGlow) and glowOv then
-                    local glowUsable = (cse == "pixelGlowReadyUsable" or cse == "buttonGlowReadyUsable")
+                    local glowUsable = (glow == "pixelGlowReadyUsable" or glow == "buttonGlowReadyUsable")
                     local glowLive = sid
                     if C_SpellBook and C_SpellBook.FindSpellOverrideByID then
                         glowLive = C_SpellBook.FindSpellOverrideByID(sid) or sid
@@ -1003,7 +1004,7 @@ local function RefreshCDMIconAppearance(barKey)
                             end
                         end
                         if isUsable == true then
-                            local style = ns.CdReadyGlowStyle(cse, ss)
+                            local style = ns.CdReadyGlowStyle(glow, ss)
                             local cr, cg, cb = ns.CdReadyGlowColor(style, ss)
                             ifd._cdStateGlowOn = ns.StartCdGlow(ifd, style, cr, cg, cb, ns.CdReadyGlowAlpha(ss)) ~= nil
                         end
@@ -1036,23 +1037,27 @@ local function RefreshCDMIconAppearance(barKey)
             -- Shared resolver: direct hit + full identity/override matching
             -- against the family store, with bar-tier fallback.
             local csSs = ns.ResolveSpellSettings and ns.ResolveSpellSettings(icon, csSid, csSd, csBk)
-            local cse = ns.GetSpellCdStateEffect(icon, csSs)
+            -- The effect is a hide and a glow, each run on its own below.
+            local cse, csGlow = ns.CdStateOf(csSs, icon)
             -- The hide effects run as their base mode plus flags (ns.CD_STATE_HIDE: Shift Icons, Hidden Until Usable, Hidden Outside Form/Stance), so the branches below stay as-is.
             local m = cse and ns.CD_STATE_HIDE[cse]
             local cseShift, cseUsable, cseForm
             if m then cse, cseShift, cseUsable, cseForm = m.base, m.shift, m.usable, m.form end
-            if cse then
+            if cse or csGlow then
                 local csLive = csSid
                 if C_SpellBook and C_SpellBook.FindSpellOverrideByID then
                     csLive = C_SpellBook.FindSpellOverrideByID(csSid) or csSid
                 end
-                local onCD
+                -- realCD is the plain cooldown read the glow runs on; onCD is
+                -- what the hide runs on (the form alone, or unusable counting too).
+                local realCD, onCD
                 if cseForm then
                     -- Only the form decides; form changes re-arm through the form watch.
                     onCD = ns.CdmSpellOutsideForm(csLive)
                     ns.WatchCdUsable(icon, true)
                 else
-                    onCD = ns.CdmOnRealCD(icon, C_Spell.GetSpellCooldown(csLive))
+                    realCD = ns.CdmOnRealCD(icon, C_Spell.GetSpellCooldown(csLive))
+                    onCD = realCD
                 end
                 if cseUsable then
                     if not onCD then onCD = ns.CdmSpellNotUsable(csLive) end
@@ -1087,7 +1092,7 @@ local function RefreshCDMIconAppearance(barKey)
                         if ns.SetCdStateShiftHidden then ns.SetCdStateShiftHidden(fc, false) end
                     end
                 else
-                    -- Clear stale hidden state when switching to a glow effect
+                    -- No hide effect: clear stale hidden state
                     if fc and fc._cdStateHidden then
                         fc._cdStateHidden = false
                         icon:SetAlpha(IconShownAlpha(fc, barData))
@@ -1095,17 +1100,20 @@ local function RefreshCDMIconAppearance(barKey)
                     if fc and ns.SetCdStateShiftHidden then
                         ns.SetCdStateShiftHidden(fc, false)
                     end
+                end
+                if csGlow then
+                    if realCD == nil then realCD = ns.CdmOnRealCD(icon, C_Spell.GetSpellCooldown(csLive)) end
                     -- A live proc or active-state glow keeps the shared overlay:
                     -- ns.StartCdGlow lights only a Blackout beside it.
                     if not ifd or not ifd._cdStateGlowOn then
-                        local isReadyGlow = (cse == "pixelGlowReady" or cse == "buttonGlowReady"
-                            or cse == "pixelGlowReadyUsable" or cse == "buttonGlowReadyUsable")
-                        local isOnCdGlow = cse == "glowOnCD"
-                        local wantsGlow = (isOnCdGlow and onCD) or (isReadyGlow and not onCD)
+                        local isReadyGlow = (csGlow == "pixelGlowReady" or csGlow == "buttonGlowReady"
+                            or csGlow == "pixelGlowReadyUsable" or csGlow == "buttonGlowReadyUsable")
+                        local isOnCdGlow = csGlow == "glowOnCD"
+                        local wantsGlow = (isOnCdGlow and realCD) or (isReadyGlow and not realCD)
                         if wantsGlow and glowOv then
                             -- Plain variants glow purely from cooldown state (legacy). Resource Aware variants also require usability outside the loading-screen settle window.
                             local isUsable = true
-                            if cse == "pixelGlowReadyUsable" or cse == "buttonGlowReadyUsable" then
+                            if csGlow == "pixelGlowReadyUsable" or csGlow == "buttonGlowReadyUsable" then
                                 if ns._cdmSoundSuppressed and ns._cdmSoundSuppressed() then
                                     isUsable = true
                                 else
@@ -1113,7 +1121,7 @@ local function RefreshCDMIconAppearance(barKey)
                                 end
                             end
                             if isUsable == true and ifd then
-                                local style = ns.CdReadyGlowStyle(cse, csSs)
+                                local style = ns.CdReadyGlowStyle(csGlow, csSs)
                                 local cr, cg, cb = ns.CdReadyGlowColor(style, csSs)
                                 ifd._cdStateGlowOn = ns.StartCdGlow(ifd, style, cr, cg, cb, ns.CdReadyGlowAlpha(csSs)) ~= nil
                             end
@@ -1124,8 +1132,8 @@ local function RefreshCDMIconAppearance(barKey)
                     -- (racial/trinket/potion/custom) drive desaturation via SetDesaturation(float),
                     -- which never fires that hook -- without a watch their glow stays lit for the
                     -- whole cooldown. Frames owned by the Fake-Active preset path (PresetHasCdState) are excluded; that engine glows them.
-                    local watchGlow = cse == "pixelGlowReadyUsable" or cse == "buttonGlowReadyUsable"
-                    if not watchGlow and (cse == "pixelGlowReady" or cse == "buttonGlowReady" or cse == "glowOnCD")
+                    local watchGlow = csGlow == "pixelGlowReadyUsable" or csGlow == "buttonGlowReadyUsable"
+                    if not watchGlow and (csGlow == "pixelGlowReady" or csGlow == "buttonGlowReady" or csGlow == "glowOnCD")
                         and (icon._isRacialFrame or icon._isTrinketFrame or icon._isPresetFrame
                              or icon._isItemPresetFrame or icon._isCustomSpellFrame)
                         and not (ns.PresetHasCdState and ns.PresetHasCdState(icon)) then

@@ -3905,8 +3905,11 @@ function ns.UFO_BuildUnitPreview(parent, unitKey, side)
         pf._detTopExtra = detTopExtra
         local parentTH = th * combinedScale
         local cpBottomScaled = cpBottomH * combinedScale
+        -- The preview hint belongs to the Main Frames header, which parents it to
+        -- its own preview: only that preview's header makes room for it.
         local hintH = 0
-        if optState._ufPreviewHintFS_display and optState._ufPreviewHintFS_display:IsShown() then hintH = 29 end
+        if optState._ufPreviewHintFS_display and optState._ufPreviewHintFS_display:IsShown()
+            and optState._ufPreviewHintFS_display:GetParent() == pf then hintH = 29 end
         local fixedH = pf._headerFixedH or 0
         if fixedH > 0 then
             -- The preview slid down by auraTopOv, so the section must grow by it

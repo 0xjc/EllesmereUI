@@ -1798,6 +1798,8 @@ local function ShowGoldTooltip(anchor)
     table.sort(charList, function(a, b) return a.id < b.id end)
 
     local warbandGold = ledger.warband and ledger.warband.money
+    -- An empty warband bank gets no row, as on the Data Bars Gold block.
+    if warbandGold and warbandGold <= 0 then warbandGold = nil end
     if warbandGold then
         totalGold = totalGold + warbandGold
     end
@@ -3931,7 +3933,7 @@ local function BuildButtons()
 end
 
 -- The header's icons (Bag Top Bar Icons), right to left from the search box:
--- Sort, Show Bags and the Junk Marker's coin, each shown one left of the next
+-- Sort, Show Bags, Quick Actions and the Junk Marker's coin, each shown one left of the next
 -- shown one; Sell Junk sits left of the coin while a merchant is open, and
 -- mark mode ends when the Junk Marker goes off. Hidden icons keep a point (the
 -- bags overview window hangs from Show Bags). Run at header build, by the
@@ -3953,6 +3955,9 @@ function EUI_Bags:SyncHeaderIcons()
     else
         EUI_BagsWindow:Hide()  -- opened only from Show Bags
     end
+    -- Quick Actions (EllesmereUIBags_QuickActions.lua), off by default
+    local quick = ns.SyncQuickActionsIcon(prev, gap)
+    if quick then prev, gap = quick, 6 end
     local junkOn = EUI_CategoryManager:IsJunkMarkerEnabled()
     if junkOn and not self._junkBtn then BuildButtons() end
     if self._junkBtn then
@@ -4098,6 +4103,7 @@ function EUI_Bags:OnProfileApplied()
     self:SyncHeaderIcons()
     if self:IsShown() then self:RefreshInventory() end
     ns.RefreshOpenBank()
+    EUI_CategoryManager:OnJunkChanged()  -- the new profile may switch the Junk Marker
 end
 end -- Junk Marker
 
