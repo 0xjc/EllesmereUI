@@ -28,7 +28,7 @@ initFrame:SetScript("OnEvent", function(self)
         title       = "Forever Essentials",
         description = "Essential tools for WoW Forever.",
         pages       = { PAGE_GENERAL, PAGE_TRAVEL, PAGE_THREAT, PAGE_LOOT, PAGE_MACROS },
-        searchTerms = { "flight timer", "flight path", "threat", "threat meter", "aggro", "loot", "loot feed", "reputation", "currency", "uprank", "spell rank", "macro", "macros", "macro manager" },
+        searchTerms = { "flight timer", "flight path", "threat", "threat meter", "aggro", "loot", "loot feed", "reputation", "currency", "uprank", "spell rank", "macro", "macros", "macro manager", "simplified stats", "item stats", "stat colors", "tooltip stats" },
         buildPage   = function(pageName, parent, yOffset)
             if pageName == PAGE_GENERAL and _G._EUI_BuildForeverGeneralPage then
                 return _G._EUI_BuildForeverGeneralPage(pageName, parent, yOffset)
@@ -60,6 +60,7 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUIDB.threatMeter = nil
                 EllesmereUIDB.lootFeed = nil
                 EllesmereUIDB.spellUprank = nil
+                EllesmereUIDB.simplifiedStats = nil
                 EllesmereUIDB.macroManager = nil
                 if EllesmereUIDB.unlockAnchors then
                     EllesmereUIDB.unlockAnchors.EUI_FlightTimer = nil

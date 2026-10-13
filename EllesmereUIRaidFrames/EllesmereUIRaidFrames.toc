@@ -12,6 +12,7 @@
 # Main Luas
 EllesmereUIRaidFrames.lua
 EUI_RaidFrames_Colors.lua
+EUI_RaidFrames_Compact.lua
 EUI_RaidFrames_Absorb.lua
 EUI_RaidFrames_Style.lua
 EUI_RaidFrames_Update.lua

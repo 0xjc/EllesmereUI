@@ -464,11 +464,15 @@ local function BuildVisualBars(parent, y, W, onSection, EYE)
     -- Style other than Solid and a Border Size above 0 (runtime twin:
     -- ns.RF_CustomBorderOn). Cog rows re-check this on every open.
     local function CustomBorderOff()
+        if ns.RF_CompactOn(optState._partyCtx and ns._partyProxy or db.profile, optState._partyCtx) then return true end
         if ns.RF_Stock and ns.RF_Stock() then return true end
         local tex = SGet("borderTexture")
         return tex == nil or tex == "" or tex == "solid" or SVal("borderSize", 1) <= 0
     end
     local function CustomBorderOffTip()
+        if ns.RF_CompactOn(optState._partyCtx and ns._partyProxy or db.profile, optState._partyCtx) then
+            return "Color Custom Borders is unavailable in Compact Mode. Use the border thickness slider."
+        end
         if ns.RF_Stock and ns.RF_Stock() then
             return EllesmereUI.BlizzStyle and EllesmereUI.BlizzStyle.Label("raidframes")
         end
@@ -504,8 +508,14 @@ local function BuildVisualBars(parent, y, W, onSection, EYE)
                   disabled=CustomBorderOff,
                   disabledTooltip=CustomBorderOffTip,
                   requireState="disabled",
-                  get=function() return SVal("threatCustomBorder", false) end,
-                  set=function(v) SSet("threatCustomBorder", v) end },
+                  get=function()
+                      return not ns.RF_CompactOn(optState._partyCtx and ns._partyProxy or db.profile, optState._partyCtx)
+                          and SVal("threatCustomBorder", false)
+                  end,
+                  set=function(v)
+                      if v and CustomBorderOff() then return end
+                      SSet("threatCustomBorder", v)
+                  end },
             },
         })
     end
