@@ -354,7 +354,7 @@ local TagFns = {}
 
 do
   -- Abbreviated health for the curhpshort / maxhpshort tags.
-  local function MakeAbbrevHP(getHP)
+  local function MakeAbbrevHP(getHP, absorbStyle)
     return function(unit)
       if not unit or not UnitExists(unit) then return "" end
       if not UnitIsConnected(unit) then return "OFFLINE" end
@@ -362,7 +362,7 @@ do
       local hp = getHP(unit) or 0
       local cfg = _G._EUI_AbbrevDecimalCfg
       -- Boss frames use the 2-decimal config when "Show 2 for Boss" is on.
-      if _G._EUI_BossExtraDecimal and string.sub(unit, 1, 4) == "boss" then
+      if not absorbStyle and _G._EUI_BossExtraDecimal and string.sub(unit, 1, 4) == "boss" then
         cfg = _G._EUI_AbbrevDecimalCfg2
       end
       return cfg and AbbreviateNumbers(hp, cfg) or AbbreviateNumbers(hp)
@@ -370,6 +370,7 @@ do
   end
 
   TagFns.curhpshort = MakeAbbrevHP(UnitHealth)
+  TagFns.healthshort = MakeAbbrevHP(UnitHealth, true)
   TagFns.maxhpshort = MakeAbbrevHP(UnitHealthMax)
 end
 
@@ -816,6 +817,7 @@ do
 
     -- Function-registered tag methods are shared directly: one body, no drift.
     P.curhpshort  = TagFns.curhpshort
+    P.healthshort = TagFns.healthshort
     P.maxhpshort  = TagFns.maxhpshort
     P.perhp       = TagFns.perhp
     P.perhpnosign = TagFns.perhpnosign
@@ -935,6 +937,7 @@ do
         perhpnum     = { "%s%% | %s", "perhp", "curhpshort" },
         perhpnumdash = { "%s%% - %s", "perhp", "curhpshort" },
         curhpshort   = { "%s", "curhpshort" },
+        healthshort  = { "%s", "healthshort" },
         curmaxhp     = { "%s / %s", "curhpshort", "maxhpshort" },
         perhp        = { "%s%%", "perhp" },
         perhpnosign  = { "%s", "perhpnosign" },
