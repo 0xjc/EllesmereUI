@@ -658,7 +658,7 @@ local function BuildMiniTextAndSize(W, parent, y, settingsTable, unitKey, enable
                     disabled = function() return MVal("leftTextContent", "name") == "none" end,
                     disabledTooltip = "This option requires a text selection other than none.",
                     title = "Left Text Settings",
-                    rows = ns.UF_NameFormatRows("leftText", "name", MVal, MSet, {
+                    rows = ns.UF_CoreTextRows("leftText", "name", MVal, MSet, {
                         { type="slider", label="Size", min=8, max=100, step=1,
                           get=function() return MVal("leftTextSize", settingsTable.textSize or 12) end,
                           set=function(v) MSet("leftTextSize", v) end },
@@ -785,7 +785,7 @@ local function BuildMiniTextAndSize(W, parent, y, settingsTable, unitKey, enable
                     disabled = function() return MVal("rightTextContent", "none") == "none" end,
                     disabledTooltip = "This option requires a text selection other than none.",
                     title = "Right Text Settings",
-                    rows = ns.UF_NameFormatRows("rightText", "none", MVal, MSet, {
+                    rows = ns.UF_CoreTextRows("rightText", "none", MVal, MSet, {
                         { type="slider", label="Size", min=8, max=100, step=1,
                           get=function() return MVal("rightTextSize", settingsTable.textSize or 12) end,
                           set=function(v) MSet("rightTextSize", v) end },
@@ -907,7 +907,7 @@ local function BuildMiniTextAndSize(W, parent, y, settingsTable, unitKey, enable
                     disabled = function() return MVal("centerTextContent", "none") == "none" end,
                     disabledTooltip = "This option requires a text selection other than none.",
                     title = "Center Text Settings",
-                    rows = ns.UF_NameFormatRows("centerText", "none", MVal, MSet, {
+                    rows = ns.UF_CoreTextRows("centerText", "none", MVal, MSet, {
                         { type="slider", label="Size", min=8, max=100, step=1,
                           get=function() return MVal("centerTextSize", settingsTable.textSize or 12) end,
                           set=function(v) MSet("centerTextSize", v) end },
@@ -1030,7 +1030,7 @@ local function BuildMiniTextAndSize(W, parent, y, settingsTable, unitKey, enable
                         disabled = function() return MVal("extraTextContent", "none") == "none" end,
                         disabledTooltip = "This option requires a text selection other than none.",
                         title = "Extra Text Settings",
-                        rows = ns.UF_NameFormatRows("extraText", "none", MVal, MSet, {
+                        rows = ns.UF_CoreTextRows("extraText", "none", MVal, MSet, {
                             { type="dropdown", label="Alignment",
                               values={ ["left"]="Left", ["right"]="Right", ["center"]="Center" }, order={ "left", "right", "center" },
                               get=function() return MVal("extraTextAlign", "left") end,

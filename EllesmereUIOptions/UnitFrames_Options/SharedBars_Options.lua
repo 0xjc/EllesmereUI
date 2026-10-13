@@ -16,7 +16,7 @@ function ns.UFO_BuildHealthBarSection(parent, y, ctx)
     local db, healthTextOrder, healthTextOrderPlayer, healthTextOrderTargetFocus = env.db, env.healthTextOrder, env.healthTextOrderPlayer, env.healthTextOrderTargetFocus
     local healthTextValues, optState = env.healthTextValues, env.optState
     local W, SDB, SGet, SSet = ctx.W, ctx.SDB, ctx.SGet, ctx.SSet
-    local SShowsLevel, SVal = ctx.SShowsLevel, ctx.SVal
+    local SVal = ctx.SVal
     local _, h
 
     -------------------------------------------------------------------
@@ -533,28 +533,6 @@ function ns.UFO_BuildHealthBarSection(parent, y, ctx)
         })
     end
 
-    -- Level text in Blizzard's difficulty colors: the level part of the
-    -- Level, Level | Name and Name | Level texts, so the row exists only
-    -- while one of the unit's text slots shows one. It sits above Show
-    -- Level, whose blank slot stays last in the section.
-    if SShowsLevel() then
-        local _
-        _, h = W:DualRow(parent, y,
-            { type="toggle", text="Level Text: Difficulty Color",
-              tooltip="Colors level text by difficulty, from grey (trivial) through green, yellow and orange to red (5+ levels above you).",
-              getValue=function() return SVal("levelDifficultyColor", false) == true end,
-              setValue=function(v)
-                  SSet("levelDifficultyColor", v); UpdatePreview()
-                  EllesmereUI:RefreshPage()
-              end },
-            { type="toggle", text="Level Text: Include Friendly",
-              tooltip="Friendly units get their level's color too, instead of gold.",
-              disabled=function() return SVal("levelDifficultyColor", false) ~= true end,
-              disabledTooltip="Level Text: Difficulty Color",
-              getValue=function() return SVal("levelDifficultyColorFriendly", false) == true end,
-              setValue=function(v) SSet("levelDifficultyColorFriendly", v); UpdatePreview() end });  y = y - h
-    end
-
     -- Blizzard Style: the stock level number in the frame's level circle,
     -- with its size, offsets and difficulty colouring on a cog. The row is
     -- the preview level text's click target (stashed on the page: the
@@ -734,7 +712,7 @@ function ns.UFO_BuildHealthBarSection(parent, y, ctx)
                     disabled = function() return SVal("leftTextContent", "name") == "none" end,
                     disabledTooltip = "This option requires a text selection other than none.",
                     title = "Left Text Settings",
-                    rows = ns.UF_NameFormatRows("leftText", "name", SVal, SSet, {
+                    rows = ns.UF_CoreTextRows("leftText", "name", SVal, SSet, {
                         { type="slider", label="Size", min=8, max=100, step=1,
                           get=function() return SVal("leftTextSize", SDB().textSize or 12) end,
                           set=function(v) SSet("leftTextSize", v); UpdatePreview() end },
@@ -930,7 +908,7 @@ function ns.UFO_BuildHealthBarSection(parent, y, ctx)
                     disabled = function() return SVal("rightTextContent", "both") == "none" end,
                     disabledTooltip = "This option requires a text selection other than none.",
                     title = "Right Text Settings",
-                    rows = ns.UF_NameFormatRows("rightText", "both", SVal, SSet, {
+                    rows = ns.UF_CoreTextRows("rightText", "both", SVal, SSet, {
                         { type="slider", label="Size", min=8, max=100, step=1,
                           get=function() return SVal("rightTextSize", SDB().textSize or 12) end,
                           set=function(v) SSet("rightTextSize", v); UpdatePreview() end },
@@ -1108,7 +1086,7 @@ function ns.UFO_BuildHealthBarSection(parent, y, ctx)
                     disabled = function() return SVal("centerTextContent", "none") == "none" end,
                     disabledTooltip = "This option requires a text selection other than none.",
                     title = "Center Text Settings",
-                    rows = ns.UF_NameFormatRows("centerText", "none", SVal, SSet, {
+                    rows = ns.UF_CoreTextRows("centerText", "none", SVal, SSet, {
                         { type="slider", label="Size", min=8, max=100, step=1,
                           get=function() return SVal("centerTextSize", SDB().textSize or 12) end,
                           set=function(v) SSet("centerTextSize", v); UpdatePreview() end },
@@ -1288,7 +1266,7 @@ function ns.UFO_BuildHealthBarSection(parent, y, ctx)
                     disabled = function() return SVal("extraTextContent", "none") == "none" end,
                     disabledTooltip = "This option requires a text selection other than none.",
                     title = "Extra Text Settings",
-                    rows = ns.UF_NameFormatRows("extraText", "none", SVal, SSet, {
+                    rows = ns.UF_CoreTextRows("extraText", "none", SVal, SSet, {
                         { type="dropdown", label="Alignment",
                           values={ ["left"]="Left", ["right"]="Right", ["center"]="Center" }, order={ "left", "right", "center" },
                           get=function() return SVal("extraTextAlign", "left") end,

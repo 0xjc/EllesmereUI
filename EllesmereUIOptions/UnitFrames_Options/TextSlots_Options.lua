@@ -5,6 +5,30 @@ if not ns then return end
 local MOVE_KEYS = { "X", "Y", "WidthPct", "ClassColor", "ColorR", "ColorG", "ColorB",
     "NameFormat", "TargetSep", "TargetPrefix", "TargetSepColor", "TargetSepClassColor" }
 
+-- Level coloring is shared by the unit, and edited from its level-text cogs.
+function ns.UF_CoreTextRows(prefix, contentDefault, get, set, rows)
+    rows = ns.UF_NameFormatRows(prefix, contentDefault, get, set, rows)
+    local content = get(prefix .. "Content", contentDefault)
+    if content ~= "level" and content ~= "levelname" and content ~= "namelevel" then return rows end
+    rows[#rows + 1] = { type="toggle", label="Level Text: Difficulty Color",
+        tooltip="Colors level text by difficulty, from grey (trivial) through green, yellow and orange to red (5+ levels above you).",
+        get=function() return get("levelDifficultyColor", false) == true end,
+        set=function(v)
+            set("levelDifficultyColor", v)
+            ns._UFO_OptEnv.UpdatePreview()
+        end }
+    rows[#rows + 1] = { type="toggle", label="Level Text: Include Friendly",
+        tooltip="Friendly units get their level's color too, instead of gold.",
+        disabled=function() return get("levelDifficultyColor", false) ~= true end,
+        disabledTooltip="Level Text: Difficulty Color",
+        get=function() return get("levelDifficultyColorFriendly", false) == true end,
+        set=function(v)
+            set("levelDifficultyColorFriendly", v)
+            ns._UFO_OptEnv.UpdatePreview()
+        end }
+    return rows
+end
+
 -- Keep the unit-frame settings and inline controls; only the list changes.
 function ns.UFO_BuildTextSlots(W, parent, y, opts)
     local header, headerH = W:SectionHeader(parent, "CORE TEXT POSITIONS", y)

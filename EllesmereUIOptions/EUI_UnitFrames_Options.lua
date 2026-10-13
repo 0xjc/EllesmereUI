@@ -2248,21 +2248,6 @@ initFrame:SetScript("OnEvent", function(self)
             if v ~= nil then return v end
             return default
         end
-        -- True while one of the unit's text slots shows its level (Level,
-        -- Level | Name, Name | Level). The Level Text: Difficulty Color row is
-        -- built only then, so the text setters rebuild the page when it flips.
-        local SShowsLevel
-        do
-            local slots = { "leftTextContent", "rightTextContent", "centerTextContent", "extraTextContent" }
-            local levelText = { level = true, levelname = true, namelevel = true }
-            SShowsLevel = function()
-                local d = UNIT_DB_MAP[optState.selectedUnit]()
-                for i = 1, #slots do
-                    if levelText[d[slots[i]]] then return true end
-                end
-                return false
-            end
-        end
         -- Set that also writes to the current unit (for UNIT_SUPPORTS keys)
         local function SSetSupported(key, val)
             UNIT_DB_MAP[optState.selectedUnit]()[key] = val
@@ -2319,7 +2304,7 @@ initFrame:SetScript("OnEvent", function(self)
         -- the click mapping below points at; Display returns true second when
         -- the unit has no EUI frame (only the inactive notice is built).
         local ctx = {
-            W = W, SGet = SGet, SSet = SSet, SDB = SDB, SVal = SVal, SShowsLevel = SShowsLevel,
+            W = W, SGet = SGet, SSet = SSet, SDB = SDB, SVal = SVal,
             SSetSupported = SSetSupported, SGetSupported = SGetSupported, SValSupported = SValSupported,
             SVisible = SVisible, SApplySupport = SApplySupport,
         }
