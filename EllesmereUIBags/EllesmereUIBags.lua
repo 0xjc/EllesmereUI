@@ -1798,6 +1798,8 @@ local function ShowGoldTooltip(anchor)
     table.sort(charList, function(a, b) return a.id < b.id end)
 
     local warbandGold = ledger.warband and ledger.warband.money
+    -- An empty warband bank gets no row, as on the Data Bars Gold block.
+    if warbandGold and warbandGold <= 0 then warbandGold = nil end
     if warbandGold then
         totalGold = totalGold + warbandGold
     end
@@ -4101,6 +4103,7 @@ function EUI_Bags:OnProfileApplied()
     self:SyncHeaderIcons()
     if self:IsShown() then self:RefreshInventory() end
     ns.RefreshOpenBank()
+    EUI_CategoryManager:OnJunkChanged()  -- the new profile may switch the Junk Marker
 end
 end -- Junk Marker
 

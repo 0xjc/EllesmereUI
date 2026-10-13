@@ -729,38 +729,53 @@ local function BuildMainPage(pageName, parent, yOffset)
         return cfg
     end
 
+    -- Compact Mode (Frame Spacing cog) and Grid Mode (Group Spacing cog) use one
+    -- pixel, so the slider each replaces greys out while it is in effect; the saved
+    -- value comes back when it is off.
     local spacingRow
     spacingRow, h = W:DualRow(parent, y,
         { type="slider", pixel=true, text="Frame Spacing", min=-5, max=15, step=1,
+          disabled=function() return ns.RF_CompactOn(db.profile, false) end,
+          disabledTooltip="Compact Mode", requireState="disabled",
           getValue=function() return SVal("cellSpacing", 2) end,
           setValue=function(v) SSet("cellSpacing", v) end },
         { type="slider", pixel=true, text="Group Spacing", min=-5, max=15, step=1,
+          disabled=function() return ns.RF_GridOn(db.profile) end,
+          disabledTooltip="Grid Mode", requireState="disabled",
           getValue=function() return SVal("groupSpacing", 8) end,
           setValue=function(v) SSet("groupSpacing", v) end });  y = y - h
     if not EllesmereUI._prebuilding then
-        EllesmereUI.BuildInlineCog(spacingRow._leftRegion, { title = "Frame Spacing", rows = {
+        -- A mode that is on stays reachable, so it can always be turned off.
+        local COMPACT_TIP = "This option requires a Pixels or Pixels Textured border above size 0 on the EllesmereUI look."
+        local function CompactBlocked()
+            return not db.profile.raidCompactMode and not ns.RF_CompactEligible(db.profile)
+        end
+        local function GridBlocked()
+            return not db.profile.raidGridMode and not ns.RF_CompactOn(db.profile, false)
+        end
+        EllesmereUI.BuildInlineCog(spacingRow._leftRegion, { title = "Frame Spacing",
+            disabled = CompactBlocked, disabledTooltip = COMPACT_TIP, rows = {
             { type="toggle", label="Compact Mode",
-              tooltip="Shares borders within each group at +1 physical pixel spacing. Your saved Frame Spacing is preserved.",
+              tooltip="Joins each group's frames into one bordered block.",
               get=function() return db.profile.raidCompactMode == true end,
               set=function(v)
                   if v and not ns.RF_CompactEligible(db.profile) then return end
                   db.profile.raidCompactMode = v
                   ReloadAndUpdate(); EllesmereUI:RefreshPage()
               end,
-              disabled=function() return not db.profile.raidCompactMode and not ns.RF_CompactEligible(db.profile) end,
-              disabledTooltip="Requires Pixels or Pixels Textured with a visible border in the EllesmereUI frame style." },
+              disabled=CompactBlocked, disabledTooltip=COMPACT_TIP },
         } })
-        EllesmereUI.BuildInlineCog(spacingRow._rightRegion, { title = "Group Spacing", rows = {
+        EllesmereUI.BuildInlineCog(spacingRow._rightRegion, { title = "Group Spacing",
+            disabled = GridBlocked, disabledTooltip = "Compact Mode", rows = {
             { type="toggle", label="Grid Mode",
-              tooltip="Joins compact groups at +1 physical pixel spacing and fills incomplete groups with empty backgrounds. Your saved Group Spacing is preserved.",
+              tooltip="Joins the raid groups into one grid.",
               get=function() return db.profile.raidGridMode == true end,
               set=function(v)
                   if v and not ns.RF_CompactOn(db.profile, false) then return end
                   db.profile.raidGridMode = v
                   ReloadAndUpdate(); EllesmereUI:RefreshPage()
               end,
-              disabled=function() return not db.profile.raidGridMode and not ns.RF_CompactOn(db.profile, false) end,
-              disabledTooltip="Requires Compact Mode and Pixels or Pixels Textured." },
+              disabled=GridBlocked, disabledTooltip="Compact Mode" },
         } })
     end
 
@@ -978,7 +993,7 @@ local function BuildMainPage(pageName, parent, yOffset)
         -- slider reads and writes against Solid there. The floor stays at 1.
         local function HlTex()
             if (ns.RF_Stock and ns.RF_Stock())
-                or ns.RF_CompactOn(optState._partyCtx and ns._partyProxy or db.profile, optState._partyCtx) then return "solid" end
+                or ns.RF_CompactOnTab(optState._partyCtx) then return "solid" end
             return SGet("borderTexture") or "solid"
         end
         local hoverPx = EllesmereUI.BorderPxSliderCfg({
@@ -1014,7 +1029,7 @@ local function BuildMainPage(pageName, parent, yOffset)
             -- Under a stock style the EllesmereUI border is stood down, so
             -- the hover border draws on its own at this size.
             local bs = (ns.RF_Stock and ns.RF_Stock()) and 0 or SVal("borderSize", 1)
-            if bs > 0 and not ns.RF_CompactOn(optState._partyCtx and ns._partyProxy or db.profile, optState._partyCtx) then
+            if bs > 0 and not ns.RF_CompactOnTab(optState._partyCtx) then
                 hlCog:Hide()
             else hlCog:Show() end
         end
@@ -1601,7 +1616,7 @@ local function BuildPartyPage(pageName, parent, yOffset)
               return p.partyCompactMode and p.partyShowTargets
                   and ns.PT_PositionAlongStack(p.partyTargetPosition, not p.partyHorizontal)
           end,
-          disabledTooltip="Move Party Targets beside the frame stack or turn off Compact Mode.", requireState="disabled",
+          disabledTooltip="Move Party Targets beside the frame stack or turn off Compact Mode.", rawTooltip=true,
           getValue=function() return db.profile.partyHorizontal end,
           setValue=function(v)
               local p = db.profile
@@ -1692,6 +1707,9 @@ local function BuildPartyPage(pageName, parent, yOffset)
         -- Scale cog, so the Raid Frames layout's value survives a switch
         -- between the two.)
         ns.RF_PartyKitGate({ type="slider", pixel=true, text="Frame Spacing", min=-5, max=15, step=1,
+          -- Compact Mode (this slot's cog) uses one pixel instead.
+          disabled=function() return ns.RF_CompactOn(db.profile, true) end,
+          disabledTooltip="Compact Mode", requireState="disabled",
           getValue=function()
               if ns.RF_PartyKit() then return db.profile.partyKitSpacing or ns.RF_KIT_SPACING or 6 end
               return SVal("partyCellSpacing", db.profile.cellSpacing or 2)
@@ -1699,20 +1717,23 @@ local function BuildPartyPage(pageName, parent, yOffset)
           setValue=function(v) PSSet(ns.RF_PartyKit() and "partyKitSpacing" or "partyCellSpacing", v) end }));  y = y - h
     -- Auto Resize Icons sits in the LEFT slot here; same conversion pattern as the Frames tab.
     if not EllesmereUI._prebuilding then
-        EllesmereUI.BuildInlineCog(partyAutoResizeRow._rightRegion, { title = "Frame Spacing", rows = {
+        -- Off while the party border is not a Pixels style or Party Targets sit along the
+        -- frame stack; a mode that is on stays reachable, so it can always be turned off.
+        local function PartyCompactBlocked()
+            return not db.profile.partyCompactMode and (not ns.RF_CompactEligible(ns._partyProxy)
+                or ns.PT_AlongStack(db.profile, db.profile.partyShowTargets == true))
+        end
+        local PARTY_COMPACT_TIP = "This option requires a Pixels or Pixels Textured border above size 0 on the EllesmereUI look, with Party Targets off or beside the frame stack."
+        EllesmereUI.BuildInlineCog(partyAutoResizeRow._rightRegion, { title = "Frame Spacing",
+            disabled = PartyCompactBlocked, disabledTooltip = PARTY_COMPACT_TIP, rows = {
             { type="toggle", label="Compact Mode",
-              tooltip="Shares party borders at +1 physical pixel spacing. Your saved Frame Spacing is preserved. Targets along the frame stack must be disabled or moved beside the frames.",
+              tooltip="Joins the party frames into one bordered block.",
               get=function() return db.profile.partyCompactMode == true end,
               set=function(v)
-                  if v and (not ns.RF_CompactEligible(ns._partyProxy)
-                      or ns.PT_AlongStack(db.profile, db.profile.partyShowTargets == true)) then return end
+                  if v and PartyCompactBlocked() then return end
                   PSSet("partyCompactMode", v); EllesmereUI:RefreshPage()
               end,
-              disabled=function()
-                  return not db.profile.partyCompactMode and (not ns.RF_CompactEligible(ns._partyProxy)
-                      or ns.PT_AlongStack(db.profile, db.profile.partyShowTargets == true))
-              end,
-              disabledTooltip="Requires Pixels or Pixels Textured and no party targets along the frame stack." },
+              disabled=PartyCompactBlocked, disabledTooltip=PARTY_COMPACT_TIP },
         } })
         local leftRgn = partyAutoResizeRow._leftRegion
         if leftRgn._control then leftRgn._control:Hide() end
@@ -1785,6 +1806,8 @@ local function BuildPartyPage(pageName, parent, yOffset)
     ns._syncOverlays = syncOverlays
 
     local function SyncOverlay(sectionKey, startY, endY)
+        -- None in the search pre-build: the overlays index nothing, and that page is never shown.
+        if EllesmereUI._prebuilding then return end
         local hdrH = 40  -- SectionHeader height
         local contentStart = startY - hdrH
         local ov = CreateFrame("Frame", nil, parent)

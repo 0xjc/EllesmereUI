@@ -363,12 +363,16 @@ end
 local TagFns = {}
 
 do
-  -- Abbreviated health for the curhpshort / maxhpshort tags.
-  local function MakeAbbrevHP(getHP, shortHealth)
+  -- Abbreviated health for the curhpshort / maxhpshort tags. status: an
+  -- offline, dead or ghost unit reads OFFLINE / DEAD. Only the current value
+  -- takes it, so Health # / Max # names the status once ("DEAD / 150 K").
+  local function MakeAbbrevHP(getHP, status, shortHealth)
     return function(unit)
       if not unit or not UnitExists(unit) then return "" end
-      if not UnitIsConnected(unit) then return "OFFLINE" end
-      if UnitIsDeadOrGhost(unit) then return "DEAD" end
+      if status then
+        if not UnitIsConnected(unit) then return "OFFLINE" end
+        if UnitIsDeadOrGhost(unit) then return "DEAD" end
+      end
       local hp = getHP(unit) or 0
       if shortHealth then return ns.AbbreviateShortHealth(hp) end
       local cfg = _G._EUI_AbbrevDecimalCfg
@@ -380,8 +384,8 @@ do
     end
   end
 
-  TagFns.curhpshort = MakeAbbrevHP(UnitHealth)
-  TagFns.healthshort = MakeAbbrevHP(UnitHealth, true)
+  TagFns.curhpshort = MakeAbbrevHP(UnitHealth, true)
+  TagFns.healthshort = MakeAbbrevHP(UnitHealth, true, true)
   TagFns.maxhpshort = MakeAbbrevHP(UnitHealthMax)
 end
 

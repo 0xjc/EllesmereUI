@@ -24,6 +24,7 @@ local _activeCache, _activeStacksCache = I._activeCache, I._activeStacksCache
 local _smHookedIcons, SwiftmendEnabled = I._smHookedIcons, I.SwiftmendEnabled
 local ProcessPresetCooldowns = I.ProcessPresetCooldowns
 local CollectAndReanchor, UpdateCustomBuffBars = I.CollectAndReanchor, I.UpdateCustomBuffBars
+local RestoreBuffAnchors = I.RestoreBuffAnchors
 
 local reanchorDirty = false
 local reanchorFrame = nil
@@ -389,6 +390,9 @@ function ns.SetupViewerHooks()
     local _lastDirectReanchor = 0
     local DIRECT_REANCHOR_GUARD = 0.05
     local function DirectBuffReanchor()
+        -- The icons Blizzard just placed go back to our bars now that the
+        -- viewer has measured itself, whatever the throttle below decides.
+        RestoreBuffAnchors()
         local now = GetTime()
         if now - _lastDirectReanchor < DIRECT_REANCHOR_GUARD then return end
         _lastDirectReanchor = now

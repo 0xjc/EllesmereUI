@@ -1,16 +1,17 @@
 if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+if not (EllesmereUI and EllesmereUI.IS_FOREVER) then return end
 -------------------------------------------------------------------------------
---  EllesmereUIQoL_JunkList.lua
+--  EllesmereUIForeverEssentials_JunkItems.lua  (WoW Forever only)
 --  Small window listing the cheapest junk stacks in your bags: gray items,
 --  white ones with Include White Items on, and anything marked with the Bags
 --  Junk Marker.
---    Ctrl + Left Click  : delete the stack (white and better ask first)
+--    Ctrl + Left Click  : delete the stack (white and better: a second Ctrl +
+--                         Left Click confirms; Rare and better type DELETE first)
 --    Middle Click       : never show this item again (account-wide)
 --  Each icon shows its stack's vendor value underneath, cut to whole silver
 --  (1g 15s 12c -> 1g 15s). Copper only appears while the value is under 1g.
 -------------------------------------------------------------------------------
-
-local ns = select(2, ...)
+local _, module = ...
 local PP = EllesmereUI.PP
 
 local GetContainerNumFreeSlots = C_Container.GetContainerNumFreeSlots
@@ -19,37 +20,27 @@ local GetContainerItemInfo     = C_Container.GetContainerItemInfo
 local GetItemInfo              = C_Item.GetItemInfo
 local GetItemInfoInstant       = C_Item.GetItemInfoInstant
 
--- Sits under EllesmereUIQoLDB.profile.junkList, shared with the other QoL
--- features. Excluded items are account-wide: EllesmereUIDB.junkListExcluded
--- holds [itemID] = true.
-local defaults = {
-    profile = {
-        junkList = {
-            enabled          = false,     -- opt-in: this window can delete items
-            visibility       = "always",  -- the shared visibility setting
-            itemCount        = 4,         -- 1..MAX_CELLS
-            iconSize         = 32,
-            iconSpacing      = 6,         -- gap between item columns, px
-            priceSide        = "bottom",  -- bottom | top
-            showFreeSlots    = false,     -- title reads "Bag Slots - free/total"; off hides the title
-            includeWhite     = false,     -- list white (Common) stacks too
-            skipWhiteConfirm = false,     -- white stacks delete without asking first
-            pos              = nil,       -- { centerX, centerY } stored after first move
-        },
-    },
+-- Settings live in EllesmereUIDB.junkList, beside the shared visibility keys
+-- (unset = Always); unset keys read these. Excluded items are account-wide
+-- too: EllesmereUIDB.junkListExcluded holds [itemID] = true.
+local DEFAULTS = {
+    enabled          = false,     -- opt-in: this window can delete items
+    itemCount        = 4,         -- 1..MAX_CELLS
+    iconSize         = 32,
+    iconSpacing      = 20,        -- gap between icons, px
+    priceSide        = "bottom",  -- bottom | top
+    showFreeSlots    = false,     -- title reads "Bag Slots - free/total"; off hides the title
+    includeWhite     = false,     -- list white (Common) stacks too
+    skipWhiteConfirm = false,     -- white stacks delete without asking first
 }
-
-local db
-local function P()
-    return db and db.profile.junkList
-end
+-- The screen's centre until unlock mode moves it.
+local F = module.Feature("junkList", DEFAULTS, { point = "CENTER", relPoint = "CENTER", x = 0, y = 0 })
+local Get, Read, Enabled = F.Get, F.Read, F.Enabled
 
 -- Layout
 local MAX_CELLS = 6
-local ICON_GAP  = 6      -- default gap between item columns
 local PRICE_H   = 12
 local TITLE_H   = 24
-local PAD       = 8
 
 local POOR, COMMON, RARE = Enum.ItemQuality.Poor, Enum.ItemQuality.Common, Enum.ItemQuality.Rare
 local QUEST_CLASS     = Enum.ItemClass.Questitem
@@ -58,32 +49,39 @@ local BATTLEPET_CLASS = Enum.ItemClass.Battlepet
 local frame, titleFS, emptyFS, probeFS
 local cells = {}
 -- Made in the main chunk so their handlers bill to this addon, whatever turns
--- the window on (a login, the options page, a profile switch). Neither holds
--- an event while the window is off or hidden.
+-- the window on (a login or the options page). Neither holds an event while
+-- the window is off or hidden.
 local eventFrame = CreateFrame("Frame")
 local ctrlWatch  = CreateFrame("Frame")  -- MODIFIER_STATE_CHANGED while a cell is flagged
 local active = false         -- shown, with its events registered
 local visRegistered = false  -- on the shared visibility dispatcher
 local itemInfoOn = false     -- GET_ITEM_INFO_RECEIVED registered
 local confirmHandle          -- the open delete confirmation
+local armedCell              -- the cell whose stack the next Ctrl + Left Click deletes
 local swapCount = 0          -- cells holding a double-click guard
-local priceW = 0             -- width of a "99g 99s" price, measured once
+local priceFitW = 0          -- widest price a cell shows in full (its icon plus the spacing, less 2 px)
 local lastFree, lastTotal    -- the title's counts as last drawn
 
 -- Per-slot facts for the scanned bags. A pass re-reads only the bags marked
 -- dirty (by BAG_UPDATE, or all of them when the window comes back or a bag is
--- swapped), then picks the list from these facts, so settings, exclusions and
--- junk marks never need a re-read. recs[bag][slot] lives for the session;
--- scanSlots[bag] = how many slots the last read covered.
+-- swapped), then picks the list from these facts. Settings, exclusions and
+-- Junk Marker changes need a new pick but no re-read (Bags asks for its pick
+-- through EllesmereUI._JunkItems.Refresh). recs[bag][slot] lives for the
+-- session; scanSlots[bag] = how many slots the last read covered.
 local recs, scanSlots, dirty = {}, {}, {}
 local pending = {}          -- [itemID] = true: item data not cached yet
 local failed  = {}          -- [itemID] = true: the client said the data will not load
 local best, bestN = {}, 0   -- the cheapest listable records, in display order
 
+-- How many stacks the window lists.
+local function Limit()
+    return Clamp(Get("itemCount"), 1, MAX_CELLS)
+end
+
 -------------------------------------------------------------------------------
---  Fonts (the QoL module font)
+--  Fonts (the Forever Essentials module font)
 -------------------------------------------------------------------------------
-local function SetJunkFont(fs, size) EllesmereUI.ApplyModuleFont(fs, nil, size, "extras") end
+local function SetJunkFont(fs, size) EllesmereUI.ApplyModuleFont(fs, nil, size, "essentials") end
 
 local function NewText(parent, size, alpha)
     local fs = parent:CreateFontString(nil, "OVERLAY")
@@ -94,24 +92,25 @@ end
 
 -------------------------------------------------------------------------------
 --  Money text: cut to whole silver, so 1g15s12c reads "1g 15s". Copper only
---  shows while the value is under 1 gold ("15s 12c").
+--  shows while the value is under 1 gold ("15s 12c"). short: the largest coin
+--  alone ("1g", "15s"), for a price too wide for its icon's slot.
 -------------------------------------------------------------------------------
 local GOLD_ICON   = "|TInterface\\MoneyFrame\\UI-GoldIcon:12:12:1:0|t"
 local SILVER_ICON = "|TInterface\\MoneyFrame\\UI-SilverIcon:12:12:1:0|t"
 local COPPER_ICON = "|TInterface\\MoneyFrame\\UI-CopperIcon:12:12:1:0|t"
 
-local function FormatValue(copper)
+local function FormatValue(copper, short)
     local g = math.floor(copper / 10000)
     local s = math.floor((copper % 10000) / 100)
     local c = copper % 100
     if g > 0 then
         local out = BreakUpLargeNumbers(g) .. GOLD_ICON
-        if s > 0 then out = out .. " " .. s .. SILVER_ICON end
+        if s > 0 and not short then out = out .. " " .. s .. SILVER_ICON end
         return out
     end
     if s > 0 then
         local out = s .. SILVER_ICON
-        if c > 0 then out = out .. " " .. c .. COPPER_ICON end
+        if c > 0 and not short then out = out .. " " .. c .. COPPER_ICON end
         return out
     end
     return c .. COPPER_ICON
@@ -254,8 +253,8 @@ end
 -- Picks the cheapest listable stacks from the read facts. The quest and set
 -- checks run only for items that would otherwise list, once per read (set
 -- membership again after a set edit).
-local function Select(p, limit)
-    local includeWhite = p.includeWhite == true
+local function Select(limit)
+    local includeWhite = Get("includeWhite") == true
     local cm = _G.EUI_CategoryManager
     local ex = EllesmereUIDB.junkListExcluded
     wipe(pending)
@@ -318,7 +317,8 @@ end
 local Refresh  -- forward
 
 -- Every pass goes through here: any number of triggers in one frame (bag
--- updates, item loads, settings, an exclude) collapse into a single Refresh.
+-- updates, item loads, settings, an exclude, a Junk Marker change) collapse
+-- into a single Refresh.
 local refreshQueued = false
 local function RunQueuedRefresh()
     refreshQueued = false
@@ -346,9 +346,9 @@ local function StillJunk(bag, slot, id, count, maxQuality)
     return not IsQuestSlot(bag, slot) and not InEquipmentSet(bag, slot)
 end
 
--- DeleteCursorItem needs a hardware event: this runs inside the click, or the
--- confirmation's click or Enter, that asked for it. Never in combat or with
--- anything already on the cursor.
+-- DeleteCursorItem needs a hardware event, and the game refuses it from a
+-- confirmation popup's click: this runs only inside the stack's own Ctrl +
+-- Left Click. Never in combat or with anything already on the cursor.
 local function DeleteStack(bag, slot, id, count, maxQuality)
     if InCombatLockdown() or GetCursorInfo() then return end
     if not StillJunk(bag, slot, id, count, maxQuality) then return end
@@ -361,15 +361,46 @@ local function DeleteStack(bag, slot, id, count, maxQuality)
     end
 end
 
+local ShowCellTooltip  -- forward (Cells)
+
 local function CloseConfirm()
     if not confirmHandle then return end
     EllesmereUI:CloseConfirmPopup(confirmHandle)
     confirmHandle = nil
-    eventFrame:UnregisterEvent("PLAYER_REGEN_DISABLED")
+    if not armedCell then eventFrame:UnregisterEvent("PLAYER_REGEN_DISABLED") end
 end
 
--- White stacks ask first, marked items above white always do, and Rare or
--- better also needs the delete word typed, as the game's own delete does.
+-- A stack that must be confirmed is armed first (white and green stacks by
+-- their first Ctrl + Left Click, Rare and better by the typed confirmation);
+-- the next Ctrl + Left Click on it deletes. Arming holds for ARM_SECS and for
+-- that stack only: a change to the cell, combat or the time running out ends it.
+local ARM_SECS = 6
+
+local function Disarm()
+    local cell = armedCell
+    if not cell then return end
+    armedCell = nil
+    cell.armedUntil = nil
+    cell._arm:Hide()
+    if not confirmHandle then eventFrame:UnregisterEvent("PLAYER_REGEN_DISABLED") end
+    if GameTooltip:IsOwned(cell) then ShowCellTooltip(cell) end
+end
+
+local function Arm(cell)
+    Disarm()
+    armedCell = cell
+    local untilT = GetTime() + ARM_SECS
+    cell.armedUntil = untilT
+    cell._arm:Show()
+    eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
+    if GameTooltip:IsOwned(cell) then ShowCellTooltip(cell) end
+    C_Timer.After(ARM_SECS, function()
+        if armedCell == cell and cell.armedUntil == untilT then Disarm() end
+    end)
+end
+
+-- Rare or better also needs the delete word typed, as the game's own delete
+-- does; confirming arms the stack for its final Ctrl + Left Click.
 local function AskDelete(cell)
     CloseConfirm()
     local bag, slot, id, count, q = cell.bag, cell.slot, cell.id, cell.count, cell.quality
@@ -377,14 +408,17 @@ local function AskDelete(cell)
     local handle
     handle = EllesmereUI:ShowConfirmPopup({
         title         = EllesmereUI.L("Delete Junk Item"),
-        message       = DELETE_ITEM:format(label),
+        message       = DELETE_ITEM:format(label) .. "\n\n"
+                        .. EllesmereUI.L("Then Ctrl + Left Click the item again to delete it."),
         confirmText   = DELETE,
         cancelText    = CANCEL,
-        typeToConfirm = q >= RARE and DELETE_ITEM_CONFIRM_STRING or nil,
+        typeToConfirm = DELETE_ITEM_CONFIRM_STRING,
         onConfirm = function()
             if confirmHandle ~= handle then return end
             CloseConfirm()
-            DeleteStack(bag, slot, id, count, q)
+            if cell.id == id and cell.bag == bag and cell.slot == slot and cell.count == count then
+                Arm(cell)
+            end
         end,
         onCancel = function()
             if confirmHandle == handle then CloseConfirm() end
@@ -408,13 +442,15 @@ end
 -------------------------------------------------------------------------------
 --  Cells
 -------------------------------------------------------------------------------
-local function ShowCellTooltip(cell)
+ShowCellTooltip = function(cell)
     GameTooltip:SetOwner(cell, "ANCHOR_RIGHT")
     GameTooltip:SetBagItem(cell.bag, cell.slot)
     GameTooltip:AddLine(" ")
     -- No deletes in combat: the hint greys out there.
     if InCombatLockdown() then
         GameTooltip:AddLine(EllesmereUI.L("Ctrl + Left Click: delete"), 0.5, 0.5, 0.5)
+    elseif armedCell == cell then
+        GameTooltip:AddLine(EllesmereUI.L("Ctrl + Left Click again to delete"), 1, 0.15, 0.15)
     else
         GameTooltip:AddLine(EllesmereUI.L("Ctrl + Left Click: delete"), 1, 0.3, 0.3)
     end
@@ -432,10 +468,14 @@ local function OnCellClick(self, button)
     if button ~= "LeftButton" or not IsControlKeyDown() then return end
     if self.swapped or InCombatLockdown() or GetCursorInfo() then return end
     local q = self.quality
-    if q == POOR or (q == COMMON and P().skipWhiteConfirm) then
+    if q == POOR or (q == COMMON and Get("skipWhiteConfirm"))
+       or (armedCell == self and GetTime() <= (self.armedUntil or 0)) then
+        Disarm()
         DeleteStack(self.bag, self.slot, id, self.count, q)
-    else
+    elseif q >= RARE then
         AskDelete(self)
+    else
+        Arm(self)
     end
 end
 
@@ -461,10 +501,15 @@ local function AcquireCell(i)
     b._icon = b:CreateTexture(nil, "ARTWORK")
     b._icon:SetAllPoints()
     b._icon:SetTexCoord(6/64, 58/64, 6/64, 58/64)
+    -- Red wash while the stack is armed for its confirming click.
+    b._arm = b:CreateTexture(nil, "OVERLAY", nil, 6)
+    b._arm:SetAllPoints()
+    b._arm:SetColorTexture(1, 0.1, 0.1, 0.45)
+    b._arm:Hide()
     PP.CreateBorder(b, 0, 0, 0, 1, 1, "OVERLAY", 7)
 
     b._count = b:CreateFontString(nil, "OVERLAY")
-    EllesmereUI.ApplyIconTextFont(b._count, EllesmereUI.GetFontPath("extras"), 11, "extras")
+    EllesmereUI.ApplyIconTextFont(b._count, EllesmereUI.GetFontPath("essentials"), 11, "essentials")
     b._count:SetTextColor(1, 1, 1, 1)
     b._count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 2)
 
@@ -478,6 +523,7 @@ end
 local function PaintCell(cell, r)
     if not r then
         if cell.id then
+            if armedCell == cell then Disarm() end
             if GameTooltip:IsOwned(cell) then GameTooltip:Hide() end
             UnflagSwap(cell)
             cell.id = nil
@@ -487,9 +533,17 @@ local function PaintCell(cell, r)
     end
     local moved = r.id ~= cell.id or r.bag ~= cell.bag or r.slot ~= cell.slot
     local changed = moved or r.count ~= cell.count
+    -- An armed stack that left the cell (or changed size) is not the one confirmed.
+    if changed and armedCell == cell then Disarm() end
     if r.count ~= cell.count then cell._count:SetText(r.count > 1 and r.count or "") end
     if r.icon ~= cell.icon then cell._icon:SetTexture(r.icon) end
-    if r.total ~= cell.total then cell._price:SetText(FormatValue(r.total)) end
+    -- A price wider than its slot shows its largest coin alone, so prices never collide.
+    if r.total ~= cell.total or cell.fitW ~= priceFitW then
+        local fs = cell._price
+        fs:SetText(FormatValue(r.total))
+        if fs:GetStringWidth() > priceFitW then fs:SetText(FormatValue(r.total, true)) end
+        cell.fitW = priceFitW
+    end
     -- A different stack under the cursor while Ctrl is held: see the double-click guard.
     if moved and cell.id and IsControlKeyDown() and cell:IsMouseOver() then FlagSwap(cell) end
     cell.id, cell.bag, cell.slot, cell.count = r.id, r.bag, r.slot, r.count
@@ -501,47 +555,54 @@ end
 -------------------------------------------------------------------------------
 --  Layout
 -------------------------------------------------------------------------------
+-- The centre snaps to the pixel grid for the window's size.
 local function ApplyPosition()
-    local p = P()
-    if not frame or not p then return end
-    local pos = p.pos
-    frame:ClearAllPoints()
-    frame:SetPoint("CENTER", UIParent, "CENTER",
-        PP.SnapCenterForDim((pos and pos.centerX) or 0, frame:GetWidth()),
-        PP.SnapCenterForDim((pos and pos.centerY) or 0, frame:GetHeight()))
+    F.Place(frame, true)
 end
 
--- Column width for a price: a "99g 99s" measured once, wide enough for any
--- price under 100g. The pitch must not follow the prices shown, or the row
--- would change width as stacks come and go.
-local function PriceWidth()
-    if priceW == 0 then
-        probeFS:SetText(FormatValue(999999))
+-- Width of the widest title, measured once ("Bag Slots - 888/888"), so the window
+-- does not change width as the counts do.
+local titleW = 0
+local function TitleWidth()
+    if titleW == 0 then
+        probeFS:SetFormattedText(EllesmereUI.L("Bag Slots - %d/%d"), 888, 888)
         local w = probeFS:GetStringWidth() or 0
-        if w >= 1 then priceW = math.ceil(w) end
+        if w >= 1 then titleW = math.ceil(w) end
     end
-    return priceW
+    return titleW
+end
+
+-- The window is its content, with no margin (it draws no art): the row of icons
+-- (or the title, when it is shown and wider), the title row when shown, then
+-- the icons and their prices. Icon Spacing is the gap between icons.
+local function WindowSize(limit)
+    local iconSz = Get("iconSize")
+    local rowW = limit * iconSz + (limit - 1) * Get("iconSpacing")
+    local titled = Get("showFreeSlots") and true or false
+    local w = titled and math.max(rowW, TitleWidth()) or rowW
+    return PP.Snap(w), PP.Snap((titled and TITLE_H or 0) + iconSz + 3 + PRICE_H), rowW
 end
 
 local lay = {}  -- the geometry last applied
-local function Layout(p, limit)
-    local iconSz = p.iconSize or 32
-    local colW = math.max(iconSz, PriceWidth())
-    local pitch = colW + (p.iconSpacing or ICON_GAP)
-    local top = p.priceSide == "top"
-    local minW = p.showFreeSlots and 140 or 110  -- room for the title and the empty-list text
+local function Layout(limit)
+    local iconSz = Get("iconSize")
+    local pitch = iconSz + Get("iconSpacing")
+    local top = Get("priceSide") == "top"
+    local titled = Get("showFreeSlots") and true or false
     local mult = PP.mult  -- the pixel grid the size and the centre snap to (moves with the UI scale)
     if iconSz == lay.icon and pitch == lay.pitch and top == lay.top
-        and limit == lay.limit and minW == lay.minW and mult == lay.mult then
+        and limit == lay.limit and titled == lay.titled and mult == lay.mult then
         return
     end
-    lay.icon, lay.pitch, lay.top, lay.limit, lay.minW, lay.mult = iconSz, pitch, top, limit, minW, mult
-    local rowW = (limit - 1) * pitch + colW
-    local w = PP.Snap(math.max(PAD * 2 + rowW, minW))
-    frame:SetSize(w, PP.Snap(TITLE_H + PAD + iconSz + 3 + PRICE_H + PAD))
-    -- The row centred in the window, each icon centred in its column.
-    local x0 = math.floor((w - rowW + colW - iconSz) / 2 + 0.5)
-    local y0 = -(TITLE_H + PAD + (top and (PRICE_H + 3) or 0))
+    lay.icon, lay.pitch, lay.top, lay.limit, lay.titled, lay.mult = iconSz, pitch, top, limit, titled, mult
+    -- each price may use its icon's width plus the spacing (less 2 px of air) before it is shortened
+    priceFitW = pitch - 2
+    local w, h, rowW = WindowSize(limit)
+    frame:SetSize(w, h)
+    -- The row centred in the window (wider only for the title).
+    local x0 = math.floor((w - rowW) / 2 + 0.5)
+    local titleH = titled and TITLE_H or 0
+    local y0 = -(titleH + (top and (PRICE_H + 3) or 0))
     for i = 1, limit do
         local cell = AcquireCell(i)
         cell:SetSize(iconSz, iconSz)
@@ -554,12 +615,14 @@ local function Layout(p, limit)
             cell._price:SetPoint("TOP", cell, "BOTTOM", 0, -3)
         end
     end
+    emptyFS:ClearAllPoints()
+    emptyFS:SetPoint("CENTER", frame, "CENTER", 0, -titleH / 2)
     -- The centre snap follows the size; Unlock Mode owns the spot while it is open.
     if not EllesmereUI._unlockActive then ApplyPosition() end
 end
 
-local function UpdateTitle(p)
-    if not p.showFreeSlots then
+local function UpdateTitle()
+    if not Get("showFreeSlots") then
         titleFS:Hide()
         return
     end
@@ -588,6 +651,7 @@ local function OnEvent(_, event, arg1, arg2)
         return  -- BAG_UPDATE_DELAYED ends the burst
     elseif event == "PLAYER_REGEN_DISABLED" then
         CloseConfirm()
+        Disarm()
         return
     elseif event == "GET_ITEM_INFO_RECEIVED" then
         if not pending[arg1] then return end
@@ -619,10 +683,10 @@ local function BuildFrame()
     -- takes the mouse, so the window is click-through; moving it is Unlock
     -- Mode's job.
     local hdrBg = CreateFrame("Frame", nil, frame)
-    hdrBg:SetPoint("TOPLEFT", 1, -1); hdrBg:SetPoint("TOPRIGHT", -1, 0); hdrBg:SetHeight(TITLE_H)
+    hdrBg:SetPoint("TOPLEFT"); hdrBg:SetPoint("TOPRIGHT"); hdrBg:SetHeight(TITLE_H)
 
     titleFS = NewText(frame, 11)
-    titleFS:SetPoint("LEFT", hdrBg, "LEFT", PAD, 0)
+    titleFS:SetPoint("LEFT", hdrBg, "LEFT", 0, 0)
 
     -- Empty frame over the header row; kept because the title may not draw
     -- without it on WoW Forever.
@@ -632,9 +696,9 @@ local function BuildFrame()
 
     emptyFS = NewText(frame, 11, 0.5)
     emptyFS:SetText(EllesmereUI.L("No junk items"))
-    emptyFS:SetPoint("CENTER", frame, "CENTER", 0, -TITLE_H / 2)
 
-    probeFS = NewText(frame, 10)
+    -- measures the widest title (TitleWidth)
+    probeFS = NewText(frame, 11)
     probeFS:Hide()
 end
 
@@ -642,16 +706,15 @@ end
 --  Refresh: re-read the dirty bags, pick the list, repaint what changed
 -------------------------------------------------------------------------------
 Refresh = function()
-    local p = P()
-    if not active or not p then return end
+    if not active then return end
     for bag = 0, NUM_BAG_SLOTS do
         if dirty[bag] then ReadBag(bag) end
     end
-    local limit = Clamp(p.itemCount or 4, 1, MAX_CELLS)
-    Select(p, limit)
-    Layout(p, limit)
+    local limit = Limit()
+    Select(limit)
+    Layout(limit)
     for i = 1, #cells do PaintCell(cells[i], best[i]) end
-    UpdateTitle(p)
+    UpdateTitle()
     emptyFS:SetShown(bestN == 0)
     -- GET_ITEM_INFO_RECEIVED only while an item is still loading.
     local want = next(pending) ~= nil
@@ -697,22 +760,23 @@ end
 -- The shared visibility setting: re-checked by the visibility dispatcher on its
 -- own edges (combat, group, zone...) and after every settings change.
 local function UpdateVisibility()
-    local p = P()
-    SetActive((frame and p and p.enabled and EllesmereUI.EvalVisibility(p) == true) and true or false)
+    SetActive((frame and Enabled() and EllesmereUI.EvalVisibility(Read()) == true) and true or false)
 end
 
 local function Apply()
-    local p = P()
-    if not p then return end
-    if p.enabled then
+    if Enabled() then
         BuildFrame()
         if not visRegistered then
             visRegistered = true
             EllesmereUI.RegisterVisibilityUpdater(UpdateVisibility)
         end
         -- Sized and placed even while the visibility setting hides it, so Unlock
-        -- Mode always has a mover to show.
-        Layout(p, Clamp(p.itemCount or 4, 1, MAX_CELLS))
+        -- Mode always has a mover to show. The fonts may have changed: the title
+        -- is measured again and every price fitted again.
+        titleW = 0
+        wipe(lay)
+        for i = 1, #cells do cells[i].fitW = nil end
+        Layout(Limit())
         if not EllesmereUI._unlockActive then ApplyPosition() end
     elseif visRegistered then
         visRegistered = false
@@ -721,68 +785,33 @@ local function Apply()
     UpdateVisibility()
     RequestRefresh()  -- settings may change what lists and how it looks
 end
-_G._EUI_JunkList_Apply = Apply
-_G._EUI_JunkList_DB = function() return db end
 
-function _G._EUI_JunkList_ClearExclusions()
-    EllesmereUIDB.junkListExcluded = nil
-    RequestRefresh()
-end
+-- Entry points for the options page and Bags.
+EllesmereUI._JunkItems = {
+    Get = Get,
+    Read = Read,
+    Cfg = F.Cfg,
+    Apply = Apply,
+    -- Every item middle-clicked away can list again.
+    ClearExclusions = function()
+        EllesmereUIDB.junkListExcluded = nil
+        RequestRefresh()
+    end,
+    -- Bags: a Junk Marker mark came or went, or the marker was switched. Does
+    -- nothing while the window is inactive (coming back re-reads every bag).
+    Refresh = RequestRefresh,
+}
 
--- QoL Reset: every setting back to its default and every exclusion dropped.
-function _G._EUI_JunkList_Reset()
-    EllesmereUIDB.junkListExcluded = nil
-    if not db then return end
-    db.profile.junkList = {}
-    EllesmereUI.Lite.DeepMergeDefaults(db.profile, defaults.profile)
-    Apply()
-end
-
--------------------------------------------------------------------------------
---  Unlock mode registration
--------------------------------------------------------------------------------
-local function RegisterUnlock()
-    local loadPos, clearPos = ns.CenterPosFns(P)
-    EllesmereUI:RegisterUnlockElements({
-        EllesmereUI.MakeUnlockElement({
-            key   = "EUI_JunkList",
-            label = "Junk Items",
-            group = "Quality of Life",
-            order = 610,
-            noResize = true,
-            noAnchorTarget = true,
-            noSizeMatchTarget = true,
-            isHidden = function()
-                local p = P()
-                return not p or not p.enabled
-            end,
-            getFrame = function()
-                local p = P()
-                return (p and p.enabled) and frame or nil
-            end,
-            getSize = function()
-                if frame then return frame:GetWidth(), frame:GetHeight() end
-                return 110, TITLE_H + PAD + 32 + 3 + PRICE_H + PAD
-            end,
-            savePos = function(_, _, _, x, y)
-                local p = P(); if not p then return end
-                p.pos = { centerX = x, centerY = y }
-            end,
-            loadPos = loadPos,
-            clearPos = clearPos,
-            applyPos = ApplyPosition,
-        }),
-    })
-end
-
--------------------------------------------------------------------------------
---  Init
--------------------------------------------------------------------------------
-local boot = CreateFrame("Frame")
-boot:RegisterEvent("PLAYER_LOGIN")
-boot:SetScript("OnEvent", function(self)
-    self:UnregisterAllEvents()
-    db = EllesmereUI.Lite.NewDB("EllesmereUIQoLDB", defaults)
-    Apply()
-    RegisterUnlock()
-end)
+F.Start(Apply, {
+    key = "EUI_JunkList", label = "Junk Items", order = 729,
+    -- Apply builds and lays out the window whenever it is on.
+    frame = function() return frame end,
+    -- Follows Items Shown, the icon settings and Show Empty Bag Slots, so
+    -- unlock mode moves the window but never resizes it.
+    size = function()
+        if frame then return frame:GetWidth(), frame:GetHeight() end
+        local iconSz, n = Get("iconSize"), Limit()
+        return n * iconSz + (n - 1) * Get("iconSpacing"), iconSz + 3 + PRICE_H
+    end,
+    snap = true, noAnchorTarget = true, noSizeMatchTarget = true,
+})

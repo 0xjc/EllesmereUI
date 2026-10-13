@@ -138,6 +138,11 @@ local CHAT_DEFAULTS = {
             -- Style page (reload-gated): Blizzard Style / Classic WoW UI
             useBlizzardStyle = false,
             useClassicStyle  = false,
+            -- The WoW Forever look's Border Style (latched in ns.ChatStyle):
+            -- "textured" = Slim Textured, the default there (an unset value
+            -- reads the same, EllesmereUI.ForeverBorderKind), "slim" = Slim,
+            -- "heavy" = Heavy Bronze. Nil on every other client.
+            foreverBorder = (EllesmereUI.IS_FOREVER == true) and "textured" or nil,
             lockChatSize = false,
             abbreviateChannels = true,  -- same key as live: saved settings carry over
             abbreviateChannelLetters = false,  -- world channels as letters (Ge, T, LD, WD, LFG) instead of their numbers
@@ -202,12 +207,17 @@ function ns.ChatStyle()
         -- The WoW Forever variant of Blizzard Style, latched with it: the
         -- Forever client, Blizzard Style, and the sibling useForeverStyle
         -- flag set together with the Blizzard one (_chatForeverFlag). Unlike
-        -- the other modules' Forever latches it also needs the kit's frame
-        -- art (EllesmereUI.ForeverBorder): a client without it renders plain
-        -- Blizzard Style.
+        -- the other modules' Forever latches it also asks for the kit's
+        -- frame (EllesmereUI.ForeverBorderOK): a client that cannot draw it
+        -- renders plain Blizzard Style.
         ns._chatForeverFlag = v == "blizzard" and EllesmereUI.IS_FOREVER == true
             and c.useForeverStyle == true
         ns._chatForever = ns._chatForeverFlag and EllesmereUI.ForeverBorderOK()
+        -- Its Border Style (Chat page), latched with it: "slim" (the shipped
+        -- line), "textured" (Blizzard's live line; unset, the default, reads
+        -- the same) or "heavy" (the heavy frame), each kind that lacks its art
+        -- drawing Slim (EllesmereUI.ForeverBorderKind).
+        ns._chatFvKind = ns._chatForever and EllesmereUI.ForeverBorderKind(c.foreverBorder) or nil
     end
     return v
 end
@@ -217,12 +227,36 @@ function ns.ChatForever()
     if ns._chatStyle == nil then ns.ChatStyle() end
     return ns._chatForever == true
 end
--- The variant as the profile flags latched it, art or not: what a profile
--- flag comparison must read (ChatForever() stays false where the art is
--- missing, so comparing it to profile flags would never settle).
+-- The WoW Forever kit's Border Style this session: "slim", "textured" or
+-- "heavy" (latched with the look). Nil everywhere else.
+function ns.ChatFvKind()
+    if ns._chatStyle == nil then ns.ChatStyle() end
+    return ns._chatFvKind
+end
+-- The WoW Forever kit wears the heavy bronze frame this session (Border
+-- Style Heavy Bronze). False everywhere else.
+function ns.ChatFvHeavy()
+    return ns.ChatFvKind() == "heavy"
+end
+-- The variant as the profile flags latched it, frame or not: what a profile
+-- flag comparison must read (ChatForever() stays false where the frame
+-- cannot be drawn, so comparing it to profile flags would never settle).
 function ns.ChatForeverFlag()
     if ns._chatStyle == nil then ns.ChatStyle() end
     return ns._chatForeverFlag == true
+end
+-- Profiles (ProfileChangesStyle's `extra`, handed the incoming chat table):
+-- true when that profile would latch another Border Style kind than the one
+-- latched this session (the latch above, read off `c`), so the switch asks
+-- for a reload.
+function ns.ChatFvBorderChanged(c)
+    local kind
+    if type(c) == "table" and not c.useClassicStyle and c.useBlizzardStyle
+        and EllesmereUI.IS_FOREVER == true and c.useForeverStyle == true
+        and EllesmereUI.ForeverBorderOK() then
+        kind = EllesmereUI.ForeverBorderKind(c.foreverBorder)
+    end
+    return kind ~= ns.ChatFvKind()
 end
 -- Both stock styles: Blizzard's own chat frame art and input box are revealed
 -- in place (only the suppression is skipped); our panel paint, borders and
@@ -1571,15 +1605,22 @@ local SIDEBAR_CHAIN_KEYS = {
 -- No keystones on Forever, so no season portals (the Minimap button is never
 -- built there either): the M+ Portals icon leaves the chain, which also drops
 -- it from creation and from the options icon list. Every button reader guards.
--- Chat Menu leaves it under WoW Forever's Gamepad interface style (decided at
--- load): it hooks Blizzard's chat menu button, which that style's navigation
--- drives from secure code.
 if EllesmereUI.IS_FOREVER then
-    local gamepad = EllesmereUI.PadGamepadUI()
     for i = #SIDEBAR_CHAIN_KEYS, 1, -1 do
-        local key = SIDEBAR_CHAIN_KEYS[i]
-        if key == "showPortals" or (gamepad and key == "showChatMenu") then table.remove(SIDEBAR_CHAIN_KEYS, i) end
+        if SIDEBAR_CHAIN_KEYS[i] == "showPortals" then table.remove(SIDEBAR_CHAIN_KEYS, i) end
     end
+end
+-- Chat Menu leaves the chain under WoW Forever's Gamepad interface style: it
+-- hooks Blizzard's chat menu button, which that style's navigation drives
+-- from secure code. Decided once logged in, when the style reads reliably,
+-- and kept for the session like the suite's other gamepad stand-downs.
+local chatMenuPadOff
+local function ChatMenuPadOff()
+    if chatMenuPadOff == nil then
+        if not IsLoggedIn() then return EllesmereUI.PadGamepadUI() end
+        chatMenuPadOff = EllesmereUI.PadGamepadUI()
+    end
+    return chatMenuPadOff
 end
 local SIDEBAR_FALLBACK_ORDER = {
     showFriends = -20, showGuild = -15, showDurability = -10,
@@ -1598,9 +1639,13 @@ function ECHAT.ResolveSidebarIconOrder()
     local map = (cfg and cfg.sidebarIconOrder) or {}
     local keyIndex = {}
     local keys = {}
+    local padOff = ChatMenuPadOff()
     for i = 1, #SIDEBAR_CHAIN_KEYS do
-        keys[i] = SIDEBAR_CHAIN_KEYS[i]
-        keyIndex[SIDEBAR_CHAIN_KEYS[i]] = i
+        local key = SIDEBAR_CHAIN_KEYS[i]
+        if not (padOff and key == "showChatMenu") then
+            keys[#keys + 1] = key
+            keyIndex[key] = i
+        end
     end
     local function OrderOf(key)
         local o = map[key]

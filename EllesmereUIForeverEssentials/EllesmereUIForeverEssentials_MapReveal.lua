@@ -1,25 +1,28 @@
 if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+if not (EllesmereUI and EllesmereUI.IS_FOREVER) then return end
 -------------------------------------------------------------------------------
--- EllesmereUIQoL_MapReveal.lua
--- Reveal Unexplored Areas: draws the world map overlays the player has not
--- explored yet, tinted with the cog's color.
+--  EllesmereUIForeverEssentials_MapReveal.lua  (WoW Forever only)
+--  Reveal Unexplored Areas: draws the world map overlays the player has not
+--  explored yet, tinted with the chosen color.
 --
--- The overlays come from the LoadOnDemand EllesmereUIMapData addon. A data
--- provider reports map changes; the textures live on a frame of our own under
--- the canvas, so nothing of Blizzard's map is hooked. They are not passed to
--- AddMaskableTexture: that table is walked with pairs() in secure code.
+--  The overlays are module.MapRevealData, the generated file listed before
+--  this one (.tools/map-reveal-data.sh). A data provider reports map changes;
+--  the textures live on a frame of our own under the canvas, so nothing of
+--  Blizzard's map is hooked. They are not passed to AddMaskableTexture: that
+--  table is walked with pairs() in secure code. Nothing is built while off.
 -------------------------------------------------------------------------------
-local _, ns = ...
-local EllesmereUI = _G.EllesmereUI
+local _, module = ...
 
-local data, provider, layer, waiter
+-- Settings live in EllesmereUIDB.worldMapReveal; unset keys read these.
+local F = module.Feature("worldMapReveal", {
+    enabled = false,
+    color = { r = 0.55, g = 0.55, b = 0.55, a = 1 },
+})
+
+local provider, layer, waiter
 local added = false
 local textures, used = {}, 0
 local explored = {}
-
-local function Enabled()
-    return EllesmereUIDB and EllesmereUIDB.mapReveal == true
-end
 
 local function Clear()
     for i = 1, used do textures[i]:Hide() end
@@ -33,24 +36,11 @@ local function FileSize(px)
     return s
 end
 
--- Loaded on the first map shown after enabling. False when the addon is off
--- in the AddOn List: enabling it there needs a reload anyway.
-local function LoadData()
-    if data == nil then
-        if not EllesmereUI._MapRevealData then C_AddOns.LoadAddOn("EllesmereUIMapData") end
-        data = EllesmereUI._MapRevealData or false
-        if not data then
-            EllesmereUI.PrintError("Reveal Unexplored Areas needs its map data. Enable the \"EllesmereUI Map Data\" addon in the AddOn List.")
-        end
-    end
-    return data
-end
-
 local function Refresh()
     Clear()
-    if not LoadData() then return end
+    local data = module.MapRevealData
     local mapID = WorldMapFrame:GetMapID()
-    local overlays = mapID and data[C_Map.GetMapArtID(mapID)]
+    local overlays = data and mapID and data[C_Map.GetMapArtID(mapID)]
     if not overlays then return end
     local layers = C_Map.GetMapArtLayers(mapID)
     local art = layers and layers[1]
@@ -66,9 +56,8 @@ local function Refresh()
         end
     end
 
-    local col = EllesmereUIDB.mapRevealColor
-    local cr, cg, cb, ca = 0.55, 0.55, 0.55, 1
-    if col then cr, cg, cb, ca = col.r, col.g, col.b, col.a or 1 end
+    local col = F.Get("color")
+    local cr, cg, cb, ca = col.r, col.g, col.b, col.a or 1
     for i = 1, #overlays do
         local o = overlays[i]
         if not explored[o[5]] then
@@ -116,7 +105,7 @@ end
 
 -- The world map loads on demand, so building may wait for it.
 local function Apply()
-    if not Enabled() then
+    if not F.Enabled() then
         if added then
             WorldMapFrame:RemoveDataProvider(provider)
             layer:UnregisterEvent("MAP_EXPLORATION_UPDATED")
@@ -148,5 +137,12 @@ local function Apply()
     end
     if WorldMapFrame:IsShown() then Refresh() end
 end
-ns.MapReveal_Apply = Apply
-EllesmereUI._applyMapReveal = Apply
+
+-- Options-page entry points.
+EllesmereUI._MapReveal = {
+    Get = F.Get,
+    Cfg = F.Cfg,
+    Apply = Apply,
+}
+
+F.Start(Apply)

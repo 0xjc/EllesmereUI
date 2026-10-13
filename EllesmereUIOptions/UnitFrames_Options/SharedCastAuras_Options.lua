@@ -68,6 +68,7 @@ function ns.UFO_BuildCastBarSection(parent, y, ctx)
         -- click-throughs to Resource & Cast Bars > Cast Bar (accent "click here").
         local hintRow
         hintRow, h = W:DualRow(parent, y, { type = "label", text = hintText }, nil)  -- eui-style: allow dualrow-nil
+        if not EllesmereUI._prebuilding then
         -- Labels are single-line by default; wrap this hint inside the full-width
         -- row so "click here" stays on screen.
         local lbl = hintRow._leftRegion and hintRow._leftRegion._label
@@ -78,7 +79,6 @@ function ns.UFO_BuildCastBarSection(parent, y, ctx)
             if not rw or rw < 80 then rw = 300 end
             lbl:SetWidth(rw - 40)
         end
-        if not EllesmereUI._prebuilding then
         local clickRgn = hintRow._leftRegion or hintRow
         local linkBtn = CreateFrame("Button", nil, clickRgn)
         linkBtn:SetAllPoints(clickRgn)

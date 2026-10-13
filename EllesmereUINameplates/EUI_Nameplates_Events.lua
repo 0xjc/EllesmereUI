@@ -80,9 +80,8 @@ ns.pendingUnits = pendingUnits
 -- Per-unit event watchers for pending friendly units: per-unit frames avoid the
 -- global UNIT_FLAGS firehose.
 -- pendingWatchers / enemyWatchers hold the ACTIVE watcher per unit token (nil = not
--- watching). The frames themselves are pooled per token and reused: WoW never frees
--- a frame, and a fresh one per friendly plate add grew for the whole session.
--- Nameplate tokens are a fixed set, so the pools stay bounded.
+-- watching). The frames themselves are pooled per token and reused, since WoW never
+-- frees a frame; nameplate tokens are a fixed set, so the pools stay bounded.
 local pendingWatchers = {}
 local enemyWatchers = {}
 local pendingWatcherFrames = {}
@@ -93,7 +92,7 @@ local AcquirePendingWatcher, AcquireEnemyWatcher
 -- Watches a friendly/pending unit for becoming attackable (e.g. duel start)
 local function PendingWatcherOnEvent(self, event, u)
     if not UnitCanAttack("player", u) then return end
-    -- Unit became attackable promote to enemy plate
+    -- Unit became attackable -> promote to enemy plate
     self:UnregisterAllEvents()
     pendingWatchers[u] = nil
     pendingUnits[u] = nil
@@ -120,14 +119,14 @@ local function PendingWatcherOnEvent(self, event, u)
         ns.plates[u] = plate
         plate:SetUnit(u, currentPlate)
     end
-    -- Watch for the reverse transition (enemy friendly, e.g. duel end)
+    -- Watch for the reverse transition (enemy -> friendly, e.g. duel end)
     enemyWatchers[u] = AcquireEnemyWatcher(u)
 end
 
 -- Watches a promoted-enemy unit for becoming friendly again (e.g. duel end)
 local function EnemyWatcherOnEvent(self, event, u)
     if UnitCanAttack("player", u) then return end
-    -- Unit became friendly again tear down enemy plate, restore to pending
+    -- Unit became friendly again -> tear down enemy plate, restore to pending
     self:UnregisterAllEvents()
     enemyWatchers[u] = nil
     local plate = ns.plates[u]
@@ -143,6 +142,11 @@ local function EnemyWatcherOnEvent(self, event, u)
     -- Re-add as pending friendly
     local currentPlate = C_NamePlate.GetNamePlateForUnit(u)
     if currentPlate then
+        -- The unit keeps this nameplate (no NAME_PLATE_UNIT_ADDED follows a
+        -- duel's end), so Blizzard's frame gets back here what the enemy plate
+        -- parked on it; else the friendly name stays hidden until the plate is
+        -- next added.
+        ns.NP_ReclaimBlizzardFrame(currentPlate.UnitFrame)
         pendingUnits[u] = currentPlate
         pendingWatchers[u] = AcquirePendingWatcher(u)
         if ns.TryAddFriendlyPlate then ns.TryAddFriendlyPlate(u) end

@@ -1862,26 +1862,19 @@ ns.UF_CastbarBelowFrame = CastbarBelowFrame
 -- the live frames (EllesmereUIOptions/EUI_UnitFrames_Options.lua).
 EllesmereUI.UF_CastbarBelowFrame = CastbarBelowFrame
 
--- The player frame hosts auras, so under WoW 12.0 its geometry (GetBottom etc.) comes
--- back as a SECRET value to any execution tainted by an addon that is not the frame's
--- owner. Arithmetic on a secret throws. secretNum() turns a secret (or nil) into nil so
--- every read is gated and the reserve degrades to 0 instead of erroring. The re-anchor
--- MUST run in UnitFrames' own context (it owns the player frame) for the reads to be
--- real -- see the re-anchor path below.
-local issecret = issecretvalue
+-- A frame edge read as a plain number, or nil when it is unset or secret, so the
+-- reserve below degrades to 0 instead of erroring on arithmetic.
 local function secretNum(v)
-    if v == nil then return nil end
-    if issecret and issecret(v) then return nil end
+    if v == nil or issecretvalue(v) then return nil end
     return v
 end
 
 -- How far the Resource Bars stack hangs below the PLAYER frame, in the frame's LOCAL
--- units (so it composes with the cast bar's -cbH). Resource Bars hands us the active
--- stack's per-bar rects in its OWN context (EllesmereUI.ERB_PlayerStackBars -- plain
--- numbers, not secret; stable across combat/target/group visibility because it is
--- predicate-based, not alpha-based). Here we only read our OWN player frame
--- (secret-safe) and reserve the span down to the lowest bar actually DOCKED under the
--- frame -- walking the chain so a bar sitting elsewhere is never reserved.
+-- units (so it composes with the cast bar's -cbH). Resource Bars hands over the
+-- stack's per-bar rects (EllesmereUI.ERB_PlayerStackBars: physical pixels, steady
+-- through the combat/target/group visibility modes); this reserves the span down to
+-- the lowest bar actually DOCKED under the frame, walking the chain so a bar sitting
+-- elsewhere is never reserved.
 local function ResourceStackBelowFrame(unit, frame)
     if unit ~= "player" then return 0 end
     frame = frame or _G[CB_FRAME_NAMES.player]
@@ -2056,8 +2049,8 @@ local function AnchorContainer(container, frame, unit, base, s, buffContainer, r
     -- below the player frame: reserve down to its bottom edge the same way, and keep
     -- whichever reserve reaches LOWER (the cast bar may sit above or below it). Same
     -- bottom-anchor + non-Blizzard-aspect gate as the cast bar; player-only inside
-    -- ResourceStackBelowFrame. CfgFP folds this value in so a stack footprint change
-    -- (bar shown/hidden, expand, shift cascade) re-drives this anchor via a reload.
+    -- ResourceStackBelowFrame. CfgFP leaves this value out: a stack footprint change
+    -- re-runs this anchor through the re-anchor Resource Bars arms (further down).
     if (anchor == "bottomleft" or anchor == "bottomright")
         and not (vl and CB_FRAME_NAMES[unit] and ns.UF_LayoutAspectOK and ns.UF_LayoutAspectOK()) then
         local resReserve = ResourceStackBelowFrame(unit, frame)
@@ -2524,7 +2517,7 @@ local function ApplyGroupConfig(container, unit, base, s, chain, declared)
             local n = num
             if impKeys and impKeys[eff] then n = s.maxImportantDebuffs or num end
             if (hiddenKeys and hiddenKeys[eff]) or (incPark and incKeys[eff]) then n = 0 end
-            container:SetAuraGroupMaxFrameCount(eff, n)
+            EllesmereUI.AuraKit.SetGroupCap(container, eff, n)
             -- Filter strings follow the CURRENT chain too: a plain key's tokens
             -- depend on which earlier token classes are enabled, so a group first
             -- declared under another set would keep a stale string (a debuff shown
@@ -2559,7 +2552,7 @@ local function ApplyGroupConfig(container, unit, base, s, chain, declared)
                 container:SetAuraGroupLayout(eff, layout)
             end
         else
-            container:SetAuraGroupMaxFrameCount(eff, 0)
+            EllesmereUI.AuraKit.SetGroupCap(container, eff, 0)
         end
     end
 
@@ -3258,16 +3251,14 @@ function ns.UF_ReloadAuraContainers(frame, unit)
     end
 end
 
--- Resource-stack re-anchor (OWNER CONTEXT, event-free). Bottom-anchored player auras
--- reserve the Resource Bars stack hanging below the frame (power / class resource /
--- shapeshift mana). Its STABLE footprint only changes on build / spec / form / expand /
--- shift / options -- all of which converge on Resource Bars' BuildBars(). Rather than
--- have UnitFrames watch a pile of game events, Resource Bars ARMS this one-shot throttle
--- at the end of BuildBars via EllesmereUI.UF_RequestResourceReanchor(). Arming reads NO
--- geometry, so nothing runs in Resource Bars' tainted context; the throttle's OnUpdate
--- fires once next frame in UnitFrames' OWN context (game-driven, off Resource Bars'
--- stack -- so the player frame is not a secret value) and re-anchors once, then disarms.
--- Mirrors the reloadThrottle pattern in EllesmereUIUnitFrames.lua. Zero cost when idle:
+-- Resource-stack re-anchor (event-free). Bottom-anchored player auras reserve the
+-- Resource Bars stack hanging below the frame (power / class resource / shapeshift
+-- mana). Its footprint only changes on build / spec / form / expand / shift / options
+-- -- all of which converge on Resource Bars' BuildBars(). Rather than have UnitFrames
+-- watch a pile of game events, Resource Bars ARMS this one-shot throttle at the end of
+-- BuildBars via EllesmereUI.UF_RequestResourceReanchor(). Arming reads no geometry; the
+-- throttle's OnUpdate re-anchors once on the next frame, after the build has settled,
+-- then disarms. Mirrors the reloadThrottle pattern in EllesmereUIUnitFrames.lua. Zero cost when idle:
 -- no registered events, and non-bottom-anchored players never arm anything. Per-bar
 -- VISIBILITY modes (combat/target/group alpha) are intentionally NOT handled -- the
 -- footprint (ERB_PlayerStackBars) is predicate-based, so alpha toggles do not move it.
@@ -3295,9 +3286,9 @@ do
     local throttle = CreateFrame("Frame")
     throttle:Hide()
     throttle:SetScript("OnUpdate", function(self)
-        self:Hide()            -- disarm FIRST so we fire exactly once per arm
-        pending = false
-        pcall(reanchorPlayer)  -- game-driven (owner) context; pcall so a throw can't latch
+        self:Hide()            -- disarm FIRST so we fire exactly once per arm (an error
+        pending = false        -- below then cannot latch it)
+        reanchorPlayer()
     end)
     -- Armed (by Resource Bars' BuildBars, or anyone) when the footprint may have changed.
     -- Coalesces many arms in one frame into a single re-anchor; gated so idle/irrelevant

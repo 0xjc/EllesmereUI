@@ -31,7 +31,8 @@ local kickSpellsByClass = {
 -- only counts while one of those stances is up: `stances` are gapless warrior
 -- stance indexes, `formIds` druid form IDs (Forever orders the druid stance bar
 -- the vanilla way, so druids are read by form ID, as in EllesmereUI_Range.lua).
--- Debuff ids (Kick - Silenced) and the Felhunter's Spell Lock are left out.
+-- Debuff ids (Kick - Silenced) are left out. The Felhunter's Spell Lock is a pet
+-- spell, found in the pet spellbook like retail's demon interrupts.
 local WARRIOR_STANCE = { BATTLE = 1, DEFENSIVE = 2, BERSERKER = 3 }
 local DRUID_FORM_ID = { BEAR = 5, DIRE_BEAR = 8 }
 local foreverKicksByClass = {
@@ -43,6 +44,7 @@ local foreverKicksByClass = {
     MAGE = { { 2139 } },                                          -- Counterspell
     SHAMAN = { { 8042, 8044, 8045, 8046, 10412, 10413, 10414 } }, -- Earth Shock
     PRIEST = { { 15487 } },                                       -- Silence
+    WARLOCK = { { 19244, 19647 } },                               -- Spell Lock (Felhunter)
     DRUID = {
         { 16979, formIds = { DRUID_FORM_ID.BEAR, DRUID_FORM_ID.DIRE_BEAR } }, -- Feral Charge
     },
@@ -59,6 +61,20 @@ local function KickGroupFormOk(group)
     if group.stances then return InList(group.stances, GetShapeshiftForm()) end
     if group.formIds then return InList(group.formIds, GetShapeshiftFormID()) end
     return true
+end
+
+-- Which spellbook knows a spell: "pet" (a summoned demon), "player", or nil.
+local function KickBank(spellId)
+    if C_SpellBook and C_SpellBook.IsSpellKnownOrInSpellBook then
+        if Enum and Enum.SpellBookSpellBank
+            and C_SpellBook.IsSpellKnownOrInSpellBook(spellId, Enum.SpellBookSpellBank.Pet) then
+            return "pet"
+        elseif C_SpellBook.IsSpellKnownOrInSpellBook(spellId) then
+            return "player"
+        end
+    elseif IsSpellKnown and IsSpellKnown(spellId) then
+        return "player"
+    end
 end
 
 local activeKickSpell
@@ -84,27 +100,16 @@ local function RefreshKickAbility()
     activeKickSpell = nil
     if not classKicks then return end
     local petHit, playerHit
-    local function Consider(spellId)
-        if C_SpellBook and C_SpellBook.IsSpellKnownOrInSpellBook then
-            if Enum and Enum.SpellBookSpellBank
-                and C_SpellBook.IsSpellKnownOrInSpellBook(spellId, Enum.SpellBookSpellBank.Pet) then
-                petHit = spellId
-            elseif C_SpellBook.IsSpellKnownOrInSpellBook(spellId) then
-                playerHit = spellId
-            end
-        elseif IsSpellKnown and IsSpellKnown(spellId) then
-            playerHit = spellId
-        end
-    end
     -- Retail entries are bare spell ids; Forever entries are rank groups.
     for i = 1, #classKicks do
         local entry = classKicks[i]
-        if type(entry) == "table" then
-            if KickGroupFormOk(entry) then
-                for j = 1, #entry do Consider(entry[j]) end
+        local isGroup = type(entry) == "table"
+        if not isGroup or KickGroupFormOk(entry) then
+            for j = 1, isGroup and #entry or 1 do
+                local spellId = isGroup and entry[j] or entry
+                local bank = KickBank(spellId)
+                if bank == "pet" then petHit = spellId elseif bank == "player" then playerHit = spellId end
             end
-        else
-            Consider(entry)
         end
     end
     activeKickSpell = petHit or playerHit
@@ -316,8 +321,13 @@ if kickFrame.RegisterUnitEvent then
 else
     kickFrame:RegisterEvent("UNIT_PET")
 end
+-- WoW Forever's stance and form gated kicks (warrior Shield Bash / Pummel, druid
+-- Feral Charge) re-resolve on a stance or form change; no other class needs it.
 if EllesmereUI.IS_FOREVER == true then
-    kickFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
+    local playerClass = UnitClassBase("player")
+    if playerClass == "WARRIOR" or playerClass == "DRUID" then
+        kickFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
+    end
 end
 kickFrame:SetScript("OnEvent", function()
     RefreshKickAbility()

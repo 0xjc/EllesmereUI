@@ -14,7 +14,8 @@ if not EllesmereUI or EllesmereUI.IS_FOREVER then return end
 --  listens to nothing outside boss fights. Raid frames do not move once a key
 --  has started, so the host is placed once per encounter and never follows.
 --  Other classes stop here at load; a paladin with the option off, or on
---  another spec, registers no gameplay events.
+--  another spec, registers no gameplay events, and an armed one follows the
+--  roster only while a key runs.
 -------------------------------------------------------------------------------
 if select(2, UnitClass("player")) ~= "PALADIN" then return end
 
@@ -128,6 +129,19 @@ local function Disarm()
     if host then host:Hide() end
 end
 
+-- The tank is read only inside a key, so the roster events are registered from
+-- CHALLENGE_MODE_START (or arming, or a PLAYER_ENTERING_WORLD, inside a key) to
+-- the key's end; each of those starts looks the tank up again.
+local function WatchRoster(on)
+    if on then
+        ev:RegisterEvent("GROUP_ROSTER_UPDATE")
+        ev:RegisterEvent("PLAYER_ROLES_ASSIGNED")
+    else
+        ev:UnregisterEvent("GROUP_ROSTER_UPDATE")
+        ev:UnregisterEvent("PLAYER_ROLES_ASSIGNED")
+    end
+end
+
 -- Built while the key's countdown runs (out of combat), so the first pull does
 -- no engine construction; Arm still builds it if a key began before the option.
 local function Prebuild()
@@ -161,8 +175,7 @@ local function Sync()
         ev:RegisterEvent("CHALLENGE_MODE_COMPLETED")
         ev:RegisterEvent("CHALLENGE_MODE_RESET")
         ev:RegisterEvent("PLAYER_ENTERING_WORLD")
-        ev:RegisterEvent("GROUP_ROSTER_UPDATE")
-        ev:RegisterEvent("PLAYER_ROLES_ASSIGNED")
+        WatchRoster(C_ChallengeMode.IsChallengeModeActive())
         RefreshTank()
         if IsEncounterInProgress() then Arm() else Prebuild() end
     end
@@ -172,9 +185,13 @@ ev:SetScript("OnEvent", function(_, event)
     if event == "ENCOUNTER_START" then
         Arm()
     elseif event == "CHALLENGE_MODE_START" then
+        WatchRoster(true)
         RefreshTank()
         Prebuild()
-    elseif event == "ENCOUNTER_END" or event == "CHALLENGE_MODE_COMPLETED" or event == "CHALLENGE_MODE_RESET" then
+    elseif event == "ENCOUNTER_END" then
+        Disarm()
+    elseif event == "CHALLENGE_MODE_COMPLETED" or event == "CHALLENGE_MODE_RESET" then
+        WatchRoster(false)
         Disarm()
     elseif event == "GROUP_ROSTER_UPDATE" or event == "PLAYER_ROLES_ASSIGNED" then
         RefreshTank()
@@ -188,6 +205,7 @@ ev:SetScript("OnEvent", function(_, event)
             return
         end
         Disarm()
+        WatchRoster(C_ChallengeMode.IsChallengeModeActive())
         RefreshTank()
         if IsEncounterInProgress() then Arm() else Prebuild() end
     else -- PLAYER_SPECIALIZATION_CHANGED

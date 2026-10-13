@@ -29,6 +29,39 @@ local ApplyOnlyNumbers, ArmCdStateEval = I.ApplyOnlyNumbers, I.ArmCdStateEval
 local TryHookSwiftmend, ApplyResourceTint = I.TryHookSwiftmend, I.ApplyResourceTint
 
 -------------------------------------------------------------------------------
+--  Buff viewer re-anchoring
+--  A buff viewer sizes itself from where its icons sit (its Layout places them,
+--  then measures them), so an icon pulled onto our bar the moment Blizzard
+--  places it makes the viewer measure the gap to our bar as its own height,
+--  which pushes everything above it in Blizzard's bottom stack. The SetPoint
+--  hook below only marks such an icon; RestoreBuffAnchors puts every marked
+--  icon back once the measuring is over: from the buff viewers' RefreshLayout
+--  post-hook (EUI_CDM_HookViewers.lua; their Layout itself is never hooked),
+--  or from this one-shot frame later in the same frame when no RefreshLayout
+--  follows, so an icon never draws a frame at the viewer's spot.
+-------------------------------------------------------------------------------
+local buffPending = setmetatable({}, { __mode = "k" })
+local buffRestore = ns.TakeShell()
+buffRestore:Hide()
+
+local function RestoreBuffAnchors()
+    buffRestore:Hide()
+    if next(buffPending) == nil then return end
+    for frame in pairs(buffPending) do
+        buffPending[frame] = nil
+        -- The pool may have released or reassigned the icon since it was
+        -- marked: its current anchor decides, none leaves it to the next claim.
+        local fd = hookFrameData[frame]
+        local a = fd and fd._cdmAnchor
+        if a then
+            frame:ClearAllPoints()
+            frame:SetPoint(a[1], a[2], a[3], a[4], a[5])
+        end
+    end
+end
+buffRestore:SetScript("OnUpdate", RestoreBuffAnchors)
+
+-------------------------------------------------------------------------------
 --  DecorateFrame
 --  Add our visual overlays to a CDM frame (one-time per frame).
 -------------------------------------------------------------------------------
@@ -228,17 +261,9 @@ local function DecorateFrame(frame, barData)
             -- relativeTo == our bar container: our own LayoutCDMBar SetPoint.
             if relativeTo == anchor[2] then return end
             if fd._isBuffViewerFrame then
-                if not fd._buffAnchorPending then
-                    fd._buffAnchorPending = true
-                    C_Timer.After(0, function()
-                        fd._buffAnchorPending = nil
-                        -- The pool may have released/reassigned this icon since scheduling, so refresh it.
-                        local current = fd._cdmAnchor
-                        if not current then return end
-                        frame:ClearAllPoints()
-                        frame:SetPoint(current[1], current[2], current[3], current[4], current[5])
-                    end)
-                end
+                -- Back once the viewer has measured itself (RestoreBuffAnchors).
+                buffPending[frame] = true
+                buffRestore:Show()
                 return
             end
             -- Blizzard is trying to move us. Force back to CDM position.
@@ -1252,14 +1277,16 @@ local function DecorateFrame(frame, barData)
                     return
                 end
                 local ss2 = ResolveSpellSettings(frame, sid2, false)
-                local cse = ns.GetSpellCdStateEffect(frame, ss2)
+                -- The effect is a hide (cse) and a glow, each run on its own:
+                -- the hide part below never returns before the glow part.
+                local cse, glow = ns.CdStateOf(ss2, frame)
                 -- The hide effects run as their base mode plus flags
                 -- (ns.CD_STATE_HIDE: Shift Icons, Hidden Until Usable, Hidden
                 -- Outside Form/Stance), so every comparison below is unchanged.
                 local m = cse and ns.CD_STATE_HIDE[cse]
                 local cseShift, cseUsable, cseForm
                 if m then cse, cseShift, cseUsable, cseForm = m.base, m.shift, m.usable, m.form end
-                if not cse then
+                if not cse and not glow then
                     if fd._cdStateGlowOn then
                         ns.StopCdGlow(fd)
                         fd._cdStateGlowOn = false
@@ -1277,8 +1304,9 @@ local function DecorateFrame(frame, barData)
                     end
                     return
                 end
-                -- Clear stale hidden state when switching to a non-hidden effect
-                -- (lowerAlphaOnCD is alpha-owning like the hidden modes, so exclude it).
+                -- Clear stale hidden state while no hide effect runs (a glow
+                -- alone; lowerAlphaOnCD is alpha-owning like the hidden modes,
+                -- so exclude it).
                 if cse ~= "hiddenOnCD" and cse ~= "hiddenReady" and cse ~= "lowerAlphaOnCD" then
                     if fc2 and fc2._cdStateHidden then
                         fc2._cdStateHidden = false
@@ -1309,16 +1337,25 @@ local function DecorateFrame(frame, barData)
                         fd._cdStateChargeBoundSid = sid2
                         ns.WatchCdStateChargeIfEnabled(frame)
                     end
+                end
+                -- The glow part. A hide alone takes down a glow left from an
+                -- earlier setting.
+                if not glow then
+                    if fd._cdStateGlowOn then
+                        ns.StopCdGlow(fd)
+                        fd._cdStateGlowOn = false
+                    end
                     return
                 end
                 -- Query cooldown on the live override (e.g. Shimmer, not
-                -- Blink) so charge-based replacements report correctly.
+                -- Blink) so charge-based replacements report correctly. The
+                -- glow runs on this plain read, whatever the hide runs on.
                 local liveSid = sid2
                 if C_SpellBook and C_SpellBook.FindSpellOverrideByID then
                     liveSid = C_SpellBook.FindSpellOverrideByID(sid2) or sid2
                 end
                 local onCD = ns.CdmOnRealCD(frame, C_Spell.GetSpellCooldown(liveSid))
-                if cse == "pixelGlowReady" or cse == "buttonGlowReady" then
+                if glow == "pixelGlowReady" or glow == "buttonGlowReady" then
                     -- Plain CD Ready Glow: cooldown state only, decided right here
                     -- -- no usability reads, no deferral, no events for genuine
                     -- Blizzard frames (Blizzard calls SetDesaturated on them at
@@ -1350,7 +1387,7 @@ local function DecorateFrame(frame, barData)
                         -- them (only a Blackout, on its own overlay, shows
                         -- beside them) and records the glow as owed instead.
                         if fd.glowOverlay and not fd._cdStateGlowOn then
-                            local style = ns.CdReadyGlowStyle(cse, ss2)
+                            local style = ns.CdReadyGlowStyle(glow, ss2)
                             local cr, cg, cb = ns.CdReadyGlowColor(style, ss2)
                             fd._cdStateGlowOn = ns.StartCdGlow(fd, style, cr, cg, cb, ns.CdReadyGlowAlpha(ss2)) ~= nil
                         end
@@ -1358,8 +1395,8 @@ local function DecorateFrame(frame, barData)
                         ns.StopCdGlow(fd)
                         fd._cdStateGlowOn = false
                     end
-                elseif cse == "pixelGlowReadyUsable" or cse == "buttonGlowReadyUsable"
-                    or cse == "glowOnCD" then
+                elseif glow == "pixelGlowReadyUsable" or glow == "buttonGlowReadyUsable"
+                    or glow == "glowOnCD" then
                     -- Resource Aware CD Ready Glow: also requires the spell to
                     -- be castable (resources/form/lockout). Glow (On CD): the plain
                     -- Ready rule inverted -- glows for the whole cooldown.
@@ -1376,13 +1413,13 @@ local function DecorateFrame(frame, barData)
                     -- frames (see the plain branch). The loop's events stay
                     -- unregistered until the first watch, so the whole system is
                     -- inert unless such a glow is actually configured somewhere.
-                    if ns.CDGlowWatch and (cse ~= "glowOnCD" or frame._isRacialFrame
+                    if ns.CDGlowWatch and (glow ~= "glowOnCD" or frame._isRacialFrame
                         or frame._isTrinketFrame or frame._isPresetFrame
                         or frame._isItemPresetFrame or frame._isCustomSpellFrame) then
                         ns.CDGlowWatch(frame)
                     end
-                    -- Defer the actual decision by one frame, same as
-                    -- hiddenOnCD/hiddenReady above: SetDesaturated fires inside
+                    -- Defer the actual decision by one frame, same as the
+                    -- hide effects above: SetDesaturated fires inside
                     -- Blizzard's secure CDM chain where C_Spell.IsSpellUsable can
                     -- return stale values and a GCD can read as a real cooldown
                     -- (lighting Glow (On CD) on a ready spell). The OnUpdate script
@@ -1433,7 +1470,7 @@ local function DecorateFrame(frame, barData)
                             end
                         end)
                     end
-                    pending.cse = cse
+                    pending.cse = glow
                     pending.sid = liveSid
                     pending.ss2 = ss2
                     pending:Show()
@@ -1565,4 +1602,5 @@ local function CategorizeFrame(frame, viewerBarKey)
 end
 
 I.CategorizeFrame, I.DecorateFrame = CategorizeFrame, DecorateFrame
+I.RestoreBuffAnchors = RestoreBuffAnchors
 I.broken = false

@@ -20,7 +20,7 @@ EllesmereUI._ModuleNS["EllesmereUIQoL"] = ns  -- LOD options files read this mod
 ns.CombatQueue = EllesmereUI.NewCombatQueue(CreateFrame("Frame"))
 
 -- Unlock-mode loadPos/clearPos for a QoL element whose slice (P()) stores pos as a
--- center offset (Battle Res, Bloodlust, Junk Items).
+-- center offset (Battle Res, Bloodlust).
 function ns.CenterPosFns(P)
     local function loadPos()
         local p = P()
@@ -74,8 +74,6 @@ qolFrame:SetScript("OnEvent", function(self)
     if EllesmereUIDB.envPingKey then EllesmereUI._applyEnvPing() end
     -- Self Combat Text (EllesmereUIQoL_SelfCombatText.lua): nothing is built while off.
     ns.SCT_Refresh()
-    -- Reveal Unexplored Areas (EllesmereUIQoL_MapReveal.lua): nothing is built while off.
-    ns.MapReveal_Apply()
 
     ---------------------------------------------------------------------------
     -- Bonus roll confirmation. Addon-owned overlays intercept Roll/Pass clicks;
@@ -3949,77 +3947,206 @@ do
 end
 
 -------------------------------------------------------------------------------
---  Hide Error Messages -- swallows red UIErrorsFrame spam ("Not enough rage",
---  etc.) while keeping a whitelist of useful errors visible. OnEvent override
---  installed only while the option is on; zero cost off.
+--  Hide Error Messages -- hides red error lines ("Not enough rage", etc.)
+--  while a keep list of useful errors stays up. Hidden message types go into
+--  UIErrorsFrame's own per-type switch (SetMessageTypeEnabled), which Blizzard
+--  checks before it adds a line or plays its sound, so a hidden error stays
+--  silent. Never switched: the kept types, the voice chat window's types (that
+--  window hands its errors to the frame itself, outside the frame's event
+--  handler) and every type already hidden (Blizzard's defaults, other addons'
+--  picks). The types the game sends as yellow info lines are left on too,
+--  until one arrives as a red error while the option is on. While the switch
+--  is in place, a listener on our own frame shows what a type switch cannot:
+--  a kept error text under a switched-off type, and a yellow line of a
+--  switched-off type. The switch entries are never written back during a
+--  session (Blizzard's repeat-flash code would then run tainted), so turning
+--  the option off takes effect at the next reload, which the options row
+--  offers; nothing new is switched while the option is off. With the option
+--  off at login nothing is written and nothing stays registered.
 -------------------------------------------------------------------------------
 do
-    local origOnEvent
-    local installed = false
+    -- A text no line on screen can hold: asking Blizzard whether a type shows
+    -- with it never flashes or refreshes a line already up.
+    local PROBE = "\0"
 
-    -- Kept while the rest are hidden. Built lazily so ERR_* globals are only
-    -- touched once the feature is enabled.
-    local keep
-    local function BuildKeepList()
-        if keep then return end
-        keep = {}
-        for _, msg in ipairs({
-            ERR_INV_FULL, ERR_QUEST_LOG_FULL, ERR_RAID_GROUP_ONLY,
-            ERR_PARTY_LFG_BOOT_LIMIT, ERR_PARTY_LFG_BOOT_DUNGEON_COMPLETE,
-            ERR_PARTY_LFG_BOOT_IN_COMBAT, ERR_PARTY_LFG_BOOT_IN_PROGRESS,
-            ERR_PARTY_LFG_BOOT_LOOT_ROLLS, ERR_PARTY_LFG_TELEPORT_IN_COMBAT,
-            ERR_PET_SPELL_DEAD, ERR_PLAYER_DEAD,
-            SPELL_FAILED_TARGET_NO_POCKETS, ERR_ALREADY_PICKPOCKETED,
-        }) do
-            if msg then keep[msg] = true end
+    local active = false
+    local switched = {}     -- [messageType] = true: switched off here
+    local roleOf            -- [messageType] = "keep" | "info" | "voice"
+    local throttled         -- [messageType] = true: a repeat refreshes the line
+    local keepText          -- [message] = true: kept error texts
+    local typeCount
+    local f = CreateFrame("Frame")
+
+    -- Reads every message type's name once. The client numbers its types
+    -- from 1 with no gaps; the scan stops at the first index with no name.
+    local function ScanTypes()
+        local KEEP = {
+            "ERR_INV_FULL", "ERR_QUEST_LOG_FULL", "ERR_RAID_GROUP_ONLY",
+            "ERR_PARTY_LFG_BOOT_LIMIT", "ERR_PARTY_LFG_BOOT_NOT_ELIGIBLE_S",
+            "ERR_PARTY_LFG_BOOT_DUNGEON_COMPLETE", "ERR_PARTY_LFG_BOOT_IN_PROGRESS",
+            "ERR_PARTY_LFG_BOOT_LOOT_ROLLS", "ERR_PARTY_LFG_TELEPORT_IN_COMBAT",
+            "ERR_PET_SPELL_DEAD", "ERR_PLAYER_DEAD", "ERR_ALREADY_PICKPOCKETED",
+        }
+        -- Sent as yellow UI_INFO_MESSAGE lines (quest progress, discoveries,
+        -- trades, flight paths and the like). The switch is per type, not per
+        -- event, so one of these is switched only once it arrives as a red
+        -- error while the option is on.
+        local INFO = {
+            "ERR_TAXINOSUCHPATH", "ERR_TAXINOTENOUGHMONEY", "ERR_TAXITOOFARAWAY",
+            "ERR_TAXINOVENDORNEARBY", "ERR_TAXINOTVISITED", "ERR_TAXIPLAYERMOVING",
+            "ERR_TAXINOTSTANDING", "ERR_NEWTAXIPATH", "ERR_TRADE_CANCELLED",
+            "ERR_TRADE_COMPLETE", "ERR_USE_SPELL_FOCUS",
+            "ERR_QUEST_OBJECTIVE_COMPLETE_S", "ERR_QUEST_UNKNOWN_COMPLETE",
+            "ERR_QUEST_ADD_KILL_SII", "ERR_QUEST_ADD_FOUND_SII",
+            "ERR_QUEST_ADD_ITEM_SII", "ERR_QUEST_ADD_PLAYER_KILL_SII",
+            "ERR_QUEST_PET_BATTLE_VICTORIES_PVP_II", "ERR_ZONE_EXPLORED",
+            "ERR_DUEL_CANCELLED", "ERR_FISH_NOT_HOOKED", "ERR_FISH_ESCAPED",
+            "ERR_SPELL_FAILED_NOTUNSHEATHED", "ERR_SPELL_FAILED_LEVEL_REQUIREMENT",
+            "ERR_MAIL_SENT", "ERR_PVP_KILL_HONORABLE", "ERR_PVP_KILL_DISHONORABLE",
+            "ERR_PVP_TOGGLE_ON", "ERR_PVP_TOGGLE_OFF", "ERR_PVP_WARMODE_TOGGLE_ON",
+            "ERR_PVP_WARMODE_TOGGLE_OFF", "ERR_GROUP_JOIN_BATTLEGROUND_DESERTERS",
+            "ERR_GROUP_JOIN_BATTLEGROUND_DEAD", "ERR_SOLO_JOIN_TRAINING_GROUND",
+            "ERR_LFG_JOINED_TRAINING_GROUNDS_QUEUE", "ERR_BN_FRIEND_REQUEST_SENT",
+            "ERR_BN_BROADCAST_THROTTLE", "ERR_BATTLETAG_FRIEND_SUCCESS",
+            "ERR_REPORT_SUBMITTED_SUCCESSFULLY",
+            "ERR_SUGGESTION_SUBMITTED_SUCCESSFULLY", "ERR_BUG_SUBMITTED_SUCCESSFULLY",
+        }
+        -- The types whose repeat of the same text refreshes the line already
+        -- up instead of adding one (UIErrorsFrame's own list).
+        local THROTTLED = {
+            "ERR_SPELL_FAILED_TOTEMS", "ERR_SPELL_FAILED_EQUIPPED_ITEM",
+            "ERR_SPELL_ALREADY_KNOWN_S", "ERR_SPELL_FAILED_SHAPESHIFT_FORM_S",
+            "ERR_SPELL_FAILED_ALREADY_AT_FULL_MANA", "ERR_OUT_OF_MANA",
+            "ERR_SPELL_OUT_OF_RANGE", "ERR_SPELL_FAILED_S", "ERR_SPELL_FAILED_REAGENTS",
+            "ERR_SPELL_FAILED_REAGENTS_GENERIC", "ERR_SPELL_FAILED_NOTUNSHEATHED",
+            "ERR_SPELL_UNLEARNED_S", "ERR_SPELL_FAILED_EQUIPPED_SPECIFIC_ITEM",
+            "ERR_SPELL_FAILED_ALREADY_AT_FULL_POWER_S",
+            "ERR_SPELL_FAILED_EQUIPPED_ITEM_CLASS_S",
+            "ERR_SPELL_FAILED_ALREADY_AT_FULL_HEALTH", "ERR_SPELL_FAILED_CANT_FLY_HERE",
+            "ERR_GENERIC_NO_VALID_TARGETS", "ERR_ITEM_COOLDOWN", "ERR_CANT_USE_ITEM",
+            "ERR_SPELL_FAILED_ANOTHER_IN_PROGRESS",
+        }
+        local role, repeats = {}, {}
+        keepText = {}
+        for i = 1, #KEEP do
+            local name = KEEP[i]
+            role[name] = "keep"
+            local text = _G[name]
+            if type(text) == "string" then keepText[text] = true end
+        end
+        -- The pickpocket line arrives as a plain spell failure, so it is kept
+        -- by its text alone.
+        if type(SPELL_FAILED_TARGET_NO_POCKETS) == "string" then
+            keepText[SPELL_FAILED_TARGET_NO_POCKETS] = true
+        end
+        for i = 1, #INFO do role[INFO[i]] = "info" end
+        for i = 1, #THROTTLED do repeats[THROTTLED[i]] = true end
+        roleOf, throttled = {}, {}
+        local count = 0
+        for i = 1, 8191 do
+            local ok, name = pcall(GetGameMessageInfo, i)
+            if not (ok and name) then break end
+            roleOf[i] = role[name]
+            throttled[i] = repeats[name]
+            count = i
+        end
+        typeCount = count
+        -- The voice chat window's types, from its own status-code map.
+        if Voice_GetGameErrorFromStatusCode and Enum.VoiceChatStatusCode then
+            for _, code in pairs(Enum.VoiceChatStatusCode) do
+                local messageType = Voice_GetGameErrorFromStatusCode(code)
+                if type(messageType) == "number" then roleOf[messageType] = "voice" end
+            end
         end
     end
 
-    -- The group-kick "not eligible" line is a format string, so it needs a
-    -- pattern match rather than a plain equality check.
-    local function IsBootNotEligible(err)
-        if type(err) ~= "string" or not ERR_PARTY_LFG_BOOT_NOT_ELIGIBLE_S then return false end
-        local ok, found = pcall(function()
-            return err:find(string.format(ERR_PARTY_LFG_BOOT_NOT_ELIGIBLE_S, ".+"))
-        end)
-        return (ok and found) and true or false
+    -- Switches one type off when it shows now; a type already hidden keeps
+    -- the entry it has.
+    local function SwitchOff(frame, messageType)
+        local ok, shown = pcall(frame.ShouldDisplayMessageType, frame, messageType, PROBE)
+        if ok and shown then
+            frame:SetMessageTypeEnabled(messageType, false)
+            switched[messageType] = true
+        end
     end
 
-    local function FilteredOnEvent(self, event, id, err, ...)
-        if event == "UI_ERROR_MESSAGE" then
-            if keep[err] or IsBootNotEligible(err) then
-                return origOnEvent(self, event, id, err, ...)
-            end
+    -- Shows a line of a switched-off type as UIErrorsFrame does: a repeat of
+    -- a throttled type only restarts the fade of the same line already up;
+    -- anything else is added under its type with the type's voice or sound.
+    -- Nothing is drawn while Blizzard holds its messages back, or once
+    -- another addon has switched the type back on (Blizzard then drew the
+    -- line itself).
+    local function ShowLine(messageType, message, r, g, b)
+        local frame = UIErrorsFrame
+        local ok, shown = pcall(frame.ShouldDisplayMessageType, frame, messageType, PROBE)
+        if not ok then return end
+        if shown then
+            switched[messageType] = nil
             return
         end
-        return origOnEvent(self, event, id, err, ...)
+        if frame:GetMessagesSuppressed() then return end
+        if throttled[messageType] then
+            local fs = frame:GetFontStringByID(messageType)
+            if fs then
+                local text = fs:GetText()
+                if not issecretvalue(text) and text == message then
+                    frame:ResetMessageFadeByID(messageType)
+                    return
+                end
+            end
+        end
+        frame:AddMessage(message, r, g, b, 1.0, messageType)
+        local _, soundKitID, voiceID = GetGameMessageInfo(messageType)
+        if voiceID then
+            C_Sound.PlayVocalErrorSound(voiceID)
+        elseif soundKitID then
+            PlaySound(soundKitID)
+        end
     end
 
+    local function Enable()
+        local frame = UIErrorsFrame
+        if not (frame and frame.SetMessageTypeEnabled) then return end
+        if not typeCount then ScanTypes() end
+        for messageType = 1, typeCount do
+            if not roleOf[messageType] then SwitchOff(frame, messageType) end
+        end
+        f:RegisterEvent("UI_ERROR_MESSAGE")
+        f:RegisterEvent("UI_INFO_MESSAGE")
+        active = true
+    end
+
+    -- Applies the option. Turning it off is left to the next reload: returns
+    -- true while the option is off and the switch is still in place.
     local function ApplyHideErrorMessages()
         local on = EllesmereUIDB and EllesmereUIDB.hideErrorMessages
-        if on and not installed then
-            BuildKeepList()
-            origOnEvent = UIErrorsFrame:GetScript("OnEvent")
-            UIErrorsFrame:SetScript("OnEvent", FilteredOnEvent)
-            UIParent:UnregisterEvent("PING_SYSTEM_ERROR")
-            installed = true
-        elseif not on and installed then
-            UIErrorsFrame:SetScript("OnEvent", origOnEvent)
-            origOnEvent = nil
-            UIParent:RegisterEvent("PING_SYSTEM_ERROR")
-            installed = false
-        end
+        if on and not active then Enable() end
+        return (active and not on) and true or false
     end
     EllesmereUI._applyHideErrorMessages = ApplyHideErrorMessages
 
-    local f = CreateFrame("Frame")
-    f:RegisterEvent("PLAYER_LOGIN")
-    f:SetScript("OnEvent", function(self)
-        self:UnregisterAllEvents()
-        if EllesmereUIDB and EllesmereUIDB.hideErrorMessages then
+    f:SetScript("OnEvent", function(self, event, messageType, message)
+        if event == "PLAYER_LOGIN" then
+            self:UnregisterEvent("PLAYER_LOGIN")
             ApplyHideErrorMessages()
+            return
+        end
+        if issecretvalue(messageType) or issecretvalue(message) then return end
+        if switched[messageType] then
+            if event == "UI_INFO_MESSAGE" then
+                ShowLine(messageType, message, YELLOW_FONT_COLOR:GetRGB())
+            elseif keepText[message] then
+                ShowLine(messageType, message, RED_FONT_COLOR:GetRGB())
+            end
+        elseif event == "UI_ERROR_MESSAGE" and roleOf[messageType] == "info"
+            and EllesmereUIDB and EllesmereUIDB.hideErrorMessages then
+            -- An info type that came as a red error while the option is on:
+            -- switched off too, so its later errors hide and its yellow lines
+            -- come through ShowLine.
+            SwitchOff(UIErrorsFrame, messageType)
         end
     end)
+    f:RegisterEvent("PLAYER_LOGIN")
 end
 
 -------------------------------------------------------------------------------
@@ -5129,8 +5256,7 @@ do
         if not fs then
             local font = EllesmereUI._font
                 or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.ttf"
-            local flag = (EllesmereUI.SlugFlag("OUTLINE, SLUG"))
-                or "OUTLINE, SLUG"
+            local flag = EllesmereUI.SlugFlag("OUTLINE, SLUG")
             fs = button:CreateFontString(nil, "OVERLAY", nil, 7)
             fs:SetFont(font, 12, flag)
             fs:SetPoint("TOP", button, "TOP", 0, -2)
@@ -5150,11 +5276,9 @@ do
         if not fs then
             local font = EllesmereUI._font
                 or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.ttf"
-            local flag = (EllesmereUI.SlugFlag("OUTLINE, SLUG"))
-                or "OUTLINE, SLUG"
+            local flag = EllesmereUI.SlugFlag("OUTLINE, SLUG")
             fs = button:CreateFontString(nil, "OVERLAY", nil, 7)
             fs:SetFont(font, 11, flag)
-            fs:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 2, 2)
             fs:SetTextColor(1, 1, 1, 1)
             local ter = button:CreateFontString(nil, "OVERLAY", nil, 7)
             ter:SetFont(font, 8, flag)
@@ -5166,41 +5290,87 @@ do
         return fs, _flyoutTerFS[button]
     end
 
-    local function PaintStats(button, link)
+    -- Built for a button the first time its item has letters to show. True
+    -- while the item's data is still on the way (paint again).
+    local function PaintStats(button, link, withTertiary)
         local fs, ter = _flyoutStatFS[button], _flyoutTerFS[button]
-        local sec, tert = "", ""
-        if link and EllesmereUI.GetItemStatLetters then
-            sec, tert = EllesmereUI.GetItemStatLetters(link)
-            if not (EllesmereUIDB and EllesmereUIDB.flyoutItemStatsTertiary == true) then tert = "" end
+        if link and not fs then
+            local sec, tert, pending = EllesmereUI.GetItemStatLetters(link)
+            if sec == "" and (tert == "" or not withTertiary) then return pending end
+            fs, ter = EnsureStatText(button)
         end
-        if sec == "" and tert == "" then
-            if fs then fs:SetText(""); ter:SetText("") end
-            return
-        end
-        -- Only tertiaries: they take the main label (and its size).
-        if sec == "" then sec, tert = tert, "" end
-        fs, ter = EnsureStatText(button)
-        fs:SetText(sec)
-        ter:SetText(tert)
-        -- Centre the pair along the bottom edge: the tertiaries hang off the
-        -- main label's right.
-        local w = fs:GetStringWidth() + (tert ~= "" and ter:GetStringWidth() + 1 or 0)
-        fs:ClearAllPoints()
-        fs:SetPoint("BOTTOMLEFT", button, "BOTTOM", -w / 2, 2)
+        if fs then return EllesmereUI.PaintStatLetters(fs, ter, link, withTertiary, button) end
     end
 
+    -- The item link at a flyout button, read with no tables built: the
+    -- button's ItemLocation, else its numeric location decoded with the bit
+    -- layout EquipmentManager_GetLocationData uses. Nil for an empty or special
+    -- location.
+    local band, rshift, lshift = bit.band, bit.rshift, bit.lshift
+    local function ButtonLink(button, useItemLocation)
+        if useItemLocation and button.GetItemLocation then
+            local ok, loc = pcall(button.GetItemLocation, button)
+            if ok and loc and loc.IsValid and loc:IsValid() and C_Item.DoesItemExist(loc) then
+                return C_Item.GetItemLink(loc)
+            end
+        end
+        local location = button.location
+        if type(location) ~= "number" or location < 0 then return end
+        if EQUIPMENTFLYOUT_FIRST_SPECIAL_LOCATION
+            and location >= EQUIPMENTFLYOUT_FIRST_SPECIAL_LOCATION then
+            return
+        end
+        local slot = location
+        local isBank = band(location, ITEM_INVENTORY_LOCATION_BANK) ~= 0
+        if band(location, ITEM_INVENTORY_LOCATION_PLAYER) ~= 0 then
+            slot = slot - ITEM_INVENTORY_LOCATION_PLAYER
+        elseif isBank then
+            slot = slot - ITEM_INVENTORY_LOCATION_BANK
+        end
+        if band(location, ITEM_INVENTORY_LOCATION_BAGS) ~= 0 then
+            slot = slot - ITEM_INVENTORY_LOCATION_BAGS
+            local bag = rshift(slot, ITEM_INVENTORY_BAG_BIT_OFFSET)
+            slot = slot - lshift(bag, ITEM_INVENTORY_BAG_BIT_OFFSET)
+            if isBank then bag = bag + ITEM_INVENTORY_BANK_BAG_OFFSET end
+            return C_Container.GetContainerItemLink(bag, slot)
+        end
+        return GetInventoryItemLink("player", slot)
+    end
+
+    -- What each button shows (weak-keyed, off the button like its texts): the
+    -- link and the settings it was painted for. Blizzard runs the whole flyout
+    -- again every frame while a slot's flyout is pinned open, so a button whose
+    -- item and settings are unchanged keeps its paint; a paint still waiting on
+    -- item data is redone.
+    local _flyoutPaint = setmetatable({}, { __mode = "k" })  -- [button] = state
+
     local function PaintButton(button, useItemLocation)
+        local showIlvl = FlyoutEnabled() and true or false
+        -- Stat letters are retail-only (their rows are not built on WoW Forever).
+        local showStats = not EllesmereUI.IS_FOREVER and EllesmereUIDB
+            and EllesmereUIDB.flyoutItemStats and true or false
+        local withTertiary = EllesmereUIDB and EllesmereUIDB.flyoutItemStatsTertiary == true or false
+        local link
+        if (showIlvl or showStats) and button:IsShown() then
+            link = ButtonLink(button, useItemLocation)
+        end
+        local m = _flyoutPaint[button]
+        if m and not m.pending and m.link == link and m.ilvl == showIlvl
+            and m.stats == showStats and m.ter == withTertiary then
+            return
+        end
+        if not m then m = {}; _flyoutPaint[button] = m end
+        m.link, m.ilvl, m.stats, m.ter, m.pending = link, showIlvl, showStats, withTertiary, false
+
         local fs = _flyoutFS[button]
-        local showIlvl = FlyoutEnabled()
-        local showStats = EllesmereUIDB and EllesmereUIDB.flyoutItemStats
-        if not (showIlvl or showStats) or not button:IsShown() then
+        if not link then
             if fs then fs:SetText("") end
-            PaintStats(button, nil)
+            PaintStats(button, nil, withTertiary)
             return
         end
 
-        local ilvl, quality, link = ButtonItemInfo(button, useItemLocation)
-        PaintStats(button, showStats and link or nil)
+        local ilvl, quality = ButtonItemInfo(button, useItemLocation)
+        m.pending = PaintStats(button, showStats and link or nil, withTertiary) and true or false
         if not showIlvl then
             if fs then fs:SetText("") end
             return
@@ -5222,6 +5392,8 @@ do
             end
         else
             fs:SetText("")
+            -- No level yet while the item's data is still on the way.
+            if not C_Item.GetItemInfo(link) then m.pending = true end
         end
     end
 

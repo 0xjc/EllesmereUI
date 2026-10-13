@@ -3050,7 +3050,7 @@ initFrame:SetScript("OnEvent", function(self)
         end,
         onReset     = function()
             db:ResetProfile()
-            -- No reload here: the footer Reset popup (reload = true) reloads after this returns.
+            -- No reload here: Reset EUI Module Settings reloads after this returns.
         end,
         -- Tears down Boss Preview on module switch (RegisterOnHide above
         -- only covers closing the whole options window).

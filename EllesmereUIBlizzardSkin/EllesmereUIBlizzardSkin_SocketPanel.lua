@@ -343,8 +343,7 @@ local PP = EllesmereUI and EllesmereUI.PanelPP
 -- repaints the strip).
 local function PaintStatLetters(btn, gemLink)
     local text = ""
-    if gemLink and EllesmereUIDB and EllesmereUIDB.charSheetSocketPanelStats == true
-        and EllesmereUI.GetItemStatLetters then
+    if gemLink and EllesmereUIDB and EllesmereUIDB.charSheetSocketPanelStats == true then
         text = EllesmereUI.GetItemStatLetters(gemLink)
     end
     local fs = btn.statLetters
@@ -353,9 +352,9 @@ local function PaintStatLetters(btn, gemLink)
         return
     end
     if not fs then
-        local font = EllesmereUI.GetFontPath and EllesmereUI.GetFontPath("blizzardSkin") or STANDARD_TEXT_FONT
+        local font = EllesmereUI.GetFontPath("blizzardSkin") or STANDARD_TEXT_FONT
         fs = btn:CreateFontString(nil, "OVERLAY", nil, 7)
-        fs:SetFont(font, 10, "OUTLINE, SLUG")
+        fs:SetFont(font, 10, EllesmereUI.SlugFlag("OUTLINE, SLUG"))
         fs:SetPoint("BOTTOM", btn, "BOTTOM", 0, 1)
         fs:SetTextColor(1, 1, 1, 1)
         btn.statLetters = fs

@@ -514,9 +514,12 @@ initFrame:SetScript("OnEvent", function(self)
                     local v = rawget(e, PER_ICON_GLOW_KEYS[i])
                     if type(v) == "number" and v > 0 then return true end
                 end
+                -- Cooldown State Effect glow: its own key decides (false = none),
+                -- else a glow saved in cdStateEffect, the single-value form.
+                local g = rawget(e, "cdStateGlow")
+                if g ~= nil then return type(g) == "string" end
                 local cse = rawget(e, "cdStateEffect")
-                return type(cse) == "string"
-                    and (cse == "glowOnCD" or cse:find("GlowReady", 1, true) ~= nil)
+                return type(cse) == "string" and ns.CD_STATE_GLOWS[cse] ~= nil
             end
             local function CountPerIconGlows()
                 local n = 0
@@ -662,20 +665,20 @@ initFrame:SetScript("OnEvent", function(self)
 
         -- The shared Bar Glows buff menu (EUI_CooldownManager_BarGlowConditions.lua):
         -- one reused frame, the boxes repainted after each toggle.
-        -- The top "Glow When Usable" row stands for the button's own ability.
-        local usableIcon
-        local abilitySid = tonumber(assignKey:match("^spell_(%d+)$"))
-        do
+        -- The button's own ability: its "spell_<id>" key, else the spell on its
+        -- action slot. The top "Glow When Usable" row stands for it, and every
+        -- entry added here records it.
+        local buttonSid = tonumber(assignKey:match("^spell_(%d+)$"))
+        if not buttonSid then
             local prefix = BAR_BUTTON_PREFIXES[barIdx]
             local realBtn = prefix and _G[prefix .. btnIdx]
-            local aID = abilitySid
-            if not aID and realBtn and realBtn.action then
+            if realBtn and realBtn.action then
                 local aType, id = GetActionInfo(realBtn.action)
-                aID = aType == "spell" and id or nil
+                buttonSid = aType == "spell" and id or nil
             end
-            local info = aID and C_Spell.GetSpellInfo(aID)
-            usableIcon = info and info.iconID
         end
+        local buttonInfo = buttonSid and C_Spell.GetSpellInfo(buttonSid)
+        local usableIcon = buttonInfo and buttonInfo.iconID
         local menu = ns.ShowBarGlowBuffMenu(anchorFrame, {
             usableItem = { icon = usableIcon },
             isChecked = function(sid) return assignedSet[sid] end,
@@ -697,15 +700,7 @@ initFrame:SetScript("OnEvent", function(self)
                         mode = sp.usable and "USABLE" or "ACTIVE",
                         onlyInCombat = false,
                     }
-                    local prefix = BAR_BUTTON_PREFIXES[barIdx]
-                    local realBtn = prefix and _G[prefix .. btnIdx]
-                    if realBtn and realBtn.action then
-                        local aType, aID = GetActionInfo(realBtn.action)
-                        if aType == "spell" and aID then
-                            newEntry.actionSpellID = aID
-                        end
-                    end
-                    if abilitySid then newEntry.actionSpellID = abilitySid end
+                    newEntry.actionSpellID = buttonSid
                     buffList[#buffList + 1] = newEntry
                 end
                 refreshChecks()
@@ -1079,7 +1074,7 @@ initFrame:SetScript("OnEvent", function(self)
                     assignKey = "cdm_" .. realBtn.cooldownID
                 else
                     -- Per ability, so a stance's repaged bar never shares glows.
-                    assignKey = (ns.BarGlowAbilityKey and ns.BarGlowAbilityKey(realBtn)) or (barIdx .. "_" .. i)
+                    assignKey = ns.BarGlowAbilityKey(realBtn) or (barIdx .. "_" .. i)
                 end
                 bf._assignKey = assignKey
                 local assigns = bgData.assignments[assignKey]
@@ -1334,7 +1329,7 @@ initFrame:SetScript("OnEvent", function(self)
             if not assignKey then
                 local prefix = BAR_BUTTON_PREFIXES[curBar]
                 local curRealBtn = prefix and _G[prefix .. curBtn]
-                assignKey = (ns.BarGlowAbilityKey and ns.BarGlowAbilityKey(curRealBtn)) or (curBar .. "_" .. curBtn)
+                assignKey = ns.BarGlowAbilityKey(curRealBtn) or (curBar .. "_" .. curBtn)
             end
             local buffList = bg.assignments[assignKey] or {}
             parent._showRowDivider = true
@@ -2091,9 +2086,11 @@ initFrame:SetScript("OnEvent", function(self)
     local _cdmButtonTip
     local function ShowCDMButtonTip()
         if EllesmereUIDB and EllesmereUIDB.cdmButtonTipSeen then return end
-        local preview = EllesmereUI._contentHeaderPreview
+        -- The CDM header's own preview first: the shared header preview slot
+        -- still holds the Action Bars preview when a cached Bars page returns
+        -- after that page was built.
+        local preview = optState._cdmPreview or EllesmereUI._contentHeaderPreview
         if not preview then return end
-        if _cdmButtonTip and _cdmButtonTip:IsShown() then return end
 
         if not _cdmButtonTip then
             _cdmButtonTip = EllesmereUI.BuildTipCallout(EllesmereUI._panelBody, {
@@ -2107,7 +2104,8 @@ initFrame:SetScript("OnEvent", function(self)
             })
         end
 
-        -- The preview is rebuilt with its page, so anchor on every show.
+        -- The preview is rebuilt with its page, so anchor on every call: a tip
+        -- already showing moves onto the preview that replaced the old one.
         _cdmButtonTip:ClearAllPoints()
         _cdmButtonTip:SetPoint("TOP", preview, "BOTTOM", 0, -12)
         _cdmButtonTip:Show()
@@ -2329,7 +2327,7 @@ initFrame:SetScript("OnEvent", function(self)
                     end
                 end
             end
-            -- No reload here: the footer Reset popup (reload = true) reloads after this returns.
+            -- No reload here: Reset EUI Module Settings reloads after this returns.
         end,
     })
 

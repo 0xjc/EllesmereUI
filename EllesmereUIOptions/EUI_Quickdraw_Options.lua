@@ -2574,7 +2574,10 @@ initFrame:SetScript("OnEvent", function(self)
 
     -- The anchor button, rebuilt with every page build (the menu above is
     -- not): the Profiles page's Active Profile dropdown look, verbatim.
+    -- Nothing during the search index prebuild: its row is a stand-in with no
+    -- frame to build on, and the row's own label is what the index lists.
     local function BuildMenuSelector(rgn)
+        if EllesmereUI._prebuilding then return end
         local PPQ = EllesmereUI.PanelPP
         local btn = CreateFrame("Button", nil, rgn)
         -- 170x30, the exact face BuildDropdownControl gives every standard
@@ -2586,8 +2589,9 @@ initFrame:SetScript("OnEvent", function(self)
         bg:SetAllPoints()
         bg:SetColorTexture(EllesmereUI.DD_BG_R, EllesmereUI.DD_BG_G, EllesmereUI.DD_BG_B, EllesmereUI.DD_BG_A)
         local brd = EllesmereUI.MakeBorder(btn, 1, 1, 1, EllesmereUI.DD_BRD_A, PPQ)
-        local lbl = EllesmereUI.MakeFont(btn, 13, nil, 1, 1, 1)
-        lbl:SetAlpha(EllesmereUI.DD_TXT_A)
+        -- The resting alpha is the text colour's, the channel the hover
+        -- colours below write, so a hover and leave land back on it.
+        local lbl = EllesmereUI.MakeFont(btn, 13, nil, 1, 1, 1, EllesmereUI.DD_TXT_A)
         lbl:SetJustifyH("LEFT")
         lbl:SetWordWrap(false)
         lbl:SetMaxLines(1)
@@ -2651,6 +2655,8 @@ initFrame:SetScript("OnEvent", function(self)
     -- The wheel stays uncapturable on purpose: a tick cannot be HELD, and hold
     -- is the palette's whole input model -- key down opens, key up fires.
     local function BuildKeybindButton(rgn, spec)
+        -- Nothing during the search index prebuild, as BuildMenuSelector.
+        if EllesmereUI._prebuilding then return end
         local palette = editPalette
         local action = BINDING_PREFIX .. palette
         local plainMouse = spec and spec.plainMouse
@@ -2844,8 +2850,10 @@ initFrame:SetScript("OnEvent", function(self)
         end
     end
 
-    -- yPos is the running page offset; returns the height consumed.
+    -- yPos is the running page offset; returns the height consumed. The
+    -- search index prebuild only takes the height: the preview lists nothing.
     local function BuildPreview(parent, yPos)
+        if EllesmereUI._prebuilding then return PREVIEW_H end
         -- PanelPP, not PP: panel-context geometry snaps to the options window's
         -- own pixel grid, which is what every other options page uses.
         local PP = EllesmereUI.PanelPP
@@ -3108,6 +3116,9 @@ initFrame:SetScript("OnEvent", function(self)
         local curIdx = editPalette
 
         local ROW_H = 50
+        -- Bespoke controls the search index does not list: its prebuild only
+        -- takes the height.
+        if EllesmereUI._prebuilding then return ROW_H end
         local contentPad = EllesmereUI.CONTENT_PAD or 45
         local rowFrame = CreateFrame("Frame", nil, parent)
         PPQ.Size(rowFrame, parent:GetWidth() - contentPad * 2, ROW_H)
@@ -3167,7 +3178,9 @@ initFrame:SetScript("OnEvent", function(self)
     --  Build Page
     ---------------------------------------------------------------------------
     local function BuildPage(pageName, parent, yOffset)
-        EnsureBindWatcher()
+        -- The search index prebuild leaves no page behind for the watcher to
+        -- keep current, so the watcher waits for the first live build.
+        if not EllesmereUI._prebuilding then EnsureBindWatcher() end
 
         local W = EllesmereUI.Widgets
         local y = yOffset
@@ -3685,6 +3698,8 @@ initFrame:SetScript("OnEvent", function(self)
         -- is lit, and class outranks custom -- the module's SelectColor
         -- resolves the stored pair the same way.
         -- A label half, not a colorpicker: the custom swatch IS the picker.
+        -- The swatches are left out of the search index prebuild, whose row
+        -- is a stand-in with no frame to build on.
         row, h = W:DualRow(parent, y,
             { type="label", text="Selection Color" },
             { type="toggle", text="Show Action Text Label",
@@ -3692,7 +3707,7 @@ initFrame:SetScript("OnEvent", function(self)
               tooltip="Show the selected action's name next to the selected icon.",
               getValue=function() return ACfg("showActionText") == true end,
               setValue=function(v) ASet("showActionText", v); Refresh() end })
-        do
+        if not EllesmereUI._prebuilding then
             local rgn = row._leftRegion
             local PPQ = EllesmereUI.PanelPP
 

@@ -747,20 +747,73 @@ local function BuildNameplatePreview(parent, parentW)
     CP.bar._bg:SetAllPoints()
     CP.bar._bg:SetColorTexture(0.082, 0.082, 0.082, 1)
 
-    -- Offset badge: shown by UpdateCP (via CPClamp) only when the class-resource
+    -- Offset badge: shown by UpdateCP (via CP.Clamp) only when the class-resource
     -- Y offset is clamped to the plate in the preview. Reports the real offset
     -- at the clamped pip position so the configured value is still communicated
     -- without the pips dragging the header or leaving the frame.
     CP.offBadge = pf:CreateFontString(nil, "OVERLAY")
     SetPVFont(CP.offBadge, FONT_PATH, 9, GetNPOptOutline())
-    CP.offBadge:SetTextColor(1, 0.82, 0.30)  -- EUI accent gold
+    CP.offBadge:SetTextColor(1, 0.82, 0.30)  -- gold: marks a clamped value
     CP.offBadge:Hide()
     -- Delta arrow drawn beside the badge, pointing the way the offset continues
-    -- past the clamped pips. Rotatable solid arrow so up/down share one texture.
+    -- past the clamped pips.
     CP.offArrow = pf:CreateTexture(nil, "OVERLAY")
-    CP.offArrow:SetTexture("Interface\\MINIMAP\\MiniMap-QuestArrow")
     CP.offArrow:SetVertexColor(1, 0.82, 0.30)
     CP.offArrow:Hide()
+    CP.ARROW_UP   = "Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-arrow-up3.png"
+    CP.ARROW_DOWN = "Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-arrow-down3.png"
+
+    -- Preview-only: clamp the class-resource pips to the plate's own edges so a
+    -- large Y offset can't drag the header or push pips out of frame.
+    -- Position-aware: a bottom-anchored resource may travel the whole plate
+    -- height; a top-anchored one only the room above the health bar. healthTopY
+    -- and castBotY are the health bar's top and the cast bar's bottom in pf
+    -- coordinates. Returns the offset to draw, the real offset (only when
+    -- clamped), and the clamped group's inboard edge with the direction into
+    -- the plate (for the badge).
+    function CP.Clamp(topPos, yDir, off, ph, healthTopY, castBotY)
+        local anchorY = topPos and healthTopY or castBotY
+        local bandTop = -2                     -- just inside pf top
+        -- Just below the cast bar: measured from castBotY (which includes the
+        -- cast Y offset) so the band matches the pip anchor -- a skin with a
+        -- cast drop (classic) must not read as clamped at tiny offsets.
+        -- 13 = the preview's 15px lower pad minus the 2px margin.
+        local bandBot = castBotY - ph - 13
+        local edge    = anchorY + yDir * off
+        local gTop    = (yDir == 1) and (edge + ph) or edge
+        local gBot    = (yDir == 1) and edge or (edge - ph)
+        local shift   = 0
+        if gTop > bandTop then shift = bandTop - gTop
+        elseif gBot < bandBot then shift = bandBot - gBot end
+        -- Pips pinned at the top edge (shift < 0) -> badge below them (dir -1,
+        -- arrow up); pinned at the bottom -> badge above them (dir +1, arrow down).
+        local edgeInboard = (shift < 0) and (gBot + shift) or (gTop + shift)
+        local dirInboard  = (shift < 0) and -1 or 1
+        return yDir * ((edge + shift) - anchorY),   -- clamped offset (cpYShown)
+               (shift ~= 0) and off or nil,         -- real offset, only when clamped
+               edgeInboard, dirInboard
+    end
+
+    -- Shows the real offset centred on centerX (pf coordinates) beside the
+    -- clamped pips, with the arrow just left of the number pointing the way the
+    -- offset continues.
+    function CP.ShowBadge(edgeInboard, dirInboard, centerX, realOff)
+        local b = CP.offBadge
+        b:SetText(string.format("%+d", math.floor(realOff + 0.5)))
+        local textH = b:GetStringHeight()
+        local cy = Snap(edgeInboard + dirInboard * (textH / 2 + 3))
+        b:ClearAllPoints()
+        b:SetPoint("CENTER", pf, "TOPLEFT", Snap(centerX), cy)
+        b:Show()
+        local a = CP.offArrow
+        a:SetTexture((dirInboard == -1) and CP.ARROW_UP or CP.ARROW_DOWN)
+        -- The chevron fills 22 x 12 of its 30 px image.
+        local asz = math.max(8, math.floor(textH * 1.1 + 0.5))
+        a:SetSize(asz, asz)
+        a:ClearAllPoints()
+        a:SetPoint("RIGHT", b, "LEFT", -1, 0)
+        a:Show()
+    end
 
     -- Debuffs: 2 icons centered above name
     local debuffs = {}
@@ -2248,55 +2301,11 @@ local function BuildNameplatePreview(parent, parentW)
         -- them only when the offset is actually clamped to the plate.
         CP.offBadge:Hide(); CP.offArrow:Hide()
         if showCP then
-            -- Preview-only: clamp the class-resource pips to the plate's own edges so
-            -- a large Y offset can't drag the header or push pips out of frame, and
-            -- badge the real value when clamped. Position-aware: a bottom-anchored
-            -- resource may travel the whole plate height; a top-anchored one only the
-            -- room above the health bar. The preview frame size never changes with the
-            -- offset. These helpers are built only while the resource is shown.
+            -- The pips are clamped to the plate (CP.Clamp) and the real offset is
+            -- badged when clamped, so the preview frame size never changes with
+            -- the offset.
             local cpCenterX = xOff + barW / 2   -- health-bar center (barW is shadowed in branches)
             local castBotY  = -healthFromTop - barH + pCastY - castH
-            local function CPClamp(topPos, yDir, off, ph)
-                local anchorY = topPos and (-healthFromTop) or castBotY
-                local bandTop = -2                     -- just inside pf top
-                -- Just below the cast bar: measured from castBotY (which includes the
-                -- cast Y offset pCastY) so the band matches the pip anchor -- a skin
-                -- with a cast drop (classic) must not read as clamped at tiny offsets.
-                -- 13 = the preview's 15px lower pad minus the 2px margin.
-                local bandBot = castBotY - ph - 13
-                local edge    = anchorY + yDir * off
-                local gTop    = (yDir == 1) and (edge + ph) or edge
-                local gBot    = (yDir == 1) and edge or (edge - ph)
-                local shift   = 0
-                if gTop > bandTop then shift = bandTop - gTop
-                elseif gBot < bandBot then shift = bandBot - gBot end
-                -- Inboard edge of the clamped group + which way is "into the plate":
-                -- pips pinned at the top edge (shift<0) -> badge sits below them (dir
-                -- -1, arrow points up); pinned at the bottom -> badge above (dir +1, down).
-                local edgeInboard = (shift < 0) and (gBot + shift) or (gTop + shift)
-                local dirInboard  = (shift < 0) and -1 or 1
-                return yDir * ((edge + shift) - anchorY),   -- clamped offset (cpYShown)
-                       (shift ~= 0) and off or nil,         -- real offset, only when clamped
-                       edgeInboard, dirInboard
-            end
-            local function CPShowBadge(edgeInboard, dirInboard, cpXOff, realOff)
-                local b = CP.offBadge
-                b:SetText(string.format("%+d", math.floor(realOff + 0.5)))
-                local textH = b:GetStringHeight()
-                local cy = Snap(edgeInboard + dirInboard * (textH / 2 + 3))
-                b:ClearAllPoints()
-                b:SetPoint("CENTER", pf, "TOPLEFT", Snap(cpCenterX + cpXOff), cy)
-                b:Show()
-                -- Delta arrow just left of the number, pointing toward the clamped edge
-                -- (i.e. the way the real offset continues): up when pips are above, else down.
-                local a = CP.offArrow
-                local asz = math.max(6, math.floor(textH * 0.8 + 0.5))
-                a:SetSize(asz, asz)
-                a:SetRotation((dirInboard == -1) and 0 or math.pi)
-                a:ClearAllPoints()
-                a:SetPoint("RIGHT", b, "LEFT", -2, 0)
-                a:Show()
-            end
             -- Determine pip count from player's class, using live UnitPowerMax when available
             local _, playerClass = UnitClass("player")
             local cpInfo = CP.CLASS_MAP[playerClass]
@@ -2377,7 +2386,7 @@ local function BuildNameplatePreview(parent, parentW)
                     anchorFrame    = cast
                     yDir = -1
                 end
-                local cpYShown, cpYReal, cpEdgeIn, cpDirIn = CPClamp(cpPos == "top", yDir, cpYOff, scaledH)
+                local cpYShown, cpYReal, cpEdgeIn, cpDirIn = CP.Clamp(cpPos == "top", yDir, cpYOff, scaledH, -healthFromTop, castBotY)
 
                 local bar = CP.bar
                 bar:ClearAllPoints()
@@ -2393,7 +2402,7 @@ local function BuildNameplatePreview(parent, parentW)
                 if cpPos ~= "top" then
                     cpExtraH = scaledH
                 end
-                if cpYReal then CPShowBadge(cpEdgeIn, cpDirIn, cpXOff, cpYReal) end
+                if cpYReal then CP.ShowBadge(cpEdgeIn, cpDirIn, cpCenterX + cpXOff, cpYReal) end
             elseif cpMax <= 0 then
                 for i = 1, CP.MAX_POSSIBLE do
                     CP.pips[i]:Hide()
@@ -2433,7 +2442,7 @@ local function BuildNameplatePreview(parent, parentW)
                     anchorFrame    = cast
                     yDir = -1
                 end
-                local cpYShown, cpYReal, cpEdgeIn, cpDirIn = CPClamp(cpPos == "top", yDir, cpYOff, scaledH)
+                local cpYShown, cpYReal, cpEdgeIn, cpDirIn = CP.Clamp(cpPos == "top", yDir, cpYOff, scaledH, -healthFromTop, castBotY)
 
                 local cpEmptyCol = (DB() and DB().classPowerEmptyColor) or defaults.classPowerEmptyColor
 
@@ -2518,11 +2527,11 @@ local function BuildNameplatePreview(parent, parentW)
                     end
                 end
                 -- Base reservation only -- the offset never grows the frame (pips
-                -- are clamped to the plate by CPClamp instead).
+                -- are clamped to the plate by CP.Clamp instead).
                 if cpPos ~= "top" then
                     cpExtraH = scaledH
                 end
-                if cpYReal then CPShowBadge(cpEdgeIn, cpDirIn, cpXOff, cpYReal) end
+                if cpYReal then CP.ShowBadge(cpEdgeIn, cpDirIn, cpCenterX + cpXOff, cpYReal) end
             end
         else
             for i = 1, CP.MAX_POSSIBLE do
