@@ -165,7 +165,30 @@ local function Place(btn)
     end
 end
 
+-- The window's bottom tab row (Dungeons & Raids / Player vs. Player /
+-- Mythic+ Dungeons ...) flush with the window's left edge, tabs touching
+-- (Blizzard starts it 19px in, the host skin leaves a pixel between tabs).
+-- Shown tabs only; positions only, out of combat.
+local function AlignTabs()
+    local pve = _G.PVEFrame
+    if not pve or InCombatLockdown() then return end
+    local prev
+    for i = 1, 4 do
+        local t = _G["PVEFrameTab" .. i]
+        if t and t:IsShown() then
+            t:ClearAllPoints()
+            if prev then
+                t:SetPoint("LEFT", prev, "RIGHT", 0, 0)
+            else
+                t:SetPoint("BOTTOMLEFT", pve, "BOTTOMLEFT", 0, -30)
+            end
+            prev = t
+        end
+    end
+end
+
 local function StyleAll()
+    AlignTabs()
     for i = 1, 4 do
         local b = RailButton(i)
         Style(b, i)
