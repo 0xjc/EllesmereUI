@@ -1391,6 +1391,10 @@ local function CreatePreviewFrame(index, party)
         -- tier-scaled, so the effective overlay may shadow them safely.
         local s = ns._previewSettingsOverride or (ns._partyPvActive and ns._scaledPartyProxy)
             or ns._pvOverlayProxy or ns._scaledProfile
+        if ns.RF_ButtonCompact(f, s) then
+            ns.RF_CompactHighlight(bdrFrame, f, s, f)
+            return
+        end
         if f.kit then
             ns.RF_KitHighlight(f, bdrFrame, s, f._hovered and s.hoverBorderEnabled ~= false,
                 f._isTarget and s.targetBorderEnabled ~= false)
@@ -2756,7 +2760,12 @@ local function ApplyPreviewData(f, index)
         ns.RF_StockSeat(f)
         if f.stockDiv and f._power and f._power:IsShown() then ns.RF_StockDivider(f) end
         if f._ApplyBorderColor then f._ApplyBorderColor() end
+    elseif f._border and PP and ns.RF_ButtonCompact(f, s) then
+        f._compactHighlight = nil
+        EllesmereUI.ApplyBorderStyle(f._border, 0, 0, 0, 0, 0, "solid")
+        if f._ApplyBorderColor then f._ApplyBorderColor() end
     elseif f._border and PP then
+        f._compactHighlight = nil
         local bs = s.borderSize or 1
         local bc = s.borderColor or { r = 0, g = 0, b = 0 }
         local pl = f:GetFrameLevel()
@@ -2769,7 +2778,7 @@ local function ApplyPreviewData(f, index)
     end
     -- Rounded corners, as on the live cells (stock styles stay square).
     if f._border then
-        local radius = (f.kit or f.stockEdge) and 0 or (s.cornerRadius or 0)
+        local radius = (f.kit or f.stockEdge or ns.RF_ButtonCompact(f, s)) and 0 or (s.cornerRadius or 0)
         if radius > 0 then
             EllesmereUI.RoundCorners(f, radius, {
                 roots = { f._health, f._power, f._topNameBar, f._powerBorder },
@@ -2790,8 +2799,16 @@ local function ApplyPreviewData(f, index)
     -- (PvApplyBorderColor), so the slider size does not gate it.
     if f._threatFrame and PP then
         local bs = s.threatBorderSize or 0
-        local rc = s.threatCustomBorder == true and ns.RF_CustomBorderOn(s)
+        local compact = ns.RF_ButtonCompact(f, s)
+        local rc = not compact and s.threatCustomBorder == true and ns.RF_CustomBorderOn(s)
         local wantThreat = bs > 0 or rc
+        if (compact or f._compactThreat) and f._compactThreat ~= compact then
+            ns.RF_InsetRing(f._threatFrame, f, compact and 2 or 0)
+            f._threatFrame:SetFrameLevel(f:GetFrameLevel() + (compact and ns.LVL_AURA + 1 or 10))
+            local strips = PP.GetBorders(f._threatFrame)
+            if strips then strips:SetFrameLevel(f._threatFrame:GetFrameLevel() + 1) end
+            f._compactThreat = compact
+        end
         if ns._testMode and ns._testThreat ~= nil then wantThreat = ns._testThreat end
         local showThreat = wantThreat and (ns._testMode or ns._healthAnimActive) and previewRoles._threatIndex == index
         local agg
@@ -2832,7 +2849,12 @@ local function ApplyPreviewData(f, index)
         local dcA = dispelDC.a or 1
         -- Dispel border (PP.UpdateBorder handles physical pixel sizing internally)
         local dbs = s.dispelBorderSize or 2
+        local compact = ns.RF_ButtonCompact(f, s)
         if f._dispelBdrFrame and PP and dbs > 0 then
+            if compact or f._compactDispel then
+                ns.RF_InsetRing(f._dispelBdrFrame, f._health, compact and 2 or 0)
+                f._compactDispel = compact
+            end
             PP.UpdateBorder(f._dispelBdrFrame, dbs, dispelDC.r, dispelDC.g, dispelDC.b, dcA)
             f._dispelBdrFrame:Show()
         elseif f._dispelBdrFrame then
@@ -3566,8 +3588,8 @@ local function RefreshPreview()
     unitGrowth, groupGrowth = ns._RFEffectiveGrowth(unitGrowth, groupGrowth, s.mergeGroups)
     local bw = PixelSnap(s.frameWidth or 72)
     local bh = PixelSnap(s.frameHeight or 46)
-    local cs = PixelSnap(s.cellSpacing or 2)
-    local gs = PixelSnap(s.groupSpacing or 8)
+    local cs = ns.RF_CellSpacing(s)
+    local gs = ns.RF_GroupSpacing(s)
 
     -- Group bounding box
     local groupW, groupH
@@ -3805,6 +3827,7 @@ local function RefreshPreview()
         end
         overlayContainer:Show()
     end
+    ns.RF_PreviewCompact(previewFrames, s, false, unitGrowth)
 end
 
 -- Mouse-blocking overlays + alpha-based real-frame hide for the options preview.
@@ -3952,6 +3975,7 @@ end
 -- for one frame first. Panel close restores explicitly.
 local function HidePreview(skipRestore)
     if not previewActive then return end
+    ns.RF_PreviewCompact(nil, nil, false)
     previewActive = false
     ns._previewInitialized = false
     previewRoles._randomized = nil  -- re-randomize on next preview open
@@ -4089,8 +4113,8 @@ ns._ShowSizePreview = function(tier)
     local ov = overrides[tier]
     local bw = PixelSnap(ov.width or s.frameWidth or 125)
     local bh = PixelSnap(ov.height or s.frameHeight or 60)
-    local cs = PixelSnap(s.cellSpacing or 2)
-    local gs = PixelSnap(s.groupSpacing or 8)
+    local cs = ns.RF_CellSpacing(s)
+    local gs = ns.RF_GroupSpacing(s)
     local unitGrowth, groupGrowth = ns._RFEffectiveGrowth(
         ov.unitGrowth or s.unitGrowth or "DOWN", ov.groupGrowth or s.groupGrowth or "RIGHT", s.mergeGroups)
     local frameCount  = tier
@@ -4534,6 +4558,7 @@ end
 local function GetOrCreatePartyPvFrame(index)
     if ns._partyPvFrames[index] then return ns._partyPvFrames[index] end
     local f = CreatePreviewFrame(index, true)
+    f._isParty = true
     -- Reparent from raid preview container to party overlay container
     if ns._partyOC then f:SetParent(ns._partyOC) end
     ns._partyPvFrames[index] = f
@@ -4865,6 +4890,7 @@ local function RefreshPartyPreview()
         end
     end
 
+    ns.RF_PreviewCompact(ns._partyPvFrames, ns._scaledPartyProxy, true, unitGrowth)
 end
 
 local function ShowPartyPreview()
@@ -4904,6 +4930,7 @@ end
 -- the deferred ShowPreview re-hides them. Panel close restores explicitly.
 local function HidePartyPreview(skipRestore)
     if not ns._partyPvActive then return end
+    ns.RF_PreviewCompact(nil, nil, true)
     -- Stop the aura ticker while still party-active so it clears the party aura
     -- icons (PvFrames resolves to the party set here), then deactivate.
     StopPvAuraTicker()

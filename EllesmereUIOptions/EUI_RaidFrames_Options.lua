@@ -388,8 +388,14 @@ function ns.RF_BuildPartyTargets(parent, y, W)
     _, h = W:DualRow(parent, y,
         { type="toggle", text="Enable Party Targets",
           tooltip="Show a smaller secure target button beside each party frame. Left-click a button to target that party member's current target.",
+          disabled=function()
+              local p = db.profile
+              return not p.partyShowTargets and p.partyCompactMode and ns.PT_AlongStack(p, true)
+          end,
+          disabledTooltip="Move Party Targets beside the frame stack or turn off Compact Mode.", requireState="disabled",
           getValue=function() return db.profile.partyShowTargets or false end,
           setValue=EllesmereUI.SectionToggleSetValue(function(v)
+              if v and db.profile.partyCompactMode and ns.PT_AlongStack(db.profile, true) then return end
               db.profile.partyShowTargets = v
               ns.PT_SetEnabled(v)
               Preview()
@@ -546,16 +552,19 @@ function ns.RF_BuildPartyTargets(parent, y, W)
           order={ "top", "bottom", "left", "right" },
           itemDisabled=function(v)
               local p = db.profile
+              if p.partyCompactMode and ns.PT_PositionAlongStack(v, p.partyHorizontal) then return true end
               if p.partyHorizontal or not ns.RF_PartyKit() then return false end
               local m = ns.RF_KitBuffMode(p)
               return (m == "RIGHT" and v == "right") or (m == "LEFT" and v == "left")
           end,
           itemDisabledTooltip=function(v)
+              if db.profile.partyCompactMode and ns.PT_PositionAlongStack(v, db.profile.partyHorizontal) then return "Compact Mode" end
               if v == "left" or v == "right" then return "Frame Style: Party Frames" end
           end,
           itemRequireState="disabled",
           getValue=function() return ns.PT_ShownSide() end,
           setValue=function(v)
+              if db.profile.partyCompactMode and ns.PT_PositionAlongStack(v, db.profile.partyHorizontal) then return end
               LaySet("partyTargetPosition", (v ~= ns.PT_ShownSide(true)) and v or nil)
           end },
         BLANK());  y = y - h

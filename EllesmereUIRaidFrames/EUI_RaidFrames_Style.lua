@@ -979,6 +979,10 @@ local function StyleButton(button)
         if not (PP and d.borderFrame) then return end
         -- Re-called long after StyleButton: resolve LIVE (see LiveS note) so party overrides and profile swaps are honored.
         local s = LiveS()
+        if ns.RF_ButtonCompact(d, s) then
+            ns.RF_CompactHighlight(d.borderFrame, d, s, button)
+            return
+        end
         -- Party Frames kit: hover and target glow along the frame art.
         if d.kit then
             ApplyBorderLevel(false, s)
@@ -1043,6 +1047,15 @@ local function StyleButton(button)
         local bc = s.borderColor or { r = 0, g = 0, b = 0 }
         local texKey = s.borderTexture or "solid"
         local pl = button:GetFrameLevel()
+        d._compactHighlight = nil
+        local compact = ns.RF_ButtonCompact(d, s)
+        if compact or d._compactBorder then d._compactBorder = compact end
+        if compact then
+            EllesmereUI.ApplyBorderStyle(d.borderFrame, 0, 0, 0, 0, 0, "solid")
+            ApplyBorderColor()
+            EllesmereUI.RoundCorners(button, 0)
+            return
+        end
         -- Stock styles: the EllesmereUI border stands down for the stock edge
         -- (for the art under the Party Frames kit).
         if d.kit then

@@ -677,6 +677,10 @@ local function ApplyRFDispelSlot(button, dd, style)
             dd.borderHost:SetAllPoints(health)
         end
         dd.borderHost:SetFrameLevel(health:GetFrameLevel() + 6 + def.level)
+        if style.compact or dd.compact then
+            ns.RF_InsetRing(dd.borderHost, health, style.compact and 2 or 0)
+            dd.compact = style.compact
+        end
         if dd.borderMade then
             PP.UpdateBorder(dd.borderHost, style.borderSize, r, g, b, typeA)
         else
@@ -760,7 +764,7 @@ local function ApplyRFDispelSlot(button, dd, style)
     end
 end
 
-local function BuildDispelStyle(s)
+local function BuildDispelStyle(s, compact)
     local typeColors = {}
     for i = 1, #DISPEL_SLOTS do
         local def = DISPEL_SLOTS[i]
@@ -777,7 +781,7 @@ local function BuildDispelStyle(s)
     -- under a stock style (the EllesmereUI border stands down there), a Solid
     -- Border Style or Border Size 0.
     local customBorder
-    if s.dispelCustomBorder == true and ns.RF_CustomBorderOn(s) then
+    if not compact and s.dispelCustomBorder == true and ns.RF_CustomBorderOn(s) then
         local bs = ns.RF_EffBorderSize(s)
         local tex = s.borderTexture
         customBorder = {
@@ -793,6 +797,7 @@ local function BuildDispelStyle(s)
         noRegions = true,
         mode = s.dispelOverlay or "fill",
         opacity = s.dispelOverlayOpacity or 100,
+        compact = compact,
         borderSize = s.dispelBorderSize or 0,
         showIcon = s.showDispelIcons == true,
         iconSize = s.dispelIconSize or 16,
@@ -809,11 +814,11 @@ local function BuildDispelStyle(s)
     }
 end
 
-local function DispelVisible(s)
+local function DispelVisible(s, d)
     return (s.dispelOverlay or "fill") ~= "none"
         or (s.dispelBorderSize or 0) > 0
         or s.showDispelIcons == true
-        or (s.dispelCustomBorder == true and ns.RF_CustomBorderOn(s))
+        or (s.dispelCustomBorder == true and not ns.RF_ButtonCompact(d, s) and ns.RF_CustomBorderOn(s))
 end
 
 -- Fingerprints of exact settings each subsystem reads, per class ("rf:debuff:raid"/
@@ -863,11 +868,14 @@ local function CKA(c)
     return CK(c) .. "," .. tostring((c and c.a) or 1)
 end
 
-local function DispelStyleFP(s)
+local function DispelStyleFP(s, key)
+    local party = key == "rf:debuff:party" or key == "rf:dispel:party"
+    local compact = key ~= "rf:debuff:extra" and key ~= "rf:dispel:extra" and ns.RF_CompactOn(s, party)
     return FP(s.dispelOverlay, s.dispelOverlayOpacity, s.dispelBorderSize, s.showDispelIcons,
         s.dispelIconSize, s.dispelIconPosition, s.dispelIconOffsetX, s.dispelIconOffsetY,
         CKA(s.dispelColorMagic), CKA(s.dispelColorCurse), CKA(s.dispelColorDisease),
         CKA(s.dispelColorPoison), CKA(s.dispelColorBleed), s.powerUniformAnchors,
+        compact, compact and ns.RF_OnePixel(party) or false,
         -- The fill wash follows the fill direction (BuildDispelStyle); the axis
         -- only moves it under Inverted Fill.
         ns.RF_IsInvertedFill(s), ns.RF_IsInvertedFill(s) and ns.RF_IsVerticalFill(s),
@@ -883,8 +891,8 @@ end
 -- settings change; PrimeClassFP compares against these and rebuilds what differs.
 local builtFP = {}
 local function StoreDispelStyle(key, s, fp)
-    AK.styles[key] = BuildDispelStyle(s)
-    builtFP[key] = fp or DispelStyleFP(s)
+    AK.styles[key] = BuildDispelStyle(s, key ~= "rf:dispel:extra" and ns.RF_CompactOn(s, key == "rf:dispel:party"))
+    builtFP[key] = fp or DispelStyleFP(s, key)
 end
 -- The base debuff style and its cc twin share one fingerprint (DebuffStyleFP).
 local function StoreDebuffStyles(styleKey, s, fp)
@@ -908,7 +916,7 @@ local function PrimeClassFP(styleKey, s)
     st.debuffCfg = DebuffCfgFP(s)
     st.dispLocStyle = DispLocStyleFP(s, font)
     st.dispLocCfg = DispLocCfgFP(s)
-    local dfp = DispelStyleFP(s)
+    local dfp = DispelStyleFP(s, styleKey)
     st.dispelStyle = dfp
     st.dispelFilter = DispelFilterFP(s)
     -- The shared styles are the stamps that must not be trusted blindly: rebuild any
@@ -2850,7 +2858,7 @@ local function QueueButtonGroups(button, health, d)
         AK.FinishContainer(c, unit)
         d.rfcDispel = c
         local sNow = ProxyFor(d)
-        c:SetShown(DispelVisible(sNow or s))
+        c:SetShown(DispelVisible(sNow or s, d))
         d.rfcUnit = unit
     end, "rf:dispel-finish")
 
@@ -3012,7 +3020,7 @@ local function ApplyAssistGate(button, d, unit)
     d.rfcAssist = assist
     local s = ProxyFor(d)
     if d.rfcDispel and s then
-        d.rfcDispel:SetShown(assist and DispelVisible(s))
+        d.rfcDispel:SetShown(assist and DispelVisible(s, d))
     end
     if d.rfcBm then d.rfcBm:SetShown(assist) end
     if d.rfcBmChain then
@@ -3174,7 +3182,7 @@ local function ComputeClassFlags(styleKey, s)
     v = DispLocCfgFP(s)
     if st.dispLocCfg ~= v then st.dispLocCfg = v; flags.dispLocCfg = true end
 
-    v = DispelStyleFP(s)
+    v = DispelStyleFP(s, styleKey)
     if st.dispelStyle ~= v then
         st.dispelStyle = v
         local dispelStyleKey = styleKey:gsub("debuff", "dispel")
@@ -3270,7 +3278,7 @@ function ns.RFC_ReloadAll()
                                 flags.dispelFilter[j])
                         end
                     end
-                    d.rfcDispel:SetShown(d.rfcAssist ~= false and DispelVisible(s))
+                    d.rfcDispel:SetShown(d.rfcAssist ~= false and DispelVisible(s, d))
                 end
                 local cls = clsCache[styleKey]
                 if not cls then

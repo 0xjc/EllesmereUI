@@ -211,6 +211,10 @@ FB.ApplyBorderColor = function(b)
     if not PP or not b._borderFrame or not db then return end
     local s = FB.Source(b)
     local targeted = FB.tgt[b] and s.targetBorderEnabled ~= false
+    if ns.RF_PetCompactOn(b, s) then
+        ns.RF_PetCompactHighlight(b, s)
+        return
+    end
     if b.stockEdge then
         local hover = FB.hov[b] and s.hoverBorderEnabled ~= false
         local lvl = b:GetFrameLevel() + (hover and ns.LVL_RAISE or 8)
@@ -268,6 +272,17 @@ FB.StyleBorder = function(b)
     local bs = s.borderSize or 1
     local bc = s.borderColor or { r = 0, g = 0, b = 0 }
     local pl = b:GetFrameLevel()
+    local d = I.FFD[b]
+    local compact = ns.RF_PetCompactOn(b, s)
+    if compact or (d and d._petCompactBorder) then
+        d._petCompactBorder, d._compactHighlight = compact, nil
+    end
+    if compact then
+        EllesmereUI.ApplyBorderStyle(b._borderFrame, 0, 0, 0, 0, 0, "solid")
+        FB.ApplyBorderColor(b)
+        EllesmereUI.RoundCorners(b, 0)
+        return
+    end
     if b.stockEdge then
         b._borderFrame:SetFrameLevel(pl + 8)
         EllesmereUI.ApplyBorderStyle(b._borderFrame, 0, 0, 0, 0, 0, "solid")

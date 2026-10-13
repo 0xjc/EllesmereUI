@@ -729,13 +729,40 @@ local function BuildMainPage(pageName, parent, yOffset)
         return cfg
     end
 
-    _, h = W:DualRow(parent, y,
+    local spacingRow
+    spacingRow, h = W:DualRow(parent, y,
         { type="slider", pixel=true, text="Frame Spacing", min=-5, max=15, step=1,
           getValue=function() return SVal("cellSpacing", 2) end,
           setValue=function(v) SSet("cellSpacing", v) end },
         { type="slider", pixel=true, text="Group Spacing", min=-5, max=15, step=1,
           getValue=function() return SVal("groupSpacing", 8) end,
           setValue=function(v) SSet("groupSpacing", v) end });  y = y - h
+    if not EllesmereUI._prebuilding then
+        EllesmereUI.BuildInlineCog(spacingRow._leftRegion, { title = "Frame Spacing", rows = {
+            { type="toggle", label="Compact Mode",
+              tooltip="Shares borders within each group at +1 physical pixel spacing. Your saved Frame Spacing is preserved.",
+              get=function() return db.profile.raidCompactMode == true end,
+              set=function(v)
+                  if v and not ns.RF_CompactEligible(db.profile) then return end
+                  db.profile.raidCompactMode = v
+                  ReloadAndUpdate(); EllesmereUI:RefreshPage()
+              end,
+              disabled=function() return not db.profile.raidCompactMode and not ns.RF_CompactEligible(db.profile) end,
+              disabledTooltip="Requires Pixels or Pixels Textured with a visible border in the EllesmereUI frame style." },
+        } })
+        EllesmereUI.BuildInlineCog(spacingRow._rightRegion, { title = "Group Spacing", rows = {
+            { type="toggle", label="Grid Mode",
+              tooltip="Joins compact groups at +1 physical pixel spacing and fills incomplete groups with empty backgrounds. Your saved Group Spacing is preserved.",
+              get=function() return db.profile.raidGridMode == true end,
+              set=function(v)
+                  if v and not ns.RF_CompactOn(db.profile, false) then return end
+                  db.profile.raidGridMode = v
+                  ReloadAndUpdate(); EllesmereUI:RefreshPage()
+              end,
+              disabled=function() return not db.profile.raidGridMode and not ns.RF_CompactOn(db.profile, false) end,
+              disabledTooltip="Requires Compact Mode and Pixels or Pixels Textured." },
+        } })
+    end
 
     -- Border Style (+ options cog) | Border Size (+ Border swatch). Mirrors Unit Frames: ONE border recolored by state (hover/target), full SharedMedia support. Hover/Target swatches live on the row below.
     local bdrTexValues, bdrTexOrder = EllesmereUI.GetBorderTextureDropdown()
@@ -1567,8 +1594,18 @@ local function BuildPartyPage(pageName, parent, yOffset)
     local pSortRow
     pSortRow, h = W:DualRow(parent, y,
         { type="toggle", text="Horizontal Frames",
+          disabled=function()
+              local p = db.profile
+              return p.partyCompactMode and p.partyShowTargets
+                  and ns.PT_PositionAlongStack(p.partyTargetPosition, not p.partyHorizontal)
+          end,
+          disabledTooltip="Move Party Targets beside the frame stack or turn off Compact Mode.", requireState="disabled",
           getValue=function() return db.profile.partyHorizontal end,
-          setValue=function(v) db.profile.partyHorizontal = v; PartyReloadAndUpdate(); EllesmereUI:RefreshPage() end },
+          setValue=function(v)
+              local p = db.profile
+              if p.partyCompactMode and p.partyShowTargets and ns.PT_PositionAlongStack(p.partyTargetPosition, v) then return end
+              p.partyHorizontal = v; PartyReloadAndUpdate(); EllesmereUI:RefreshPage()
+          end },
         { type="dropdown", text="Sort By",
           values={ __placeholder = "Group" }, order={ "__placeholder" },
           getValue=function() return "__placeholder" end,
@@ -1660,6 +1697,21 @@ local function BuildPartyPage(pageName, parent, yOffset)
           setValue=function(v) PSSet(ns.RF_PartyKit() and "partyKitSpacing" or "partyCellSpacing", v) end }));  y = y - h
     -- Auto Resize Icons sits in the LEFT slot here; same conversion pattern as the Frames tab.
     if not EllesmereUI._prebuilding then
+        EllesmereUI.BuildInlineCog(partyAutoResizeRow._rightRegion, { title = "Frame Spacing", rows = {
+            { type="toggle", label="Compact Mode",
+              tooltip="Shares party borders at +1 physical pixel spacing. Your saved Frame Spacing is preserved. Targets along the frame stack must be disabled or moved beside the frames.",
+              get=function() return db.profile.partyCompactMode == true end,
+              set=function(v)
+                  if v and (not ns.RF_CompactEligible(ns._partyProxy)
+                      or ns.PT_AlongStack(db.profile, db.profile.partyShowTargets == true)) then return end
+                  PSSet("partyCompactMode", v); EllesmereUI:RefreshPage()
+              end,
+              disabled=function()
+                  return not db.profile.partyCompactMode and (not ns.RF_CompactEligible(ns._partyProxy)
+                      or ns.PT_AlongStack(db.profile, db.profile.partyShowTargets == true))
+              end,
+              disabledTooltip="Requires Pixels or Pixels Textured and no party targets along the frame stack." },
+        } })
         local leftRgn = partyAutoResizeRow._leftRegion
         if leftRgn._control then leftRgn._control:Hide() end
         local arKeyMap = { indicators = "partyAutoResizeIndicators", trackedBuffs = "partyAutoResizeTrackedBuffs" }
