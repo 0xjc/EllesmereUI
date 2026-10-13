@@ -2325,8 +2325,8 @@ XF.GROUP_MENU = {
     { key = "keepNote",       label = "Keep Sign Up Note", signUp = true },
     { key = "oneClick",       label = "One Click Sign Up" },
     { title = "Misc" },
+    { key = "applicantColumns", label = "Score & Progress Columns" },
     { key = "iconSize",       label = "Role Icon Size", stepper = { min = 100, max = 160, step = 5 } },
-    { key = "applicantColumns", label = "Score and Progress Columns" },
 }
 XF.MENU_SW_W, XF.MENU_SW_H = 22, 12
 
@@ -2405,15 +2405,26 @@ function XF.StepperItem(m, y, spec)
     item.label:SetTextColor(tR, tG, tB, tA)
     item.label:SetText(spec.label)
     local function Step(text, dir)
+        -- A small box in the menu's checkbox look, so it reads as a button.
         local b = CreateFrame("Button", nil, item)
         b:SetSize(16, 16)
+        local bg = b:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints()
+        bg:SetColorTexture(0.12, 0.12, 0.12, 1)
+        b.ring = CM.MakeBorder(b, 0.25, 0.25, 0.25, 0.6, CM.PanelPP)
         b.t = b:CreateFontString(nil, "OVERLAY")
         b.t:SetFont(Font(), ITEM_FONT + 2, "")
         b.t:SetPoint("CENTER")
         b.t:SetText(text)
         b.t:SetTextColor(tR, tG, tB, tA)
-        b:SetScript("OnEnter", function(self) self.t:SetTextColor(1, 1, 1, 1) end)
-        b:SetScript("OnLeave", function(self) self.t:SetTextColor(tR, tG, tB, tA) end)
+        b:SetScript("OnEnter", function(self)
+            self.t:SetTextColor(1, 1, 1, 1)
+            if self.ring and self.ring.SetColor then self.ring:SetColor(1, 1, 1, 0.8) end
+        end)
+        b:SetScript("OnLeave", function(self)
+            self.t:SetTextColor(tR, tG, tB, tA)
+            if self.ring and self.ring.SetColor then self.ring:SetColor(0.25, 0.25, 0.25, 0.6) end
+        end)
         b:SetScript("OnClick", function()
             local c = Cfg()
             local v = tonumber(c[spec.key]) or (ns.DEFAULTS and ns.DEFAULTS[spec.key]) or st.min
@@ -2432,9 +2443,9 @@ function XF.StepperItem(m, y, spec)
     item.value:SetTextColor(1, 1, 1, 1)
     item.value:SetJustifyH("CENTER")
     item.value:SetWidth(34)
-    item.value:SetPoint("RIGHT", plus, "LEFT", -2, 0)
+    item.value:SetPoint("RIGHT", plus, "LEFT", -3, 0)
     local minus = Step("-", -1)
-    minus:SetPoint("RIGHT", item.value, "LEFT", -2, 0)
+    minus:SetPoint("RIGHT", item.value, "LEFT", -3, 0)
     function item:Paint()
         local v = tonumber(Cfg()[spec.key]) or (ns.DEFAULTS and ns.DEFAULTS[spec.key]) or st.min
         self.value:SetText(v .. "%")
