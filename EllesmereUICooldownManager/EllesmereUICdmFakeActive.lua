@@ -100,7 +100,7 @@ local _api       = {}
 local _overlays  = setmetatable({}, { __mode = "k" })  -- iconFrame -> overlay data
 
 -- Cooldown-state effects (continuous, cooldown-driven; presets only).
-local _cdStateRules = {}                                -- subset: cas.cdStateEffect set
+local _cdStateRules = {}                                -- subset: a cd-state hide, glow or ready sound set
 -- Same-frame coalescer for edge-driven cd-state evaluation. The engine owns
 -- the edges (widget push = cooldown started, OnCooldownDone = cooldown ended),
 -- so there is NO poll ticker: evaluation runs only when an edge fires.
@@ -1254,60 +1254,68 @@ end
 -- cas is the rule's styling entry (passed in so a trinket, whose frame key is a
 -- slot, still gets the per-item glow colour). Marks the frame "touched" so the
 -- restore pass below can find it even after the trinket has been swapped out.
-ApplyCdState = function(frame, fc, cas, eff, onCD, ready)
+-- hide and glow are the two halves of the effect (ns.CdStateOf), each applied
+-- on its own: the hide runs on hideCD (the form alone, or unusable counting as
+-- unavailable; ready for Hidden (CD Ready)), the glow on the plain onCD.
+ApplyCdState = function(frame, fc, cas, hide, glow, hideCD, onCD, ready)
     local fd = ns._hookFrameData and ns._hookFrameData[frame]
     if fd then fd._presetCdTouched = true end
-    if eff == "hiddenOnCD" or eff == "hiddenReady"
-       or eff == "hiddenOnCDShift" or eff == "hiddenReadyShift" then
-        local isShift = (eff == "hiddenOnCDShift" or eff == "hiddenReadyShift")
-        local hide
-        if eff == "hiddenOnCD" or eff == "hiddenOnCDShift" then
-            hide = onCD
+    if hide == "hiddenOnCD" or hide == "hiddenReady"
+       or hide == "hiddenOnCDShift" or hide == "hiddenReadyShift" then
+        local isShift = (hide == "hiddenOnCDShift" or hide == "hiddenReadyShift")
+        local hidden
+        if hide == "hiddenOnCD" or hide == "hiddenOnCDShift" then
+            hidden = hideCD
         else
             -- ready, not "not onCD": a charge spell is only READY at max charges,
             -- so the icon keeps tracking a running recharge (PresetCdReady).
-            hide = ready
+            hidden = ready
         end
-        frame:SetAlpha(hide and 0 or FrameBaseAlpha(fc))
+        frame:SetAlpha(hidden and 0 or FrameBaseAlpha(fc))
         -- Set the SAME flag the layout / visibility / refresh code already honors,
         -- so a relayout (mount, dismount, settings change) keeps it hidden instead
         -- of flashing it visible until the next tick.
-        fc._cdStateHidden = hide or false
+        fc._cdStateHidden = hidden or false
         -- Shift variants also maintain the bar-relayout flag (only relayouts
         -- on an actual transition; steady-state calls return immediately).
         if ns.SetCdStateShiftHidden then
-            ns.SetCdStateShiftHidden(fc, isShift and hide or false)
+            ns.SetCdStateShiftHidden(fc, isShift and hidden or false)
         end
-        return
-    end
-    if eff == "lowerAlphaOnCD" then
+    elseif hide == "lowerAlphaOnCD" then
         -- Identical to hiddenOnCD but with a customizable opacity instead of 0.
         -- Reuse the _cdStateHidden flag as "cd-state owns this alpha" so a relayout
         -- keeps the lowered value instead of flashing back to full opacity.
         -- A visibility-hidden bar (base 0) stays at 0 in both states.
         local faBase = FrameBaseAlpha(fc)
         frame:SetAlpha(faBase == 0 and 0
-            or (onCD and ((cas and cas.cdStateLowerAlpha) or 0.5) or faBase))
-        fc._cdStateHidden = onCD or false
+            or (hideCD and ((cas and cas.cdStateLowerAlpha) or 0.5) or faBase))
+        fc._cdStateHidden = hideCD or false
         if ns.SetCdStateShiftHidden then ns.SetCdStateShiftHidden(fc, false) end
+    else
+        -- No hide effect. Restore the alpha as well as the flag, exactly as the
+        -- appearance refresh does on this transition: once a bar has settled
+        -- nothing else re-asserts a preset frame's alpha, so clearing the flag
+        -- alone leaves a hide from an earlier state painted for good.
+        if fc._cdStateHidden then frame:SetAlpha(FrameBaseAlpha(fc)) end
+        fc._cdStateHidden = false
+        if ns.SetCdStateShiftHidden then ns.SetCdStateShiftHidden(fc, false) end
+    end
+    if not fd then return end
+    -- The glow: while the ability is READY (off cooldown), or while it is ON
+    -- cooldown for Glow (On CD). A glow left from an earlier setting goes out.
+    if not glow then
+        if fd._presetCdGlowOn then
+            ns.StopCdGlow(fd)
+            fd._presetCdGlowOn = false
+        end
         return
     end
-    -- Glow modes: glow while the ability is READY (off cooldown), or while it is
-    -- ON cooldown for Glow (On CD). Not a hide.
-    -- Restore the alpha as well as the flag, exactly as the appearance refresh
-    -- does on this transition: once a bar has settled nothing else re-asserts a
-    -- preset frame's alpha, so clearing the flag alone leaves a hide from an
-    -- earlier state painted for good.
-    if fc._cdStateHidden then frame:SetAlpha(FrameBaseAlpha(fc)) end
-    fc._cdStateHidden = false
-    if ns.SetCdStateShiftHidden then ns.SetCdStateShiftHidden(fc, false) end
-    if not fd then return end
     -- Glow (On CD) wants the OPPOSITE cooldown state from the Ready variants
     -- (as the glowOnCD branch of the SetDesaturated hook in EUI_CDM_HookDecorate.lua).
-    local isOnCdGlow = (eff == "glowOnCD")
+    local isOnCdGlow = (glow == "glowOnCD")
     local wantsGlow = isOnCdGlow and onCD or (not isOnCdGlow and not onCD)
     if wantsGlow then
-        local style = ns.CdReadyGlowStyle(eff, cas)
+        local style = ns.CdReadyGlowStyle(glow, cas)
         local styleEntry = ns.GLOW_STYLES[style]
         -- A branch, not `and/or`: the Blackout frame does not exist before
         -- its first start, and the shared overlay must not stand in for it.
@@ -1422,24 +1430,24 @@ end
 -- One cd-state rule against every icon its key matches.
 local function EvalCdStateRule(rule, icons, FCt)
     local cas = rule.cas
-    local eff = cas and cas.cdStateEffect
-    -- Blocking-false (per-trinket "None" over a slot-level bar apply) is
-    -- render-equivalent to nil: no effect, but the sound may still be set.
-    if eff == false then eff = nil end
+    -- The hide and the glow (ns.CdStateOf reads a blocking-false, a per-trinket
+    -- "None" over a slot-level bar apply, as none); the sound may still be set.
+    local hide, glow = ns.CdStateOf(cas)
     local soundKey = cas and cas.cdReadySoundKey
     if soundKey == "none" then soundKey = nil end
-    if eff or soundKey then
+    if hide or glow or soundKey then
         local onCD = PresetOnCD(rule.spellID)
         -- Separate read for the Hidden (CD Ready) effects: a charge spell is
         -- ready only at max charges (items fall through to "not onCD").
         local ready = PresetCdReady(rule.spellID, onCD)
         -- Hidden Until Usable paints as Hidden (On CD) with "not usable"
         -- counting as unavailable, Hidden Outside Form/Stance with only the
-        -- form deciding (ns.CD_STATE_HIDE); the sound below keeps the plain onCD.
+        -- form deciding (ns.CD_STATE_HIDE); the glow and the sound below keep
+        -- the plain onCD.
         local hideCD = onCD
-        local m = eff and ns.CD_STATE_HIDE[eff]
+        local m = hide and ns.CD_STATE_HIDE[hide]
         if m and (m.usable or m.form) then
-            eff = m.shift and "hiddenOnCDShift" or "hiddenOnCD"
+            hide = m.shift and "hiddenOnCDShift" or "hiddenOnCD"
             if m.form then
                 hideCD = PresetSpellTest(rule.spellID, ns.CdmSpellOutsideForm)
             elseif not onCD then
@@ -1464,7 +1472,7 @@ local function EvalCdStateRule(rule, icons, FCt)
                         or (ns._myRacialsSet and ns._myRacialsSet[sid])) then
                     hasIcon = true
                     WireCdStateFrame(f)
-                    if eff then ApplyCdState(f, fc, cas, eff, hideCD, ready) end
+                    if hide or glow then ApplyCdState(f, fc, cas, hide, glow, hideCD, onCD, ready) end
                 end
             end
         end
@@ -1626,8 +1634,8 @@ local function SyncFormAuraRules()
     wipe(_formAuraRules)
     for r = 1, #_cdStateRules do
         local rule = _cdStateRules[r]
-        local eff = rule.cas and rule.cas.cdStateEffect
-        local m = eff and ns.CD_STATE_HIDE[eff]
+        local hide = rule.cas and ns.CdStateHideOf(rule.cas)
+        local m = hide and ns.CD_STATE_HIDE[hide]
         if m and m.form and ns.CdmFormNeedsAura(rule.spellID) then
             _formAuraRules[#_formAuraRules + 1] = rule
         end
@@ -1672,7 +1680,7 @@ function ns.FakeActive_Rearm()
     --    travel with the spell across every bar and spec, so no barKey scope --
     --    the overlay shows on whichever bar currently hosts the icon.
     -- A spell may have a cast-triggered active overlay (duration), a continuous
-    -- cooldown-state effect (cdStateEffect), or both.
+    -- cooldown-state effect (a hide and / or a glow, ns.CdStateOf), or both.
     local store = ns.GetCustomActiveStates and ns.GetCustomActiveStates()
     if store then
         -- Shared rule constructor. matchKey is the icon-identity key live frames
@@ -1683,10 +1691,9 @@ function ns.FakeActive_Rearm()
         local function AddUserRule(matchKey, srcKey, cas)
             local hasDur = (cas.duration or 0) > 0
             -- Explicit false = a per-trinket "None" blocking the slot's bar-apply
-            -- value from showing through; render-equivalent to nil.
-            local eff = cas.cdStateEffect
-            if eff == false then eff = nil end
-            local hasCd = eff ~= nil
+            -- value from showing through; ns.CdStateOf reads it as none.
+            local hide, glow = ns.CdStateOf(cas)
+            local hasCd = hide ~= nil or glow ~= nil
             local hasSound = cas.cdReadySoundKey ~= nil and cas.cdReadySoundKey ~= "none"
             -- Keep Colored (On CD) and Ignore Resource Cost need no rule of their
             -- own -- preset frames read them directly (PresetKeepsColor,
@@ -1706,7 +1713,7 @@ function ns.FakeActive_Rearm()
             if hasCd or hasSound then
                 -- Both effects ride the same cooldown poll (EvalCdStateNow).
                 _cdStateRules[#_cdStateRules + 1] = rule
-                local m = eff and ns.CD_STATE_HIDE[eff]
+                local m = hide and ns.CD_STATE_HIDE[hide]
                 if m and m.usable then _needUsable = true end
                 if m and m.form then _needForms = true end
             end

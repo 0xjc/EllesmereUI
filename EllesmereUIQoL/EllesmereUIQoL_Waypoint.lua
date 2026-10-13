@@ -171,9 +171,11 @@ end
 --  Arrival: NAVIGATION_DESTINATION_REACHED, registered only while a /way list
 --  waits or the hand-placed pin option is on. It fires for whatever is
 --  super-tracked (a quest, a rare, a party member, a route's portal), so only
---  the player's own distance to the pin counts. A message that lands in combat
---  waits for the end of combat: an addon line printed in combat taints chat
---  history.
+--  the player's own distance to the pin counts. A pin the client is not
+--  navigating to (not tracked, or in-game navigation turned off) never fires
+--  it, so the player stopping near the pin counts too (PLAYER_STOPPED_MOVING,
+--  same window). A message that lands in combat waits for the end of combat:
+--  an addon line printed in combat taints chat history.
 -------------------------------------------------------------------------------
 local ARRIVE_YARDS = 30
 local ev = CreateFrame("Frame")  -- made in the main chunk so its handler bills to this addon
@@ -185,8 +187,10 @@ local hintedClick, hintedRemove
 local function SyncArrival()
     if listed or ManualArrival() then
         ev:RegisterEvent("NAVIGATION_DESTINATION_REACHED")
+        ev:RegisterEvent("PLAYER_STOPPED_MOVING")
     else
         ev:UnregisterEvent("NAVIGATION_DESTINATION_REACHED")
+        ev:UnregisterEvent("PLAYER_STOPPED_MOVING")
     end
 end
 ns.WaypointArrivalSync = SyncArrival  -- the options cog calls it after a change

@@ -219,8 +219,8 @@ EllesmereUI.ResolveKeyToFolder = ResolveKeyToFolder
 -- Set of folders that have NO import/export checkbox (not in ADDON_DB_MAP), so
 -- their anchor/match edges are never exported -- the element keeps its own saved
 -- absolute position on import (decision: always export them unanchored): the
--- Dragon Riding cluster (EllesmereUIBlizzardSkin) and the Forever Essentials
--- elements (flight timer, threat meter; their settings are all account-wide).
+-- Dragon Riding cluster (EllesmereUIBlizzardSkin) and every Forever Essentials
+-- element (their settings are all account-wide).
 local NO_CHECKBOX_FOLDER = {}
 do
     local has = {}
@@ -1385,12 +1385,11 @@ local REFRESH_ADDON_STEPS = {
             EllesmereUI._applySecondaryStats()
         end
     end,
-    -- QoL Battle Res, Bloodlust and Junk Items (enable state, visibility,
-    -- position; Battle Res and Bloodlust do not exist on WoW Forever)
+    -- QoL Battle Res and Bloodlust (enable state, visibility, position;
+    -- neither exists on WoW Forever)
     function()
         if _G._EUI_BattleRes_Apply then _G._EUI_BattleRes_Apply() end
         if _G._EUI_Bloodlust_Apply then _G._EUI_Bloodlust_Apply() end
-        if _G._EUI_JunkList_Apply then _G._EUI_JunkList_Apply() end
     end,
     -- AuraBuffReminders (style + refresh + position)
     function()
@@ -1781,13 +1780,13 @@ local STYLE_FLAGS = {
       forever = "useForeverStyle", foreverActive = "ERB_CastForever" },
     { folder = "EllesmereUIResourceBars",    key = "useBlizzardStyleBars", classic = "useClassicStyleBars", active = "ERB_BarsStyle" },
     { folder = "EllesmereUIMinimap",         key = "useBlizzardStyle",     classic = "useClassicStyle",     sub = "minimap", active = "MinimapStyle",
-      forever = "useForeverStyle", foreverActive = "MinimapForever" },
+      forever = "useForeverStyle", foreverActive = "MinimapForever", extra = "MinimapFvBorderChanged" },
     { folder = "EllesmereUIDamageMeters",    key = "useBlizzardStyle",     classic = "useClassicStyle",     sub = "dm",      active = "DMStyle",
-      forever = "useForeverStyle", foreverActive = "DMForever" },
+      forever = "useForeverStyle", foreverActive = "DMForever", extra = "DMFvBorderChanged" },
     { folder = "EllesmereUIQuestTracker",    key = "useBlizzardStyle",     classic = "useClassicStyle",     sub = "questTracker", active = "QT_Style" },
     { folder = "EllesmereUIFriends",         key = "useBlizzardStyle",     classic = "useClassicStyle",     sub = "friends", active = "FR_Style" },
     { folder = "EllesmereUIChat",            key = "useBlizzardStyle",     classic = "useClassicStyle",     sub = "chat",    active = "ChatStyle",
-      forever = "useForeverStyle", foreverActive = "ChatForeverFlag" },
+      forever = "useForeverStyle", foreverActive = "ChatForeverFlag", extra = "ChatFvBorderChanged" },
     { folder = "EllesmereUIRaidFrames",      key = "useBlizzardStyle",     classic = "useClassicStyle",     active = "RF_Style", extra = "RF_PartyKitChanged" },
     { folder = "EllesmereUIBlizzardSkin",    key = "useBlizzardStyle",     classic = "useClassicStyle",     data = "EllesmereUIDragonRiding", retailOnly = true, active = "EDR_Style" },
 }
@@ -2113,7 +2112,9 @@ do
         "showEnchants", "showPvpItemLevel", "charSheetSocketPanel", "charSheetSeasonPanel", "charSheetSeasonVault",
         "charSheetHideSlotFlyoutArrows",
         "charSheetIconZoom", "charSheetEnchantNames", "charSheetEnchantSize",
-        "flyoutItemLevels", "showCharSheetDurability", "charSheetDurabilityLocation",
+        "flyoutItemLevels", "flyoutItemStats", "charSheetItemStats",
+        "flyoutItemStatsTertiary", "charSheetItemStatsTertiary", "charSheetSocketPanelStats",
+        "showCharSheetDurability", "charSheetDurabilityLocation",
         "charSheetDurabilityShowLabel", "showSecondaryRaw", "showSecondaryBoth",
         "showTertiaryRaw", "showTertiaryBoth", "showAdjustedStats",
         "showManaStat", "highlightSecondaryItems", "highlightTertiaryItems",

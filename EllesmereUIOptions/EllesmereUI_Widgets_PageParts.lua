@@ -7,6 +7,11 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --  loads before them.
 -------------------------------------------------------------------------------
 local EllesmereUI = _G.EllesmereUI
+-- Page reuse: the frames this file builds go through the options frame pool
+-- (EllesmereUI_FramePool.lua, loaded first in this addon), which hands a kept
+-- page its previous build's frames back reset to new; on any other parent it
+-- creates as before.
+local CreateFrame = EllesmereUI._Pool.CreateFrame
 
 -------------------------------------------------------------------------------
 --  BuildUnlockPlaceholder

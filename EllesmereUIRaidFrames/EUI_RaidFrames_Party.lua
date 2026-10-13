@@ -125,6 +125,7 @@ do
             "showMissingBuffs", "missingBuffsSize", "missingBuffsPosition", "missingBuffsOffsetX", "missingBuffsOffsetY",
             "missingBuffsFort", "missingBuffsMark", "missingBuffsSpirit", "missingBuffsThorns", "missingBuffsBlessing",
             "missingBuffsThornsTank", "missingBuffsBlessingTank", "missingBuffsBlessingHealer", "missingBuffsBlessingDPS",
+            "missingBuffsBlessingExTank", "missingBuffsBlessingExHealer", "missingBuffsBlessingExDPS",
             "missingBuffsGlowType", "missingBuffsGlowColorMode", "missingBuffsGlowR", "missingBuffsGlowG", "missingBuffsGlowB",
             "missingBuffsGlowLines", "missingBuffsGlowThickness", "missingBuffsGlowSpeed", "missingBuffsGlowBackground",
             "missingBuffsGlowBackgroundR", "missingBuffsGlowBackgroundG", "missingBuffsGlowBackgroundB",

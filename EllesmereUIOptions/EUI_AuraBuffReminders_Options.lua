@@ -669,11 +669,12 @@ initFrame:SetScript("OnEvent", function(self)
 
     -- Per-section control dual-row: a "Where to Show" checkbox dropdown on
     -- the left. Right slot: for raid buffs the "Show When" checkbox
-    -- dropdown (+ reminder-sound cog beside it); for every other section a
-    -- full "Reminder Sound" dropdown fills the slot instead of a cog.
+    -- dropdown (+ reminder-sound cog beside it); for a section with a sound
+    -- a full "Reminder Sound" dropdown fills the slot instead of a cog; else
+    -- the section's own cfg.rightCfg (the caller dresses row._rightRegion).
     local function SectionControlRow(parent, y, cfg)
         local W = EllesmereUI.Widgets
-        local rightCfg
+        local rightCfg = cfg.rightCfg
         if cfg.showWhenStore then
             rightCfg = { type="dropdown", text="Show When", tooltip=cfg.showWhenTooltip,
                 values={ _placeholder="..." }, order={ "_placeholder" },
@@ -964,6 +965,58 @@ initFrame:SetScript("OnEvent", function(self)
         end
     end
 
+    ---------------------------------------------------------------------------
+    --  Beacon M+ row: the CORE toggle shows only for a retail Holy Paladin. A
+    --  page built for one Holy state is rebuilt once the player's no longer
+    --  matches it: on a spec change while the page is shown, or when the cached
+    --  page is shown again after one. One event frame, re-parented into each
+    --  build of the page, so its show and hide are the page's and the event is
+    --  registered only while the page is shown. Other classes and WoW Forever
+    --  never make it.
+    ---------------------------------------------------------------------------
+    local BeaconRowShown
+    do
+        local paladin = not FOREVER and select(2, UnitClass("player")) == "PALADIN"
+        local watch, builtHoly, queued
+        local function IsHoly()
+            local spec = C_SpecializationInfo.GetSpecialization()
+            return spec ~= nil and C_SpecializationInfo.GetSpecializationInfo(spec) == 65
+        end
+        -- One rebuild per burst, a frame later: a cached page has finished showing
+        local function Flush()
+            queued = nil
+            if watch:IsVisible() and IsHoly() ~= builtHoly then EllesmereUI:RefreshPage(true) end
+        end
+        local function Queue()
+            if queued then return end
+            queued = true
+            C_Timer.After(0, Flush)
+        end
+        -- Each build of the page: whether the toggle shows
+        BeaconRowShown = function(parent)
+            if not paladin then return false end
+            local holy = IsHoly()
+            if EllesmereUI._prebuilding then return holy end
+            builtHoly = holy
+            if not watch then
+                watch = CreateFrame("Frame")
+                watch._searchIgnore = true  -- the inline search never hides it
+                watch:SetScript("OnEvent", Queue)
+                watch:SetScript("OnShow", function(self)
+                    self:RegisterUnitEvent("PLAYER_SPECIALIZATION_CHANGED", "player")
+                    if IsHoly() ~= builtHoly then Queue() end
+                end)
+                watch:SetScript("OnHide", function(self)
+                    self:UnregisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+                end)
+            end
+            watch:Hide()
+            watch:SetParent(parent)
+            watch:Show()
+            return holy
+        end
+    end
+
     local function BuildRemindersPage(pageName, parent, yOffset)
         local W = EllesmereUI.Widgets
         local y = yOffset
@@ -991,6 +1044,71 @@ initFrame:SetScript("OnEvent", function(self)
             line1:SetJustifyH("CENTER")
             line1:SetText(EllesmereUI.L("Left Click to apply buffs (out of combat), Middle Click to hide until next load screen"))
             y = y - 32
+        end
+
+        -- WoW Forever: what this module is for, in the red of the suite's
+        -- warning banners, right above CORE. "CDM module" (the template's %s)
+        -- is its own button, like the patch notes' contributors link, and opens
+        -- the Cooldown Manager's Buffs bar while that module is loaded. Not
+        -- built in the search prebuild (nothing to index); y moves the same.
+        if FOREVER then
+            local GAP, WARN_H = 6, 44
+            if not EllesmereUI._prebuilding then
+                local PAD = EllesmereUI.CONTENT_PAD
+                local w = parent:GetWidth() - PAD * 2
+                local R, G, B = 1, 0.25, 0.25
+                local host = CreateFrame("Frame", nil, parent)
+                PP.Point(host, "TOPLEFT", parent, "TOPLEFT", PAD, y - GAP)
+                local line1 = EllesmereUI.MakeFont(host, 16, nil, R, G, B, 1)
+                line1:SetPoint("TOP", host, "TOP", 0, 0)
+                line1:SetWidth(w)
+                line1:SetWordWrap(true)
+                line1:SetJustifyH("CENTER")
+                line1:SetText(EllesmereUI.L("This module is for OUT OF COMBAT non-rotational buff/consumable reminders,"))
+                local tmpl = EllesmereUI.L("for in combat aura/rotational reminders please use the %s") or ""
+                local pre, post = tmpl:match("^(.-)%%s(.*)$")
+                if not pre then pre, post = tmpl, "" end
+                local line2 = CreateFrame("Frame", nil, host)
+                local preFs = EllesmereUI.MakeFont(line2, 16, nil, R, G, B, 1)
+                preFs:SetPoint("LEFT", line2, "LEFT", 0, 0)
+                preFs:SetText(pre)
+                local link = CreateFrame("Button", nil, line2)
+                local linkFs = EllesmereUI.MakeFont(link, 16, nil, R, G, B, 1)
+                linkFs:SetPoint("LEFT", link, "LEFT", 0, 0)
+                linkFs:SetText(EllesmereUI.L("CDM module"))
+                link:SetSize(math.ceil(linkFs:GetStringWidth() or 80) + 1, 20)
+                link:SetPoint("LEFT", preFs, "RIGHT", 0, 0)
+                local postFs = EllesmereUI.MakeFont(line2, 16, nil, R, G, B, 1)
+                postFs:SetPoint("LEFT", link, "RIGHT", 0, 0)
+                postFs:SetText(post)
+                if EllesmereUI._ModuleNS["EllesmereUICooldownManager"] then
+                    local EG = EllesmereUI.ELLESMERE_GREEN
+                    linkFs:SetTextColor(EG.r, EG.g, EG.b, 1)
+                    linkFs:SetAlpha(0.85)
+                    link:SetScript("OnEnter", function(self)
+                        linkFs:SetAlpha(1)
+                        EllesmereUI.ShowWidgetTooltip(self, EllesmereUI.L("Open the Cooldown Manager's Buffs bar"))
+                    end)
+                    link:SetScript("OnLeave", function()
+                        linkFs:SetAlpha(0.85)
+                        EllesmereUI.HideWidgetTooltip()
+                    end)
+                    link:SetScript("OnClick", function()
+                        EllesmereUI.HideWidgetTooltip()
+                        EllesmereUI:NavigateToElementSettings("EllesmereUICooldownManager", "CDM Bars", nil,
+                            function() if EllesmereUI._setCDMBar then EllesmereUI._setCDMBar("buffs") end end)
+                    end)
+                else
+                    link:EnableMouse(false)
+                end
+                local w2 = (preFs:GetStringWidth() or 0) + link:GetWidth() + (postFs:GetStringWidth() or 0)
+                PP.Size(line2, math.ceil(w2), 20)
+                line2:SetPoint("TOP", line1, "BOTTOM", 0, -4)
+                -- A translation long enough to wrap the first line pushes CORE down.
+                WARN_H = math.max(WARN_H, math.ceil(line1:GetStringHeight() or 0) + 24)
+                PP.Size(host, w, WARN_H)
+            end
+            y = y - (GAP + WARN_H + 14)
         end
 
         -----------------------------------------------------------------------
@@ -1031,11 +1149,7 @@ initFrame:SetScript("OnEvent", function(self)
                   RelayoutPreviewIcons()
               end },
             (function()
-                local spec = not FOREVER and select(2, UnitClass("player")) == "PALADIN"
-                    and C_SpecializationInfo.GetSpecialization()
-                if not (spec and C_SpecializationInfo.GetSpecializationInfo(spec) == 65) then
-                    return EllesmereUI.BlankRowCfg()
-                end
+                if not BeaconRowShown(parent) then return EllesmereUI.BlankRowCfg() end
                 return { type="toggle", text="Beacon M+ Reminders",
                   tooltip="During Mythic+ boss fights, shows a glowing red Beacon on your tank's raid frame while they have your Beacon of Light or Beacon of Faith.",
                   disabled=function() return not EllesmereUI._ModuleNS["EllesmereUIRaidFrames"] end,
@@ -1650,10 +1764,16 @@ initFrame:SetScript("OnEvent", function(self)
         local warlockHdr
         warlockHdr, h = W:SectionHeader(parent, SECTION_WARLOCK, y);  y = y - h
 
-        _, h = SectionControlRow(parent, y, {
+        -- Where to Show | Allowed Demons, then Wrong Demon | Soulstone.
+        local warlockCtrlRow
+        warlockCtrlRow, h = SectionControlRow(parent, y, {
             whereStore = CWarlockWhere,
             whereTooltip = "Pick which content these Warlock reminders appear in.\nRested areas (cities and inns) always stay hidden.",
             onChange = RefreshAll,
+            rightCfg = { type="dropdown", text="Allowed Demons",
+              tooltip="Pick which demons count as correct for Wrong Demon. A demon only counts while its summon spell is known; with none picked (or everything picked), the reminder never fires.",
+              values={ _placeholder="..." }, order={ "_placeholder" },
+              getValue=function() return "_placeholder" end, setValue=function() end },
         });  y = y - h
 
         local WARLOCK_PET_ITEMS = {}
@@ -1675,14 +1795,6 @@ initFrame:SetScript("OnEvent", function(self)
               tooltip="Show a reminder when your Warlock's active pet isn't one of the demons picked in Allowed Demons. A demon only counts while its summon spell is known, so leaving only Felguard picked stays silent for specs/builds that haven't talented Summon Felguard.",
               getValue=function() local c = CDB(); return c and c.enabled and c.enabled.wrong_pet ~= false end,
               setValue=function(v) local c = CDB(); if c and c.enabled then c.enabled.wrong_pet = v; RefreshAll(); RebuildPreviewHeader() end end },
-            { type="dropdown", text="Allowed Demons",
-              tooltip="Pick which demons count as correct for Wrong Demon. A demon only counts while its summon spell is known; with none picked (or everything picked), the reminder never fires.",
-              values={ _placeholder="..." }, order={ "_placeholder" },
-              getValue=function() return "_placeholder" end, setValue=function() end }
-        );  y = y - h
-
-        local soulstoneRow
-        soulstoneRow, h = W:DualRow(parent, y,
             { type="toggle", text=_G._EABR_SpellName(20707, "Soulstone"),
               tooltip="Show a reminder until your own Soulstone is active on you or another group member.",
               getValue=function() local a = ADB(); return a and a.enabled and a.enabled.soulstone ~= false end,
@@ -1691,19 +1803,18 @@ initFrame:SetScript("OnEvent", function(self)
                   if a and a.enabled then a.enabled.soulstone = v end
                   if _G._EABR_UpdateGroupAuraRegistration then _G._EABR_UpdateGroupAuraRegistration() end
                   RefreshAll(); RebuildPreviewHeader()
-              end },
-            { type="label", text="" }
+              end }
         );  y = y - h
 
         local wcc = RAID_CLASS_COLORS and RAID_CLASS_COLORS.WARLOCK
         if wcc then
+            if warlockCtrlRow._rightRegion._label then warlockCtrlRow._rightRegion._label:SetTextColor(wcc.r, wcc.g, wcc.b, 1) end
             if warlockRow._leftRegion._label then warlockRow._leftRegion._label:SetTextColor(wcc.r, wcc.g, wcc.b, 1) end
             if warlockRow._rightRegion._label then warlockRow._rightRegion._label:SetTextColor(wcc.r, wcc.g, wcc.b, 1) end
-            if soulstoneRow._leftRegion._label then soulstoneRow._leftRegion._label:SetTextColor(wcc.r, wcc.g, wcc.b, 1) end
         end
 
         if not EllesmereUI._prebuilding then
-            local rrgn = warlockRow._rightRegion
+            local rrgn = warlockCtrlRow._rightRegion
             if rrgn._control then rrgn._control:Hide() end
             local petDD, petDDRefresh = EllesmereUI.BuildVisOptsCBDropdown(
                 rrgn, 220, rrgn:GetFrameLevel() + 2, WARLOCK_PET_ITEMS,
@@ -2091,7 +2202,7 @@ initFrame:SetScript("OnEvent", function(self)
         _eabrClickMappings.raidbuff = { section = raidBufHdr, target = raidBufHdr }
         _eabrClickMappings.aura = { section = auraHdr, target = auraHdr }
         _eabrClickMappings.consumable = { section = consumHdr, target = consumFirstRow }
-        _eabrClickMappings["item:soulstone"] = { section = warlockHdr, target = soulstoneRow }
+        _eabrClickMappings["item:soulstone"] = { section = warlockHdr, target = warlockRow }
 
         -- Per-item mappings: grid cells for individual raid buffs / auras
         for k, cell in pairs(_gridCellRefs) do

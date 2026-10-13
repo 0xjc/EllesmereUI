@@ -213,6 +213,10 @@ EllesmereUI.DisabledTooltip = DisabledTooltip
 --  Shared Tooltip  (single frame, lazily created, reused by all widgets)
 -------------------------------------------------------------------------------
 local tooltipFrame
+-- The region the tooltip shows for (weak: never keeps it alive). The options page
+-- pool reads it to drop the tooltip of a region it reset under the cursor.
+local tooltipOwner = setmetatable({}, { __mode = "v" })
+function EllesmereUI._WidgetTooltipOwner() return tooltipOwner[1] end
 
 local function GetTooltipFrame()
     if not tooltipFrame then
@@ -266,6 +270,7 @@ local function ShowWidgetTooltip(label, text, opts)
     -- text may be a function for dynamic text; resolved after suppression checks so it isn't called when nothing will show.
     if type(text) == "function" then text = text() end
     local tt = GetTooltipFrame()
+    tooltipOwner[1] = label
     local MAX_W = 250
     local PAD = 8  -- horizontal padding each side (matches text anchor insets)
     if opts and opts.width then
@@ -384,6 +389,7 @@ end
 
 local function HideWidgetTooltip(instant)
     local tt = GetTooltipFrame()
+    tooltipOwner[1] = nil
     if not tt:IsShown() then return end
     if tt._fadeOutAG then tt._fadeOutAG:Stop() end
     if tt._fadeAG then tt._fadeAG:Stop() end
@@ -468,7 +474,7 @@ local function ApplyAccentLive(r, g, b)
     ELLESMERE_GREEN.r, ELLESMERE_GREEN.g, ELLESMERE_GREEN.b = r, g, b
     UpdateAccentElements(r, g, b)
 
-    -- Cached popups rebuild with the new accent
+    -- The cached confirm popup repaints its accent parts
     EllesmereUI._InvalidateConfirmPopup()
 
     -- Fast path only; a full rebuild would churn memory
@@ -1385,9 +1391,17 @@ do
     -- stable global names; register once, while hidden, after the frame's last
     -- SetScript of OnShow/OnHide (the addon hooks those). Never remove one.
     local padRoots
+    local POOL = EllesmereUI._Pool   -- the core's pool table (EllesmereUI_PixelPerfect.lua)
     function EllesmereUI.RegisterPadFrame(f)
+        if not f or not f:GetName() then return end
+        -- The addon hooks OnShow/OnHide once, and so does the escape-close
+        -- registration (RegisterEscapeClose): on a frame of the options page pool
+        -- those scripts survive the pool's resets, with or without the addon, so
+        -- the code that dresses the frame sets them on its first dress only (dev
+        -- mode reports a later one).
+        if POOL and POOL.ExemptScripts then POOL.ExemptScripts(f, "OnShow", "OnHide") end
         local cp = PadCP()
-        if not cp or not f or not f:GetName() then return end
+        if not cp then return end
         if not padRoots then padRoots = {} end
         if padRoots[f] then return end
         padRoots[f] = true

@@ -819,6 +819,7 @@ initFrame:SetScript("OnEvent", function(self)
                 local TOP_BAR_ICONS = {
                     { key = "bagShowBagsIcon", label = "Bags Icon" },
                     { key = "bagShowJunkIcon", label = "Junk Icon" },
+                    { key = "bagShowQuickIcon", label = "Quick Actions Icon" },
                     { key = "bagShowSortIcon", label = "Sort Icon" },
                 }
                 local leftRgn = iconsRow._leftRegion
@@ -839,6 +840,8 @@ initFrame:SetScript("OnEvent", function(self)
                                 -- An open bank greys (or stops greying) its junk too
                                 local bank = _G.EUI_BankFrame
                                 if bank then bank:RefreshBank() end
+                                -- WoW Forever's Junk Items window lists marked items only while the marker is on
+                                _G.EUI_CategoryManager:OnJunkChanged()
                             else
                                 bags:SyncHeaderIcons()
                             end
@@ -1068,7 +1071,6 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUIDB.bagPinnedItems = nil
                 EllesmereUIDB.bagItemAssignments = nil
                 EllesmereUIDB.bagJunkPrev = nil
-                EllesmereUIDB.goldLedger = nil
                 -- Legacy gold stores: they stay on disk until a gold module loads and absorbs them.
                 EllesmereUIDB.characterGold = nil
                 EllesmereUIDB.dataBarsGold = nil

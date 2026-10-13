@@ -1453,12 +1453,17 @@ local function BuildColorsPage(pageName, parent, yOffset)
     _, h = W:SectionHeader(parent, SECTION_THREAT, y);  y = y - h
 
     -- Show Threat Colors (threatColorMode): Never / Instances (dungeons, raids and
-    -- delves) / Always; an unknown saved value reads as the default. Never locks every
-    -- threat-color control below. The WoW Forever Threat % rows are their own feature
-    -- and stay live.
+    -- delves) / Group or Pet ("always": everywhere) / Always ("alwaysSolo"); an unknown
+    -- saved value reads as the default. Never locks every threat-color control below.
+    -- The WoW Forever Threat % rows are their own feature and stay live. Under the first
+    -- two, damage dealers and healers get the colors in a group or with a pet out; Always
+    -- drops that rule. On WoW Forever the tank shapes and Righteous Fury count as tanking
+    -- while nobody in the group has the tank role.
     local function threatModeGet()
         local v = DBVal("threatColorMode")
-        if v ~= "never" and v ~= "instances" and v ~= "always" then v = defaults.threatColorMode end
+        if v ~= "never" and v ~= "instances" and v ~= "always" and v ~= "alwaysSolo" then
+            v = defaults.threatColorMode
+        end
         return v
     end
     local function threatNever() return threatModeGet() == "never" end
@@ -1466,9 +1471,9 @@ local function BuildColorsPage(pageName, parent, yOffset)
     -- Row 1: Show Threat Colors (left) ---- Tank Threat (right)
     _, h = W:DualRow(parent, y,
         { type="dropdown", text="Show Threat Colors",
-          tooltip="Where nameplates use the threat colors below. Instances covers dungeons, raids and delves.",
-          values={ never="Never", instances="Instances", always="Always" },
-          order={ "never", "instances", "always" },
+          tooltip="Where nameplates show threat colors.",
+          values={ never="Never", instances="Instances", always="Group or Pet", alwaysSolo="Always" },
+          order={ "never", "instances", "always", "alwaysSolo" },
           getValue=threatModeGet,
           setValue=function(v)
             DB().threatColorMode = v

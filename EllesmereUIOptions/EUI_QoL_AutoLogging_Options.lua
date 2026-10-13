@@ -326,6 +326,14 @@ local function BuildAutoLoggingPage(pageName, parent, yOffset)
     _, h = W:Spacer(parent, y, 20); y = y - h
 
     ---------------------------------------------------------------------------
+    --  ALERTS (Combat Alert, Potion Ready, Unspent Talents; one shared anchor)
+    ---------------------------------------------------------------------------
+    if _G._EUI_BuildAlertsSection then
+        local alertsH = _G._EUI_BuildAlertsSection(parent, y, W, EllesmereUI.PP)
+        y = y - alertsH
+    end
+
+    ---------------------------------------------------------------------------
     --  BATTLE RES (no shared battle res charges on WoW Forever: the indicator
     --  runtime builds nothing there and the section is not built)
     ---------------------------------------------------------------------------
@@ -342,12 +350,6 @@ local function BuildAutoLoggingPage(pageName, parent, yOffset)
         local lustH = _G._EUI_BuildBloodlustSection(parent, y, W, EllesmereUI.PP)
         y = y - lustH
     end
-
-    ---------------------------------------------------------------------------
-    --  JUNK ITEMS (the cheapest junk stacks in your bags; the builder's file
-    --  loads first and shares this file's module gate)
-    ---------------------------------------------------------------------------
-    y = y - _G._EUI_BuildJunkListSection(parent, y, W)
 
     return math.abs(y - yOffset)
 end

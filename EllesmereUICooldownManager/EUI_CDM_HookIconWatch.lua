@@ -789,10 +789,12 @@ do
                     { 50769, 212040 })  -- Revive, Revitalize
                 Add({ forms = beasts, formTalents = { [CAT] = { FELINE_ADEPT }, [BEAR] = { URSINE_ADEPT } } },
                     { 2782, 440015, 88423, 29166 })  -- Remove Corruption (both), Nature's Cure, Innervate
-                -- 69369 Predatory Swiftness (talent 16974), 372152 Dream of Cenarius (talent 372119)
-                casterRules[8936] = { forms = beasts,
+                -- 69369 Predatory Swiftness (talent 16974), 372152 Dream of Cenarius (talent 372119).
+                -- overlay: Predatory Swiftness lights the spell, so while the auras
+                -- cannot be read (combat) its proc highlight decides (CasterOutside).
+                casterRules[8936] = { forms = beasts, overlay = true,
                     procs = { [SWIFTNESS] = SWIFTNESS, [69369] = 16974, [372152] = 372119 } }  -- Regrowth
-                casterRules[339] = { forms = beasts, talents = { 202226 },
+                casterRules[339] = { forms = beasts, talents = { 202226 }, overlay = true,
                     procs = { [SWIFTNESS] = SWIFTNESS, [69369] = 16974 } }  -- Entangling Roots; 202226 Entangling Claws
                 -- Lunar Inspiration (Feral) in Cat; Celestial Guardian (Balance PvP talent) in Bear
                 Add({ forms = beasts, formTalents = { [CAT] = { 155580 }, [BEAR] = { URSINE_ADEPT, 233754 } } },
@@ -959,8 +961,10 @@ do
     end
 
     -- The rule's answer for this form: true when the spell cannot be cast
-    -- here now. An exception that cannot be read permits it.
-    local function CasterOutside(rule, form)
+    -- here now. An exception that cannot be read permits it, except on a rule
+    -- whose proc lights the spell (rule.overlay): there the spell's proc
+    -- highlight, readable in combat too, decides.
+    local function CasterOutside(rule, form, sid)
         if not rule.forms[form] then return false end
         if Permits(rule.talents) or (rule.formTalents and Permits(rule.formTalents[form])) then return false end
         local uncertain = false
@@ -974,6 +978,10 @@ do
                     if active == nil then uncertain = true end
                 end
             end
+        end
+        if uncertain and rule.overlay then
+            local lit = C_SpellActivationOverlay.IsSpellOverlayed(sid)
+            if not issecretvalue(lit) and type(lit) == "boolean" then return not lit end
         end
         return not uncertain
     end
@@ -1072,7 +1080,7 @@ do
         local form = ns.CdmCurrentFormID()
         if form == nil then return false end
         local rule = CasterRule(sid)
-        local casterOutside = rule and CasterOutside(rule, form)
+        local casterOutside = rule and CasterOutside(rule, form, sid)
         if rule and rule.procs and rule.forms[form] and procSeen[sid] ~= casterOutside then
             -- An exception aura coming or going can recolor the form line
             procSeen[sid] = casterOutside
@@ -1237,7 +1245,7 @@ local function EvalCdStateChargeFrame(frame, fd)
         return
     end
     local ssw = ResolveSpellSettings(frame, sidw, ns.GetBarSpellData(bkw))
-    local csew = ns.GetSpellCdStateEffect(frame, ssw)
+    local csew = ns.CdStateHideOf(ssw, frame)
     if csew ~= "hiddenReady" and csew ~= "hiddenReadyShift" then
         -- Effect changed or cleared: the desat hook owns every other mode.
         ns._cdStateChargeWatch[frame] = nil
@@ -1290,7 +1298,8 @@ end
 --  which retries form answers that were secret). A druid exception aura
 --  (Predatory Swiftness, Nature's Swiftness) changes an answer within a form:
 --  the player's UNIT_AURA payload shows one coming or going, and only then
---  do the icons whose rules hang on it re-evaluate. Each event is registered
+--  do the icons whose rules hang on it re-evaluate (a proc highlight coming
+--  or going too, which decides while auras are secret). Each event is registered
 --  only while an icon runs its mode; a burst folds into one pass on the next
 --  frame, which re-resolves each watched icon (an icon whose mode, spell or
 --  owner changed leaves the set) and re-arms the shared evaluator. The set
@@ -1303,7 +1312,19 @@ do
     local flushedForm  -- the form ID the last pass evaluated
 
     local function SyncEvents(usable, form, aura)
-        auraOn = aura == true
+        aura = aura == true
+        if aura ~= auraOn then
+            -- A proc highlight coming or going decides an overlay rule while
+            -- its auras cannot be read (CasterOutside).
+            if aura then
+                eventFrame:RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_SHOW")
+                eventFrame:RegisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_HIDE")
+            else
+                eventFrame:UnregisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_SHOW")
+                eventFrame:UnregisterEvent("SPELL_ACTIVATION_OVERLAY_GLOW_HIDE")
+            end
+        end
+        auraOn = aura
         if usable ~= usableOn then
             usableOn = usable
             if usable then eventFrame:RegisterEvent("SPELL_UPDATE_USABLE")
@@ -1344,7 +1365,7 @@ do
             -- Same ownership guards as the SetDesaturated hook.
             if fd and sid and bk and bk:sub(1, 7) ~= "__ghost" and bk ~= ns.FOCUSKICK_BAR_KEY
                and not (ns.PresetHasCdState and ns.PresetHasCdState(frame)) then
-                local cse = ns.GetSpellCdStateEffect(frame, ResolveSpellSettings(frame, sid, false))
+                local cse = ns.CdStateHideOf(ResolveSpellSettings(frame, sid, false), frame)
                 m = cse and ns.CD_STATE_HIDE[cse]
             end
             if m and (m.usable or m.form) then
@@ -1378,8 +1399,12 @@ do
             flushFrame:SetScript("OnUpdate", Flush)
             eventFrame = ns.TakeShell()
             eventFrame:SetScript("OnEvent", function(_, event, _, updateInfo)
-                local auraOnly = event == "UNIT_AURA" and ns.CdmCurrentFormID() == flushedForm
-                if auraOnly then
+                local overlay = event == "SPELL_ACTIVATION_OVERLAY_GLOW_SHOW"
+                    or event == "SPELL_ACTIVATION_OVERLAY_GLOW_HIDE"
+                local auraOnly = overlay or (event == "UNIT_AURA" and ns.CdmCurrentFormID() == flushedForm)
+                if overlay then
+                    -- Only the icons whose rules hang on exception auras re-read
+                elseif auraOnly then
                     -- Same form: only an exception aura coming or going counts
                     if not (auraOn and ns.CdmFormAuraEdge(updateInfo, "watch")) then return end
                 elseif event ~= "SPELL_UPDATE_USABLE" then
@@ -1447,9 +1472,12 @@ end
 --  SetVertexColorFromBoolean on Blizzard's own out-of-range flag, so red still
 --  wins and a secret range answer in instanced content needs no Lua test.
 --  Nothing is hooked or read until some spell uses the setting
---  (ns._cdmAnyNoResourceTint); each icon is hooked on its first pass after
---  that. Turning it off repaints Blizzard's tint once from the reads its
---  RefreshIconColor makes, never by calling that insecurely.
+--  (ns._cdmAnyNoResourceTint), and an icon is hooked only on a pass that finds
+--  its own spell using it: DecorateFrame on every (re)claim, the appearance
+--  refresh after a settings change and the swipe hook's gate run this again
+--  for an icon that gets such a spell later. Turning it off repaints
+--  Blizzard's tint once from the reads its RefreshIconColor makes, never by
+--  calling that insecurely.
 -------------------------------------------------------------------------------
 local RES_WHITE = CreateColor(1, 1, 1, 1)
 local resRed, resPower, resGrey
@@ -1483,6 +1511,14 @@ local function ApplyResourceTint(frame, fd, fromBlizzard)
     if not tex or fd._isBuffViewerFrame then return end
     -- Our own frames paint their tint themselves (ns.PaintCustomSpellTint).
     if ns.CdmIsInjectedFrame and ns.CdmIsInjectedFrame(frame) then return end
+    local fc = _ecmeFC[frame]
+    local sid = fc and fc.spellID
+    if not sid or not (fc and fc.barKey) then return end
+    local ss = ResolveSpellSettings(frame, sid, false)
+    local want = ss and ss.noResourceTint
+    if not want and not fd._resTintOn then return end
+    -- Hooked only once the icon's own spell uses the setting (a lit tint
+    -- means the hook is already in).
     if not fd._resTintHooked then
         fd._resTintHooked = true
         hooksecurefunc(tex, "SetVertexColor", function()
@@ -1490,12 +1526,6 @@ local function ApplyResourceTint(frame, fd, fromBlizzard)
             ApplyResourceTint(frame, fd, true)
         end)
     end
-    local fc = _ecmeFC[frame]
-    local sid = fc and fc.spellID
-    if not sid or not (fc and fc.barKey) then return end
-    local ss = ResolveSpellSettings(frame, sid, false)
-    local want = ss and ss.noResourceTint
-    if not want and not fd._resTintOn then return end
     local liveSid = sid
     if C_SpellBook and C_SpellBook.FindSpellOverrideByID then
         liveSid = C_SpellBook.FindSpellOverrideByID(sid) or sid

@@ -1862,6 +1862,64 @@ ns.UF_CastbarBelowFrame = CastbarBelowFrame
 -- the live frames (EllesmereUIOptions/EUI_UnitFrames_Options.lua).
 EllesmereUI.UF_CastbarBelowFrame = CastbarBelowFrame
 
+-- A frame edge read as a plain number, or nil when it is unset or secret, so the
+-- reserve below degrades to 0 instead of erroring on arithmetic.
+local function secretNum(v)
+    if v == nil or issecretvalue(v) then return nil end
+    return v
+end
+
+-- How far the Resource Bars stack hangs below the PLAYER frame, in the frame's LOCAL
+-- units (so it composes with the cast bar's -cbH). Resource Bars hands over the
+-- stack's per-bar rects (EllesmereUI.ERB_PlayerStackBars: physical pixels, steady
+-- through the combat/target/group visibility modes); this reserves the span down to
+-- the lowest bar actually DOCKED under the frame, walking the chain so a bar sitting
+-- elsewhere is never reserved.
+local function ResourceStackBelowFrame(unit, frame)
+    if unit ~= "player" then return 0 end
+    frame = frame or _G[CB_FRAME_NAMES.player]
+    local getBars = EllesmereUI.ERB_PlayerStackBars
+    if not (frame and getBars) then return 0 end
+    local bars = getBars()
+    if not bars then return 0 end
+    local fl = secretNum(frame:GetLeft())
+    local fr = secretNum(frame:GetRight())
+    local fb = secretNum(frame:GetBottom())
+    if not (fl and fr and fb) then return 0 end
+    local fs = frame:GetEffectiveScale() or 1
+    if fs == 0 then fs = 1 end
+    fl, fr, fb = fl * fs, fr * fs, fb * fs -- physical, matching the bar rects
+    -- Walk the chain of bars actually DOCKED under the frame. Each must overlap the
+    -- frame horizontally and dock to the boundary above it (the frame bottom first,
+    -- then each docked bar's bottom). "Docked" mirrors CastbarBelowFrame: the gap from
+    -- the boundary down to the bar's top is less than the bar's own height, and overlap
+    -- up into the boundary is allowed within CB_STRIP_SLACK. A bar placed elsewhere
+    -- (e.g. a bottom-center class resource while the power bar is docked) never joins
+    -- the chain, so it is not reserved and the auras do not chase it down.
+    local boundary, lowest, used = fb, nil, {}
+    while true do
+        local best, bestT, bestI
+        for i = 1, #bars do
+            local b = bars[i]
+            if b and not used[i] and b.l < fr and b.r > fl then
+                local h = b.t - b.b
+                local drop = boundary - b.t
+                if h > 0 and drop < h and drop >= -CB_STRIP_SLACK then
+                    if not bestT or b.t > bestT then best, bestT, bestI = b, b.t, i end
+                end
+            end
+        end
+        if not best then break end
+        used[bestI] = true
+        if not lowest or best.b < lowest then lowest = best.b end
+        boundary = best.b
+    end
+    if not lowest then return 0 end
+    local gap = fb - lowest
+    if gap <= 0 then return 0 end
+    return gap / fs
+end
+
 -- Blizzard Style: point the frame's aura block (ns.UF_BlizzAuraBlock, the
 -- edge a cast bar linked under the frame follows) at the lowest
 -- bottom-anchored stack. `container` nil = this display is off; `ia` is its
@@ -1895,7 +1953,10 @@ end
 -- ox + userX, oy + castbarPush + userY) with gap = 1.
 -- buffContainer (HARMFUL calls only): the unit's buff container, needed by
 -- the Anchor Buffs with Debuffs mode below.
-local function AnchorContainer(container, frame, unit, base, s, buffContainer)
+-- reanchorOnly (the footprint-watcher re-anchor path): re-run ONLY the geometry --
+-- SetPoint + aura-block point -- and skip the one-time weapon-enchant declaration
+-- below, which must not be re-issued every settle frame (the engine has no unregister).
+local function AnchorContainer(container, frame, unit, base, s, buffContainer, reanchorOnly)
     local isBuff = (base == "HELPFUL")
 
     -- Boss simple side display: forced side anchoring flush with the frame
@@ -1984,6 +2045,19 @@ local function AnchorContainer(container, frame, unit, base, s, buffContainer)
         if not cbH or cbH <= 0 then cbH = 14 end
         cbOff = -cbH
     end
+    -- Resource Bars stack (power bar / class resource / Forever shapeshift mana)
+    -- below the player frame: reserve down to its bottom edge the same way, and keep
+    -- whichever reserve reaches LOWER (the cast bar may sit above or below it). Same
+    -- bottom-anchor + non-Blizzard-aspect gate as the cast bar; player-only inside
+    -- ResourceStackBelowFrame. CfgFP leaves this value out: a stack footprint change
+    -- re-runs this anchor through the re-anchor Resource Bars arms (further down).
+    if (anchor == "bottomleft" or anchor == "bottomright")
+        and not (vl and CB_FRAME_NAMES[unit] and ns.UF_LayoutAspectOK and ns.UF_LayoutAspectOK()) then
+        local resReserve = ResourceStackBelowFrame(unit, frame)
+        if resReserve > 0 and -resReserve < cbOff then
+            cbOff = -resReserve
+        end
+    end
 
     local offX = Pick(isBuff, s.buffOffsetX, s.debuffOffsetX) or 0
     local offY = Pick(isBuff, s.buffOffsetY, s.debuffOffsetY) or 0
@@ -2059,7 +2133,7 @@ local function AnchorContainer(container, frame, unit, base, s, buffContainer)
         -- mode (this pass re-runs on a chain change and when the row turns
         -- on), and -- the engine has no addon-facing unregister -- kept until
         -- the next /reload should the row or the mode turn off again.
-        if unit == "player" and isBuff and SideOn(unit, base, s)
+        if not reanchorOnly and unit == "player" and isBuff and SideOn(unit, base, s)
             and (s.buffShowAll ~= false or s.buffHasDuration == true) then
             local PP = EllesmereUI.PP
             local w, h = ElementSize(unit, base, s)
@@ -2443,7 +2517,7 @@ local function ApplyGroupConfig(container, unit, base, s, chain, declared)
             local n = num
             if impKeys and impKeys[eff] then n = s.maxImportantDebuffs or num end
             if (hiddenKeys and hiddenKeys[eff]) or (incPark and incKeys[eff]) then n = 0 end
-            container:SetAuraGroupMaxFrameCount(eff, n)
+            EllesmereUI.AuraKit.SetGroupCap(container, eff, n)
             -- Filter strings follow the CURRENT chain too: a plain key's tokens
             -- depend on which earlier token classes are enabled, so a group first
             -- declared under another set would keep a stale string (a debuff shown
@@ -2478,7 +2552,7 @@ local function ApplyGroupConfig(container, unit, base, s, chain, declared)
                 container:SetAuraGroupLayout(eff, layout)
             end
         else
-            container:SetAuraGroupMaxFrameCount(eff, 0)
+            EllesmereUI.AuraKit.SetGroupCap(container, eff, 0)
         end
     end
 
@@ -2543,6 +2617,10 @@ local function CfgFP(unit, base, s, frame)
         mAB and s.debuffOffsetX or nil, mAB and s.debuffOffsetY or nil,
         mAB and s.debuffSpacingY or nil,
         CastbarBelowFrame(unit, frame),
+        -- (The Resource Bars stack reserve is deliberately NOT in this fingerprint:
+        -- AnchorContainer reads it live whenever it runs, and a footprint change is
+        -- re-anchored by the Resource-Bars-armed throttle below -- not by forcing a full
+        -- restyle here on every geometry shift.)
         -- Tracked Auras lists: ApplyGroupConfig reads both (the shared
         -- excludes), and TRI-STATE flips don't move the chain sig -- an
         -- entry's enable checkbox must re-drive this pass. The caster-scope
@@ -3170,6 +3248,55 @@ function ns.UF_ReloadAuraContainers(frame, unit)
         -- Re-parse on pet swaps only while the pet's EllesmereUI frame shows
         -- buffs or debuffs.
         PetSwap.Sync(anyOn and ns.GetUnitFrameSource("pet") == "eui")
+    end
+end
+
+-- Resource-stack re-anchor (event-free). Bottom-anchored player auras reserve the
+-- Resource Bars stack hanging below the frame (power / class resource / shapeshift
+-- mana). Its footprint only changes on build / spec / form / expand / shift / options
+-- -- all of which converge on Resource Bars' BuildBars(). Rather than have UnitFrames
+-- watch a pile of game events, Resource Bars ARMS this one-shot throttle at the end of
+-- BuildBars via EllesmereUI.UF_RequestResourceReanchor(). Arming reads no geometry; the
+-- throttle's OnUpdate re-anchors once on the next frame, after the build has settled,
+-- then disarms. Mirrors the reloadThrottle pattern in EllesmereUIUnitFrames.lua. Zero cost when idle:
+-- no registered events, and non-bottom-anchored players never arm anything. Per-bar
+-- VISIBILITY modes (combat/target/group alpha) are intentionally NOT handled -- the
+-- footprint (ERB_PlayerStackBars) is predicate-based, so alpha toggles do not move it.
+do
+    local function BottomAnchored(a) return a == "bottomleft" or a == "bottomright" end
+    local function PlayerWantsStackReserve()
+        if not EllesmereUI.ERB_PlayerStackBars then return false end
+        local s = SettingsFor("player")
+        return s ~= nil and (BottomAnchored(s.debuffAnchor) or BottomAnchored(s.buffAnchor))
+    end
+    -- Cheap re-anchor: only the two player containers' SetPoint offsets change when the
+    -- footprint moves, so re-run just AnchorContainer (reanchorOnly -- folds in
+    -- ResourceStackBelowFrame, skips style/chain/group), never a full reload. Buffs first
+    -- so a merged debuff rides a positioned buff container. Self-skips non-bottom anchors.
+    local function reanchorPlayer()
+        local entry = registry.player
+        local frame = entry and entry.frame
+        if not frame or entry.building then return end
+        local s = SettingsFor("player")
+        if not s then return end
+        if entry.buffs then AnchorContainer(entry.buffs, frame, "player", "HELPFUL", s, entry.buffs, true) end
+        if entry.debuffs then AnchorContainer(entry.debuffs, frame, "player", "HARMFUL", s, entry.buffs, true) end
+    end
+    local pending = false
+    local throttle = CreateFrame("Frame")
+    throttle:Hide()
+    throttle:SetScript("OnUpdate", function(self)
+        self:Hide()            -- disarm FIRST so we fire exactly once per arm (an error
+        pending = false        -- below then cannot latch it)
+        reanchorPlayer()
+    end)
+    -- Armed (by Resource Bars' BuildBars, or anyone) when the footprint may have changed.
+    -- Coalesces many arms in one frame into a single re-anchor; gated so idle/irrelevant
+    -- configs do nothing and register nothing.
+    function EllesmereUI.UF_RequestResourceReanchor()
+        if pending or not PlayerWantsStackReserve() then return end
+        pending = true
+        throttle:Show()
     end
 end
 

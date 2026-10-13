@@ -488,7 +488,7 @@ local itemWatch                 -- GET_ITEM_INFO_RECEIVED, registered only while
 local function ApplyLabelFonts(d)
     local path = FontPath()
     local size = DB("charSheetUpgradeTrackSize") or 11
-    local flags = DB("charSheetUpgradeTrackOutline") and "OUTLINE, SLUG" or ""
+    local flags = DB("charSheetUpgradeTrackOutline") and EllesmereUI.SlugFlag("OUTLINE, SLUG") or ""
     EllesmereUI.PrimeFontShadow(d.stats, DB("charSheetUpgradeTrackShadow"))
     d.stats:SetFont(path, size, flags)
     if d.dps then
@@ -706,7 +706,7 @@ local function PaintSlotText(slot)
     if name ~= "" then
         local size = DB("charSheetEnchantSize") or 9
         if DB("charSheetEnchantNames") then
-            ench:SetFont(FontPath(), size, "OUTLINE, SLUG")
+            ench:SetFont(FontPath(), size, EllesmereUI.SlugFlag("OUTLINE, SLUG"))
             ench:SetTextColor(r + (1 - r) * 0.5, g + (1 - g) * 0.5, b + (1 - b) * 0.5, 0.9)
         else
             ench:SetFont(FontPath(), size, "")

@@ -24,6 +24,7 @@ local _activeCache, _activeStacksCache = I._activeCache, I._activeStacksCache
 local _smHookedIcons, SwiftmendEnabled = I._smHookedIcons, I.SwiftmendEnabled
 local ProcessPresetCooldowns = I.ProcessPresetCooldowns
 local CollectAndReanchor, UpdateCustomBuffBars = I.CollectAndReanchor, I.UpdateCustomBuffBars
+local RestoreBuffAnchors = I.RestoreBuffAnchors
 
 local reanchorDirty = false
 local reanchorFrame = nil
@@ -389,6 +390,9 @@ function ns.SetupViewerHooks()
     local _lastDirectReanchor = 0
     local DIRECT_REANCHOR_GUARD = 0.05
     local function DirectBuffReanchor()
+        -- The icons Blizzard just placed go back to our bars now that the
+        -- viewer has measured itself, whatever the throttle below decides.
+        RestoreBuffAnchors()
         local now = GetTime()
         if now - _lastDirectReanchor < DIRECT_REANCHOR_GUARD then return end
         _lastDirectReanchor = now
@@ -569,6 +573,12 @@ function ns.SetupViewerHooks()
                                 local buffPresent = isActiveBuff
                                     or (bd.barType == "custom_buff" and frame:IsShown())
                                 local glowActive = buffPresent
+                                -- Glow When Visible: lit exactly while the icon paints (a Show
+                                -- When Missing placeholder, an Always Show icon, a present buff).
+                                if fd and fd._bgVisible then
+                                    glowActive = not (fc and (fc._missingActiveHidden or fc._cdStateHidden))
+                                        and not ns.IsPlaceholderRenderHidden(frame, bd)
+                                end
                                 -- Glow at Stacks REPLACES the presence glow for
                                 -- thresholded icons: route to the gate instead.
                                 if fd and fd._bgThreshold then
@@ -580,6 +590,8 @@ function ns.SetupViewerHooks()
                                 -- the bar's Buff Glow. nil override => inherit; 0 => None.
                                 local effGlowType = buffGlowType
                                 if fd and fd._bgT ~= nil then effGlowType = fd._bgT end
+                                -- Glow When Visible always needs a style: None / Default use Modern WoW Glow.
+                                if effGlowType <= 0 and fd and fd._bgVisible then effGlowType = 6 end
                                 if effGlowType > 0 and fd and glowActive then
                                     if not fd.buffGlowOverlay then
                                         local ov = CreateFrame("Frame", nil, frame)
