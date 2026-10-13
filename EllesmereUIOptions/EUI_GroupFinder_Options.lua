@@ -1,0 +1,222 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_GroupFinder_Options.lua  --  Settings page for the Group Finder
+-------------------------------------------------------------------------------
+local ADDON_NAME = "EllesmereUIGroupFinder"
+local ns = EllesmereUI._ModuleNS[ADDON_NAME]  -- module namespace (published by the module at its load)
+if not ns then return end  -- module disabled: no options page
+local EUI = EllesmereUI
+
+local PAGE_SEARCH = "Premade Search"
+
+local initFrame = CreateFrame("Frame")
+initFrame:RegisterEvent("PLAYER_LOGIN")
+initFrame:SetScript("OnEvent", function(self)
+    self:UnregisterEvent("PLAYER_LOGIN")
+    if not EUI.RegisterModule then return end
+    local function Cfg() return ns.Cfg() end
+    local function Get(key, fallback)
+        local c = Cfg()
+        local v = c and c[key]
+        if v == nil then return fallback end
+        return v
+    end
+    local function Set(key, val, relayout)
+        local c = Cfg()
+        if c then c[key] = val end
+        if relayout and ns.Search_Layout then ns.Search_Layout() end
+    end
+
+    local AddAppsSections   -- the Applications card's settings, at the page's end (below)
+
+    local function BuildSearchPage(pageName, parent, yOffset)
+        local W = EUI.Widgets
+        local y = yOffset
+        local _, h
+
+        if EUI.ClearContentHeader then EUI:ClearContentHeader() end
+        parent._showRowDivider = true
+
+        -- Everything here is off until enabled; turning it on or off reloads.
+        _, h = W:SectionHeader(parent, "GROUP FINDER", y); y = y - h
+        _, h = W:DualRow(parent, y,
+            { type = "toggle", text = "Enable Group Finder",
+              tooltip = "Premade Groups search filters, group list and applicant tools, the M+ applications bar and the Dungeon Finder / Raid Finder layout in the Dungeons & Raids window. Requires a reload.",
+              getValue = function() return ns.Enabled() end,
+              setValue = function(v)
+                  ns.SetEnabled(v and true or false)
+                  EUI.RequestReload()
+              end },
+            EUI.BlankRowCfg());  y = y - h
+
+        -- Result rows and tooltip (refreshed on the next list update).
+        local function Toggle(key, text, tooltip, default, disabled, disabledTooltip)
+            return { type = "toggle", text = text, tooltip = tooltip,
+                disabled = disabled, disabledTooltip = disabledTooltip,
+                getValue = function() return Get(key, default) ~= false end,
+                setValue = function(v)
+                    Set(key, v and true or false)
+                    local SP = LFGListFrame and LFGListFrame.SearchPanel
+                    if SP and SP:IsShown() and LFGListSearchPanel_UpdateResultList then LFGListSearchPanel_UpdateResultList(SP) end
+                    EUI:RefreshPage()
+                end }
+        end
+        local function RatingOff() return Get("leaderRating", true) == false end
+
+        -- Colored names, leader rating, missing roles, specialization, leader
+        -- crown and the sign-up options are in the Group Settings menu on the
+        -- search panel (the person button at the start of its second row).
+        _, h = W:SectionHeader(parent, "GROUP LIST", y); y = y - h
+        _, h = W:DualRow(parent, y,
+            Toggle("classTooltip", "Members in Tooltip",
+                "For groups whose tooltip has no member list (raids and others), the tooltip lists every member on its own line: role, specialization and class, and name.", true),
+            Toggle("rioColors", "Raider.IO Rating Colors",
+                "Show the leader rating in Raider.IO's colours while the Raider.IO addon is loaded (otherwise Blizzard's rating colours).", true,
+                RatingOff, "Leader Rating (Group Settings menu)"));  y = y - h
+        _, h = W:DualRow(parent, y,
+            { type = "slider", text = "Role Icon Size", min = 100, max = 160, step = 5,
+              tooltip = "Size of the role / specialization icons in the group list, in % of Blizzard's size. The group and activity names get shorter to make room.",
+              getValue = function() return Get("iconSize", 125) end,
+              setValue = function(v)
+                  Set("iconSize", v)
+                  local SP = LFGListFrame and LFGListFrame.SearchPanel
+                  if SP and SP:IsShown() and LFGListSearchPanel_UpdateResultList then LFGListSearchPanel_UpdateResultList(SP) end
+              end },
+            { type = "toggle", text = "Member Names in Tooltip",
+              tooltip = "The group tooltip lists every member's name, in class colour, beside Blizzard's member lines.",
+              getValue = function() return Get("memberNames", true) ~= false end,
+              setValue = function(v) Set("memberNames", v and true or false) end });  y = y - h
+
+        _, h = W:SectionHeader(parent, "APPLICANTS", y); y = y - h
+        _, h = W:DualRow(parent, y,
+            { type = "toggle", text = "Score and Progress Columns",
+              tooltip = "Your applicant list shows each applicant's Mythic+ score (Raider.IO's while it is loaded) after iLvl, and for raid listings their best progress in that raid (for example 4/8m). Mythic+ listings keep Blizzard's own Rating column instead.",
+              getValue = function() return Get("applicantColumns", true) ~= false end,
+              setValue = function(v) Set("applicantColumns", v and true or false) end },
+            EUI.BlankRowCfg());  y = y - h
+
+        y = AddAppsSections(parent, y)
+
+        _, h = W:Spacer(parent, y, 20); y = y - h
+        parent:SetHeight(math.abs(y - yOffset))
+        return math.abs(y - yOffset)
+    end
+
+    -----------------------------------------------------------------------
+    --  Applications settings (the counter card: Applications.lua)
+    -----------------------------------------------------------------------
+    local function APCfg() return ns.AppsCfg() end
+    local function APGet(key, default)
+        local c = APCfg()
+        local v = c and c[key]
+        if v == nil then return default end
+        return v
+    end
+    local function APSet(key, val)
+        local c = APCfg()
+        if c then c[key] = val end
+        if ns.ApplyApplications then ns.ApplyApplications() end
+    end
+    local function APOff() return APGet("enabled", true) == false end
+    local function APToggle(text, key, default, tooltip)
+        return { type="toggle", text=text, tooltip=tooltip,
+                 disabled=APOff, disabledTooltip="Show in Dungeons & Raids",
+                 getValue=function() return APGet(key, default) == true end,
+                 setValue=function(v) APSet(key, v and true or false) end }
+    end
+
+    AddAppsSections = function(parent, y)
+        local W = EUI.Widgets
+        local row, h
+
+        row, h = W:SectionHeader(parent, "APPLICATIONS", y); y = y - h
+
+        local scopeValues = { session = "Session", character = "Character", account = "Account" }
+        row, h = W:DualRow(parent, y,
+            { type="toggle", text="Show in Dungeons & Raids",
+              tooltip="A bar at the top of the Dungeons & Raids sidebar counting your Mythic+ (Dungeons) Group Finder applications and how they ended, each count inside its part of the bar. Raids, delves and other groups are not counted.",
+              getValue=function() return APGet("enabled", true) ~= false end,
+              setValue=function(v) APSet("enabled", v and true or false); EUI:RefreshPage() end },
+            { type="dropdown", text="Counts Shown",
+              tooltip="Which totals the card shows. Hover the card for all three.",
+              values=scopeValues, order={ "session", "character", "account" },
+              disabled=APOff, disabledTooltip="Show in Dungeons & Raids",
+              getValue=function() return APGet("scope", "character") end,
+              setValue=function(v) APSet("scope", v) end });  y = y - h
+
+        row, h = W:SectionHeader(parent, "APPLICATIONS BAR", y); y = y - h
+
+        local tex, names, order = EUI.BuildBarTextureTables()
+        local texValues, texOrder = {}, {}
+        for _, key in ipairs(order) do
+            if key ~= "---" then
+                texValues[key] = names[key] or key
+                texOrder[#texOrder + 1] = key
+            end
+        end
+        texValues._menuOpts = { itemHeight = 28, background = function(key) return tex[key] end }
+        row, h = W:DualRow(parent, y,
+            { type="dropdown", text="Bar Texture", values=texValues, order=texOrder,
+              disabled=APOff, disabledTooltip="Show in Dungeons & Raids",
+              getValue=function() return APGet("texture", "none") end,
+              setValue=function(v) APSet("texture", v) end },
+            EUI.BlankRowCfg());  y = y - h
+
+        row, h = W:SectionHeader(parent, "APPLICATION VISIBILITY", y); y = y - h
+        row, h = W:DualRow(parent, y,
+            APToggle("Accepted", "showAccepted", true, "Invites you accepted."),
+            APToggle("Declined", "showDeclined", true, "Declined by the leader, the group filled, or the application timed out."));  y = y - h
+        row, h = W:DualRow(parent, y,
+            APToggle("Delisted", "showDelisted", true, "The group was delisted before answering."),
+            APToggle("Cancelled", "showCancelled", true, "You cancelled the application."));  y = y - h
+
+        row, h = W:SectionHeader(parent, "RESET APPLICATION COUNTS", y); y = y - h
+        do
+            local PPn = EUI.PanelPP
+            local BTN_W, BTN_H, GAP = 200, 32, 20
+            local ROW_H = BTN_H + 16
+            local rowFrame = CreateFrame("Frame", nil, parent)
+            local totalW = parent:GetWidth() - EUI.CONTENT_PAD * 2
+            PPn.Size(rowFrame, totalW, ROW_H)
+            PPn.Point(rowFrame, "TOPLEFT", parent, "TOPLEFT", EUI.CONTENT_PAD, y)
+            local defs = {
+                { "Reset Session", "session" },
+                { "Reset Character", "character" },
+                { "Reset Account", "account" },
+            }
+            for i, d in ipairs(defs) do
+                local b = CreateFrame("Button", nil, rowFrame)
+                PPn.Size(b, BTN_W, BTN_H)
+                PPn.Point(b, "CENTER", rowFrame, "CENTER", (i - 2) * (BTN_W + GAP), 0)
+                b:SetFrameLevel(rowFrame:GetFrameLevel() + 1)
+                EUI.MakeStyledButton(b, d[1], 13, EUI.WB_COLOURS, function()
+                    EUI:ShowConfirmPopup({
+                        title = d[1],
+                        message = ("Reset the %s application counts to zero?"):format(d[2]),
+                        confirmText = "Reset", cancelText = "Cancel",
+                        onConfirm = function()
+                            if ns.ResetApplications then ns.ResetApplications(d[2]) end
+                        end,
+                    })
+                end)
+            end
+            y = y - ROW_H
+        end
+        return y
+    end
+
+    EUI:RegisterModule(ADDON_NAME, {
+        title       = "Group Finder",
+        description = "Premade Groups search filters, group list and applicant tools in the Dungeons & Raids window.",
+        pages       = { PAGE_SEARCH },
+        buildPage   = BuildSearchPage,
+        onReset     = function()
+            ns.ResetSettings()
+            if ns.Search_Layout then ns.Search_Layout() end
+            if ns.Search_ApplySignUp then ns.Search_ApplySignUp() end
+            if ns.ApplyApplications then ns.ApplyApplications() end
+        end,
+    })
+end)
+-- LoadOnDemand: this addon loads after PLAYER_LOGIN, so the event above will never fire; run the init now.
+if IsLoggedIn() then initFrame:GetScript("OnEvent")(initFrame) end

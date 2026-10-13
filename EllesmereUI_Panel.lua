@@ -3910,6 +3910,7 @@ do
         EllesmereUIDataBars = true,
         EllesmereUIQuickdraw = true,
         EllesmereUILoadoutManager = true,
+        EllesmereUIGroupFinder = true,
         EllesmereUIForeverEssentials = true,
     }
 

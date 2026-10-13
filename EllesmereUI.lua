@@ -699,6 +699,7 @@ local ADDON_ROSTER = {
     { folder = "EllesmereUIDataBars",          display = "DataBars",             search_name = "EllesmereUI DataBars"                },
     { folder = "EllesmereUIQuickdraw",         display = "Quickdraw",            search_name = "EllesmereUI Quickdraw"               },
     { folder = "EllesmereUILoadoutManager",    display = "Loadout Manager",      search_name = "EllesmereUI Loadout Manager"         },
+    { folder = "EllesmereUIGroupFinder",       display = "Group Finder",         search_name = "EllesmereUI Group Finder Premade Groups" },
     { folder = "EllesmereUIPartyMode",         display = "Party Mode",           search_name = "EllesmereUI Party Mode",             alwaysLoaded = true },
 }
 
@@ -730,6 +731,7 @@ EllesmereUI.ADDON_GROUPS = {
             "EllesmereUIDataBars",
             "EllesmereUIQuickdraw",
             "EllesmereUILoadoutManager",
+            "EllesmereUIGroupFinder",
             "EllesmereUIPartyMode",
         },
     },
@@ -785,6 +787,7 @@ end
 EllesmereUI.FOREVER_HIDDEN_ADDONS = {
     EllesmereUIMythicTimer = true, EllesmereUIFriends = true,
     EllesmereUILoadoutManager = true,
+    EllesmereUIGroupFinder = true,
     -- Not an addon: the Dragon Riding profile pseudo-folder (its file returns at
     -- load on Forever), listed so the profile import/export checklists drop it.
     EllesmereUIDragonRiding = true,
