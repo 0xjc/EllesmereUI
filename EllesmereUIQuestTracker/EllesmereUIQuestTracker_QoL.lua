@@ -746,12 +746,11 @@ local function ApplyWatches()
         -- Combat / open-world encounter: retry when it ends. Instances wait
         -- for the zone events on the way out.
         if not IsInInstance() then
-            watchFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+            if InCombatLockdown() then ns.CombatQueue.Defer("QuestWatches", QueueWatches) end
             watchFrame:RegisterEvent("ENCOUNTER_END")
         end
         return
     end
-    watchFrame:UnregisterEvent("PLAYER_REGEN_ENABLED")
     watchFrame:UnregisterEvent("ENCOUNTER_END")
     -- Log not loaded yet (loading screens): nothing reliable to act on.
     if C_QuestLog.GetNumQuestLogEntries() == 0 then return end
