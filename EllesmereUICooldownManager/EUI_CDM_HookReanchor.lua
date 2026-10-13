@@ -286,6 +286,11 @@ local function CollectAndReanchor()
                                     end
                                     barSeen[dedupKey] = true
                                 else
+                                    -- Buff gone: drop any Also Show Below timer.
+                                    local fcOff = _ecmeFC[frame]
+                                    if fcOff and (fcOff._missingTimer or fcOff._missingLow) then
+                                        ns.MissingShowBelow(frame, fcOff, nil)
+                                    end
                                     -- This buff is DISPLAYED in the viewer but currently OFF
                                     -- (Blizzard pools the frame but hides it). Use the frame's
                                     -- LIVE resolved spell (GetSpellID) for icon/identity:
