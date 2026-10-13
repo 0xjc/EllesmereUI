@@ -96,6 +96,13 @@ end
 
 function GF:OnEnable()
     if not ns.Enabled() then return end
+    -- Premade Groups Filter works the same panel: with it loaded the module
+    -- switches itself off (and stays off until turned on again).
+    if C_AddOns.IsAddOnLoaded("PremadeGroupsFilter") then
+        ns.SetEnabled(false)
+        print("|cff0cd29fEllesmereUI|r Group Finder has been turned off because Premade Groups Filter is loaded.")
+        return
+    end
     ns.ApplyDefaults()
     if ns.Apps_Enable then ns.Apps_Enable() end
     local function Start()
