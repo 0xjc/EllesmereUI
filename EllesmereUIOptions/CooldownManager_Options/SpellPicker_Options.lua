@@ -2667,10 +2667,10 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                             -- Independent of the choice above, used with Show When Missing: the
                             -- active buff also shows for its last N seconds (0 = off). Scalar popup
                             -- value, same shape as Threshold Seconds.
-                            { val = "below", label = "+ Also Show Below",
+                            { val = "below", label = "Also Show Below",
                               scalarApply = true,
                               dynamicLabel = function()
-                                  local base = EllesmereUI.L("+ Also Show Below")
+                                  local base = EllesmereUI.L("Also Show Below")
                                   local s = tonumber(ss.missingShowBelow) or 0
                                   if s > 0 then return base .. " (" .. s .. "s)" end
                                   return base
