@@ -355,14 +355,13 @@ end
 -------------------------------------------------------------------------------
 --  Counting
 -------------------------------------------------------------------------------
--- Whether a search result is a Dungeons category group, remembered per
--- result for the session (a delisted group's info can be gone by its last
--- status update). nil = cannot tell (unreadable or secret): not counted.
+-- Whether a search result is a Dungeons category group. Looked up fresh when
+-- the application is sent and remembered for that application only (search
+-- result IDs are reused by later searches, and a delisted group's info can
+-- be gone by its last status update). nil = cannot tell: not counted.
 local DUNGEONS = GROUP_FINDER_CATEGORY_ID_DUNGEONS or 2
-local isDungeon = {}
-local function IsDungeonResult(id)
-    if type(id) ~= "number" or IsSecret(id) then return nil end
-    if isDungeon[id] ~= nil then return isDungeon[id] end
+local isDungeon = {}   -- resultID -> true / false while its application is open
+local function LookUpDungeon(id)
     local info = C_LFGList.GetSearchResultInfo(id)
     if type(info) ~= "table" or IsSecret(info) or (canaccesstable and not canaccesstable(info)) then return nil end
     local acts = info.activityIDs
@@ -371,13 +370,24 @@ local function IsDungeonResult(id)
     local ai = C_LFGList.GetActivityInfoTable(aid)
     local cat = type(ai) == "table" and ai.categoryID
     if type(cat) ~= "number" or IsSecret(cat) then return nil end
-    isDungeon[id] = (cat == DUNGEONS)
-    return isDungeon[id]
+    return cat == DUNGEONS
 end
 
-local function Count(status, resultID)
+-- One status change of one application. The same status again (Blizzard
+-- re-sends open applications after a reload) is not counted twice; once an
+-- application ends, its remembered category is dropped.
+local function Count(status, oldStatus, resultID)
     local key = STATUS_KEY[status]
-    if not key or IsDungeonResult(resultID) ~= true then return end
+    if type(resultID) ~= "number" or IsSecret(resultID) then return end
+    if status == "applied" then
+        if oldStatus == "applied" then return end
+        isDungeon[resultID] = LookUpDungeon(resultID)
+    elseif isDungeon[resultID] == nil then
+        isDungeon[resultID] = LookUpDungeon(resultID)   -- sent before a reload
+    end
+    local dungeon = isDungeon[resultID]
+    if status ~= "applied" and status ~= "invited" then isDungeon[resultID] = nil end
+    if not key or status == oldStatus or dungeon ~= true then return end
     local a = Store()
     for _, t in ipairs({ Fill(a.account), Fill(a.session), Counts("character") }) do
         t[key] = t[key] + 1
@@ -427,8 +437,8 @@ function ns.Apps_Enable()
     ev:SetScript("OnEvent", function(_, event, ...)
         if event == "LFG_LIST_APPLICATION_STATUS_UPDATED" then
             if On() then
-                local id, status = ...
-                Count(PlainString(status), id)
+                local id, status, oldStatus = ...
+                Count(PlainString(status), PlainString(oldStatus), id)
             end
         elseif event == "ADDON_LOADED" then
             if (...) == "Blizzard_GroupFinder" then HookPVE() end
