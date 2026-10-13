@@ -81,18 +81,11 @@ initFrame:SetScript("OnEvent", function(self)
                     EUI:RefreshPage()
                 end }
         end
-        local function RatingOff() return Get("leaderRating", true) == false end
 
         -- Colored names, leader rating, missing roles, specialization, leader
-        -- crown and the sign-up options are in the Group Settings menu on the
-        -- search panel (the person button at the start of its second row).
+        -- crown, members in tooltip and the sign-up options are in the Group
+        -- Settings menu on the search panel (the person button, row 2).
         _, h = W:SectionHeader(parent, "GROUP LIST", y); y = y - h
-        _, h = W:DualRow(parent, y,
-            Toggle("classTooltip", "Members in Tooltip",
-                "For groups whose tooltip has no member list (raids and others), the tooltip lists every member on its own line: role, specialization and class, and name.", true),
-            Toggle("rioColors", "Raider.IO Rating Colors",
-                "Show the leader rating in Raider.IO's colours while the Raider.IO addon is loaded (otherwise Blizzard's rating colours).", true,
-                RatingOff, "Leader Rating (Group Settings menu)"));  y = y - h
         _, h = W:DualRow(parent, y,
             { type = "slider", text = "Role Icon Size", min = 100, max = 160, step = 5,
               tooltip = "Size of the role / specialization icons in the group list, in % of Blizzard's size. The group and activity names get shorter to make room.",
@@ -102,10 +95,7 @@ initFrame:SetScript("OnEvent", function(self)
                   local SP = LFGListFrame and LFGListFrame.SearchPanel
                   if SP and SP:IsShown() and LFGListSearchPanel_UpdateResultList then LFGListSearchPanel_UpdateResultList(SP) end
               end },
-            { type = "toggle", text = "Member Names in Tooltip",
-              tooltip = "The group tooltip lists every member's name, in class colour, beside Blizzard's member lines.",
-              getValue = function() return Get("memberNames", true) ~= false end,
-              setValue = function(v) Set("memberNames", v and true or false) end });  y = y - h
+            EUI.BlankRowCfg());  y = y - h
 
         _, h = W:SectionHeader(parent, "APPLICANTS", y); y = y - h
         _, h = W:DualRow(parent, y,
@@ -140,7 +130,7 @@ initFrame:SetScript("OnEvent", function(self)
     local function APOff() return APGet("enabled", true) == false end
     local function APToggle(text, key, default, tooltip)
         return { type="toggle", text=text, tooltip=tooltip,
-                 disabled=APOff, disabledTooltip="Show in Dungeons & Raids",
+                 disabled=APOff, disabledTooltip="Show in Group Finder",
                  getValue=function() return APGet(key, default) == true end,
                  setValue=function(v) APSet(key, v and true or false) end }
     end
@@ -153,14 +143,14 @@ initFrame:SetScript("OnEvent", function(self)
 
         local scopeValues = { session = "Session", character = "Character", account = "Account" }
         row, h = W:DualRow(parent, y,
-            { type="toggle", text="Show in Dungeons & Raids",
+            { type="toggle", text="Show in Group Finder",
               tooltip="A bar at the top of the Dungeons & Raids sidebar counting your Mythic+ (Dungeons) Group Finder applications and how they ended, each count inside its part of the bar. Raids, delves and other groups are not counted.",
               getValue=function() return APGet("enabled", true) ~= false end,
               setValue=function(v) APSet("enabled", v and true or false); EUI:RefreshPage() end },
             { type="dropdown", text="Counts Shown",
               tooltip="Which totals the card shows. Hover the card for all three.",
               values=scopeValues, order={ "session", "character", "account" },
-              disabled=APOff, disabledTooltip="Show in Dungeons & Raids",
+              disabled=APOff, disabledTooltip="Show in Group Finder",
               getValue=function() return APGet("scope", "character") end,
               setValue=function(v) APSet("scope", v) end });  y = y - h
 
@@ -177,7 +167,7 @@ initFrame:SetScript("OnEvent", function(self)
         texValues._menuOpts = { itemHeight = 28, background = function(key) return tex[key] end }
         row, h = W:DualRow(parent, y,
             { type="dropdown", text="Bar Texture", values=texValues, order=texOrder,
-              disabled=APOff, disabledTooltip="Show in Dungeons & Raids",
+              disabled=APOff, disabledTooltip="Show in Group Finder",
               getValue=function() return APGet("texture", "none") end,
               setValue=function(v) APSet("texture", v) end },
             EUI.BlankRowCfg());  y = y - h

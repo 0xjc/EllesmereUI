@@ -904,7 +904,7 @@ end
 -- Member names in the group tooltip, class coloured, beside Blizzard's member
 -- lines (dungeon and arena listings), as Premade Groups Filter does.
 local function AddMemberNames(tooltip, resultID)
-    if Cfg().memberNames == false or not (tooltip and tooltip.IsShown and tooltip:IsShown()) then return end
+    if Cfg().classTooltip == false or not (tooltip and tooltip.IsShown and tooltip:IsShown()) then return end
     local info = ResultInfo(resultID)
     if not info or info.isDelisted then return end
     local acts = info.activityIDs
@@ -948,7 +948,7 @@ end
 --    classTooltip  tooltip lists the classes per role (groups whose tooltip has
 --                  no member list: raids and others)
 --    leaderRating  the leader's Mythic+ rating beside the role icons (Blizzard's
---                  rating colour, or Raider.IO's with rioColors while it is loaded)
+--                  rating colour, or Raider.IO's with nameColors while it is loaded)
 --    leaderCrown   a crown over the leader's role icon
 --    missingRoles  empty slots of a 5-player group show the role still needed
 --    specIcons     each member's specialization icon over their role icon
@@ -1026,7 +1026,7 @@ local function LockedOut(ai, resultID)
 end
 
 local function RatingColor(score)
-    if Opt("rioColors") and RaiderIO and RaiderIO.GetScoreColor then
+    if Opt("nameColors") and RaiderIO and RaiderIO.GetScoreColor then
         local ok, r, g, b = pcall(RaiderIO.GetScoreColor, score)
         if ok and type(r) == "number" then return r, g, b end
     end
@@ -2318,6 +2318,7 @@ XF.GROUP_MENU = {
     { key = "missingRoles",   label = "Show Missing Roles" },
     { key = "specIcons",      label = "Show Specialization" },
     { key = "leaderCrown",    label = "Show Group Leader" },
+    { key = "classTooltip",   label = "Members in Tooltip" },
     { title = "Sign Up" },
     { key = "cancelOldest",   label = "Cancel Oldest Application", signUp = true },
     { key = "signUpDeclined", label = "Sign Up to Declined Groups", signUp = true },

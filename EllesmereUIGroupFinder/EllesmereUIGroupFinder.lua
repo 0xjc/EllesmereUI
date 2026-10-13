@@ -14,11 +14,9 @@ local GF = EllesmereUI.Lite.NewAddon(ADDON_NAME)
 
 local DEFAULTS = {
     padding          = 12,
-    memberNames      = true,
     nameColors       = true,
     classTooltip     = true,
     leaderRating     = true,
-    rioColors        = true,
     leaderCrown      = true,
     missingRoles     = true,
     specIcons        = true,

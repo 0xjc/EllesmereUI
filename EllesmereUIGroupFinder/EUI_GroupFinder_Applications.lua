@@ -203,6 +203,7 @@ local function Layout()
             t:SetTexCoord(0, 1, 0, 1)
         end
         card.nums[i]:SetFont(npath, nsize, "OUTLINE")
+        card.empty:SetFont(npath, nsize, "OUTLINE")
     end
     Place()
 end
@@ -240,6 +241,7 @@ local function Refresh()
         num:SetShown(sw >= 0.5 and (num:GetStringWidth() or 0) + 4 <= sw)
         x = x + sw
     end
+    card.empty:SetShown(total == 0)   -- nothing counted yet (a fresh install)
 end
 
 local BuildCardInto
@@ -307,6 +309,12 @@ BuildCardInto = function()
         num:SetJustifyV("MIDDLE")
         card.nums[i] = num
     end
+    card.empty = bar:CreateFontString(nil, "OVERLAY")
+    card.empty:SetFont(FontPath(), 12, "OUTLINE")
+    card.empty:SetTextColor(1, 1, 1, 0.6)
+    card.empty:SetPoint("CENTER", bar, "CENTER", 0, 0)
+    card.empty:SetText("N/A")
+    card.empty:Hide()
     bar:SetScript("OnSizeChanged", function() Refresh() end)
     return card
 end
