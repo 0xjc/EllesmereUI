@@ -38,8 +38,6 @@ initFrame:SetScript("OnEvent", function(self)
         parent._showRowDivider = true
 
         -- Everything here is off until enabled; turning it on or off reloads.
-        -- Premade Groups Filter works the same panel: while it is loaded the
-        -- module cannot be turned on (it stands down if it already is).
         local function PGFLoaded() return C_AddOns.IsAddOnLoaded("PremadeGroupsFilter") end
         local pgfNote = PGFLoaded()
             and { type = "label", text = "|cffff6060Premade Groups Filter is loaded. Disable it to use the Group Finder.|r" }

@@ -1,23 +1,8 @@
 if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
 -------------------------------------------------------------------------------
 --  EUI_GroupFinder_Applications.lua
---
---  Group Finder application counter (the idea of the LFGDeclineCounter addon,
---  rebuilt): every application you send and how it ended -- invited and
---  accepted, declined (incl. full / timed out), delisted, or cancelled by you
---  -- counted for the session, the character and the account.
---
---  Shown at the top of the Dungeons & Raids left rail, in the free space
---  above its entries (see Card below): a title and a stacked outcome bar with
---  each count inside its segment. Its settings are at the end of the Premade
---  Groups settings page (the search panel's cog opens it): scope, texture,
---  font size, which outcomes show.
---
---  Only Dungeons category applications (Mythic+ and other dungeon groups)
---  are counted; raids, delves and the rest are left out.
---
---  Settings: the profile's apps table. Counts: EllesmereUIGroupFinderAppsDB
---  (account-wide, outside profiles).
+--  M+ applications bar in the Dungeons & Raids rail: counts each Dungeons
+--  application's outcome per session, character and account.
 -------------------------------------------------------------------------------
 local ADDON_NAME, ns = ...
 local CM = EllesmereUI
@@ -104,14 +89,7 @@ local function Counts(scope)
 end
 
 -------------------------------------------------------------------------------
---  Card
---  At the top of the Dungeons & Raids left rail, above its entries: the
---  "Applications" title (in the Premade Groups title's yellow, which takes
---  the same size), level with the Premade Groups search row, and below
---  it a box as tall as that panel's second row (cog, reset, dungeons) and
---  level with it, spanning the rail less a margin each side. The box holds
---  the stacked outcome bar; each outcome's count sits centred in its own
---  segment, in white (left out when the segment is too narrow for it).
+--  Card.
 -------------------------------------------------------------------------------
 local card
 local TITLE_SIZE = 12   -- the title (and the Premade Groups title); the Font Size setting is the counts' only
@@ -148,9 +126,7 @@ local function ShowTip(self)
 end
 
 -- Where the Premade Groups search rows sit (Search.lua), in PVEFrame's
--- coordinates: row 1's centre, row 2's top and height. The rail column is
--- Blizzard's left inset (PVEFrame.Inset); sideways it matches the rail
--- entries' boxes (Rail.lua: the first entry's rect less the side padding).
+-- coordinates: row 1's centre, row 2's top and height.
 local function Place()
     local pve = _G.PVEFrame
     local inset = pve and pve.Inset
@@ -259,10 +235,7 @@ BuildCardInto = function()
     if not (host and pve and pve.Inset) then return nil end
 
     -- Built into a local and published at the end, so a failure part-way can
-    -- never leave a half-built card for Layout/Refresh to trip over. Every
-    -- FontString gets a font before any SetText (unset fonts error). The
-    -- pieces are placed against PVEFrame (Place); the card frame only holds
-    -- them, so they show and hide with the Dungeons & Raids tab.
+    -- never leave a half-built card for Layout/Refresh to trip over.
     local card = CreateFrame("Frame", nil, host)
     card:SetAllPoints(host)
     card:SetFrameLevel(host:GetFrameLevel() + 5)
@@ -355,10 +328,7 @@ end
 -------------------------------------------------------------------------------
 --  Counting
 -------------------------------------------------------------------------------
--- Whether a search result is a Dungeons category group. Looked up fresh when
--- the application is sent and remembered for that application only (search
--- result IDs are reused by later searches, and a delisted group's info can
--- be gone by its last status update). nil = cannot tell: not counted.
+-- Whether a search result is a Dungeons category group.
 local DUNGEONS = GROUP_FINDER_CATEGORY_ID_DUNGEONS or 2
 local isDungeon = {}   -- resultID -> true / false while its application is open
 local function LookUpDungeon(id)
@@ -373,9 +343,7 @@ local function LookUpDungeon(id)
     return cat == DUNGEONS
 end
 
--- One status change of one application. The same status again (Blizzard
--- re-sends open applications after a reload) is not counted twice; once an
--- application ends, its remembered category is dropped.
+-- One status change of one application.
 local function Count(status, oldStatus, resultID)
     local key = STATUS_KEY[status]
     if type(resultID) ~= "number" or IsSecret(resultID) then return end

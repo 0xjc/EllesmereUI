@@ -1,36 +1,8 @@
 if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
 -------------------------------------------------------------------------------
 --  EUI_GroupFinder_Search.lua
---
---  Premade Groups search panel (Dungeons & Raids > Premade Groups):
---    Row 1: search box (the category title is hidden), "Difficulty"
---           multiple-choice menu (Normal, Heroic, Mythic, Mythic+; Dungeons
---           only), refresh.
---    Row 2: Blizzard's Filter dropdown as a cog, a reset button (always
---           there, lit while filters are set), then one toggle square per
---           Mythic+ dungeon of the season with its icon (Dungeons only), or
---           one per delve (Delves) or per boss of the current raids (Raids).
---           Cog, reset and squares share one size.
---    Wider side padding for the rows and the result list.
---
---  Filtering is Blizzard's own server-side advanced filter: difficulties are
---  its difficulty* flags and dungeons its `activities` list (activity group
---  IDs). We read it with C_LFGList.GetAdvancedFilter, write it with
---  SaveAdvancedFilter and re-run the search the way the Refresh button does
---  (LFGListSearchPanel_DoSearch), so Blizzard's own Filter menu (the cog)
---  shows the same state. Blizzard applies that filter in the Dungeons
---  category only, hence row 2 there only. For both lists "none chosen" and
---  "all chosen" mean no restriction.
---
---  The season dungeons are derived, not hard-coded: C_ChallengeMode's map
---  table gives this season's keystone dungeons (name, icon, instance map),
---  matched to the Dungeons category's current-season activity groups by
---  instance map (name as fallback).
---
---  Blizzard frames are only re-anchored and restyled (never re-parented,
---  hidden by Hide, or given SetScript); per-frame state lives in a weak
---  external table. The search box (a secure reference) is only moved.
---  Stands down while the Premade Groups Filter addon is loaded.
+--  Premade Groups panel: search rows, Filters and Group Settings menus,
+--  client-side filters, group list decoration, applicant list and the bottom rows.
 -------------------------------------------------------------------------------
 local ADDON_NAME, ns = ...
 local CM = EllesmereUI
@@ -54,10 +26,7 @@ local BTN       = 28   -- cog, reset and dungeon squares (row 2): start size; La
 local DIFF_W    = 110
 local SQ_GAP    = 3    -- one gap between every button: across a row and between the rows
 local ROW2_Y    = ROW1_Y - ROW1_H / 2 - SQ_GAP   -- row 2 top: one gap under row 1
--- Search Again cooldown sweep. The server rate-limits group searches (the
--- limit is not published; refusals show "Search Failed. Please wait a moment
--- and try again.", LFG_LIST_SEARCH_FAILED). Every search starts the sweep; a
--- refused one restarts it longer.
+-- Search Again cooldown sweep.
 local CD_SEARCH = 2
 -- Bottom buttons (Back / Sign Up, Start a Group / Find a Group, Back / List
 -- Group): this far above the window's bottom edge (Blizzard: 4).
@@ -70,6 +39,27 @@ local XF = {}
 -- Glyph grey of our white icons (cog, reset X, cancel X): Search Again's
 -- glyph is Blizzard's gold refresh art desaturated, which reads at about this.
 XF.GLYPH = 0.78
+-- Plain-text tooltips: the host's widget tooltip (GameTooltip as a fallback).
+-- A second line is drawn dim.
+function XF.Tip(owner, title, ...)
+    local text = title
+    for i = 1, select("#", ...) do
+        local line = select(i, ...)
+        if line then text = text .. "\n|cffb3b3b3" .. line .. "|r" end
+    end
+    XF.tipOwner = owner
+    if CM.ShowWidgetTooltip then
+        CM.ShowWidgetTooltip(owner, text)
+    else
+        GameTooltip:SetOwner(owner, "ANCHOR_BOTTOM")
+        GameTooltip:SetText(text, 1, 1, 1, 1, true)
+        GameTooltip:Show()
+    end
+end
+function XF.Untip()
+    XF.tipOwner = nil
+    if CM.HideWidgetTooltip then CM.HideWidgetTooltip() else GameTooltip:Hide() end
+end
 XF.SCORE_W = 46   -- applicant list: the Score column (stretched to the refresh button)
 XF.CHECK_TEX = "Interface\\AddOns\\" .. ADDON_NAME .. "\\media\\icons\\check.png"   -- Invite
 XF.PERSON_TEX = "Interface\\AddOns\\" .. ADDON_NAME .. "\\media\\icons\\person.png"   -- Group Settings
@@ -240,17 +230,7 @@ end
 --  Difficulty menu (multiple choice; the look of the Bar Glows add-glow menu)
 -------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
---  Region filter (US region only). Blizzard's server filter has no region, so
---  this one runs on our side, the way Premade Groups Filter filters: after
---  Blizzard builds the result list, rows whose leader is outside the chosen
---  regions are dropped from SearchPanel.results and the list is redrawn. It
---  needs no search, so a change re-filters the current results at once.
---  Groups you applied to, and leaders whose realm cannot be read (secret
---  values in restricted content), always stay.
---  Region = the leader's realm ("Name-Realm"; no realm = your own). Blizzard
---  does not say which US realms are Oceanic / Latin American / Brazilian, so
---  they are listed here (names without spaces or apostrophes, lower case);
---  every other US realm counts as North America.
+--  Region filter (US region only).
 -------------------------------------------------------------------------------
 local REGIONS = {
     { key = "na",  label = "North America" },
@@ -301,12 +281,7 @@ end
 
 -------------------------------------------------------------------------------
 --  Delves (Delves category): one square per delve with its short name, a gold
---  underline for this week's Bountiful delves, and a Tier choice. Client side,
---  like the region filter (Blizzard's server filter covers Dungeons only):
---  a group's delve and tier come from its activity (each tier is its own
---  activity; the tier is the number in the activity's name, "(Tier 8)").
---  Profile: search.delves = { [groupID] = true }, search.delveTiers = { [tier] = true }
---  (for both: none or all chosen = no restriction).
+--  underline for this week's Bountiful delves, and a Tier choice.
 -------------------------------------------------------------------------------
 local SKIP_WORDS = { the = true, of = true, a = true, an = true }
 
@@ -422,12 +397,7 @@ end
 
 -------------------------------------------------------------------------------
 --  Raid bosses (Raids category, current raids): one square per boss with its
---  Encounter Journal portrait. Client side like the delves: a group is kept
---  when every chosen boss of its raid is still alive ("Bosses Defeated" in
---  its tooltip, C_LFGList.GetSearchResultEncounterInfo, matched by name);
---  groups whose raid holds none of the chosen bosses are dropped. Groups we
---  cannot read (secret values) stay.
---  Profile: search.bosses = { [journalEncounterID] = true } (none = no restriction).
+--  Encounter Journal portrait.
 -------------------------------------------------------------------------------
 local function RaidsCurrent()
     local f = SP and SP.filters
@@ -435,9 +405,8 @@ local function RaidsCurrent()
         and bit.band(f, Enum.LFGListFilter.Recommended) ~= 0 or false
 end
 
--- Journal raids of the newest tier by name (fallback when the game map gives
--- no journal instance). Selecting the tier is what the journal's own tier
--- menu does; the previous one is put back.
+-- Journal raids of the newest tier by name (fallback when the game map gives no
+-- journal instance).
 local function JournalRaidsByName()
     local out = {}
     if not (EJ_GetNumTiers and EJ_SelectTier and EJ_GetInstanceByIndex) then return out end
@@ -465,11 +434,7 @@ local function JournalInstance(info, groupName, byName)
     return groupName and byName()[groupName] or nil
 end
 
--- A journal raid's bosses: { { key = journalEncounterID, name, icon }, ... }.
--- The journal lists the encounters of its selected instance at its selected
--- difficulty (the instance argument alone returns nothing), so the raid is
--- selected at a raid difficulty for the read and the journal's previous
--- instance and difficulty are put back.
+-- A journal raid's bosses: { { key = journalEncounterID, name, icon }, ...
 local RAID_DIFFS = { 14, 15, 16, 17 }   -- Normal, Heroic, Mythic, LFR
 local function Encounters(jid)
     local out = {}
@@ -526,10 +491,9 @@ local function BuildBosses()
     return list, byAct, raids
 end
 
--- Raids whose boss squares are shown (raid menu): profile search.raidsHidden
--- = { [journalInstanceID] = true }, so every raid (and any new one) shows by
--- default. At least one raid stays shown: if every current raid is hidden
--- (raids changed since), all show.
+-- Raids whose boss squares are shown (raid menu): profile search.raidsHidden =
+-- { [journalInstanceID] = true }, so every raid (and any new one) shows by
+-- default.
 local function RaidShown(jid)
     local h = Cfg().raidsHidden
     if not (type(h) == "table" and h[jid]) then return true end
@@ -581,13 +545,7 @@ local function BossKeep(resultID)
 end
 
 -------------------------------------------------------------------------------
---  Raids: Difficulty (Normal / Heroic / Mythic) and World Bosses. Blizzard's
---  advanced filter is sent with Dungeons searches only, so both run on our
---  side like the boss filter. Difficulty from the activity's is*Activity flags
---  (activities without one, e.g. world bosses, stay); world boss groups =
---  Raids activities in no activity group (Blizzard lists them loose, not
---  under a raid). Profile: search.raidDiffs = { normal/heroic/mythic = true }
---  (none or all = every difficulty), search.hideWorldBosses = true.
+--  Raids: Difficulty (Normal / Heroic / Mythic) and World Bosses.
 -------------------------------------------------------------------------------
 local RAID_DIFFS_MENU = {
     { key = "normal", label = PLAYER_DIFFICULTY1 or "Normal" },
@@ -606,10 +564,7 @@ end
 local function HideWorldBosses() return Cfg().hideWorldBosses == true end
 
 -- Playstyles (Learning / Relaxed / Competitive / Carry Offered, the group's
--- generalPlaystyle 1-4). Dungeons: Blizzard's advanced filter
--- (generalPlaystyle1-4, sent with the search, so it waits for Search Again
--- like Difficulty); Raids: our side, at once (search.raidPlaystyles =
--- { [1-4] = true }, none or all = any; groups without one stay).
+-- generalPlaystyle 1-4).
 local PLAYSTYLES = {
     GROUP_FINDER_GENERAL_PLAYSTYLE1 or "Learning",
     GROUP_FINDER_GENERAL_PLAYSTYLE2 or "Relaxed",
@@ -633,10 +588,6 @@ local function DungeonPlaystyles(f)
 end
 
 -- Roles (the advanced filter's needs* keys; every ticked one must hold).
--- Dungeons: Blizzard's filter, applied on Search Again; Raids: our side from
--- the group's member counts (search.raidRoles = { [key] = true }). The
--- "how many tanks / healers / DPS" checks and Bloodlust / Battle Res are the
--- extra filters below (our side in both).
 local ROLES = {
     { key = "needsTank",   label = "Tank Available" },
     { key = "needsHealer", label = "Healer Available" },
@@ -659,8 +610,8 @@ local function RaidListFilterActive()
             or XF.AnyRaidHidden()) or false
 end
 
--- The activity's difficulty: its difficultyID first (raids: 14 Normal,
--- 15 Heroic, 16 Mythic; the is*Activity flags are not set reliably on raid
+-- The activity's difficulty: its difficultyID first (raids: 14 Normal, 15
+-- Heroic, 16 Mythic; the is*Activity flags are not set reliably on raid
 -- activities), then those flags.
 local RAID_DIFF_BY_ID = { [14] = "normal", [15] = "heroic", [16] = "mythic", [3] = "normal", [4] = "normal", [5] = "heroic", [6] = "heroic", [9] = "normal" }
 local function ActivityDiffKey(ai)
@@ -714,15 +665,7 @@ local function RaidListKeep(resultID)
 end
 
 -------------------------------------------------------------------------------
---  Extra filters (Filters menu, Dungeons and Raids; our side, instant):
---    partyFit     the group has room for your party's roles (assigned roles,
---                 or your spec's role while unassigned)
---    notDeclined  hide groups that declined you (this session included)
---    hasLust      a member's class brings Bloodlust (Shaman, Mage, Hunter, Evoker)
---    hasBrez      a member's class brings a battle res (Druid, Death Knight,
---                 Warlock, Paladin)
---    roleCounts   { TANK / HEALER / DAMAGER = { op = "lt"|"gt"|"eq", n } }:
---                 the group has less than / more than / exactly n of that role
+--  Extra filters (Filters menu, Dungeons and Raids; our side, instant).
 -------------------------------------------------------------------------------
 XF.LUST_CLASSES = { SHAMAN = true, MAGE = true, HUNTER = true, EVOKER = true }
 XF.BREZ_CLASSES = { DRUID = true, DEATHKNIGHT = true, WARLOCK = true, PALADIN = true }
@@ -942,21 +885,7 @@ local function AddMemberNames(tooltip, resultID)
 end
 
 -------------------------------------------------------------------------------
---  Result rows and tooltip (Premade Groups Filter's display options), each a
---  setting (profile search.*; nil = default on, oneClick default off):
---    nameColors    group name green when new since the last search, red when
---                  declined or when you are locked to that instance + difficulty
---    classTooltip  tooltip lists the classes per role (groups whose tooltip has
---                  no member list: raids and others)
---    leaderRating  the leader's Mythic+ rating beside the role icons (Blizzard's
---                  rating colour, or Raider.IO's with nameColors while it is loaded)
---    leaderCrown   a crown over the leader's role icon
---    missingRoles  empty slots of a 5-player group show the role still needed
---    specIcons     each member's specialization icon over their role icon
---    oneClick      a left click on a group opens its sign-up
---  A post-hook on LFGListSearchEntry_Update. Blizzard's row frames only get
---  child frames / textures of ours (state in FFD); its own text is recoloured
---  (Name) and nothing else is touched.
+--  Result rows and tooltip (Premade Groups Filter's display options).
 -------------------------------------------------------------------------------
 local function Opt(key)
     local v = Cfg()[key]
@@ -992,11 +921,6 @@ local function SpecIcon(classFile, specName)
 end
 
 -- Locked to this activity's instance at its difficulty.
--- Red name: you are locked out of what this group offers.
--- Dungeons and Mythic raids lock you to one ID: red while you are saved there
--- at that difficulty. Normal / Heroic raids lock per boss (you can join any
--- group; bosses you killed just give you nothing): red only when every boss
--- the group still has alive is one you already killed this week.
 local function LockedOut(ai, resultID)
     if not (ai and ai.mapID and GetNumSavedInstances) then return false end
     for i = 1, GetNumSavedInstances() do
@@ -1052,12 +976,7 @@ local function AtlasRole(atlas)
 end
 local MISSING_ATLAS = { TANK = "groupfinder-icon-role-micro-tank", HEALER = "groupfinder-icon-role-micro-heal", DAMAGER = "groupfinder-icon-role-micro-dps" }
 
--- Our own drawing of one of Blizzard's role icons. Blizzard's textures on it
--- (class circle, role glyph, empty slot) are faded after each of its updates
--- (it resets them every time), and this layer draws the whole icon instead,
--- so nothing is drawn twice: the class circle, inside it the spec icon or the
--- role glyph, an empty slot or the role still needed, and the leader crown.
--- Blizzard's leaver badge is left alone.
+-- Our own drawing of one of Blizzard's role icons.
 local function IconLayer(icon)
     local d = FFD[icon]
     if d then return d end
@@ -1238,19 +1157,7 @@ local function DecorateIcons(entry, resultID, info, ai)
 end
 
 -------------------------------------------------------------------------------
---  Sign-up options (profile search.*, off by default):
---    keepNote       the note to the group leader stays filled in between
---                   sign-ups (Blizzard clears it whenever the activity
---                   differs; the box is a secure one we cannot type into, so
---                   the dialog's opener is swapped for Blizzard's own minus
---                   that clear, while the option is on)
---    cancelOldest   at the application limit, a click on a group cancels your
---                   oldest pending application instead (WoW needs a click for
---                   that; the next click signs up). A bar under the hovered
---                   row says so.
---    signUpDeclined groups that declined you can be signed up to again when
---                   they relist (Blizzard remembers declines per session in
---                   LFGListFrame.declines; their entries are dropped)
+--  Sign-up options (profile search.*, off by default).
 -------------------------------------------------------------------------------
 function XF.ApplyKeepNote()
     if not LFGListApplicationDialog_Show then return end
@@ -1315,16 +1222,7 @@ end
 ns.Search_ApplySignUp = function() XF.ApplySignUp() end
 
 -------------------------------------------------------------------------------
---  Applicant list (your own listing): a "Score" column after iLvl. Not on
---  Mythic+ / rated PvP listings, where Blizzard's own Rating column is there. Score = Raider.IO's current Mythic+ score while it is
---  loaded, else Blizzard's dungeon score. Pending applicants get Blizzard's
---  small Invite button (the one it uses beside its Rating column) so the wide
---  one does not cover the columns; its enabled state and height are copied
---  from the wide one. Upstream keeps its skin off this viewer (it sits in a
---  protected tree, and writes there once caused secret-compare errors for raid
---  leaders); the small Invite swap and the Invite / Decline look below are
---  alpha, size and frames of ours only (no values written on Blizzard's rows).
---  Settings: search.applicantColumns (on by default).
+--  Applicant list (your own listing): a "Score" column after iLvl.
 -------------------------------------------------------------------------------
 -- Whether the columns show for the current listing.
 function XF.ApplicantMode()
@@ -1439,8 +1337,7 @@ end
 
 -- Invite (check) and Decline (X) as our glyph buttons, as Cancel Application:
 -- Blizzard's button art faded, our button laid over it taking no mouse, so
--- Blizzard's keeps the click. On hover a green (Invite) or red (Decline)
--- border and glyph. Dimmed while Blizzard disables it.
+-- Blizzard's keeps the click.
 function XF.ApplicantButtonLook(b, tex, r, g, bl)
     if type(b) ~= "table" or not b.GetRegions or not XF.GlyphButton then return end
     local d = FFD[b]
@@ -1569,8 +1466,8 @@ local function DecorateEntry(entry)
     end
 
     -- Role / spec icon size: the icon strip scaled from its right edge (it
-    -- fills the row display, so its screen rect stays put), and the group
-    -- and activity names cut shorter by the extra width.
+    -- fills the row display, so its screen rect stays put), and the group and
+    -- activity names cut shorter by the extra width.
     local scale = math.max(1, math.min(2, (tonumber(Cfg().iconSize) or 125) / 100))
     if enum and enum.SetScale then
         enum:SetScale(scale)
@@ -1591,9 +1488,9 @@ local function DecorateEntry(entry)
 end
 
 -- Members in the tooltip, one line each (role icon, spec and class in class
--- colour, name on the right), tanks then healers then damage, for groups
--- whose tooltip has no member list (Blizzard lists members for dungeons and
--- arenas only).
+-- colour, name on the right), tanks then healers then damage, for groups whose
+-- tooltip has no member list (Blizzard lists members for dungeons and arenas
+-- only).
 local ROLE_ICON = { TANK = "groupfinder-icon-role-micro-tank", HEALER = "groupfinder-icon-role-micro-heal", DAMAGER = "groupfinder-icon-role-micro-dps" }
 local function AddClassesByRole(tooltip, resultID)
     if not Opt("classTooltip") or not (tooltip and tooltip.IsShown and tooltip:IsShown()) then return end
@@ -1684,9 +1581,7 @@ local function MenuItem(parent, y, text, onClick)
 end
 
 -- Region section of a Difficulty menu (US region only): a divider, then one
--- toggle per region. Returns the new y.
--- A section start in a menu: a divider, then a small dim title. Returns the
--- new y.
+-- toggle per region.
 local function AddSection(m, y, title)
     if y > 4 then   -- no divider at the very top of a panel
         local div = m:CreateTexture(nil, "ARTWORK")
@@ -1999,9 +1894,7 @@ end
 -- "Min. Rating" and a number box (the advanced filter's minimumRating, the
 -- leader's Mythic+ rating; applied on Search Again). Returns the new y.
 local function AddRatingRow(m, y)
-    -- [checkbox] Min. Rating [box]: the typed value (search.ratingValue) is
-    -- sent as the advanced filter's minimumRating only while ticked
-    -- (search.ratingOn); unticked sends 0 and keeps the number for later.
+    -- [checkbox] Min.
     local function Send()
         local c = Cfg()
         local v = c.ratingOn and (tonumber(c.ratingValue) or 0) or 0
@@ -2132,10 +2025,7 @@ local function PaintMenu()
 end
 
 -- The side panel of a Filters menu: Region, Playstyle, then Party Fit / Not
--- Declined (and Min. Rating in Dungeons), the left column of one rectangle
--- with the menu (same height, one border); shown, hidden and closed with it.
--- While a Filters menu is open, the rest of the panel steps back: the cog,
--- the reset and the squares row, and the result list (with its scroll bar).
+-- Declined (and Min.
 local function DimForMenu(on)
     local a = on and 0.35 or 1
     if row then row:SetAlpha(a) end
@@ -2189,8 +2079,7 @@ local function BuildSidePanel(m, raids)
 end
 
 -- The Difficulty menu: the skinned buttons' fill and border, as wide as the
--- Difficulty button (both edges anchored to it). Parented to the search
--- panel so it takes the window's scale and closes with it.
+-- Difficulty button (both edges anchored to it).
 local function BuildMenu()
     menu = CreateFrame("Frame", nil, SP)
     menu:SetFrameStrata("FULLSCREEN_DIALOG")
@@ -2285,9 +2174,7 @@ end
 
 -- Group Settings menu (the person button, row 2): one column of switches for
 -- the group list's look and the sign-up options (search.* settings; the
--- settings page no longer lists them). Same look and behaviour as the
--- Filters menu: theme fill and border, dims the panel while open, closes on
--- a click elsewhere.
+-- settings page no longer lists them).
 XF.GROUP_MENU = {
     { title = "Listing" },
     { key = "nameColors",     label = "Colored Group Names" },
@@ -2505,10 +2392,7 @@ end
 --  Buttons
 -------------------------------------------------------------------------------
 -- A button in the skin's button look (WSkin.Button: theme fill, border, hover;
--- label in Blizzard's white font). decorate(b) adds our own textures BEFORE
--- the skin styles it: the skin only keeps regions that exist (named in
--- keepKeys) at that moment, and its restrip pass fades every other texture
--- on the button. Without the skin module: a plain dark block with a border.
+-- label in Blizzard's white font).
 local function SkinnedButton(parent, w, h, keepKeys, decorate)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(w, h)
@@ -2568,13 +2452,10 @@ local function GlyphButton(parent, size, tex, atlas)
     end)
 end
 
--- Blizzard's Cancel Application button (the red X on a group you applied to)
--- in our look: its art faded (alpha only) and our X button, as the reset
--- button, drawn over it taking no mouse, so Blizzard's button keeps the click
--- (its own C_LFGList.CancelApplication) and its tooltip. A little smaller
--- than Search Again;
--- on hover a red border and a red X. Dimmed while Blizzard disables it
--- (only the leader can cancel for a group).
+-- Blizzard's Cancel Application button (the red X on a group you applied to) in
+-- our look: its art faded (alpha only) and our X button, as the reset button,
+-- drawn over it taking no mouse, so Blizzard's button keeps the click (its own
+-- C_LFGList.CancelApplication) and its tooltip.
 function XF.CancelLook(entry)
     local cb = entry and entry.CancelButton
     if type(cb) ~= "table" or not cb.GetRegions then return end
@@ -2614,15 +2495,12 @@ ns.GLYPH = XF.GLYPH
 local function SquareEnter(self)
     local d = self.dungeon
     if not d then return end
-    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-    GameTooltip:AddLine(d.name or "?", 1, 1, 1)
-    GameTooltip:AddLine("Click to toggle", 0.7, 0.7, 0.7)
-    GameTooltip:Show()
+    XF.Tip(self, d.name or "?", "Click to toggle")
 end
 
--- A dungeon square is a skinned button like the cog and the reset (same
--- border and size behaviour, so row 2 lines up), with the dungeon's icon inset
--- one pixel inside it.
+-- A dungeon square is a skinned button like the cog and the reset (same border
+-- and size behaviour, so row 2 lines up), with the dungeon's icon inset one
+-- pixel inside it.
 local function MakeSquare(parent)
     local px = (CM.PP and CM.PP.mult) or 1
     local b = SkinnedButton(parent, BTN, BTN, { "Icon" }, function(btn)
@@ -2634,10 +2512,10 @@ local function MakeSquare(parent)
     end)
     b.icon = b.Icon
     b:SetScript("OnEnter", SquareEnter)
-    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    b:SetScript("OnLeave", XF.Untip)
     b:SetScript("OnClick", function(self)
         if self.dungeon then ToggleDungeon(self.dungeon.groupID) end
-        if GameTooltip:GetOwner() == self then SquareEnter(self) end
+        if XF.tipOwner == self then SquareEnter(self) end
     end)
     return b
 end
@@ -2645,11 +2523,7 @@ end
 local function DelveEnter(self)
     local d = self.delve
     if not d then return end
-    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-    GameTooltip:AddLine(d.name or "?", 1, 1, 1)
-    if bountiful[d.name] then GameTooltip:AddLine("Bountiful this week", GOLD_R, GOLD_G, GOLD_B) end
-    GameTooltip:AddLine("Click to toggle", 0.7, 0.7, 0.7)
-    GameTooltip:Show()
+    XF.Tip(self, d.name or "?", bountiful[d.name] and "|cffffd100Bountiful this week|r" or nil, "Click to toggle")
 end
 
 -- A delve square: the same skinned button as the dungeon squares, with the
@@ -2661,8 +2535,7 @@ local function MakeDelveSquare(parent)
     fs:SetPoint("CENTER")
     fs:SetWordWrap(false)
     -- Our own 1px edge (theme / white when chosen) on a child frame, and for
-    -- Bountiful delves a thick gold underline under the text. Both live on
-    -- child frames: the skin's restrip pass fades textures on the button.
+    -- Bountiful delves a thick gold underline under the text.
     local PP = CM.PanelPP or CM.PP
     local function Layer(level)
         local f = CreateFrame("Frame", nil, b)
@@ -2684,7 +2557,7 @@ local function MakeDelveSquare(parent)
     end
     b.gold:Hide()
     b:SetScript("OnEnter", DelveEnter)
-    b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    b:SetScript("OnLeave", XF.Untip)
     b:SetScript("OnClick", function(self)
         local d = self.delve
         if not d then return end
@@ -2697,7 +2570,7 @@ local function MakeDelveSquare(parent)
         if n == #(delves or {}) then wipe(c.delves) end
         Refilter()
         Paint()
-        if GameTooltip:GetOwner() == self then DelveEnter(self) end
+        if XF.tipOwner == self then DelveEnter(self) end
     end)
     return b
 end
@@ -2719,9 +2592,8 @@ local function PlaceGrid(list, i, size, after, cols, slots)
 end
 
 -- Delve squares after the reset: `cols` per line, wrapping onto further lines
--- under the first square, all one gap apart, right-aligned in a row of
--- `slots` columns (the empty slots stay as space after the reset). Returns
--- the number of lines.
+-- under the first square, all one gap apart, right-aligned in a row of `slots`
+-- columns (the empty slots stay as space after the reset).
 local function LayoutDelves(size, after, show, cols, slots)
     local list = delves or {}
     local font = gfFont or "GameFontHighlight"
@@ -2746,11 +2618,7 @@ end
 local function BossEnter(self)
     local b = self.boss
     if not b then return end
-    GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-    GameTooltip:AddLine(b.name or "?", 1, 1, 1)
-    if b.raidName then GameTooltip:AddLine(b.raidName, 0.7, 0.7, 0.7) end
-    GameTooltip:AddLine("Click to toggle: groups with this boss still alive", 0.7, 0.7, 0.7, true)
-    GameTooltip:Show()
+    XF.Tip(self, b.name or "?", b.raidName, "Click to toggle: groups with this boss still alive")
 end
 
 -- A boss square: the dungeon square's look with the boss's journal portrait
@@ -2767,7 +2635,7 @@ local function MakeBossSquare(parent)
         c.bosses[d.key] = (not c.bosses[d.key]) or nil
         Refilter()
         Paint()
-        if GameTooltip:GetOwner() == self then BossEnter(self) end
+        if XF.tipOwner == self then BossEnter(self) end
     end)
     return b
 end
@@ -2795,8 +2663,7 @@ local function LayoutBosses(size, after, show, cols, slots)
 end
 
 -- Raid menu (the map button in the slot after the reset, Raids only): one
--- toggle per current raid; only the ticked raids' bosses get squares. Hiding a
--- raid also drops its bosses from the boss filter.
+-- toggle per current raid; only the ticked raids' bosses get squares.
 local function BuildRaidMenu()
     raidMenu = CreateFrame("Frame", nil, SP)
     raidMenu:SetFrameStrata("FULLSCREEN_DIALOG")
@@ -2999,7 +2866,6 @@ Paint = function()
     end
     -- Delve squares: the text stays dim until a delve is chosen; chosen ones
     -- light up and their border turns white (as the dungeon squares).
-    -- Bountiful delves carry a gold underline under the text.
     local chosenDelves = ChosenDelves()
     for _, sq in ipairs(delveSquares) do
         if sq:IsShown() and sq.delve then
@@ -3042,8 +2908,7 @@ Paint = function()
         end
     end
     -- Active filters (Blizzard's own test, the one its reset X used): the reset
-    -- lights up. It is always there; dimmed when there is nothing to reset.
-    -- The cog keeps its colour.
+    -- lights up.
     local filter = SP.FilterButton
     local fd = filter and FFD[filter]
     if fd then
@@ -3094,11 +2959,7 @@ end
 -------------------------------------------------------------------------------
 --  Layout
 -------------------------------------------------------------------------------
--- Blizzard's Filter dropdown as a cog: its art and "Filter" text faded, a cog
--- on a child frame (the skin's restrip pass fades textures drawn on the
--- buttons it styles -- what hid it after a tab switch), its size pinned (it
--- resizes itself to its text), and its floating reset X faded: our reset
--- button beside it does that job. Opens its own menu as before.
+-- Blizzard's Filter dropdown as a cog: its art and "Filter" text faded.
 local function CogFilterButton(btn)
     if not btn or FFD[btn] then return end
     local d = { size = BTN }
@@ -3122,10 +2983,9 @@ local function CogFilterButton(btn)
         local fd = FFD[self]
         if fd then self:SetSize(fd.size, fd.size) end
     end)
-    -- The button opens our Group Settings menu, not Blizzard's Filter menu
-    -- (its filters are all in our Filters menu): Blizzard's button stops
-    -- taking the mouse and a click catcher of ours lies over it. (The addon's
-    -- settings page has its own cog at the bottom of the rail, Rail.lua.)
+    -- The button opens our Group Settings menu, not Blizzard's Filter menu (its
+    -- filters are all in our Filters menu): Blizzard's button stops taking the
+    -- mouse and a click catcher of ours lies over it.
     btn:EnableMouse(false)
     local catcher = CreateFrame("Button", nil, row)
     catcher:SetAllPoints(btn)
@@ -3135,16 +2995,14 @@ local function CogFilterButton(btn)
     wash:SetColorTexture(1, 1, 1, 0.1)
     catcher:SetScript("OnEnter", function(self)
         d.cog:SetAlpha(1)
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        GameTooltip:AddLine("Group Settings", 1, 1, 1)
-        GameTooltip:Show()
+        XF.Tip(self, "Group Settings")
     end)
     catcher:SetScript("OnLeave", function()
         d.cog:SetAlpha(0.8)
-        GameTooltip:Hide()
+        XF.Untip()
     end)
     catcher:SetScript("OnClick", function(self)
-        GameTooltip:Hide()
+        XF.Untip()
         XF.ToggleGroupMenu(self)
     end)
     catcher:SetScript("OnHide", function() if XF.groupMenu then XF.groupMenu:Hide() end end)
@@ -3180,13 +3038,10 @@ local function CogFilterButton(btn)
     end)
     resetBtn:SetScript("OnEnter", function(self)
         self.Glyph:SetAlpha(1)
-        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-        GameTooltip:AddLine("Reset Filters", 1, 1, 1)
-        if not self.active then GameTooltip:AddLine("No filters set", 0.7, 0.7, 0.7) end
-        GameTooltip:Show()
+        XF.Tip(self, "Reset Filters", not self.active and "No filters set" or nil)
     end)
     resetBtn:SetScript("OnLeave", function(self)
-        GameTooltip:Hide()
+        XF.Untip()
         Paint()
     end)
 end
@@ -3217,11 +3072,7 @@ end
 -- Applicant list (your listing): Search Again's look on its refresh button
 -- (Blizzard's own button laid invisibly over ours takes the click, as on the
 -- search panel), and the column headers one gap apart with the last one
--- reaching the refresh button, one gap short of it. The rows' values sit at
--- fixed spots in Blizzard's rows, so the gaps come from shrinking each header
--- on its right (columns keep their starts) instead of moving them along.
--- Positions, sizes and alpha only, out of combat (the viewer is in a
--- protected tree).
+-- reaching the refresh button, one gap short of it.
 function XF.LayoutViewer()
     local AV = LFGListFrame and LFGListFrame.ApplicationViewer
     if not AV or InCombatLockdown() then return end
@@ -3242,12 +3093,7 @@ function XF.LayoutViewer()
         end
     end
     local rb = XF.avRefresh
-    -- The search panel's spacing: header row from the left padding line to
-    -- the refresh button on the right one, the list one gap under it and as
-    -- wide as the header row (applicant rows draw to their edges, so the list
-    -- sits exactly on both padding lines), its scroll bar centred in the right side
-    -- padding (as the result list), Delist / Browse / Edit at the side
-    -- padding, BOTTOM_Y off the bottom.
+    -- Laid out with the search panel's spacing.
     local pad = tonumber(Cfg().padding) or 12
     local TOP = -150                          -- Blizzard's header row bottom (its Inset top)
     local top, bottom = TOP - SQ_GAP, BOTTOM_Y + 22 + SQ_GAP
@@ -3345,10 +3191,10 @@ local function MatchButtonFont(box)
     end
 end
 
--- Row geometry, for the Applications card in the rail (Applications.lua):
--- row 1's centre and row 2's top below the panel's top, row 2's height
--- (Layout's square size; the panel's own width while it is not laid out) and
--- row 1's height.
+-- Row geometry, for the Applications card in the rail (Applications.lua): row
+-- 1's centre and row 2's top below the panel's top, row 2's height (Layout's
+-- square size; the panel's own width while it is not laid out) and row 1's
+-- height.
 function ns.Search_Rows()
     local pad = tonumber(Cfg().padding) or 12
     local w = SP and SP:GetWidth()
@@ -3373,20 +3219,15 @@ local function Layout()
     end
     if showBosses and not bosses then bosses, raidByActivity, raidList = BuildBosses() end
 
-    -- One size for the cog, the reset and every dungeon square, filling the
-    -- row exactly so row 2 lines up with row 1 on both sides (not rounded:
-    -- the borders snap to pixels on their own).
+    -- One size for the cog, the reset and every dungeon square, filling the row
+    -- exactly so row 2 lines up with row 1 on both sides (not rounded: the
+    -- borders snap to pixels on their own).
     local rowW = (SP:GetWidth() or 338) - pad * 2
     local n = (dungeons and #dungeons > 0) and #dungeons or 8
     local size = math.max(18, (rowW - (n + 1) * SQ_GAP) / (n + 2))
 
-    -- Row 1: search box | Filters | Search Again (the category title is hidden).
-    -- Search Again shows our skinned button, but the click lands on Blizzard's
-    -- own refresh button, laid invisibly over it: a search started from addon
-    -- code leaves the panel's search state (selectedResult, searching, ...)
-    -- addon-written, and Blizzard's later reads of it then error on secret
-    -- result fields ("index field 'activityIDs' (a secret table value ...)").
-    -- During the cooldown a cover of ours sits on top and takes the click.
+    -- Row 1: search box | Filters | Search Again (the category title is
+    -- hidden).
     local filter, box, title = SP.FilterButton, SP.SearchBox, SP.CategoryName
     if title then title:SetAlpha(0) end
     if not refreshBtn then
@@ -3408,17 +3249,15 @@ local function Layout()
             refreshBtn.hover = true
             refreshBtn:LockHighlight()   -- the skin's hover wash (a HIGHLIGHT layer), as on Filters
             PaintRefresh()
-            GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
-            GameTooltip:SetText(LFG_LIST_SEARCH_AGAIN or "Search Again", 1, 1, 1)
-            GameTooltip:AddLine(("Limited to every %d seconds to prevent lock-out"):format(CD_SEARCH), 0.7, 0.7, 0.7, true)
-            if pending then GameTooltip:AddLine("Filters changed: search to update the list", 0.7, 0.7, 0.7) end
-            GameTooltip:Show()
+            XF.Tip(owner, LFG_LIST_SEARCH_AGAIN or "Search Again",
+                ("Limited to every %d seconds to prevent lock-out"):format(CD_SEARCH),
+                pending and "Filters changed: search to update the list" or nil)
         end
         local function Untip()
             refreshBtn.hover = nil
             refreshBtn:UnlockHighlight()
             PaintRefresh()
-            GameTooltip:Hide()
+            XF.Untip()
         end
         if blz then
             blz:SetAlpha(0)          -- invisible, still takes the mouse
@@ -3460,11 +3299,7 @@ local function Layout()
         -- The skinned buttons' border colour (the D&R skin gives the box its own grey).
         SetBorderColor(box, ThemeBorder())
         -- Plain prompt (Blizzard sets the category's long one on SetCategory;
-        -- this runs after it). The prompt is its own font string, not the
-        -- secure box's text.
-        -- Blizzard's server search understands key numbers and ranges typed
-        -- here ("10-12"); the box is the only way in (addons cannot set its
-        -- text), so the prompt says so.
+        -- this runs after it).
         if box.Instructions then box.Instructions:SetText((SEARCH or "Search") .. " (e.g. 10-12)") end
     end
     MatchButtonFont(box)
@@ -3494,8 +3329,8 @@ local function Layout()
     end
     LayoutSquares(size, resetBtn or filter, showFilters)
     -- Delves: the same squares in one column fewer than there are dungeons,
-    -- right-aligned (one empty slot after the reset), wrapping under the
-    -- first one; the list moves down by the extra lines.
+    -- right-aligned (one empty slot after the reset), wrapping under the first
+    -- one; the list moves down by the extra lines.
     local lines = LayoutDelves(size, resetBtn or filter, showDelves, math.max(1, n - 1), n)
     -- Raids: the map button (raid menu) in the empty slot after the reset,
     -- and the boss squares in the same grid.
@@ -3505,14 +3340,11 @@ local function Layout()
         raidBtn:SetScript("OnHide", function() if raidMenu then raidMenu:Hide() end end)
         raidBtn:SetScript("OnEnter", function(self)
             self.Glyph:SetAlpha(1)
-            GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
-            GameTooltip:AddLine("Raids", 1, 1, 1)
-            GameTooltip:AddLine("Choose which raids' bosses are shown", 0.7, 0.7, 0.7)
-            GameTooltip:Show()
+            XF.Tip(self, "Raids", "Choose which raids' bosses are shown")
         end)
         raidBtn:SetScript("OnLeave", function(self)
             self.Glyph:SetAlpha(0.8)
-            GameTooltip:Hide()
+            XF.Untip()
         end)
     end
     if raidBtn then
@@ -3529,12 +3361,6 @@ local function Layout()
     -- Result list: one gap under row 2, the scroll bar at the right padding
     -- with one gap between it and the list, and the list ending one gap above
     -- the Back / Sign Up buttons (22 tall, BOTTOM_Y off the bottom).
-    -- The list spans the same padding lines as rows 1 and 2, lined up on what
-    -- is drawn: a result row draws its background ROW_INSET inside its own
-    -- rect on both sides (LFGListSearchEntryTemplate's ResultBG), so the list
-    -- is widened by that much. The scroll bar sits outside it, centred in the
-    -- side padding on the right (the skinned bar is a strip centred in its
-    -- frame).
     local ROW_INSET = 3
     local top = ROW2_Y - lines * size - (lines - 1) * SQ_GAP - SQ_GAP
     local bottom = BOTTOM_Y + 22 + SQ_GAP
@@ -3560,14 +3386,7 @@ local function Layout()
 end
 ns.Search_Layout = Layout
 
--- The other premade screens' bottom button pairs on the same spot as the
--- search panel's Back / Sign Up (side padding, BOTTOM_Y off the bottom), so nothing
--- shifts between screens: the category screen's Start a Group / Find a Group
--- (the D&R skin lifts those; this puts them back level) and the Start a Group
--- screen's Back / List Group.
--- The addon's settings cog: one button on LFGListFrame (so it shows on every
--- Premade Groups screen), placed at the left padding of whichever screen lays
--- out its bottom row, as tall as the bottom buttons.
+-- Bottom rows of the premade screens, on one spot.
 XF.COG_H = 22
 function XF.SettingsCog(panel)
     if not (panel and LFGListFrame) then return nil end
@@ -3578,13 +3397,11 @@ function XF.SettingsCog(panel)
         cog.Glyph:SetVertexColor(XF.GLYPH, XF.GLYPH, XF.GLYPH)
         cog:SetScript("OnEnter", function(self)
             self.Glyph:SetAlpha(1)
-            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-            GameTooltip:AddLine("Group Filters Settings", 1, 1, 1)
-            GameTooltip:Show()
+            XF.Tip(self, "Group Filters Settings")
         end)
-        cog:SetScript("OnLeave", function(self) self.Glyph:SetAlpha(0.8); GameTooltip:Hide() end)
+        cog:SetScript("OnLeave", function(self) self.Glyph:SetAlpha(0.8); XF.Untip() end)
         cog:SetScript("OnClick", function()
-            GameTooltip:Hide()
+            XF.Untip()
             if InCombatLockdown() then
                 if CM.PrintError then CM.PrintError("Cannot open options during combat.") end
                 return
@@ -3600,10 +3417,9 @@ function XF.SettingsCog(panel)
     return cog
 end
 
--- A screen's bottom row: the settings cog at the left padding, then the
--- buttons sharing the rest of the width between the padding lines evenly,
--- one gap apart. lefts = buttons that take the first slot in turn (Back /
--- Back to Group); right = the last slot.
+-- A screen's bottom row: the settings cog at the left padding, then the buttons
+-- sharing the rest of the width between the padding lines evenly, one gap
+-- apart.
 local function PinBottomButtons(panel, lefts, right)
     if not panel or InCombatLockdown() then return end
     if type(lefts) ~= "table" then lefts = { lefts } end
@@ -3629,10 +3445,8 @@ local function PinBottomButtons(panel, lefts, right)
 end
 XF.PinBottomButtons = PinBottomButtons
 
--- The category screen's list (Questing, Delves, Dungeons, Raids, ...) spans
--- the side padding, left edge with Start a Group, right edge with Find a
--- Group. Blizzard anchors only the first button (TOP, -77) and chains the rest
--- under it as it creates them; re-anchored after each of its AddButton calls.
+-- The category screen's list (Questing, Delves, Dungeons, Raids, ...) spans the
+-- side padding, left edge with Start a Group, right edge with Find a Group.
 local function LayoutCategoryList()
     local CS = LFGListFrame and LFGListFrame.CategorySelection
     local c = Cfg()
@@ -3663,13 +3477,9 @@ local function LayoutCategoryButtons()
     end
 end
 
--- A Blizzard dropdown button in our Difficulty button's look: the theme
--- border, our font (the Back / Sign Up font, a size smaller), label from the
--- left, a small white arrow (the Blizzard Skin's own arrow, resized). The
--- dropdown and its menu stay Blizzard's (its selections feed the group
--- listing, which only accepts Blizzard's own calls).
--- Our button font, made here too when Start a Group opens before the search
--- panel ever did (MatchButtonFont makes it there).
+-- A Blizzard dropdown button in our Difficulty button's look: the theme border,
+-- our font (the Back / Sign Up font, a size smaller), label from the left, a
+-- small white arrow (the Blizzard Skin's own arrow, resized).
 local function EnsureButtonFont()
     if gfFont then return gfFont end
     local src = SP and (SP.BackButton or SP.SignUpButton)
@@ -3708,10 +3518,9 @@ local function StyleEntryDropdown(dd)
 end
 
 -- Start a Group: the dungeon and difficulty dropdowns side by side across the
--- side padding (the dungeon one alone when Blizzard hides the other), then
--- the Title / Details labels and boxes and the playstyle dropdown, all on the
--- same padding lines as Back / List Group. Edges are relative to the labels
--- (they set the rows' heights), widths from the panel.
+-- side padding (the dungeon one alone when Blizzard hides the other), then the
+-- Title / Details labels and boxes and the playstyle dropdown, all on the same
+-- padding lines as Back / List Group.
 local function LayoutEntryFields()
     local EC = LFGListFrame and LFGListFrame.EntryCreation
     local c = Cfg()
@@ -3753,9 +3562,8 @@ local function LayoutEntryFields()
         -- Its text area follows the box (Blizzard sizes it once, on load).
         if desc.EditBox then desc.EditBox:SetWidth(inner - 18) end
     end
-    -- Text padding inside the Title and Details boxes (Blizzard draws the
-    -- text against the edges, now on our border). Pcall'd: Title is a secure
-    -- reference box (its text is Blizzard's; only the insets are ours).
+    -- Text padding inside the Title and Details boxes (Blizzard draws the text
+    -- against the edges, now on our border).
     local TXT_X, TXT_Y = 6, 4
     if name and name.SetTextInsets then
         pcall(name.SetTextInsets, name, TXT_X, TXT_X, 0, 0)
@@ -3775,9 +3583,7 @@ local function LayoutEntryFields()
             deb.Instructions:SetWidth(inner - TXT_X * 2)
         end
     end
-    -- Voice Chat's placeholder reads "Discord"; Min. Item Level's
-    -- "<n> recommended" placeholder is hidden (Blizzard rewrites it on each
-    -- dungeon pick, so it is faded, not replaced).
+    -- Voice Chat's placeholder reads "Discord"; Min.
     local vc = EC.VoiceChat and EC.VoiceChat.EditBox
     if vc and type(vc.Instructions) == "table" then vc.Instructions:SetText("Discord") end
     local il = EC.ItemLevel and EC.ItemLevel.EditBox
@@ -3789,10 +3595,9 @@ local function LayoutEntryFields()
         style:SetPoint("TOPRIGHT", desc, "BOTTOMRIGHT", 0, -20)
     end
     for _, dd in ipairs({ group, act, style }) do StyleEntryDropdown(dd) end
-    -- The option rows' boxes end on the playstyle dropdown's right edge and
-    -- are as wide as the List Group button; their text and placeholder 6 in
-    -- from the left (Blizzard's have none). Measured a frame later, once the
-    -- rows and the bottom row have their rects.
+    -- The option rows' boxes end on the playstyle dropdown's right edge and are
+    -- as wide as the List Group button; their text and placeholder 6 in from
+    -- the left (Blizzard's have none).
     C_Timer.After(0, function()
         local sr = style and style:GetRight()
         if not sr then return end
@@ -3850,21 +3655,10 @@ local function LayoutEntryFields()
 end
 
 -------------------------------------------------------------------------------
---  Start a Group's dropdowns keep Blizzard's own menus. Our own lists here
---  (picking through LFGListEntryCreation_Select / _OnPlayStyleSelectedInternal)
---  were tried and removed: the picks are values written by addon code, so List
---  Group ran tainted and left LFGListFrame.activePanel tainted, and every
---  applicant update after that errored on secret applicant fields ("compare
---  field 'isNew' (a secret boolean ... tainted by <this addon>)").
---  Never drive Blizzard's entry-creation selection from addon code.
+--  Start a Group's dropdowns keep Blizzard's own menus.
 -------------------------------------------------------------------------------
 -------------------------------------------------------------------------------
---  Start a Group options (Min. Mythic+ Rating, Min. Item Level, Voice Chat,
---  Limit to <faction>, Private) as switches in the settings window's look
---  (track + knob; off = grey track, dim knob; on = accent track, white knob),
---  drawn over each Blizzard checkbox, which still takes the click (a wider hit
---  area covers the switch). While off, the row's label and box are dimmed.
---  Repainted from the checkbox's own state (its SetChecked and OnClick).
+--  Start a Group options (Min.
 -------------------------------------------------------------------------------
 local SW_W, SW_H, SW_PAD = 30, 16, 2
 
@@ -3924,11 +3718,7 @@ local function SwitchCheckbox(row)
             row.Label:ClearAllPoints()
             row.Label:SetPoint("LEFT", row, "LEFT", SW_W + 6, 0)
         end
-        -- Each switch stays as you set it. Blizzard unticks an option whose
-        -- box loses focus while empty (unless the mouse is on that same
-        -- checkbox), so clicking a second switch used to untick the first.
-        -- That one untick is undone: a SetChecked(false) made in the same
-        -- moment as the box's focus loss, on a switch that was on.
+        -- Each switch stays as you set it.
         d.curOn = cb:GetChecked() and true or false
         hooksecurefunc(cb, "SetChecked", function(self, v)
             local fd = FFD[self]

@@ -19,14 +19,7 @@ end
 -- Started by the module's OnEnable once Blizzard_GroupFinder is loaded.
 function ns.Finder_Enable()
     if not PVEFrame or InCombatLockdown() then return end
-    -- Dungeon Finder and Raid Finder layout. The Type / Raid
-    -- dropdown (wider than Blizzard's 200, its text a size smaller) and the
-    -- Tank / Healer / DPS buttons centred across the panel (the dropdown's
-    -- "Type" / "Raid" label hidden), the "experienced player"
-    -- (guide) toggle smaller at the right edge, level with them; the rewards
-    -- centred under their description, a little further below it. Positions
-    -- only (out of combat), re-applied on each panel's OnShow and after each
-    -- rewards update.
+    -- Dungeon Finder and Raid Finder layout.
     local DropdownIcons
     local FINDERS = {
         { frame = "LFDQueueFrame", dropdown = "LFDQueueFrameTypeDropdown", dropY = 287, roleY = 334,
@@ -74,9 +67,7 @@ function ns.Finder_Enable()
     end
     -- The random dungeon's "included dungeons" dice and the "bosses already
     -- killed" alert sat after the title, in the rewards scroll frame (which
-    -- clips anything moved outside it). Ours sit right of the dropdown,
-    -- shown when Blizzard's are, with Blizzard's own tooltips; Blizzard's are
-    -- faded and take no mouse.
+    -- clips anything moved outside it).
     local DD_ICONS = {
         { key = "randomList",    tex = "Interface\\Buttons\\UI-GroupLoot-Dice-Up",          tip = "LFGRandomList_OnEnter" },
         { key = "encounterList", tex = "Interface\\DialogFrame\\UI-Dialog-Icon-AlertNew", tip = "LFGRewardsFrameEncounterList_OnEnter" },
@@ -127,12 +118,8 @@ function ns.Finder_Enable()
         for _, f in ipairs(FINDERS) do if name == f.rewards then q, fin = _G[f.frame], f end end
         if not q then return end
         DropdownIcons(fin, parentFrame)
-        -- Everything here is centred on the queue panel's own centre line,
-        -- the one its dropdown and role buttons are centred on. This rewards
-        -- frame sits in a scroll frame starting a few px in from the panel's
-        -- left (298 of the panel's 338), so its own middle is not that line:
-        -- the line's x inside this frame is measured and kept (panel 169 -
-        -- frame left 6 = 163 from Blizzard's layout, until measured).
+        -- Everything here is centred on the queue panel's own centre line, the
+        -- one its dropdown and role buttons are centred on.
         local qc = q.GetCenter and q:GetCenter()
         local cl = parentFrame.GetLeft and parentFrame:GetLeft()
         if qc and cl then gfLineX = qc - cl end
@@ -218,8 +205,7 @@ function ns.Finder_Enable()
         end
     end
     -- Role checkboxes in our checkbox look (dark square, theme ring; accent
-    -- ring and fill when ticked). Blizzard's checkbox stays underneath and
-    -- takes the click; its art is faded and ours follows its state.
+    -- ring and fill when ticked).
     local function PaintRoleCheck(cb)
         local d = FFD[cb]
         if not d or not d.gfBox then return end

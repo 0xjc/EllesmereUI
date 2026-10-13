@@ -1,15 +1,8 @@
 if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
 -------------------------------------------------------------------------------
 --  EUI_GroupFinder_Rail.lua
---
---  The Dungeons & Raids rail entries (Dungeon Finder, Raid Finder, Premade
---  Groups) in the look of the panel's other buttons: a box (dark fill, the
---  theme border of the skinned buttons, their hover wash) inset from the
---  rail's sides by the side padding and BOX_H tall, centred in Blizzard's
---  button, with our art for the entry over the fill (media/rail, 772x300 =
---  4x the box; the picture on its right). Blizzard's icon and ring are faded
---  and its name moved to the box's left.
---
+--  Dungeons & Raids rail entries in the house button look with their art,
+--  and the window's bottom tabs flush left.
 -------------------------------------------------------------------------------
 local ADDON_NAME, ns = ...
 local CM = EllesmereUI
@@ -34,9 +27,9 @@ local function RailButton(i)
     return gf and (gf["groupButton" .. i] or _G["GroupFinderFrameGroupButton" .. i])
 end
 
--- The host skin re-strips these buttons whenever Blizzard repaints them,
--- fading every texture on them it does not know (alpha 0), ours included: ours
--- go straight back to full alpha (our own textures, so hooking them is safe).
+-- The host skin re-strips these buttons whenever Blizzard repaints them, fading
+-- every texture on them it does not know (alpha 0), ours included: ours go
+-- straight back to full alpha (our own textures, so hooking them is safe).
 local function Keep(tex)
     hooksecurefunc(tex, "SetAlpha", function(t, a)
         if a ~= 1 and not FFD[t] then
@@ -55,9 +48,7 @@ local function Style(btn, i)
     local d = {}
     FFD[btn] = d
     -- The drawn box: inset from the rail's sides by the search panel's side
-    -- padding, as the Premade Groups category buttons (Questing ... Custom).
-    -- A frame of ours carries the border (edges only, so it may sit above the
-    -- icon and name); fill, art and hover wash are on the button, under them.
+    -- padding, as the Premade Groups category buttons (Questing ...
     d.box = CreateFrame("Frame", nil, btn)
     d.box:EnableMouse(false)
     d.bg = Keep(btn:CreateTexture(nil, "BACKGROUND", nil, 7))
@@ -99,8 +90,8 @@ PaintBorder = function(btn)
 end
 
 -- The full-width backgrounds behind our box: Blizzard's own (bg,
--- "bluemenu-main") and the host skin's card ("Ui-Dialog-New-Background",
--- which the skin re-fades to its own alpha on theme changes). Held at alpha 0.
+-- "bluemenu-main") and the host skin's card ("Ui-Dialog-New-Background", which
+-- the skin re-fades to its own alpha on theme changes).
 local CARD_ATLAS = "Ui-Dialog-New-Background"
 local function Hide(tex)
     if not tex or FFD[tex] ~= nil then return end
@@ -165,10 +156,7 @@ local function Place(btn)
     end
 end
 
--- The window's bottom tab row (Dungeons & Raids / Player vs. Player /
--- Mythic+ Dungeons ...) flush with the window's left edge, tabs touching
--- (Blizzard starts it 19px in, the host skin leaves a pixel between tabs).
--- Shown tabs only; positions only, out of combat.
+-- The window's bottom tab row (Dungeons & Raids / Player vs.
 local function AlignTabs()
     local pve = _G.PVEFrame
     if not pve or InCombatLockdown() then return end
