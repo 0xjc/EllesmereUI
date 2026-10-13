@@ -3,7 +3,7 @@
 ## Title: |cff0cd29fEllesmereUI|r Group Finder
 ## Category: |cff0cd29fEllesmere|rUI
 ## Group: EllesmereUI
-## Notes: Premade Groups search filters, group list and applicant tools, and the Dungeon Finder / Raid Finder layout, in the Dungeons & Raids window.
+## Notes: Premade Group search filters, listing, and application tools.
 ## Author: MorningCawfee
 ## Version: 9.4.1
 ## Dependencies: EllesmereUI
