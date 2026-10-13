@@ -1030,6 +1030,8 @@ local function SkinCharacterSheet()
                     if GetFFD(slot).enchantLabel      then GetFFD(slot).enchantLabel:SetShown(isCharacterTab)      end
                     if GetFFD(slot).enchantHoverFrame then GetFFD(slot).enchantHoverFrame:SetShown(isCharacterTab) end
                     if GetFFD(slot).upgradeTrackLabel then GetFFD(slot).upgradeTrackLabel:SetShown(isCharacterTab) end
+                    if GetFFD(slot).statLetterLabel   then GetFFD(slot).statLetterLabel:SetShown(isCharacterTab)   end
+                    if GetFFD(slot).statLetterTerLabel then GetFFD(slot).statLetterTerLabel:SetShown(isCharacterTab) end
                 end
             end
         end
@@ -3487,6 +3489,48 @@ local function SkinCharacterSheet()
             emPane.ScrollBox:ClearAllPoints()
             emPane.ScrollBox:SetPoint("TOPLEFT", emPane, "TOPLEFT", 0, -23)
         end
+
+        -- Equip / Save and the scroll bar trade Blizzard's red panel-button
+        -- and trim art for the house look. Art is faded and our textures and
+        -- borders are added beside it; no field, size or script of Blizzard's
+        -- is written, so the pane's own code runs as before.
+        local WS = ns.WSkin
+        if WS then
+            for _, b in ipairs({ emPane.EquipSet or _G.PaperDollFrameEquipSet,
+                                 emPane.SaveSet or _G.PaperDollFrameSaveSet }) do
+                WS.Button(b)
+                WS.StateButtonLabel(b)
+            end
+            local sb = emPane.ScrollBar
+            if sb then
+                WS.ScrollBar(sb)
+                -- WowTrimScrollBar keeps its trough on a child frame that
+                -- WS.ScrollBar does not reach.
+                if sb.Background then WS.FadeRegions(sb.Background) end
+            end
+        end
+
+        -- Blizzard seats the button row flush on the list, with the slack
+        -- above it. Lift the row by its own anchor so the gap splits evenly;
+        -- a button chained to its sibling follows it. Moving the buttons
+        -- leaves the list's size alone.
+        local EM_BUTTON_LIFT = 8
+        local equipBtn = emPane.EquipSet or _G.PaperDollFrameEquipSet
+        local saveBtn = emPane.SaveSet or _G.PaperDollFrameSaveSet
+        for _, b in ipairs({ equipBtn, saveBtn }) do
+            local anchors, chained = {}, false
+            for i = 1, b:GetNumPoints() do
+                local a = { b:GetPoint(i) }
+                if a[2] == equipBtn or a[2] == saveBtn then chained = true end
+                anchors[i] = a
+            end
+            if not chained and #anchors > 0 then
+                b:ClearAllPoints()
+                for _, a in ipairs(anchors) do
+                    b:SetPoint(a[1], a[2], a[3], a[4], a[5] + EM_BUTTON_LIFT)
+                end
+            end
+        end
     end
 
     -- Gear set rows trade Blizzard's stat-strip art for the sheet's flat
@@ -3609,6 +3653,14 @@ local function SkinCharacterSheet()
     do
     local LX = ns.CharSheetStock() and 22 or 15   -- item level (centre)
     local EX = ns.CharSheetStock() and 12 or 5    -- enchant (near edge)
+    -- Stat letters sit on the slot icon, so they need a frame above the slots
+    -- and the gem icons (100); the stock styles' slots live in
+    -- PaperDollItemsFrame (100) and sit above that. A child of the text
+    -- overlay, so the eye toggle hides them with the other item text.
+    local statLetterFrame = CreateFrame("Frame", nil, textOverlayFrame)
+    local headSlot = _G.CharacterHeadSlot
+    statLetterFrame:SetFrameLevel(math.max(100, headSlot and headSlot:GetFrameLevel() or 0) + 10)
+    statLetterFrame:EnableMouse(false)
     for _, slotName in ipairs(itemSlots) do
         if not ns.CharSheetStock() then ApplyCustomSlotBorder(slotName) end
 
@@ -3704,6 +3756,21 @@ local function SkinCharacterSheet()
             end
 
             GetFFD(slot).upgradeTrackLabel = upgradeTrackLabel
+        end
+
+        -- Stat letter labels ("MH", tertiaries smaller behind: "L") centred
+        -- along the icon's bottom edge (UpdateSlotInfo re-centres the pair).
+        if slot and not GetFFD(slot).statLetterLabel and not skipLabels then
+            local statLabel = statLetterFrame:CreateFontString(nil, "OVERLAY")
+            statLabel:SetFont(fontPath, 11, "OUTLINE, SLUG")
+            statLabel:SetPoint("BOTTOMLEFT", slot, "BOTTOM", 0, 2)
+            statLabel:SetTextColor(1, 1, 1, 0.95)
+            local terLabel = statLetterFrame:CreateFontString(nil, "OVERLAY")
+            terLabel:SetFont(fontPath, 8, "OUTLINE, SLUG")
+            terLabel:SetPoint("BOTTOMLEFT", statLabel, "BOTTOMRIGHT", 1, 0)
+            terLabel:SetTextColor(0.94, 0.66, 0.94, 0.95)
+            GetFFD(slot).statLetterLabel = statLabel
+            GetFFD(slot).statLetterTerLabel = terLabel
         end
     end
     end -- label offsets
@@ -4111,10 +4178,13 @@ local function SkinCharacterSheet()
     -- Cache item info (ID, level, upgrade track) to update when items change
     local itemCache = {}
 
-    -- Update one slot's item level, enchant and upgrade-track labels.
+    -- Update one slot's item level, enchant and upgrade-track labels. Returns false when
+    -- the item's data had not fully arrived (no quality, no item level, or an enchant id
+    -- on the link whose name the scan could not read yet), so the caller retries the slot.
+    -- An unenchanted item is complete: a missing enchant is an answer, not a failed read.
     local function UpdateSlotInfo(slotName)
         local slot = _G[slotName]
-        if not slot then return end
+        if not slot then return true end
 
         -- Tab guard: equipment events fire regardless of the active sub-tab, so
         -- labels must stay hidden if opened straight to Reputation/Currency.
@@ -4133,8 +4203,11 @@ local function SkinCharacterSheet()
         local slotID = slot:GetID()
 
         if itemLink then
-            local _, _, quality, ilvl = GetItemInfo(itemLink)
-            itemLevel = ilvl or ""
+            -- GetItemInfo's itemLevel is the cached base level, wrong for upgrade-track
+            -- pieces (shows 219 for a 334 item); read the equipped instance instead.
+            local _, _, quality = C_Item.GetItemInfo(itemLink)
+            local ilvl = GetEquippedItemLevel(slotID)
+            itemLevel = (ilvl and ilvl > 0) and ilvl or ""
             itemQuality = quality
 
             -- Enchant via C_TooltipInfo; upgrade track via C_Item (no tooltip).
@@ -4247,7 +4320,48 @@ local function SkinCharacterSheet()
                 GetFFD(slot).upgradeTrackLabel:Hide()
             end
         end
+
+        -- Stat letters (off unless true; the tertiaries only when their own key
+        -- is true too). An item with only tertiaries shows them at full size.
+        -- Not on WoW Forever, whose sheet has its own stat text and no options row.
+        if GetFFD(slot).statLetterLabel then
+            local sec, tert = "", ""
+            if itemLink and not EllesmereUI.IS_FOREVER
+                and EllesmereUIDB and EllesmereUIDB.charSheetItemStats == true then
+                sec, tert = EllesmereUI.GetItemStatLetters(itemLink)
+                if not (EllesmereUIDB and EllesmereUIDB.charSheetItemStatsTertiary == true) then tert = "" end
+                if sec == "" then sec, tert = tert, "" end
+            end
+            local statLabel, terLabel = GetFFD(slot).statLetterLabel, GetFFD(slot).statLetterTerLabel
+            -- Keep the letters' frame above the slot icon: the slots' strata
+            -- and level can differ from the overlay's (and change after the
+            -- build), and the icon would otherwise draw over the text.
+            local letterFrame = statLabel:GetParent()
+            if letterFrame:GetFrameStrata() ~= slot:GetFrameStrata() then
+                letterFrame:SetFrameStrata(slot:GetFrameStrata())
+            end
+            if letterFrame:GetFrameLevel() <= slot:GetFrameLevel() + 5 then
+                letterFrame:SetFrameLevel(math.max(100, slot:GetFrameLevel()) + 10)
+            end
+            statLabel:SetText(sec)
+            terLabel:SetText(tert)
+            -- Centre the pair: the tertiaries hang off the main label's right.
+            local w = statLabel:GetStringWidth() + (tert ~= "" and terLabel:GetStringWidth() + 1 or 0)
+            statLabel:ClearAllPoints()
+            statLabel:SetPoint("BOTTOMLEFT", slot, "BOTTOM", -w / 2, 2)
+            GetFFD(slot).statLetterLabel:SetShown(isCharTab)
+            GetFFD(slot).statLetterTerLabel:SetShown(isCharTab)
+        end
+
+        if not itemLink then return true end
+        local enchantID = tonumber(itemLink:match("item:%d+:(%d+)"))
+        local enchantPending = enchantID and enchantID ~= 0 and enchantText == ""
+        return itemQuality ~= nil and itemLevel ~= "" and not enchantPending
     end
+
+    -- Slots whose last read came back incomplete; they stay out of itemCache so the next
+    -- refresh reads them again, and item-data events only trigger a refresh while any exist.
+    local incompleteSlots = {}
 
     -- Event-driven per-slot label refresh; item-link cache guards redundant work, events catch upgrade/enchant/socket changes without polling.
     local function RefreshAllSlotLabels()
@@ -4256,8 +4370,13 @@ local function SkinCharacterSheet()
         for _, slotName in ipairs(itemSlots) do
             local itemLink = GetInventoryItemLink("player", _G[slotName]:GetID())
             if itemCache[slotName] ~= itemLink then
-                itemCache[slotName] = itemLink
-                UpdateSlotInfo(slotName)
+                if UpdateSlotInfo(slotName) then
+                    itemCache[slotName] = itemLink
+                    incompleteSlots[slotName] = nil
+                else
+                    itemCache[slotName] = nil
+                    incompleteSlots[slotName] = true
+                end
             end
         end
     end
@@ -4281,11 +4400,25 @@ local function SkinCharacterSheet()
                 monitor:RegisterEvent("UNIT_INVENTORY_CHANGED")
                 monitor:RegisterEvent("SOCKET_INFO_UPDATE")
                 monitor:RegisterEvent("ITEM_UPGRADE_MASTER_UPDATE")
+                -- Item/tooltip data arriving late for a slot whose read came back
+                -- incomplete. Both storm in cities, so the handler drops them at once
+                -- while no slot is pending and debounces the rest.
+                monitor:RegisterEvent("GET_ITEM_INFO_RECEIVED")
+                monitor:RegisterEvent("TOOLTIP_DATA_UPDATE")
             else
                 monitor:UnregisterAllEvents()
             end
         end
+        local retryTimer
         monitor:SetScript("OnEvent", function(_, event, unit)
+            if event == "GET_ITEM_INFO_RECEIVED" or event == "TOOLTIP_DATA_UPDATE" then
+                if not next(incompleteSlots) or retryTimer then return end
+                retryTimer = C_Timer.NewTimer(0.12, function()
+                    retryTimer = nil
+                    RefreshAllSlotLabels()
+                end)
+                return
+            end
             if event == "UNIT_INVENTORY_CHANGED" and unit ~= "player" then return end
             if not (frame and frame:IsShown()) then return end
             RefreshAllSlotLabels()
@@ -4452,6 +4585,84 @@ function EllesmereUI._refreshCharSheetSlotFlyoutArrows()
     slotFlyoutArrowsHidden = hide
 end
 
+-- Gear flyout (hover/click a slot -> popup of same-slot items) in the
+-- EllesmereUI sheet's look: Blizzard's parchment strips and paging bar give
+-- way to a flat panel, the item icons are squared with a square rarity edge,
+-- and the gold glow around the source slot (sized for Blizzard's slot art) is
+-- dropped. A post-hook on EquipmentFlyout_UpdateItems, so it re-applies after
+-- every fill (Blizzard re-shows and re-sizes its strips each time). Regions
+-- only, plus child frames: no key is ever written onto a flyout button, and
+-- the rarity edge takes an explicit colour read off Blizzard's ring, so no
+-- method hook lands on the buttons either.
+do
+    local function FlyoutSkinActive()
+        if EllesmereUI.IS_FOREVER or ns.CharSheetStock() then return false end
+        return not (EllesmereUIDB and (EllesmereUIDB.themedCharacterSheet == false
+            or EllesmereUI.BlizzWindowSkinsKilled()))
+    end
+
+    local function SkinFlyoutButton(btn)
+        if not btn or btn:IsForbidden() then return end
+        local WSkin = ns.WSkin
+        local d = GetFFD(btn)
+        if not d.euiFlyoutSkinned then
+            d.euiFlyoutSkinned = true
+            local nt = btn.GetNormalTexture and btn:GetNormalTexture()
+            if nt then nt:SetAlpha(0) end
+            if btn.icon then WSkin.SquareIcon(btn.icon) end
+        end
+        -- The ring is Blizzard's quality cue, rounded: hidden by alpha, its
+        -- colour carried over to the square edge on every fill.
+        local ring = btn.IconBorder
+        if ring then ring:SetAlpha(0) end
+        if btn.icon then
+            local r, g, b = WSkin.RingQuality(ring)
+            WSkin.QualityBorder(btn, btn.icon, r or 0, g or 0, b or 0)
+        end
+    end
+
+    local function SkinFlyout()
+        if not FlyoutSkinActive() then return end
+        local WSkin = ns.WSkin
+        local flyout = _G.EquipmentFlyoutFrame
+        if not (WSkin and flyout) then return end
+        if flyout.Highlight then flyout.Highlight:SetAlpha(0) end
+
+        local anchor = flyout.buttonFrame
+        if anchor then
+            -- Panel fades the strips it finds now; Blizzard adds more (bgN)
+            -- as the flyout grows, so every strip is faded on every fill.
+            WSkin.Panel(anchor)
+            for i = 1, anchor.numBGs or 0 do
+                local strip = anchor["bg" .. i]
+                if strip then strip:SetAlpha(0) end
+            end
+        end
+
+        local nav = flyout.NavigationFrame
+        if nav and not GetFFD(nav).euiFlyoutSkinned then
+            GetFFD(nav).euiFlyoutSkinned = true
+            WSkin.Panel(nav)
+            if nav.PrevButton then WSkin.PageButton(nav.PrevButton, "<", 12) end
+            if nav.NextButton then WSkin.PageButton(nav.NextButton, ">", 12) end
+            for _, region in ipairs({ nav:GetRegions() }) do
+                if region:IsObjectType("FontString") then WSkin.Font(region) end
+            end
+        end
+
+        for _, btn in ipairs(flyout.buttons or {}) do
+            if btn:IsShown() then SkinFlyoutButton(btn) end
+        end
+    end
+
+    local hooked = false
+    function EllesmereUI._installEquipmentFlyoutSkin()
+        if hooked or not _G.EquipmentFlyout_UpdateItems then return end
+        hooked = true
+        hooksecurefunc("EquipmentFlyout_UpdateItems", SkinFlyout)
+    end
+end
+
 -- Entry point: apply the themed character sheet.
 local function ApplyThemedCharacterSheet()
     -- WoW Forever: the full makeover stands down; the EllesmereUI look and
@@ -4481,6 +4692,7 @@ if EllesmereUI then
         if EllesmereUI.IS_FOREVER then return end
         if CharacterFrame then
             EllesmereUI._refreshCharSheetSlotFlyoutArrows()
+            EllesmereUI._installEquipmentFlyoutSkin()
             -- Pre-skin runs early, while CharacterFrame is still hidden; running it
             -- mid-OnShow breaks the Rep/Currency ScrollBox data render.
             local sheetOn = not EllesmereUIDB or (EllesmereUIDB.themedCharacterSheet ~= false and not EllesmereUI.BlizzWindowSkinsKilled())

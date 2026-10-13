@@ -5050,6 +5050,8 @@ end
 --  enabled, overlays each button with the item's level, coloured by quality. Hooks
 --  EquipmentFlyout_UpdateItems (after every flyout shape is populated) and reads EllesmereUIDB
 --  live, so the toggle applies to the next flyout with no reload. Toggle: EllesmereUIDB.flyoutItemLevels (Quality of Life -> UI).
+--  EllesmereUIDB.flyoutItemStats adds the stat letters (EllesmereUI.GetItemStatLetters)
+--  centred along the bottom edge; flyoutItemStatsTertiary == true adds Leech/Avoidance/Speed.
 -------------------------------------------------------------------------------
 do
     local function FlyoutEnabled()
@@ -5136,14 +5138,71 @@ do
         return fs
     end
 
+    -- Stat letters ("MH", tertiaries smaller behind them: "L") centred along
+    -- the button's bottom edge, kept off the button like the item level above.
+    local _flyoutStatFS = setmetatable({}, { __mode = "k" })  -- [button] = fontstring
+    local _flyoutTerFS  = setmetatable({}, { __mode = "k" })  -- [button] = fontstring
+
+    local function EnsureStatText(button)
+        local fs = _flyoutStatFS[button]
+        if not fs then
+            local font = EllesmereUI._font
+                or "Interface\\AddOns\\EllesmereUI\\media\\fonts\\Expressway.ttf"
+            local flag = (EllesmereUI.SlugFlag("OUTLINE, SLUG"))
+                or "OUTLINE, SLUG"
+            fs = button:CreateFontString(nil, "OVERLAY", nil, 7)
+            fs:SetFont(font, 11, flag)
+            fs:SetPoint("BOTTOMLEFT", button, "BOTTOMLEFT", 2, 2)
+            fs:SetTextColor(1, 1, 1, 1)
+            local ter = button:CreateFontString(nil, "OVERLAY", nil, 7)
+            ter:SetFont(font, 8, flag)
+            ter:SetPoint("BOTTOMLEFT", fs, "BOTTOMRIGHT", 1, 0)
+            ter:SetTextColor(0.94, 0.66, 0.94, 1)
+            _flyoutStatFS[button] = fs
+            _flyoutTerFS[button] = ter
+        end
+        return fs, _flyoutTerFS[button]
+    end
+
+    local function PaintStats(button, link)
+        local fs, ter = _flyoutStatFS[button], _flyoutTerFS[button]
+        local sec, tert = "", ""
+        if link and EllesmereUI.GetItemStatLetters then
+            sec, tert = EllesmereUI.GetItemStatLetters(link)
+            if not (EllesmereUIDB and EllesmereUIDB.flyoutItemStatsTertiary == true) then tert = "" end
+        end
+        if sec == "" and tert == "" then
+            if fs then fs:SetText(""); ter:SetText("") end
+            return
+        end
+        -- Only tertiaries: they take the main label (and its size).
+        if sec == "" then sec, tert = tert, "" end
+        fs, ter = EnsureStatText(button)
+        fs:SetText(sec)
+        ter:SetText(tert)
+        -- Centre the pair along the bottom edge: the tertiaries hang off the
+        -- main label's right.
+        local w = fs:GetStringWidth() + (tert ~= "" and ter:GetStringWidth() + 1 or 0)
+        fs:ClearAllPoints()
+        fs:SetPoint("BOTTOMLEFT", button, "BOTTOM", -w / 2, 2)
+    end
+
     local function PaintButton(button, useItemLocation)
         local fs = _flyoutFS[button]
-        if not FlyoutEnabled() or not button:IsShown() then
+        local showIlvl = FlyoutEnabled()
+        local showStats = EllesmereUIDB and EllesmereUIDB.flyoutItemStats
+        if not (showIlvl or showStats) or not button:IsShown() then
             if fs then fs:SetText("") end
+            PaintStats(button, nil)
             return
         end
 
         local ilvl, quality, link = ButtonItemInfo(button, useItemLocation)
+        PaintStats(button, showStats and link or nil)
+        if not showIlvl then
+            if fs then fs:SetText("") end
+            return
+        end
         fs = EnsureText(button)
         if ilvl and ilvl > 0 then
             fs:SetText(ilvl)

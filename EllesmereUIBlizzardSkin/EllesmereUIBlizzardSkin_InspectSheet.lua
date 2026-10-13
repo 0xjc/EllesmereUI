@@ -105,7 +105,10 @@ local function EUI_UpdateSlotStyle(slotName, slotID, textOverlayFrame, isRightCo
 
     -- Item level label (font size matches CharacterSheet)
     if itemLink and not GetFFD(slot).iLvlText and not skipLabels then
-        local _, _, quality, ilvl = GetItemInfo(itemLink)
+        -- GetItemInfo's itemLevel is the cached base level, wrong for upgrade-track
+        -- pieces; the detailed level reads the link's bonus IDs.
+        local _, _, quality, baseIlvl = C_Item.GetItemInfo(itemLink)
+        local ilvl = C_Item.GetDetailedItemLevelInfo(itemLink) or baseIlvl
         if ilvl and ilvl > 0 then
             local itemLevelSize = EllesmereUIDB and EllesmereUIDB.charSheetItemLevelSize or 11
             local ilvlText = GetFFD(slot).cachedILvlText or textOverlayFrame:CreateFontString(nil, "OVERLAY")
@@ -1434,4 +1437,3 @@ function EllesmereUI._refreshInspectEnchantsVisibility()
         end
     end
 end
-

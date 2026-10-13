@@ -2322,6 +2322,7 @@ initFrame:SetScript("OnEvent", function(self)
               tooltip=EllesmereUI.L("Asks before spending a bonus roll and shows your loot specialization. Use the cog to also confirm Pass."),
               disabled=bonusRollConflict,
               disabledTooltip=EllesmereUI.L("BonusRollConfirm is loaded and handles confirmation. Disable that addon and reload to use this feature."),
+              rawTooltip=true,
               getValue=function()
                   return EllesmereUIDB and EllesmereUIDB.bonusRollConfirmation == true
               end,
