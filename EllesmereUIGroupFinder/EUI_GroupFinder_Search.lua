@@ -1670,8 +1670,16 @@ local function AddRoleItems(m, y, raids)
         end)
         y = y + ITEM_H
     end
-    y = XF.AddFlagItem(m, y, "hasLust", "Has Bloodlust")
-    y = XF.AddFlagItem(m, y, "hasBrez", "Has Battle Res")
+    y = XF.AddFlagItem(m, y, "hasLust", "Has Bloodlust", {
+        "A member whose class has one of these spells:",
+        "Bloodlust / Heroism (Shaman)", "Time Warp (Mage)",
+        "Primal Rage (Hunter pet)", "Fury of the Aspects (Evoker)",
+        "Drums and other items don't count." })
+    y = XF.AddFlagItem(m, y, "hasBrez", "Has Battle Res", {
+        "A member whose class has one of these spells:",
+        "Rebirth (Druid)", "Raise Ally (Death Knight)",
+        "Soulstone (Warlock)", "Intercession (Paladin)",
+        "Engineering and other items don't count." })
     for _, r in ipairs(XF.COUNT_ROLES) do y = XF.AddCountRow(m, y, r.key, r.label) end
     return y
 end
@@ -1872,7 +1880,10 @@ function XF.AddFlagItem(m, y, key, text, tip)
     end)
     m.items["flag_" .. key] = item
     if tip then
-        item:HookScript("OnEnter", function(self) XF.Tip(self, text, tip) end)
+        -- tip: one line, or a list of lines
+        item:HookScript("OnEnter", function(self)
+            if type(tip) == "table" then XF.Tip(self, text, unpack(tip)) else XF.Tip(self, text, tip) end
+        end)
         item:HookScript("OnLeave", XF.Untip)
     end
     return y + ITEM_H
