@@ -4361,6 +4361,111 @@ EllesmereUI.RegisterMigration({
     end,
 })
 
+-- Player Aura Bars icons with a custom Icon Shape used to zoom the spell art far
+-- past their Icon Zoom (the shaped icon grew past its button and still took the
+-- zoom crop), so most players with a shape dragged Icon Zoom down to 0. Shaped
+-- icons now take the crop an unshaped icon takes at the same zoom, where 0 shows
+-- the whole art, its dark edge included. Every bar with a custom shape still at 0
+-- moves to 6 (an unset zoom reads 5.5): the profile's own bars and every Spec
+-- Override or Condition value stored for one, each entry's banked default
+-- included, or leaving an override would write the 0 back. Unshaped bars never
+-- zoomed wrong and keep their zoom. PROFILE scope on purpose: an export string
+-- from before carries no stamp and is fixed at its next load, while a profile
+-- made from a fixed one inherits its stamp.
+do
+    local ZOOM = 0.06
+    local UF = "EllesmereUIUnitFrames"
+    local PAB_ROOT = UF .. "\31playerAuraBars"
+    local PAB_PREFIX = PAB_ROOT .. "\30"
+    local ZOOM_LEAF, SHAPE_LEAF = "\30iconZoom", "\30iconShape"
+    local NIL_SENT = "__SPECOV_NIL__"   -- a stored "key removed" override value
+    local OV_STORES = { "specOverrides", "condOverrides" }
+
+    -- Player Aura Bars' own test (PabShapeActive): any shape but "none".
+    local function Shaped(shape)
+        return type(shape) == "string" and shape ~= "none"
+    end
+
+    -- Every bar table under t. Only a bar carries iconShape and iconZoom, so the
+    -- walk needs no map of where bars live (the default bars, the custom lists,
+    -- the per-spec buckets).
+    local function FixTree(t, depth)
+        if t.iconZoom == 0 and Shaped(t.iconShape) then t.iconZoom = ZOOM end
+        if depth < 6 then
+            for _, v in pairs(t) do
+                if type(v) == "table" then FixTree(v, depth + 1) end
+            end
+        end
+    end
+
+    -- The bar table an override path names inside playerAuraBars (list indexes
+    -- are stored as strings, as the override engine writes them).
+    local function BarAt(pab, rel)
+        local t = pab
+        for seg in rel:gmatch("[^\30]+") do
+            if type(t) ~= "table" then return nil end
+            local v = t[seg]
+            if v == nil then
+                local n = tonumber(seg)
+                if n then v = t[n] end
+            end
+            t = v
+        end
+        return type(t) == "table" and t or nil
+    end
+
+    -- One stored override value map: a whole subtree is walked like the
+    -- profile's own bars; a lone zoom of 0 takes the shape this layer gives its
+    -- bar (the layer's own value, else the profile's bar).
+    local function FixMap(map, pab)
+        for fkey, v in pairs(map) do
+            if type(fkey) == "string"
+                and (fkey == PAB_ROOT or fkey:sub(1, #PAB_PREFIX) == PAB_PREFIX) then
+                if type(v) == "table" then
+                    FixTree(v, 0)
+                elseif v == 0 and fkey:sub(-#ZOOM_LEAF) == ZOOM_LEAF then
+                    local bar = fkey:sub(1, -#ZOOM_LEAF - 1)
+                    local shape = map[bar .. SHAPE_LEAF]
+                    if shape == nil and pab then
+                        local t = BarAt(pab, bar:sub(#PAB_PREFIX + 1))
+                        shape = t and t.iconShape
+                    end
+                    if shape ~= NIL_SENT and Shaped(shape) then map[fkey] = ZOOM end
+                end
+            end
+        end
+    end
+
+    EllesmereUI.RegisterMigration({
+        id          = "pab_shaped_icon_zoom_v1",
+        scope       = "profile",
+        description = "Player Aura Bars: Icon Zoom 6 on bars with a custom Icon Shape left at 0 by the old shaped-icon over-zoom.",
+        body = function(ctx)
+            local prof = ctx.profile
+            local addons = prof.addons
+            local uf = type(addons) == "table" and addons[UF] or nil
+            local pab = type(uf) == "table" and uf.playerAuraBars or nil
+            if type(pab) ~= "table" then pab = nil end
+            -- Overrides first: their shape test reads the profile's bars, which
+            -- the pass below never changes the shape of anyway.
+            for si = 1, #OV_STORES do
+                local store = prof[OV_STORES[si]]
+                if type(store) == "table" then
+                    for _, entry in pairs(store) do
+                        local values = type(entry) == "table" and entry.values
+                        if type(values) == "table" then
+                            for _, map in pairs(values) do
+                                if type(map) == "table" then FixMap(map, pab) end
+                            end
+                        end
+                    end
+                end
+            end
+            if pab then FixTree(pab, 0) end
+        end,
+    })
+end
+
 --------------------------------------------------------------------------------
 --  WOW FOREVER: ONE-TIME BUFF CLEAR
 --
