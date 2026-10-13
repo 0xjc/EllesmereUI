@@ -170,6 +170,49 @@ _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
     );  y = y - h
 
     ---------------------------------------------------------------------------
+    --  SIMPLIFIED STATS (item tooltips)
+    ---------------------------------------------------------------------------
+    local SS = EllesmereUI._SimplifiedStats
+    if SS then
+        local function Set(k, v)
+            SS.Cfg()[k] = v
+            EllesmereUI:RefreshPage()  -- update the dependent rows' disabled state
+        end
+        local function shortenOff() return not SS.Get("shorten") end
+        local function colorsOff() return not SS.Get("colors") end
+
+        _, h = W:Spacer(parent, y, 20);  y = y - h
+        _, h = W:SectionHeader(parent, "SIMPLIFIED STATS", y);  y = y - h
+
+        -- Shorten Equip Lines | Color Stats
+        _, h = W:DualRow(parent, y,
+            { type = "toggle", text = "Shorten Equip Lines",
+              tooltip = "Shortens Equip: and Set: stat lines on item tooltips to +X Stat.",
+              getValue = function() return SS.Get("shorten") end,
+              setValue = function(v) Set("shorten", v) end },
+            { type = "toggle", text = "Color Stats",
+              tooltip = "Colors each stat name on item tooltips, enchants included, and its number per Number Color.",
+              getValue = function() return SS.Get("colors") end,
+              setValue = function(v) Set("colors", v) end }
+        );  y = y - h
+
+        -- Merge Equal Spell Power | Number Color
+        _, h = W:DualRow(parent, y,
+            { type = "toggle", text = "Merge Equal Spell Power",
+              tooltip = "Shows equal spell damage and healing as one Spell Power line.",
+              disabled = shortenOff, disabledTooltip = "Shorten Equip Lines",
+              getValue = function() return SS.Get("merge") end,
+              setValue = function(v) Set("merge", v) end },
+            { type = "dropdown", text = "Number Color",
+              disabled = colorsOff, disabledTooltip = "Color Stats",
+              values = { signed = "Green / Red", stat = "Stat Color", line = "Line Color" },
+              order = { "signed", "stat", "line" },
+              getValue = function() return SS.Get("numColor") end,
+              setValue = function(v) SS.Cfg().numColor = (v ~= "signed") and v or nil end }
+        );  y = y - h
+    end
+
+    ---------------------------------------------------------------------------
     --  NAME FORMAT (while a module with a Name Format is on)
     ---------------------------------------------------------------------------
     local sources = NameFormatSources()

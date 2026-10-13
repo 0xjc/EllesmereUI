@@ -12,8 +12,9 @@
 # Main Lua
 EllesmereUIForeverEssentials.lua
 
-# General (spell uprank)
+# General (spell uprank, simplified stats)
 EllesmereUIForeverEssentials_Uprank.lua
+EllesmereUIForeverEssentials_SimplifiedStats.lua
 
 # Travel (flight timer)
 EllesmereUIForeverEssentials_FlightTimerData.lua
