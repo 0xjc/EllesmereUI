@@ -2355,9 +2355,10 @@ initFrame:SetScript("OnEvent", function(self)
             powerBar     = { section = sharedPowerHeader,    target = sharedPowerRow1, slotSide = "left" },
             powerBarText = { section = sharedPowerHeader,    target = sharedPowerRow2, slotSide = "left" },
             portrait     = { section = sharedPortraitHeader, target = sharedPortraitModeRow, slotSide = "left" },
-            nameText     = { section = sharedBarsHeader,     target = sharedTextRow, slotSide = "left" },
-            healthText   = { section = sharedBarsHeader,     target = sharedTextRow, slotSide = "right" },
-            centerText   = { section = sharedBarsHeader,     target = sharedCenterTextRow, slotSide = "left" },
+            nameText = ns.UFO_TextClickTarget(parent, "leftText", sharedBarsHeader, sharedTextRow),
+            healthText = ns.UFO_TextClickTarget(parent, "rightText", sharedBarsHeader, sharedTextRow),
+            centerText = ns.UFO_TextClickTarget(parent, "centerText", sharedBarsHeader, sharedTextRow),
+            extraText = ns.UFO_TextClickTarget(parent, "extraText", sharedBarsHeader, sharedTextRow),
             classResource= { section = sharedClassResHeader, target = sharedClassResRow, slotSide = "left" },
             btbBar       = { section = sharedBtbHeader,      target = sharedBtbToggleRow, slotSide = "left" },
             btbLeftText  = { section = sharedBtbHeader,      target = sharedBtbTextRow, slotSide = "left" },
@@ -2554,6 +2555,7 @@ initFrame:SetScript("OnEvent", function(self)
             if pv._nameFS and pv._nameFS:IsShown() then textOverlays[#textOverlays+1] = CreateHitOverlay(pv._nameFS, "nameText", true, textLevel) end
             if pv._hpFS and pv._hpFS:IsShown() then textOverlays[#textOverlays+1] = CreateHitOverlay(pv._hpFS, "healthText", true, textLevel) end
             if pv._centerFS and pv._centerFS:IsShown() then textOverlays[#textOverlays+1] = CreateHitOverlay(pv._centerFS, "centerText", true, textLevel) end
+            if pv._extraFS and pv._extraFS:IsShown() then textOverlays[#textOverlays+1] = CreateHitOverlay(pv._extraFS, "extraText", true, textLevel) end
             -- Blizzard Style level number: built whenever the art has a level
             -- circle and shown with the text (the preview toggles it).
             if pv._levelFS then
@@ -2750,6 +2752,8 @@ initFrame:SetScript("OnEvent", function(self)
             end
             if pv._nameFS and pv._nameFS:IsShown() then CreateHitOverlay(pv._nameFS, "nameText", true, textLevel) end
             if pv._hpFS and pv._hpFS:IsShown() then CreateHitOverlay(pv._hpFS, "healthText", true, textLevel) end
+            if pv._extraFS and pv._extraFS:IsShown() then CreateHitOverlay(pv._extraFS, "extraText", true, textLevel) end
+            if pv._centerFS and pv._centerFS:IsShown() then CreateHitOverlay(pv._centerFS, "centerText", true, textLevel) end
             -- The pet's buff/debuff icons -> Buffs / Debuffs Location. Every icon,
             -- so one shown later stays clickable without a header rebuild (the
             -- other mini frames show none).
@@ -2845,6 +2849,8 @@ initFrame:SetScript("OnEvent", function(self)
             end
             if pv._nameFS and pv._nameFS:IsShown() then CreateHitOverlay(pv._nameFS, "nameText", true, textLevel) end
             if pv._hpFS and pv._hpFS:IsShown() then CreateHitOverlay(pv._hpFS, "healthText", true, textLevel) end
+            if pv._extraFS and pv._extraFS:IsShown() then CreateHitOverlay(pv._extraFS, "extraText", true, textLevel) end
+            if pv._centerFS and pv._centerFS:IsShown() then CreateHitOverlay(pv._centerFS, "centerText", true, textLevel) end
             -- Blizzard Style level number: built whenever the art has a level
             -- circle and shown with the text (the preview toggles it).
             if pv._levelFS then
@@ -2998,6 +3004,15 @@ initFrame:SetScript("OnEvent", function(self)
             return nil
         end,
         onPageCacheRestore = function(pageName)
+            local textCheck = ns._ufTextChecks and ns._ufTextChecks[pageName]
+            if textCheck and textCheck() then
+                C_Timer.After(0, function()
+                    if EllesmereUI:GetActiveModule() == "EllesmereUIUnitFrames"
+                       and EllesmereUI:GetActivePage() == pageName then
+                        EllesmereUI:RefreshPage(true)
+                    end
+                end)
+            end
             -- Clean up Player Aura Bars root when switching away
             if pageName ~= PAGE_AURA_BARS and ns._pabRoot then
                 ns._pabRoot:Hide()
