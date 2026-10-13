@@ -4153,15 +4153,47 @@ function EBS._ApplyAddonCompartment()
     end
 end
 
+-- The square frames' crop masks (Media/crop, made by .tools/minimap-crop/
+-- make_crop_masks.py): minimap-crop-<r>.tga cuts r of its 256 rows off the
+-- top and the bottom, for r in CROP_MASK_MIN..CROP_MASK_MAX (both frames'
+-- crops over the Map Size slider).
+EBS.CROP_MASK_MIN, EBS.CROP_MASK_MAX = 5, 31
+local cropMasks = {}
+-- The strip cropped off the top and bottom of the square canvas, and the
+-- canvas mask that cuts it: Rectangular's 4:3 (32/256 of the canvas each), or,
+-- under a square frame on the Forever client with its title bar, half the
+-- bar's extra height each, so the whole frame, bar included, is a square (the
+-- nearest crop mask, and the crop that mask cuts). 0 keeps the canvas whole.
+EBS._MapCrop = function(p, mapSize)
+    if not p then return 0 end
+    if EBS._MapShape(p) == "rectangular" then
+        return mapSize * 32 / 256, "Interface\\AddOns\\EllesmereUIMinimap\\Media\\minimap_rectangular-crop-mask.tga"
+    end
+    if EBS._MinimapFvSquare() then
+        local _, locationMode = GetElementModes(p)
+        if locationMode ~= "none" then
+            local r = math.floor((EBS._SqTitle() - EBS._SqOut()) / 2 * 256 / mapSize + 0.5)
+            r = math.max(EBS.CROP_MASK_MIN, math.min(EBS.CROP_MASK_MAX, r))
+            local mask = cropMasks[r]
+            if not mask then
+                mask = "Interface\\AddOns\\EllesmereUIMinimap\\Media\\crop\\minimap-crop-" .. r .. ".tga"
+                cropMasks[r] = mask
+            end
+            return r * mapSize / 256, mask
+        end
+    end
+    return 0
+end
+
 -- The mask that crops rectangular mode's square canvas covers the terrain only -- the
 -- engine keeps drawing unit blips across the whole canvas, and the one thing that
 -- confines the native render is the minimap's PARENT rect (ordinary child frames and
 -- textures are not clipped by it, so our border and buttons still draw outside).
--- Parenting the canvas to the 4:3 layout frame is what crops the blips.
+-- Parenting the canvas to the layout frame of the visible size is what crops the
+-- blips, for every crop.
 local function DesiredMapParent(minimap)
     local p = EBS.db and EBS.db.profile.minimap
-    -- The shape the map renders (the stock styles and Forever Square fix it).
-    if p and EBS._MapShape(p) == "rectangular" then
+    if p and EBS._MapCrop(p, p.mapSize or 140) > 0 then
         return GetFFD(minimap).layoutFrame or UIParent
     end
     return UIParent
@@ -4433,7 +4465,10 @@ end
 -- (the rim's outer edge EBS.FV_SQUARE_TITLE above the map's top, the bar's
 -- divider on that edge) and the zone text rides the bar's band (fvTitleSlot,
 -- the band between the side rims); Zone Text Style None closes the frame at
--- the map's top. The rows hang from the frame's outer edge (fvOuter), clear
+-- the map's top. While the bar shows, the map loses half the bar's extra
+-- height off its top and bottom each (EBS._MapCrop), so the whole frame, bar
+-- included, is a square; the frame and its pieces anchor to the map as it
+-- shows (the layout frame). The rows hang from the frame's outer edge (fvOuter), clear
 -- of the rim's outer shadow by EBS.FV_ROW_AIR. Two levels over the map (the
 -- housing overlay under it), under the text boxes and the buttons; every
 -- piece mouse-transparent. Built once; re-anchored every pass, as the border
@@ -4489,13 +4524,15 @@ EBS._ApplyForeverSquare = function(minimap)
     local _, locationMode = GetElementModes(EBS.db.profile.minimap)
     local title = locationMode ~= "none"
     EBS._fvTitleOn = title
+    -- The map as it shows: the layout frame once the title bar crops the canvas.
+    local vis = d.layoutFrame or minimap
     frame:SetFrameLevel(minimap:GetFrameLevel() + 2)
     frame:ClearAllPoints()
-    frame:SetAllPoints(minimap)
+    frame:SetAllPoints(vis)
     local o = EBS._SqOut()
     local top = title and EBS._SqTitle() or o
     if slim then
-        EllesmereUI.ForeverBorderSeat(d.fvSlimRing, minimap, nil, -o, top, o, -o)
+        EllesmereUI.ForeverBorderSeat(d.fvSlimRing, vis, nil, -o, top, o, -o)
         local band, rule = d.fvSlimBand, d.fvSlimRule
         band:SetShown(title)
         rule:SetShown(title)
@@ -4505,33 +4542,33 @@ EBS._ApplyForeverSquare = function(minimap)
             -- between the side lines' inner edges, its bottom on the map's top.
             local B = EllesmereUI.FOREVER_BORDER
             band:ClearAllPoints()
-            band:SetPoint("TOPLEFT", minimap, "TOPLEFT", B.fill - o, top - B.fill)
-            band:SetPoint("BOTTOMRIGHT", minimap, "TOPRIGHT", o - B.fill, 0)
+            band:SetPoint("TOPLEFT", vis, "TOPLEFT", B.fill - o, top - B.fill)
+            band:SetPoint("BOTTOMRIGHT", vis, "TOPRIGHT", o - B.fill, 0)
             rule:ClearAllPoints()
-            rule:SetPoint("BOTTOMLEFT", minimap, "TOPLEFT", B.line - o, 0)
-            rule:SetPoint("BOTTOMRIGHT", minimap, "TOPRIGHT", o - B.line, 0)
+            rule:SetPoint("BOTTOMLEFT", vis, "TOPLEFT", B.line - o, 0)
+            rule:SetPoint("BOTTOMRIGHT", vis, "TOPRIGHT", o - B.line, 0)
         end
     else
         EllesmereUI.ForeverHeavyTitle(d.fvHeavyRim, title)
-        EllesmereUI.ForeverHeavySeat(d.fvHeavyRim, minimap, nil, -o, top, o, -o)
+        EllesmereUI.ForeverHeavySeat(d.fvHeavyRim, vis, nil, -o, top, o, -o)
     end
     frame:Show()
     d.fvOuter:ClearAllPoints()
-    d.fvOuter:SetPoint("TOPLEFT", minimap, "TOPLEFT", -o, top)
-    d.fvOuter:SetPoint("BOTTOMRIGHT", minimap, "BOTTOMRIGHT", o, -o)
+    d.fvOuter:SetPoint("TOPLEFT", vis, "TOPLEFT", -o, top)
+    d.fvOuter:SetPoint("BOTTOMRIGHT", vis, "BOTTOMRIGHT", o, -o)
     d.fvTitleSlot:ClearAllPoints()
     if slim then
         -- The band between the side lines (2px of air past the map's sides),
         -- from 1px under the top line's inner shadow down to 5 above the
         -- map's top, clear of the divider's line and outer shadow.
-        d.fvTitleSlot:SetPoint("TOPLEFT", minimap, "TOPLEFT", 2, top - 4)
-        d.fvTitleSlot:SetPoint("BOTTOMRIGHT", minimap, "TOPRIGHT", -2, 5)
+        d.fvTitleSlot:SetPoint("TOPLEFT", vis, "TOPLEFT", 2, top - 4)
+        d.fvTitleSlot:SetPoint("BOTTOMRIGHT", vis, "TOPRIGHT", -2, 5)
     else
         -- The band between the side rims (their inner edges 3 inside the map's
         -- sides), 2px of air at each end.
         local bar = EllesmereUI.FOREVER_HEAVY.title
-        d.fvTitleSlot:SetPoint("TOPLEFT", minimap, "TOPLEFT", o + 2, top - bar.band)
-        d.fvTitleSlot:SetPoint("BOTTOMRIGHT", minimap, "TOPRIGHT", -o - 2, top - bar.bandEnd)
+        d.fvTitleSlot:SetPoint("TOPLEFT", vis, "TOPLEFT", o + 2, top - bar.band)
+        d.fvTitleSlot:SetPoint("BOTTOMRIGHT", vis, "TOPRIGHT", -o - 2, top - bar.bandEnd)
     end
     local ab = EllesmereUI._ModuleNS.EllesmereUIActionBars
     if ab then ab.AB_ForeverEyeRelayout() end
@@ -4552,7 +4589,8 @@ EBS._QueueEyeSpot = function()
     local size = EBS.db.profile.minimap.mapSize or 140
     if sq then
         local o = size / 2 + EBS._SqOut() + 22.5
-        return Minimap, -o, -o
+        -- The frame's bottom rises with the map's crop.
+        return Minimap, -o, -(o - EBS._MapCrop(EBS.db.profile.minimap, size))
     end
     local s = size / 198
     return Minimap, -68 * s, -68 * s
@@ -4730,10 +4768,10 @@ local function ApplyMinimap()
     -- ApplyMinimap fires during a ShowUIPanel/World Map open -- that taint causes
     -- ADDON_ACTION_BLOCKED when the dungeon pin data provider later calls the protected SetPropagateMouseClicks() on map pins.
     local needsClusterHide = MinimapCluster and MinimapCluster:IsShown()
-    -- The rectangular canvas's parent is built later in this pass, so the first switch
-    -- to that shape has to schedule the reparent on the layout frame's absence.
+    -- A cropped canvas's parent is built later in this pass, so the first crop has
+    -- to schedule the reparent on the layout frame's absence.
     local needsReparent = minimap:GetParent() ~= DesiredMapParent(minimap)
-        or (EBS._MapShape(p) == "rectangular" and not GetFFD(minimap).layoutFrame)
+        or (EBS._MapCrop(p, p.mapSize or 140) > 0 and not GetFFD(minimap).layoutFrame)
     if needsReparent or needsClusterHide then
         C_Timer.After(0, function()
             if InCombatLockdown() then QueueApplyAll(); return end
@@ -4869,19 +4907,14 @@ local function ApplyMinimap()
     -- Blizzard's map projection and native player arrow require a square Minimap
     -- canvas. Rectangular mode therefore crops that square canvas with a centered
     -- 4:3 mask; resizing the Blizzard frame itself makes the terrain slide away
-    -- from the arrow as zoom changes.
+    -- from the arrow as zoom changes. A square frame's title bar crops it the same
+    -- way, with the crop mask cut for its size (EBS._MapCrop).
     minimap:SetSize(mapSize, mapSize)
-    local maskID = isCircle and 186178
-        or (isRectangular and "Interface\\AddOns\\EllesmereUIMinimap\\Media\\minimap_rectangular-crop-mask.tga")
-        or 130937
+    local crop, cropMask = EBS._MapCrop(p, mapSize)
+    local maskID = isCircle and 186178 or cropMask or 130937
     minimap:SetMaskTexture(maskID)
-    if isRectangular then
-        local cropInset = mapSize * 32 / 256
-        minimap:SetHitRectInsets(0, 0, cropInset, cropInset)
-    else
-        minimap:SetHitRectInsets(0, 0, 0, 0)
-    end
-    if isRectangular and not GetFFD(minimap).layoutFrame then
+    minimap:SetHitRectInsets(0, 0, crop, crop)
+    if crop > 0 and not GetFFD(minimap).layoutFrame then
         local layout = CreateFrame("Frame", nil, UIParent)
         layout:EnableMouse(false)
         GetFFD(minimap).layoutFrame = layout
@@ -4893,7 +4926,7 @@ local function ApplyMinimap()
             -- anchor spans the deferred SetParent that hangs the canvas off it.
             layout:ClearAllPoints()
             layout:SetPoint("CENTER", minimap, "CENTER")
-            layout:SetSize(mapSize, isRectangular and (mapSize * 192 / 256) or mapSize)
+            layout:SetSize(mapSize, mapSize - 2 * crop)
             layout:SetFrameLevel(minimap:GetFrameLevel())
         end
     end
@@ -5036,21 +5069,21 @@ local function ApplyMinimap()
             local inset = -mapSize * 0.10
             tex:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
             tex:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
-        elseif isRectangular then
+        elseif crop > 0 then
             tex:SetSize(mapSize, mapSize)
             tex:SetPoint("CENTER", frame, "CENTER")
         else
             tex:SetAllPoints(frame)
         end
-        if isCircle or isRectangular then
+        if isCircle or crop > 0 then
             local mask = frame:CreateMaskTexture()
             mask:SetAllPoints(frame)
-            -- The housing frame already has the visible 4:3 dimensions. It uses
-            -- the full rectangular mask, while the square Blizzard canvas uses
-            -- the centered crop mask above.
+            -- The housing frame already has the visible size, so it takes a
+            -- whole-frame mask: Rectangular's full rectangular one, a square
+            -- frame's crop the plain square (the canvas takes the crop masks).
             mask:SetTexture(isRectangular
                 and "Interface\\AddOns\\EllesmereUIMinimap\\Media\\minimap_rectangular-mask.blp"
-                or maskID)
+                or (isCircle and maskID) or 130937)
             tex:AddMaskTexture(mask)
             frame._mask = mask
             frame._maskAttached = true
@@ -5114,14 +5147,14 @@ local function ApplyMinimap()
                     local inset = -mapSize * 0.10
                     frame._tex:SetPoint("TOPLEFT", frame, "TOPLEFT", inset, -inset)
                     frame._tex:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -inset, inset)
-                elseif isRectangular then
+                elseif crop > 0 then
                     frame._tex:SetSize(mapSize, mapSize)
                     frame._tex:SetPoint("CENTER", frame, "CENTER")
                 else
                     frame._tex:SetAllPoints(frame)
                 end
             end
-            if isCircle or isRectangular then
+            if isCircle or crop > 0 then
                 if not frame._mask then
                     local mask = frame:CreateMaskTexture()
                     mask:SetAllPoints(frame)
@@ -5133,7 +5166,7 @@ local function ApplyMinimap()
                 end
                 frame._mask:SetTexture(isRectangular
                     and "Interface\\AddOns\\EllesmereUIMinimap\\Media\\minimap_rectangular-mask.blp"
-                    or maskID)
+                    or (isCircle and maskID) or 130937)
                 frame._mask:Show()
             elseif frame._mask then
                 if frame._tex and frame._maskAttached then
@@ -5147,12 +5180,11 @@ local function ApplyMinimap()
     -- Shape changes do not fire a zone event. Reuse the existing housing detector
     -- so atlas/texture selection follows the new shape immediately.
     if GetFFD(minimap).checkHousing then GetFFD(minimap).checkHousing() end
-    -- Clamp to the visible shape. Rectangular mode keeps a square native canvas,
+    -- Clamp to the visible shape. A cropped map keeps a square native canvas,
     -- so allow only its hidden top/bottom strips beyond the screen bounds.
     minimap:SetClampedToScreen(true)
-    if isRectangular then
-        local cropInset = mapSize * 32 / 256
-        minimap:SetClampRectInsets(0, 0, -cropInset, cropInset)
+    if crop > 0 then
+        minimap:SetClampRectInsets(0, 0, -crop, crop)
     else
         local bInset = isCircle and (p.borderSize or 1) or 0
         minimap:SetClampRectInsets(-bInset, bInset, bInset, -bInset)

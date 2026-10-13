@@ -1052,8 +1052,8 @@ function ns.UFO_BuildDisplaySection(parent, y, ctx)
                       get=function() return db.profile.threatPctColorByThreat end,
                       set=function(v) PctSet("threatPctColorByThreat", v) end },
                     PctSlider("threatPctSize", "Size", 6, 20),
-                    PctSlider("threatPctXOffset", "X Offset", -100, 100),
-                    PctSlider("threatPctYOffset", "Y Offset", -100, 100),
+                    PctSlider("threatPctXOffset", "X Offset", -300, 300),
+                    PctSlider("threatPctYOffset", "Y Offset", -300, 300),
                 },
             })
         end
