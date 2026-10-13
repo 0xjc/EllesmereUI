@@ -1204,13 +1204,6 @@ function ns.RF_PaintThreat(d, s, unit)
         d._aggroBdr = agg
         if d.ApplyBorderColor then d.ApplyBorderColor() end
     end
-    if (compact or d._compactThreat) and d._compactThreat ~= compact then
-        ns.RF_InsetRing(tf, tf:GetParent(), compact and 2 or 0)
-        tf:SetFrameLevel(tf:GetParent():GetFrameLevel() + (compact and ns.LVL_AURA + 1 or 10))
-        local strips = PP and PP.GetBorders(tf)
-        if strips then strips:SetFrameLevel(tf:GetFrameLevel() + 1) end
-        d._compactThreat = compact
-    end
     if on and not rc then
         PP.UpdateBorder(tf, bs, 1, 0, 0, 1)
         tf:Show()

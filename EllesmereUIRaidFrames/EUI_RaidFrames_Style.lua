@@ -1047,7 +1047,6 @@ local function StyleButton(button)
         local bc = s.borderColor or { r = 0, g = 0, b = 0 }
         local texKey = s.borderTexture or "solid"
         local pl = button:GetFrameLevel()
-        d._compactHighlight = nil
         local compact = ns.RF_ButtonCompact(d, s)
         if compact or d._compactBorder then d._compactBorder = compact end
         if compact then

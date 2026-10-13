@@ -677,10 +677,6 @@ local function ApplyRFDispelSlot(button, dd, style)
             dd.borderHost:SetAllPoints(health)
         end
         dd.borderHost:SetFrameLevel(health:GetFrameLevel() + 6 + def.level)
-        if style.compact or dd.compact then
-            ns.RF_InsetRing(dd.borderHost, health, style.compact and 2 or 0)
-            dd.compact = style.compact
-        end
         if dd.borderMade then
             PP.UpdateBorder(dd.borderHost, style.borderSize, r, g, b, typeA)
         else
@@ -797,7 +793,6 @@ local function BuildDispelStyle(s, compact)
         noRegions = true,
         mode = s.dispelOverlay or "fill",
         opacity = s.dispelOverlayOpacity or 100,
-        compact = compact,
         borderSize = s.dispelBorderSize or 0,
         showIcon = s.showDispelIcons == true,
         iconSize = s.dispelIconSize or 16,
@@ -875,7 +870,7 @@ local function DispelStyleFP(s, key)
         s.dispelIconSize, s.dispelIconPosition, s.dispelIconOffsetX, s.dispelIconOffsetY,
         CKA(s.dispelColorMagic), CKA(s.dispelColorCurse), CKA(s.dispelColorDisease),
         CKA(s.dispelColorPoison), CKA(s.dispelColorBleed), s.powerUniformAnchors,
-        compact, compact and ns.RF_OnePixel(party) or false,
+        compact,
         -- The fill wash follows the fill direction (BuildDispelStyle); the axis
         -- only moves it under Inverted Fill.
         ns.RF_IsInvertedFill(s), ns.RF_IsInvertedFill(s) and ns.RF_IsVerticalFill(s),

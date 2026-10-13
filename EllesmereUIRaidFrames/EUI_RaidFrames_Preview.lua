@@ -1981,6 +1981,7 @@ local function ApplyPreviewData(f, index)
     -- _previewSettingsOverride. The real-preview effective overlay (when active) resolves
     -- captured keys to panel-closed values and is NOT tier-scaled, so this holds.
     local s = ns._previewSettingsOverride or ns._pvOverlayProxy or db.profile
+    local compact = ns.RF_ButtonCompact(f, s)
     local classToken = previewClassTokens[index] or ns._PV_CLASS_TOKENS[((index - 1) % #ns._PV_CLASS_TOKENS) + 1]
     local playerSlot = previewRoles._playerSlot or 1
     local name
@@ -2760,12 +2761,10 @@ local function ApplyPreviewData(f, index)
         ns.RF_StockSeat(f)
         if f.stockDiv and f._power and f._power:IsShown() then ns.RF_StockDivider(f) end
         if f._ApplyBorderColor then f._ApplyBorderColor() end
-    elseif f._border and PP and ns.RF_ButtonCompact(f, s) then
-        f._compactHighlight = nil
+    elseif f._border and PP and compact then
         EllesmereUI.ApplyBorderStyle(f._border, 0, 0, 0, 0, 0, "solid")
         if f._ApplyBorderColor then f._ApplyBorderColor() end
     elseif f._border and PP then
-        f._compactHighlight = nil
         local bs = s.borderSize or 1
         local bc = s.borderColor or { r = 0, g = 0, b = 0 }
         local pl = f:GetFrameLevel()
@@ -2778,7 +2777,7 @@ local function ApplyPreviewData(f, index)
     end
     -- Rounded corners, as on the live cells (stock styles stay square).
     if f._border then
-        local radius = (f.kit or f.stockEdge or ns.RF_ButtonCompact(f, s)) and 0 or (s.cornerRadius or 0)
+        local radius = (f.kit or f.stockEdge or compact) and 0 or (s.cornerRadius or 0)
         if radius > 0 then
             EllesmereUI.RoundCorners(f, radius, {
                 roots = { f._health, f._power, f._topNameBar, f._powerBorder },
@@ -2799,16 +2798,8 @@ local function ApplyPreviewData(f, index)
     -- (PvApplyBorderColor), so the slider size does not gate it.
     if f._threatFrame and PP then
         local bs = s.threatBorderSize or 0
-        local compact = ns.RF_ButtonCompact(f, s)
         local rc = not compact and s.threatCustomBorder == true and ns.RF_CustomBorderOn(s)
         local wantThreat = bs > 0 or rc
-        if (compact or f._compactThreat) and f._compactThreat ~= compact then
-            ns.RF_InsetRing(f._threatFrame, f, compact and 2 or 0)
-            f._threatFrame:SetFrameLevel(f:GetFrameLevel() + (compact and ns.LVL_AURA + 1 or 10))
-            local strips = PP.GetBorders(f._threatFrame)
-            if strips then strips:SetFrameLevel(f._threatFrame:GetFrameLevel() + 1) end
-            f._compactThreat = compact
-        end
         if ns._testMode and ns._testThreat ~= nil then wantThreat = ns._testThreat end
         local showThreat = wantThreat and (ns._testMode or ns._healthAnimActive) and previewRoles._threatIndex == index
         local agg
@@ -2838,7 +2829,7 @@ local function ApplyPreviewData(f, index)
     -- frames; a change repaints it, the border pass above ran first.
     do
         local bdrC = dispVis and dispelDC and s.dispelCustomBorder == true
-            and (dispelDC.a or 1) > 0 and ns.RF_CustomBorderOn(s) and dispelDC or nil
+            and not compact and (dispelDC.a or 1) > 0 and ns.RF_CustomBorderOn(s) and dispelDC or nil
         if f._pvDispelBdrC ~= bdrC then
             f._pvDispelBdrC = bdrC
             if f._ApplyBorderColor then f._ApplyBorderColor() end
@@ -2849,12 +2840,7 @@ local function ApplyPreviewData(f, index)
         local dcA = dispelDC.a or 1
         -- Dispel border (PP.UpdateBorder handles physical pixel sizing internally)
         local dbs = s.dispelBorderSize or 2
-        local compact = ns.RF_ButtonCompact(f, s)
         if f._dispelBdrFrame and PP and dbs > 0 then
-            if compact or f._compactDispel then
-                ns.RF_InsetRing(f._dispelBdrFrame, f._health, compact and 2 or 0)
-                f._compactDispel = compact
-            end
             PP.UpdateBorder(f._dispelBdrFrame, dbs, dispelDC.r, dispelDC.g, dispelDC.b, dcA)
             f._dispelBdrFrame:Show()
         elseif f._dispelBdrFrame then

@@ -341,7 +341,7 @@ local function BuildMainPage(pageName, parent, yOffset)
     local growthValues, KeepGrowthPerpendicular, PP, ReloadAndUpdate = env.growthValues, env.KeepGrowthPerpendicular, env.PP, env.ReloadAndUpdate
     local groupGrowthValues, groupGrowthOrder, ReadGroupGrowth = env.groupGrowthValues, env.groupGrowthOrder, env.ReadGroupGrowth
     local SGet, SGetPx, SSet, SVal = env.SGet, env.SGetPx, env.SSet, env.SVal
-    local SWrite = env.SWrite
+    local SWrite, optState = env.SWrite, env.optState
     local W = EllesmereUI.Widgets
     local _, h
     local row
@@ -972,13 +972,13 @@ local function BuildMainPage(pageName, parent, yOffset)
         local targetBlocked = EllesmereUI.BlizzStyle
             and EllesmereUI.BlizzStyle.BlockInline("raidframes", targetSwatch) or false
 
-        -- Highlight thickness. Shown only while the frame is borderless (Border Size 0):
-        -- with a border drawn the highlight recolors THAT and these sizes do nothing.
+        -- Highlight thickness when borderless or compact; a drawn individual border is recolored.
         -- Exact pixel sizes (hover/targetBorderSizePx beside the steps) in the frame's
         -- border style; under a stock style the hover border draws solid, so the
         -- slider reads and writes against Solid there. The floor stays at 1.
         local function HlTex()
-            if ns.RF_Stock and ns.RF_Stock() then return "solid" end
+            if (ns.RF_Stock and ns.RF_Stock())
+                or ns.RF_CompactOn(optState._partyCtx and ns._partyProxy or db.profile, optState._partyCtx) then return "solid" end
             return SGet("borderTexture") or "solid"
         end
         local hoverPx = EllesmereUI.BorderPxSliderCfg({
@@ -1014,7 +1014,9 @@ local function BuildMainPage(pageName, parent, yOffset)
             -- Under a stock style the EllesmereUI border is stood down, so
             -- the hover border draws on its own at this size.
             local bs = (ns.RF_Stock and ns.RF_Stock()) and 0 or SVal("borderSize", 1)
-            if bs > 0 then hlCog:Hide() else hlCog:Show() end
+            if bs > 0 and not ns.RF_CompactOn(optState._partyCtx and ns._partyProxy or db.profile, optState._partyCtx) then
+                hlCog:Hide()
+            else hlCog:Show() end
         end
         EllesmereUI.RegisterWidgetRefresh(UpdateHLCogVis)
         UpdateHLCogVis()

@@ -6,7 +6,7 @@ I.broken = true
 
 local EUI = ns.EllesmereUI
 local CreateFrame, C_Timer = CreateFrame, C_Timer
-local db, container
+local db, container, solidStyle
 I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
 I.containerFrameSetters[#I.containerFrameSetters + 1] = function(v) container = v end
 
@@ -61,35 +61,25 @@ function ns.RF_PetCompactHighlight(button, s)
     ns.RF_CompactHighlight(button._borderFrame, d, s, button)
 end
 
-function ns.RF_InsetRing(frame, anchor, pixels)
-    local inset = pixels * EUI.PP.perfect / frame:GetEffectiveScale()
-    frame:ClearAllPoints()
-    frame:SetPoint("TOPLEFT", anchor, "TOPLEFT", inset, -inset)
-    frame:SetPoint("BOTTOMRIGHT", anchor, "BOTTOMRIGHT", -inset, inset)
-end
-
 function ns.RF_CompactHighlight(frame, d, s, button)
-    local c, a
+    local c, a, size, px
     if d._hovered and s.hoverBorderEnabled ~= false then
-        c, a = s.hoverBorderColor, s.hoverBorderAlpha or 1
+        c, a, size = s.hoverBorderColor or I.defaults.profile.hoverBorderColor, s.hoverBorderAlpha or 1, s.hoverBorderSize or 1
+        px = EUI.BorderPx(s.hoverBorderSizePx, size, "solid")
     elseif d._isTarget and s.targetBorderEnabled ~= false then
-        c, a = s.targetBorderColor, s.targetBorderAlpha or 1
+        c, a, size = s.targetBorderColor or I.defaults.profile.targetBorderColor, s.targetBorderAlpha or 1, s.targetBorderSize or 1
+        px = EUI.BorderPx(s.targetBorderSizePx, size, "solid")
     end
+    solidStyle = solidStyle or { borderTexture = "solid" }
     if c then
         local r, g, b = ns.RF_VisibleHighlight(s, c.r, c.g, c.b)
-        if not d._compactHighlight then
-            frame:SetFrameLevel(button:GetFrameLevel() + ns.LVL_AURA + 2)
-            EUI.ApplyBorderStyle(frame, 2, r, g, b, a, "solid", nil, nil, nil, nil, nil, nil, nil, 2)
-            local strips = EUI.PP.GetBorders(frame)
-            if strips then strips:SetFrameLevel(frame:GetFrameLevel() + 1) end
-            d._compactHighlight = true
-        else
-            EUI.SetBorderStyleColor(frame, r, g, b, a)
-            frame:Show()
-        end
-    elseif d._compactHighlight then
-        EUI.ApplyBorderStyle(frame, 0, 0, 0, 0, 0, "solid")
-        d._compactHighlight = nil
+        local level = s.borderBehind and math.max(0, button:GetFrameLevel() - 1) or button:GetFrameLevel() + ns.LVL_RAISE
+        if frame:GetFrameLevel() ~= level then frame:SetFrameLevel(level) end
+        ns.ApplyHighlightBorder(frame, solidStyle, size, r, g, b, a, px)
+        local strips = EUI.PP.GetBorders(frame)
+        if strips and strips:GetFrameLevel() ~= level + 1 then strips:SetFrameLevel(level + 1) end
+    else
+        ns.ApplyHighlightBorder(frame, solidStyle, nil, 0, 0, 0, 0)
     end
 end
 
@@ -170,7 +160,8 @@ local function Host(st, index, first, x, y, w, h)
     if not host then host = CreateFrame("Frame", nil, st.owner); st.hosts[index] = host end
     local v = st.style
     host:SetFrameStrata(first.strata)
-    host:SetFrameLevel(v.behind and math.max(0, first.level - 1) or first.level + 8)
+    -- Normal dispel strips can reach button + 14; shared edges sit above them.
+    host:SetFrameLevel(v.behind and math.max(0, first.level - 1) or first.level + ns.LVL_AURA + 2)
     host:ClearAllPoints()
     host:SetPoint("TOPLEFT", first.frame, "TOPLEFT", x - first.x, y - first.y)
     host:SetSize(w, h)
@@ -190,7 +181,7 @@ local function Seam(st, index, first, x, y, length, vertical)
     local v = st.style
     local host = st.seamHost
     host:SetFrameStrata(first.strata)
-    host:SetFrameLevel(v.behind and math.max(0, first.level - 1) or first.level + 8)
+    host:SetFrameLevel(v.behind and math.max(0, first.level - 1) or first.level + ns.LVL_AURA + 2)
     t:ClearAllPoints()
     t:SetTexture(vertical and v.sepV or v.sepH)
     t:SetTexCoord(0, 1, 0, 1)
@@ -421,11 +412,6 @@ local function ScaleState(st)
         if not st.on or not ns.RF_CompactOn(st.isParty and ns._partyProxy or db.profile, st.isParty)
             or st.layoutPixel == ns.RF_OnePixel(st.isParty) then return end
         if st.isParty then ns._LayoutPartyFrames() else I.LayoutGroups() end
-        for f in pairs(st.hooked) do
-            local d = I.GetFFD(f)
-            if d._compactThreat and d.threatFrame then ns.RF_InsetRing(d.threatFrame, f, 2) end
-        end
-        if ns.RFC_ReloadAll then ns.RFC_ReloadAll() end
     end)
 end
 

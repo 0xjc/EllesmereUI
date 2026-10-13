@@ -275,7 +275,7 @@ FB.StyleBorder = function(b)
     local d = I.FFD[b]
     local compact = ns.RF_PetCompactOn(b, s)
     if compact or (d and d._petCompactBorder) then
-        d._petCompactBorder, d._compactHighlight = compact, nil
+        d._petCompactBorder = compact
     end
     if compact then
         EllesmereUI.ApplyBorderStyle(b._borderFrame, 0, 0, 0, 0, 0, "solid")
