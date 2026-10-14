@@ -5823,3 +5823,8 @@ L["Reveal Unexplored Areas Settings"] = "Réglages : Révéler les zones inexplo
 L["Shows the parts of the world map you have not explored yet. Use the cog to pick their color."] = "Affiche les parties de la carte du monde que vous n'avez pas encore explorées. Le rouage permet de choisir leur couleur."
 L["Unexplored Color"] = "Couleur des zones inexplorées"
 L["Tints the areas you have not explored yet. White shows them as they are."] = "Teinte les zones que vous n'avez pas encore explorées. Le blanc les affiche telles quelles."
+
+-- Most Valuable Reward (EllesmereUIForeverEssentials_QuestRewards.lua)
+L["QUEST REWARDS"] = "RÉCOMPENSES DE QUÊTE"
+L["Most Valuable Reward"] = "Récompense la plus chère"
+L["Among a quest's reward choices, a money bag marks the one that sells for most, its count included."] = "Parmi les récompenses de quête au choix, une bourse marque celle qui se revend le plus cher, quantité comprise."
