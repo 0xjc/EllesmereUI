@@ -982,7 +982,7 @@ function ns.SetupViewerHooks()
                 -- indexing it, bind fields to locals (reading a secret is always
                 -- legal), then issecretvalue-gate every test. When unreadable, assume
                 -- churn -- one extra pool rebuild costs far less than a cache still
-                -- holding released frames. Same guard shape as the lust listener in CdmBuffBars.
+                -- holding released frames. Same guard shape as the lust listener in EUI_CDM_BuffBarPresets.lua.
                 if issecretvalue(updateInfo) then
                     ns._acGen = (ns._acGen or 0) + 1
                 else
