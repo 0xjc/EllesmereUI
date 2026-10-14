@@ -1,25 +1,43 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_CDM_BuffBarGroups.lua
+--
+--  The frame table, the idle sleeper, bar groups (per spec and global), style
+--  copy, style presets and the group reflow.
+--  Reads the earlier Tracking Bars files through ns and ns._buffBarInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._buffBarInternals
+-- EllesmereUICdmBuffBars.lua or an earlier Tracking Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local SetECME, SetAssignDirty, SetReflowDirty = I.SetECME, I.SetAssignDirty, I.SetReflowDirty
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._buffBarInternals, which hands the value to every copy.
+local ECME
+I.ecmeSetters[#I.ecmeSetters + 1] = function(v) ECME = v end
+-- True while any bar uses a Visibility mode/option, i.e. a state no tick-side aura or
+-- cooldown edge can reveal. Gates the dispatcher wake below so profiles that never touch
+-- Visibility keep the idle sleeper's original wake set.
+local _anyVisCond = false
+I.anyVisCondSetters[#I.anyVisCondSetters + 1] = function(v) _anyVisCond = v end
+
 -------------------------------------------------------------------------------
 --  Frame Table & State
 -------------------------------------------------------------------------------
 local tbbFrames  = {}
 local tbbTickFrame
+I.tickFrameSetters[#I.tickFrameSetters + 1] = function(v) tbbTickFrame = v end
 local _tbbRebuildPending = false
--- Assignment memo gate: cfg->frame pairing changes only on viewer pool composition
--- edges (aura events, pool Acquire, rebuilds, spec/cache invalidation); the tick
--- reuses the last pairing until dirtied. Starts dirty so the first tick always pairs.
-local _tbbAssignDirty = true
-local _tbbAssignedFor
+I.rebuildPendingSetters[#I.rebuildPendingSetters + 1] = function(v) _tbbRebuildPending = v end
 
 -- Group reflow gate: ReflowGroup's inputs are the visible member sequence plus the
 -- group's grow direction and spacing. Bar frames dirty this from their OnShow/OnHide,
 -- the group setting writers, rebuilds and wakes dirty it directly, and the tick
 -- reflows only while it is set instead of re-walking every bar every 16 ms.
-local _tbbReflowDirty = true
-local function _MarkTBBReflowDirty() _tbbReflowDirty = true end
-
--- Smooth-fill switch memo for the tick: GetTBBSmoothSettings walks the profile store,
--- and its result can only change with the active profile name or the live spec-profile bucket, both re-read per tick without a call.
-local _tickSm, _tickSmProf, _tickSmSp
+local function _MarkTBBReflowDirty() SetReflowDirty(true) end
 
 -- TBB idle sleeper: UpdateTrackedBuffBarTimers counts consecutive dead ticks (no
 -- active/fallback aura, self-timed window, running cooldown, or placeholder preview);
@@ -54,8 +72,8 @@ function _tbbWake.Wake()
     -- of OnEvent retires the assignment memo on this the same as any other non-aura edge.
     _tbbWake:RegisterEvent("PLAYER_TARGET_CHANGED")
     _tbbWake._idleTicks = 0
-    _tbbAssignDirty = true
-    _tbbReflowDirty = true
+    SetAssignDirty(true)
+    SetReflowDirty(true)
     if tbbTickFrame then tbbTickFrame:Show() end
 end
 -- UNIT_AURA fires steadily in group content and every false wake buys ~0.5s of full
@@ -127,14 +145,14 @@ function _tbbWake.OnEvent(_, event, _, updateInfo)
     -- can never be boolean-tested, so unreadable means assume churn.
     if tbbTickFrame and tbbTickFrame:IsShown() then
         if event ~= "UNIT_AURA" or not updateInfo or issecretvalue(updateInfo) then
-            _tbbAssignDirty = true
+            SetAssignDirty(true)
         else
             local full    = updateInfo.isFullUpdate
             local removed = updateInfo.removedAuraInstanceIDs
             local added   = updateInfo.addedAuras
             if issecretvalue(full) or issecretvalue(removed) or issecretvalue(added)
                or full or removed or added then
-                _tbbAssignDirty = true
+                SetAssignDirty(true)
             end
         end
         return
@@ -269,12 +287,12 @@ function ns.TBBSetGroupGrow(gid, v)
     local gkey = ns.TBBGroupGlobalKey and ns.TBBGroupGlobalKey(gid)
     if gkey then
         local e = ns.TBBGlobalGroup(gkey)
-        if e then e.grow = v; _tbbReflowDirty = true end
+        if e then e.grow = v; SetReflowDirty(true) end
         return
     end
     TBBGroupStore(t, gid, true).grow = v
     if gid == 1 then t.groupGrowDirection = v end
-    _tbbReflowDirty = true
+    SetReflowDirty(true)
 end
 
 function ns.TBBGroupSpacing(gid)
@@ -286,19 +304,19 @@ function ns.TBBSetGroupSpacing(gid, v)
     local gkey = ns.TBBGroupGlobalKey and ns.TBBGroupGlobalKey(gid)
     if gkey then
         local e = ns.TBBGlobalGroup(gkey)
-        if e then e.spacing = v; _tbbReflowDirty = true end
+        if e then e.spacing = v; SetReflowDirty(true) end
         return
     end
     TBBGroupStore(t, gid, true).spacing = v
     if gid == 1 then t.groupSpacing = v end
-    _tbbReflowDirty = true
+    SetReflowDirty(true)
 end
 
 -- Clear a group's stored settings when its id is (re)claimed for a brand-new group, so a dissolved group's leftovers do not leak into it.
 function ns.TBBResetGroupSettings(gid)
     local t = ns.GetTrackedBuffBars()
     if t.groups then t.groups[_gidKeys[gid]] = nil end
-    _tbbReflowDirty = true
+    SetReflowDirty(true)
 end
 
 -- Optional user-given group name (Group Settings input). Empty/absent = nil, callers fall back to the default "Group N" label.
@@ -346,7 +364,7 @@ end
 -------------------------------------------------------------------------------
 do
     local function TBBGlobalDB(create)
-        if not (ECME and ECME.db) then ECME = ns.ECME end
+        if not (ECME and ECME.db) then SetECME(ns.ECME) end
         local p = ECME and ECME.db and ECME.db.profile
         if not p then return nil end
         if not p.tbbGlobalGroups and create then p.tbbGlobalGroups = {} end
@@ -587,7 +605,7 @@ do
                     t.groupGrowDirection = entry.grow
                     t.groupSpacing = entry.spacing
                 end
-                _tbbReflowDirty = true
+                SetReflowDirty(true)
                 if entry.pos then
                     local posDB = ns.GetTBBPositions()
                     for j, c in ipairs(t.bars or {}) do
@@ -731,7 +749,7 @@ do
                                 tbb.groupGrowDirection = entry.grow
                                 tbb.groupSpacing = entry.spacing
                             end
-                            _tbbReflowDirty = true
+                            SetReflowDirty(true)
                             if entry.pos then
                                 if not prof.tbbPositions then prof.tbbPositions = {} end
                                 local kn = tonumber(k)
@@ -919,7 +937,7 @@ end
 --  can resolve a preset by association.
 -------------------------------------------------------------------------------
 function ns.GetTBBStylePresets()
-    if not (ECME and ECME.db) then ECME = ns.ECME end
+    if not (ECME and ECME.db) then SetECME(ns.ECME) end
     local p = ECME and ECME.db and ECME.db.profile
     if not p then return nil end
     if not p.tbbStylePresets then p.tbbStylePresets = {} end
@@ -1155,7 +1173,7 @@ local function ReflowVisibleGroupedTBBars(tbb, bars)
     -- Never fight edit-preview (placeholder) or unlock-mode dragging: there BuildTrackedBuffBars and the unlock system own bar positions.
     if ns._tbbPlaceholderMode or EllesmereUI._unlockActive then return end
     -- Reflow each present group once; the done-set is reused across ticks so this pass allocates nothing.
-    _tbbReflowDirty = false
+    SetReflowDirty(false)
     wipe(_tbbReflowDone)
     for _, cfg in ipairs(bars) do
         local gid = ns.TBBBarGroupID(cfg)
@@ -1199,3 +1217,7 @@ function ns.IsTBBRebuildPending() return _tbbRebuildPending end
 ns.RefreshTBBResolvedIDs = function() end
 ns.RefreshBuffBarGating  = function() end
 
+I._MarkTBBReflowDirty, I._tbbWake, I.GroupGrowOf = _MarkTBBReflowDirty, _tbbWake, GroupGrowOf
+I.GroupSpacingOf, I.ReflowVisibleGroupedTBBars = GroupSpacingOf, ReflowVisibleGroupedTBBars
+I.ResetReflowStates, I.tbbFrames = ResetReflowStates, tbbFrames
+I.broken = false

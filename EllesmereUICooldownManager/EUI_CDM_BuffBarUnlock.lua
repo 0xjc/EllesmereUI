@@ -1,3 +1,23 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_CDM_BuffBarUnlock.lua
+--
+--  Unlock Mode registration of the tracking bars and their groups.
+--  Reads the earlier Tracking Bars files through ns and ns._buffBarInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._buffBarInternals
+-- EllesmereUICdmBuffBars.lua or an earlier Tracking Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local tbbFrames = I.tbbFrames
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._buffBarInternals, which hands the value to every copy.
+local ECME
+I.ecmeSetters[#I.ecmeSetters + 1] = function(v) ECME = v end
+
 -------------------------------------------------------------------------------
 --  Unlock Mode Registration
 -------------------------------------------------------------------------------
@@ -350,3 +370,5 @@ function ns.RegisterTBBUnlockElements()
     end
 end
 _G._ECME_RegisterTBBUnlock = ns.RegisterTBBUnlockElements
+
+I.broken = false

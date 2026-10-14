@@ -1,3 +1,33 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_CDM_BuffBarAssign.lua
+--
+--  Pairing of the Blizzard viewer frames with the bar configs, the buff
+--  gain/loss sounds and auto-add.
+--  Reads the earlier Tracking Bars files through ns and ns._buffBarInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._buffBarInternals
+-- EllesmereUICdmBuffBars.lua or an earlier Tracking Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local pcall = pcall
+
+local AddTrackedBuffBarCore, SetECME = I.AddTrackedBuffBarCore, I.SetECME
+local SetAssignDirty = I.SetAssignDirty
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._buffBarInternals, which hands the value to every copy.
+local ECME
+I.ecmeSetters[#I.ecmeSetters + 1] = function(v) ECME = v end
+-- Assignment memo gate: cfg->frame pairing changes only on viewer pool composition
+-- edges (aura events, pool Acquire, rebuilds, spec/cache invalidation); the tick
+-- reuses the last pairing until dirtied. Starts dirty so the first tick always pairs.
+local _tbbAssignDirty = true
+I.assignDirtySetters[#I.assignDirtySetters + 1] = function(v) _tbbAssignDirty = v end
+local _tbbAssignedFor
+
 -------------------------------------------------------------------------------
 --  CDM Child Lookup
 --  Iterates the BuffBarCooldownViewer pool directly (tiny, 3-5 frames).
@@ -110,7 +140,7 @@ function ns.InvalidateTBBFrameCache()
     wipe(_tbbStickyCdID)
     wipe(_tbbBaseCapturePending)
     -- Every structural edge funnels here (pool Acquire, spec swap, rebuilds), so the assignment memo retires with the caches.
-    _tbbAssignDirty = true
+    SetAssignDirty(true)
 end
 
 local function FindChild(cfg)
@@ -391,7 +421,7 @@ local function AssignFramesToConfigs(bars)
     if not _tbbAssignDirty and _tbbAssignedFor == bars then
         return assignment
     end
-    _tbbAssignDirty = false
+    SetAssignDirty(false)
     _tbbAssignedFor = bars
     wipe(assignment)
     if not bars then return assignment end
@@ -573,9 +603,8 @@ ns.AssignTBBFramesToConfigs = AssignFramesToConfigs
 --  asks ns.FindTBBSoundKey (ahead of the Buffs bar tiers for a Tracked Bars
 --  frame, after them for a buff icon frame). The self-timed presets have no
 --  Blizzard alert, so their timer edges call ns.TBBPresetSoundEdge. Bars that
---  track a cooldown never cue. Everything here is ns.* on purpose: this file's
---  local budget is nearly spent. Gated 0-cost on ns._tbbAnyBuffSound, the
---  tracking-bar half of ns._cdmAnyBuffSound.
+--  track a cooldown never cue. Everything here is on ns. Gated 0-cost on
+--  ns._tbbAnyBuffSound, the tracking-bar half of ns._cdmAnyBuffSound.
 -------------------------------------------------------------------------------
 
 -- Sound key for the tracking bar that owns this Blizzard frame / spell id.
@@ -588,7 +617,7 @@ ns.AssignTBBFramesToConfigs = AssignFramesToConfigs
 -- only (this edge is its own silence, so no Buffs bar sound may stand in);
 -- nil when no bar has a say.
 function ns.FindTBBSoundKey(frame, sid, field)
-    if not (ECME and ECME.db) then ECME = ns.ECME end
+    if not (ECME and ECME.db) then SetECME(ns.ECME) end
     local p = ECME and ECME.db and ECME.db.profile
     if not p or (p.cdmBars and p.cdmBars.useBlizzardBuffBars) then return nil end
     local tbb = ns.GetTrackedBuffBars()
@@ -680,7 +709,7 @@ function ns.TBBPresetSoundEdge(popularKey, gainEdge, expiry)
     local latch = ns._tbbPresetLoss
     -- Clear only a present entry: the tick calls in here while walking the latch table.
     if latch[popularKey] then latch[popularKey] = nil end
-    if not (ECME and ECME.db) then ECME = ns.ECME end
+    if not (ECME and ECME.db) then SetECME(ns.ECME) end
     local p = ECME and ECME.db and ECME.db.profile
     if not p or (p.cdmBars and p.cdmBars.useBlizzardBuffBars) then return end
     local tbb = ns.GetTrackedBuffBars()
@@ -836,7 +865,7 @@ end
 
 -- Shared guards for both auto-add passes. Returns the tbb table, or nil when the pass must not run right now.
 local function AutoAddReady()
-    if not (ECME and ECME.db) then ECME = ns.ECME end
+    if not (ECME and ECME.db) then SetECME(ns.ECME) end
     if not (ECME and ECME.db) then return nil end
     local p = ECME.db.profile
     if p.cdmBars and p.cdmBars.useBlizzardBuffBars then return nil end
@@ -922,3 +951,8 @@ function ns.QueueTBBAutoAdd()
     end)
 end
 
+I._tbbAssignment, I._tbbStickyCdID = _tbbAssignment, _tbbStickyCdID
+I.AssignFramesToConfigs, I.CfgWantsSID = AssignFramesToConfigs, CfgWantsSID
+I.MatchesSID, I.TbbCfgFamilyMatch = MatchesSID, TbbCfgFamilyMatch
+I.TbbNameFamily, I.TbbSlotVariantLabeled = TbbNameFamily, TbbSlotVariantLabeled
+I.broken = false

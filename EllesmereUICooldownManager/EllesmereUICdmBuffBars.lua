@@ -12,21 +12,6 @@ local floor   = math.floor
 local format  = string.format
 local GetTime = GetTime
 local pcall   = pcall
-local max     = math.max
-local abs     = math.abs
-local min     = math.min
-
--- Set once during BuildTrackedBuffBars (ECME.db is not ready at file load)
-local ECME
-
--- Feature-gating flags (rebuilt in BuildTrackedBuffBars, read in tick)
-local _anyPandemic  = false
-local _anyThreshold = false
-local _anyStacks    = false
--- True while any bar uses a Visibility mode/option, i.e. a state no tick-side aura or
--- cooldown edge can reveal. Gates the dispatcher wake below so profiles that never touch
--- Visibility keep the idle sleeper's original wake set.
-local _anyVisCond   = false
 
 -- Glow helpers (from main CDM file)
 local function StartGlow(...) if ns.StartNativeGlow then return ns.StartNativeGlow(...) end end
@@ -386,3 +371,30 @@ function ns.GetTBBPositions()
     return prof.tbbPositions
 end
 
+-- Main-chunk locals the EUI_CDM_BuffBar*.lua files re-import by name; each of
+-- them adds what the files behind it need. <name>Setters: every file reading
+-- that value keeps its own copy and adds a setter; a place that assigns it
+-- calls Set<Name> (built below), which runs them all. ECME is set this way
+-- during BuildTrackedBuffBars (ECME.db is not ready at file load).
+ns._NewInternals("_buffBarInternals", {
+    _blizzBarFS = _blizzBarFS, _classB = _classB, _classG = _classG, _classR = _classR,
+    _pandemicState = _pandemicState, BBFS = BBFS, FormatTime = FormatTime,
+    LifebloomPandemic = LifebloomPandemic, SetFont = SetFont, SetTBBTextColor = SetTBBTextColor,
+    StartGlow = StartGlow, StopGlow = StopGlow, TBB_DEFAULT_BAR = TBB_DEFAULT_BAR,
+    TBB_POPULAR_BUFFS = TBB_POPULAR_BUFFS, TBB_TEXTURES = TBB_TEXTURES,
+    ecmeSetters = {}, anyPandemicSetters = {}, anyThresholdSetters = {}, anyStacksSetters = {},
+    anyVisCondSetters = {}, tickFrameSetters = {}, rebuildPendingSetters = {},
+    assignDirtySetters = {}, reflowDirtySetters = {}, restoreNormalFillSetters = {},
+})
+for setter, listName in pairs({
+    SetECME = "ecmeSetters", SetAnyPandemic = "anyPandemicSetters",
+    SetAnyThreshold = "anyThresholdSetters", SetAnyStacks = "anyStacksSetters",
+    SetAnyVisCond = "anyVisCondSetters", SetTickFrame = "tickFrameSetters",
+    SetRebuildPending = "rebuildPendingSetters", SetAssignDirty = "assignDirtySetters",
+    SetReflowDirty = "reflowDirtySetters", SetRestoreNormalFill = "restoreNormalFillSetters",
+}) do
+    local list = ns._buffBarInternals[listName]
+    ns._buffBarInternals[setter] = function(v)
+        for i = 1, #list do list[i](v) end
+    end
+end

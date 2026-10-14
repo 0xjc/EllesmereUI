@@ -1,3 +1,24 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_CDM_BuffBarFrames.lua
+--
+--  Bar frame creation, threshold overlays, tick marks, charge hash lines, the
+--  spark anchor and ApplyTrackedBuffBarSettings.
+--  Reads the earlier Tracking Bars files through ns and ns._buffBarInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._buffBarInternals
+-- EllesmereUICdmBuffBars.lua or an earlier Tracking Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local pcall = pcall
+local max = math.max
+
+local _classB, _classG, _classR, SetFont = I._classB, I._classG, I._classR, I.SetFont
+local SetTBBTextColor, TBB_TEXTURES = I.SetTBBTextColor, I.TBB_TEXTURES
+local _MarkTBBReflowDirty = I._MarkTBBReflowDirty
+
 -------------------------------------------------------------------------------
 --  Frame Creation
 -------------------------------------------------------------------------------
@@ -544,8 +565,7 @@ end
 -- sized to the icon square. Blizzard Style: the viewer's rounded mask and
 -- ring overlay (same proportional inset as the CDM icons). Classic WoW UI:
 -- the vanilla action button ring round the square icon, no mask. One-time
--- structure, size-memoized geometry; never runs unless a style is on. On ns
--- for the local cap.
+-- structure, size-memoized geometry; never runs unless a style is on.
 ns.ApplyTBBBlizzIconArt = function(bar, iSize)
     local icon = bar._icon
     local tex = icon and icon._tex
@@ -597,7 +617,6 @@ end
 -- percentage (`pct`, nil = the shared default), so a bar in a tight group
 -- never paints across its neighbour; a vertical bar turns the art a quarter
 -- turn counter-clockwise. One-time regions, geometry memoized by the seat.
--- On ns for the local cap.
 ns.CDM_CLASSIC_BAR_SPARK  = "Interface\\CastingBar\\UI-CastingBar-Spark"
 ns.ApplyTBBClassicChrome = function(bar, sb, isVert, thick, pct)
     local CF = EllesmereUI.ClassicFrame
@@ -618,10 +637,11 @@ ns.ApplyTBBClassicChrome = function(bar, sb, isVert, thick, pct)
     CF.Seat(bar._classicChrome, art, CF.ScaleK(pct), isVert)
 end
 
--- Defined with the charge renderer below. ApplySettings calls it whenever a
+-- Defined with the charge renderer (EUI_CDM_BuffBarCooldown.lua). ApplySettings calls it whenever a
 -- pooled bar frame is restyled so stale composite geometry cannot leak into a
 -- different bar after deletion, reordering or a tracking-type change.
 local _restoreTBBNormalFill
+I.restoreNormalFillSetters[#I.restoreNormalFillSetters + 1] = function(v) _restoreTBBNormalFill = v end
 
 -------------------------------------------------------------------------------
 --  Apply Visual Settings
@@ -1046,3 +1066,10 @@ ns._tbbgUKey = setmetatable({}, { __index = function(t, k)
     return v
 end })
 
+I.AnchorTBBSpark, I.AnchorTBBSparkState = AnchorTBBSpark, AnchorTBBSparkState
+I.ApplyTBBChargeHashLines, I.ApplyTBBTickMarks = ApplyTBBChargeHashLines, ApplyTBBTickMarks
+I.ApplyTrackedBuffBarSettings = ApplyTrackedBuffBarSettings
+I.CreateTrackedBuffBarFrame = CreateTrackedBuffBarFrame
+I.FeedTBBThresholdOverlay = FeedTBBThresholdOverlay
+I.StableCooldownSpellID = StableCooldownSpellID
+I.broken = false

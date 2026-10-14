@@ -1,3 +1,29 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_CDM_BuffBarPresets.lua
+--
+--  Stacks, pandemic glow, the Blizzard bar font strings, icon spell ids and
+--  the self-timed presets (Bloodlust, Time Spiral, potions).
+--  Reads the earlier Tracking Bars files through ns and ns._buffBarInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._buffBarInternals
+-- EllesmereUICdmBuffBars.lua or an earlier Tracking Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local GetTime = GetTime
+local pcall = pcall
+
+local _blizzBarFS, BBFS, StartGlow, StopGlow = I._blizzBarFS, I.BBFS, I.StartGlow, I.StopGlow
+local _tbbWake, StableCooldownSpellID = I._tbbWake, I.StableCooldownSpellID
+local _tbbAssignment, CfgWantsSID = I._tbbAssignment, I.CfgWantsSID
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._buffBarInternals, which hands the value to every copy.
+local _tbbAssignDirty = true
+I.assignDirtySetters[#I.assignDirtySetters + 1] = function(v) _tbbAssignDirty = v end
+
 -------------------------------------------------------------------------------
 --  Stacks Helper (reads Blizzard child Applications frame)
 -------------------------------------------------------------------------------
@@ -352,10 +378,11 @@ function ns.UpdateLustListener()
 end
 
 -- Profile-wide smooth-fill switches (Bar Layout > Smooth Bars), resolved ONCE per tick by
--- UpdateTrackedBuffBarTimers for every fill site below. buffs = buff mirrors + self-timed
+-- UpdateTrackedBuffBarTimers for every fill site. buffs = buff mirrors + self-timed
 -- presets (lust/time spiral/potions); cooldowns = trackType=="cooldown" bars; off = values
 -- snap (no easing). Defaults: buffs ON, cooldowns OFF (absent keys read that way).
-local _smoothBuffs, _smoothCooldowns = true, false
+-- Fields on _tbbWake: the fill sites sit in three files and the tick writes both every pass.
+_tbbWake._smoothBuffs, _tbbWake._smoothCooldowns = true, false
 
 -- Self-driven display for an event-armed, self-timed preset bar (Bloodlust 40s, Time Spiral
 -- 10s): fill+timer come from our own countdown, not a Blizzard frame (name/icon are set in
@@ -375,7 +402,7 @@ local function _UpdateSelfTimedBar(bar, cfg, expiry, duration)
         -- Smooth fill is baseline for tracking bars: they move one direction at a known rate
         -- (unlike a health bar, no sudden jump needs instant read), so interpolation only
         -- removes judder. The wasShown gate snaps a fresh appearance instead of animating from a stale value.
-        local smooth = _smoothBuffs and wasShown and Enum and Enum.StatusBarInterpolation
+        local smooth = _tbbWake._smoothBuffs and wasShown and Enum and Enum.StatusBarInterpolation
             and Enum.StatusBarInterpolation.ExponentialEaseOut
         if smooth then
             sb:SetValue(remaining, smooth)
@@ -452,7 +479,7 @@ local TIME_SPIRAL_GLOW_FILTERS = {
     { talent = 427794, spells = { 195072 } },                  -- DH Dash of Chaos
     { talent = 385899, spells = { 385899 } },                  -- Warlock Soulburn
 }
--- State grouped in one table to stay clear of the file's local budget.
+-- State grouped in one table.
 local _ts = { expiry = 0, suppressUntil = 0, suppress = {}, active = false, frame = nil }
 
 local function _rebuildTimeSpiralSuppress()
@@ -638,3 +665,10 @@ local function _tbbCleanNum(v)
     return type(v) == "number"
 end
 
+I._potionDur, I._potionExpiry, I._tbbCleanNum = _potionDur, _potionExpiry, _tbbCleanNum
+I._ts, I._UpdateSelfTimedBar, I.ClearPandemic = _ts, _UpdateSelfTimedBar, ClearPandemic
+I.CooldownBarSpellID, I.EffectiveIconSpellID = CooldownBarSpellID, EffectiveIconSpellID
+I.GetBlizzBarFontStrings, I.MirrorEngineTimer = GetBlizzBarFontStrings, MirrorEngineTimer
+I.TIME_SPIRAL_DURATION, I.UpdateLustBar = TIME_SPIRAL_DURATION, UpdateLustBar
+I.UpdatePandemic, I.UpdateStacks = UpdatePandemic, UpdateStacks
+I.broken = false

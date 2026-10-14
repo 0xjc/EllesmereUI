@@ -1,3 +1,26 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_CDM_BuffBarStore.lua
+--
+--  Per-spec unlock-link views and the bar list: add, remove and broadcast a
+--  tracking bar across specs.
+--  Reads the earlier Tracking Bars files through ns and ns._buffBarInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._buffBarInternals
+-- EllesmereUICdmBuffBars.lua or an earlier Tracking Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local max = math.max
+
+local TBB_DEFAULT_BAR = I.TBB_DEFAULT_BAR
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._buffBarInternals, which hands the value to every copy.
+local ECME
+I.ecmeSetters[#I.ecmeSetters + 1] = function(v) ECME = v end
+
 -------------------------------------------------------------------------------
 --  Per-spec unlock-link views (anchor / width-match / height-match entries)
 --
@@ -530,3 +553,5 @@ function ns.RemoveBarFromAllSpecs(srcIdx)
     return removed
 end
 
+I.AddTrackedBuffBarCore = AddTrackedBuffBarCore
+I.broken = false

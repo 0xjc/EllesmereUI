@@ -1,12 +1,44 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_CDM_BuffBarBuild.lua
+--
+--  BuildTrackedBuffBars: builds or rebuilds every tracking bar.
+--  Reads the earlier Tracking Bars files through ns and ns._buffBarInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._buffBarInternals
+-- EllesmereUICdmBuffBars.lua or an earlier Tracking Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local pcall = pcall
+
+local TBB_POPULAR_BUFFS, _tbbWake, GroupGrowOf = I.TBB_POPULAR_BUFFS, I._tbbWake, I.GroupGrowOf
+local GroupSpacingOf, ResetReflowStates = I.GroupSpacingOf, I.ResetReflowStates
+local tbbFrames, ApplyTrackedBuffBarSettings = I.tbbFrames, I.ApplyTrackedBuffBarSettings
+local CreateTrackedBuffBarFrame = I.CreateTrackedBuffBarFrame
+local EffectiveIconSpellID, TBBUsesVisCondition = I.EffectiveIconSpellID, I.TBBUsesVisCondition
+local SetECME, SetRebuildPending = I.SetECME, I.SetRebuildPending
+local SetReflowDirty, SetTickFrame = I.SetReflowDirty, I.SetTickFrame
+local SetAnyPandemic, SetAnyThreshold = I.SetAnyPandemic, I.SetAnyThreshold
+local SetAnyStacks, SetAnyVisCond = I.SetAnyStacks, I.SetAnyVisCond
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._buffBarInternals, which hands the value to every copy.
+local ECME
+I.ecmeSetters[#I.ecmeSetters + 1] = function(v) ECME = v end
+local tbbTickFrame
+I.tickFrameSetters[#I.tickFrameSetters + 1] = function(v) tbbTickFrame = v end
+
 -------------------------------------------------------------------------------
 --  Build / Rebuild All Tracking Bars
 -------------------------------------------------------------------------------
 function ns.BuildTrackedBuffBars()
-    ECME = ns.ECME
+    SetECME(ns.ECME)
     if not ECME or not ECME.db then return end
     -- No InCombatLockdown guard needed: TBB frames are ours (UIParent), not secure Blizzard frames, so positioning in combat is safe.
-    _tbbRebuildPending = false
-    _tbbReflowDirty = true
+    SetRebuildPending(false)
+    SetReflowDirty(true)
 
     -- Per-spec unlock-link views: the global anchor/match stores must hold THIS spec's TBB entries before any anchored-state below is read.
     ns.SyncTBBUnlockLinks()
@@ -48,11 +80,11 @@ function ns.BuildTrackedBuffBars()
         if tbbFrames[i] then tbbFrames[i]:Hide() end
     end
 
-    -- Reset feature-gating flags
-    _anyPandemic  = false
-    _anyThreshold = false
-    _anyStacks    = false
-    _anyVisCond   = false
+    -- Feature-gating flags: collected in the bar loop, handed on behind it
+    local _anyPandemic  = false
+    local _anyThreshold = false
+    local _anyStacks    = false
+    local _anyVisCond   = false
 
     local anyEnabled = false
     local anyLust = false  -- any enabled bloodlust bar -> needs the Sated listener
@@ -198,13 +230,15 @@ function ns.BuildTrackedBuffBars()
             bar:Hide()  -- tick shows it when active
         end
     end
+    SetAnyPandemic(_anyPandemic); SetAnyThreshold(_anyThreshold)
+    SetAnyStacks(_anyStacks); SetAnyVisCond(_anyVisCond)
 
     -- Tick frame: every frame while anything is live (bar fill+spark need smooth updates);
     -- the idle sleeper in UpdateTrackedBuffBarTimers parks it when nothing is.
     _tbbWake._enabled = anyEnabled and true or false
     if anyEnabled then
         if not tbbTickFrame then
-            tbbTickFrame = ns.TakeShell()
+            SetTickFrame(ns.TakeShell())
             local tbbAccum = 0
             tbbTickFrame:SetScript("OnUpdate", function(self, elapsed)
                 tbbAccum = tbbAccum + elapsed
@@ -287,3 +321,4 @@ function ns.BuildTrackedBuffBars()
     ns.RequestLootPlacement()
 end
 
+I.broken = false

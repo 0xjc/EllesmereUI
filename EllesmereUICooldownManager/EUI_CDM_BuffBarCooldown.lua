@@ -1,3 +1,35 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_CDM_BuffBarCooldown.lua
+--
+--  The charge hash fill, the cooldown cast mirror and the cooldown-tracking
+--  bar.
+--  Reads the earlier Tracking Bars files through ns and ns._buffBarInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._buffBarInternals
+-- EllesmereUICdmBuffBars.lua or an earlier Tracking Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local GetTime = GetTime
+
+local _classB, _classG, _classR, FormatTime = I._classB, I._classG, I._classR, I.FormatTime
+local _tbbWake, AnchorTBBSpark = I._tbbWake, I.AnchorTBBSpark
+local ApplyTBBChargeHashLines = I.ApplyTBBChargeHashLines
+local ApplyTBBTickMarks = I.ApplyTBBTickMarks
+local FeedTBBThresholdOverlay, _tbbCleanNum = I.FeedTBBThresholdOverlay, I._tbbCleanNum
+local ClearPandemic, CooldownBarSpellID = I.ClearPandemic, I.CooldownBarSpellID
+local SetRestoreNormalFill = I.SetRestoreNormalFill
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._buffBarInternals, which hands the value to every copy.
+local _anyThreshold = false
+I.anyThresholdSetters[#I.anyThresholdSetters + 1] = function(v) _anyThreshold = v end
+-- Assigned further down and handed to EUI_CDM_BuffBarFrames.lua
+-- (SetRestoreNormalFill).
+local _restoreTBBNormalFill
+
 -------------------------------------------------------------------------------
 --  Charge hash fill
 --  currentCharges is secret in combat, so addon Lua cannot compute (currentCharges +
@@ -148,6 +180,7 @@ _restoreTBBNormalFill = function(bar, cfg)
     -- The stock bar timer is not re-armed while its texture is hidden, so a mid-recharge exit from hash mode must force the original path to refresh.
     bar._cdNeedSet = true
 end
+SetRestoreNormalFill(_restoreTBBNormalFill)
 
 local function _updateTBBChargeHashFill(bar, cfg, maxCharges, currentCharges,
         durObj, remaining, duration, wasShown)
@@ -688,7 +721,7 @@ local function _UpdateCooldownBar(bar, cfg)
                 local interpE = Enum.StatusBarInterpolation
                 local interp
                 if interpE then
-                    if wasShown and _smoothCooldowns then
+                    if wasShown and _tbbWake._smoothCooldowns then
                         interp = interpE.ExponentialEaseOut
                     else
                         interp = interpE.None
@@ -719,7 +752,7 @@ local function _UpdateCooldownBar(bar, cfg)
             -- can simply mirror the fraction in Lua.
             local fillVal = cfg.fillUp and (duration - remaining) or remaining
             -- Smooth fill is baseline (see UpdateLustBar note).
-            local smooth = _smoothCooldowns and wasShown and Enum
+            local smooth = _tbbWake._smoothCooldowns and wasShown and Enum
                 and Enum.StatusBarInterpolation
                 and Enum.StatusBarInterpolation.ExponentialEaseOut
             if smooth then
@@ -801,3 +834,5 @@ local function _UpdateCooldownBar(bar, cfg)
     end
 end
 
+I._UpdateCooldownBar = _UpdateCooldownBar
+I.broken = false

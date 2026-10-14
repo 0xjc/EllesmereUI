@@ -1,3 +1,60 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_CDM_BuffBarTick.lua
+--
+--  The combat and visibility gates and UpdateTrackedBuffBarTimers, the
+--  per-frame tick.
+--  Reads the earlier Tracking Bars files through ns and ns._buffBarInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._buffBarInternals
+-- EllesmereUICdmBuffBars.lua or an earlier Tracking Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local GetTime = GetTime
+local pcall = pcall
+local abs = math.abs
+local min = math.min
+
+local _pandemicState, FormatTime = I._pandemicState, I.FormatTime
+local LifebloomPandemic, _tbbWake = I.LifebloomPandemic, I._tbbWake
+local ReflowVisibleGroupedTBBars, tbbFrames = I.ReflowVisibleGroupedTBBars, I.tbbFrames
+local AnchorTBBSparkState, ApplyTBBTickMarks = I.AnchorTBBSparkState, I.ApplyTBBTickMarks
+local FeedTBBThresholdOverlay, _tbbStickyCdID = I.FeedTBBThresholdOverlay, I._tbbStickyCdID
+local AssignFramesToConfigs, CfgWantsSID = I.AssignFramesToConfigs, I.CfgWantsSID
+local MatchesSID, TbbCfgFamilyMatch = I.MatchesSID, I.TbbCfgFamilyMatch
+local TbbNameFamily, TbbSlotVariantLabeled = I.TbbNameFamily, I.TbbSlotVariantLabeled
+local _potionDur, _potionExpiry, _ts = I._potionDur, I._potionExpiry, I._ts
+local _UpdateSelfTimedBar, ClearPandemic = I._UpdateSelfTimedBar, I.ClearPandemic
+local EffectiveIconSpellID = I.EffectiveIconSpellID
+local GetBlizzBarFontStrings, MirrorEngineTimer = I.GetBlizzBarFontStrings, I.MirrorEngineTimer
+local TIME_SPIRAL_DURATION, UpdateLustBar = I.TIME_SPIRAL_DURATION, I.UpdateLustBar
+local UpdatePandemic, UpdateStacks = I.UpdatePandemic, I.UpdateStacks
+local _UpdateCooldownBar, SetAssignDirty = I._UpdateCooldownBar, I.SetAssignDirty
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._buffBarInternals, which hands the value to every copy.
+local ECME
+I.ecmeSetters[#I.ecmeSetters + 1] = function(v) ECME = v end
+-- Feature-gating flags (rebuilt in BuildTrackedBuffBars, read in tick)
+local _anyPandemic = false
+I.anyPandemicSetters[#I.anyPandemicSetters + 1] = function(v) _anyPandemic = v end
+local _anyThreshold = false
+I.anyThresholdSetters[#I.anyThresholdSetters + 1] = function(v) _anyThreshold = v end
+local _anyStacks = false
+I.anyStacksSetters[#I.anyStacksSetters + 1] = function(v) _anyStacks = v end
+local _anyVisCond = false
+I.anyVisCondSetters[#I.anyVisCondSetters + 1] = function(v) _anyVisCond = v end
+local tbbTickFrame
+I.tickFrameSetters[#I.tickFrameSetters + 1] = function(v) tbbTickFrame = v end
+-- Group reflow gate: see _MarkTBBReflowDirty in EUI_CDM_BuffBarGroups.lua.
+local _tbbReflowDirty = true
+I.reflowDirtySetters[#I.reflowDirtySetters + 1] = function(v) _tbbReflowDirty = v end
+-- Smooth-fill switch memo for the tick: GetTBBSmoothSettings walks the profile store,
+-- and its result can only change with the active profile name or the live spec-profile bucket, both re-read per tick without a call.
+local _tickSm, _tickSmProf, _tickSmSp
+
 -------------------------------------------------------------------------------
 --  "Only In Combat" gate
 --  Combat state comes from the main module's event-tracked flag (debounced combat
@@ -111,10 +168,10 @@ function ns.UpdateTrackedBuffBarTimers()
         end
     end
     if sm then
-        _smoothBuffs = sm.buffs ~= false
-        _smoothCooldowns = sm.cooldowns == true
+        _tbbWake._smoothBuffs = sm.buffs ~= false
+        _tbbWake._smoothCooldowns = sm.cooldowns == true
     else
-        _smoothBuffs, _smoothCooldowns = true, false
+        _tbbWake._smoothBuffs, _tbbWake._smoothCooldowns = true, false
     end
 
     -- Self-heal placeholder mode when the user navigates away from Tracking Bars
@@ -125,7 +182,7 @@ function ns.UpdateTrackedBuffBarTimers()
             ns._tbbPlaceholderMode = false
             if ns.HideTBBPlaceholders then ns.HideTBBPlaceholders() end
             -- Auras may have moved while the preview was up: re-pair on the first real mirror tick.
-            _tbbAssignDirty = true
+            SetAssignDirty(true)
             -- The preview may have written the self-timed bars' timer text: drop
             -- their bucket stamps so the next live tick rewrites it.
             for bi = 1, #tbbFrames do
@@ -238,7 +295,7 @@ function ns.UpdateTrackedBuffBarTimers()
                 -- Blizzard's late-bind can land WITHOUT a fresh player aura event. Keep
                 -- the memo dirty while any fallback is live so the next tick re-pairs
                 -- the moment the frame appears (restoring stacks/pandemic from mirror).
-                if fbAura then _tbbAssignDirty = true end
+                if fbAura then SetAssignDirty(true) end
             end
             if isActive or fbAura then tickLive = true end
 
@@ -256,7 +313,7 @@ function ns.UpdateTrackedBuffBarTimers()
                 if blizzBar then
                     -- Mirror Blizzard's bar onto ours. Secret values pass natively to widget
                     -- setters (NEVER compared in Lua). Smooth fill is baseline (see UpdateLustBar note).
-                    local smooth = _smoothBuffs and wasShown and Enum
+                    local smooth = _tbbWake._smoothBuffs and wasShown and Enum
                         and Enum.StatusBarInterpolation
                         and Enum.StatusBarInterpolation.ExponentialEaseOut
                     if cfg.stackBasedBar and cfg.trackType ~= "cooldown"
@@ -543,7 +600,7 @@ function ns.UpdateTrackedBuffBarTimers()
                         apps = 1
                     end
                     sb:SetMinMaxValues(0, cfg.stackThresholdMax or 10)
-                    local smooth = _smoothBuffs and wasShown and Enum
+                    local smooth = _tbbWake._smoothBuffs and wasShown and Enum
                         and Enum.StatusBarInterpolation
                         and Enum.StatusBarInterpolation.ExponentialEaseOut
                     if smooth then
@@ -579,7 +636,7 @@ function ns.UpdateTrackedBuffBarTimers()
                         local remaining = exp - GetTime()
                         if remaining < 0 then remaining = 0 end
                         sb:SetMinMaxValues(0, dur)
-                        local smooth = _smoothBuffs and wasShown and Enum
+                        local smooth = _tbbWake._smoothBuffs and wasShown and Enum
                             and Enum.StatusBarInterpolation
                             and Enum.StatusBarInterpolation.ExponentialEaseOut
                         if smooth then
@@ -719,3 +776,5 @@ function ns.UpdateTrackedBuffBarTimers()
     end
 end
 
+I.TBBUsesVisCondition = TBBUsesVisCondition
+I.broken = false
