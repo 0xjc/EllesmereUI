@@ -509,6 +509,10 @@ local function Place()
     win:SetPoint("TOPLEFT", UIParent, "TOPLEFT", book and book:IsShown() and BESIDE or 0, -104)
 end
 
+local function Close()
+    if win then win:Hide() end
+end
+
 local function Toggle()
     Build()
     if win:IsShown() then
@@ -558,6 +562,7 @@ EllesmereUI._ClassicTalents = {
     Cfg = F.Cfg,
     Apply = Bind,
     Place = Place,
+    Close = Close,
 }
 
 F.Start(Bind)

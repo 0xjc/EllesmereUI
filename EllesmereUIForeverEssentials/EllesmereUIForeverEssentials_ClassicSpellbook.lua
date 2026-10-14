@@ -19,6 +19,7 @@ local BANK = Enum.SpellBookSpellBank.Player
 local ART = "Interface\\Spellbook\\"
 local QUEUE_KEY = "ClassicSpellbook"
 local TOGGLE_NAME = "EUI_ClassicSpellbookToggle"
+local ESCAPE_NAME = "EUI_ClassicSpellbookEscape"
 
 -- Settings live in EllesmereUIDB.classicSpellbook; unset keys read these.
 local F = module.Feature("classicSpellbook", { enabled = false })
@@ -425,7 +426,7 @@ local function Build()
     book:EnableMouse(true)
     book:SetHitRectInsets(0, 30, 0, 70)
     -- Escape closes the open book, in combat too.
-    book:SetAttribute("_onshow", ([[ self:SetBindingClick(true, "ESCAPE", %q) ]]):format(TOGGLE_NAME))
+    book:SetAttribute("_onshow", ([[ self:SetBindingClick(true, "ESCAPE", %q) ]]):format(ESCAPE_NAME))
     book:SetAttribute("_onhide", [[ self:ClearBindings() ]])
     book:HookScript("OnShow", BookShown)
     book:HookScript("OnHide", BookHidden)
@@ -451,6 +452,15 @@ local function Build()
     toggle = CreateFrame("Button", TOGGLE_NAME, UIParent, "SecureHandlerClickTemplate")
     toggle:SetFrameRef("book", book)
     toggle:SetAttribute("_onclick", TOGGLE_SNIPPET)
+
+    -- Escape also closes the talent window that stands beside the book.
+    local escape = CreateFrame("Button", ESCAPE_NAME, UIParent, "SecureHandlerClickTemplate")
+    escape:SetFrameRef("book", book)
+    escape:SetAttribute("_onclick", [[ self:GetFrameRef("book"):Hide() ]])
+    escape:SetScript("PostClick", function()
+        local talents = EllesmereUI._ClassicTalents
+        if talents then talents.Close() end
+    end)
 
     local close = CreateFrame("Button", nil, book, "SecureHandlerClickTemplate")
     close:SetSize(32, 32)
