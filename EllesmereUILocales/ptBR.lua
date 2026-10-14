@@ -9107,3 +9107,11 @@ L["WORLD MAP"] = "MAPA-MÚNDI"
 L["White stacks delete on the first Ctrl + Left Click instead of the second."] = "Pilhas brancas são excluídas no primeiro Ctrl + Clique esquerdo em vez do segundo."
 L["for in combat aura/rotational reminders please use the %s"] = "para lembretes de auras/rotação em combate, use o %s"
 L["this ability"] = "esta habilidade"
+
+-- == Simple Loot Council ======================================================
+L["Keep Standalone"] = "Manter independente"
+L["Keeping the standalone leaves this copy idle. You can switch later from the Simple Loot Council page."] = "Manter a versão independente deixa esta cópia inativa. Você pode trocar depois na página do Simple Loot Council."
+L["Simple Loot Council"] = true
+L["Simple Loot Council did not start: the EllesmereUI module expected the standalone copy to load, and it did not. Please report this; turning SimpleLootCouncil on in the AddOns list works around it."] = "O Simple Loot Council não iniciou: o módulo do EllesmereUI esperava que a cópia independente fosse carregada, mas ela não foi. Por favor, reporte este problema; ativar o SimpleLootCouncil na lista de AddOns contorna a falha."
+L["Simple Loot Council is installed twice, and the standalone copy is the one running. Switch to the EllesmereUI module? Your council, history and settings carry over."] = "O Simple Loot Council está instalado duas vezes, e a cópia independente é a que está em execução. Trocar para o módulo do EllesmereUI? Seu conselho, histórico e configurações serão mantidos."
+L["Simple Loot Council: the standalone copy could not be turned off for you. Turn off SimpleLootCouncil in the AddOns list, then reload."] = "Simple Loot Council: não foi possível desativar a cópia independente para você. Desative o SimpleLootCouncil na lista de AddOns e depois recarregue."
