@@ -65,6 +65,7 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUIDB.junkListExcluded = nil
                 EllesmereUIDB.simplifiedStats = nil
                 EllesmereUIDB.macroManager = nil
+                EllesmereUIDB.zoneLevels = nil
                 if EllesmereUIDB.unlockAnchors then
                     EllesmereUIDB.unlockAnchors.EUI_FlightTimer = nil
                     EllesmereUIDB.unlockAnchors.EUI_ThreatMeter = nil
@@ -92,6 +93,7 @@ initFrame:SetScript("OnEvent", function(self)
             end
             if EllesmereUI._SpellUprank then EllesmereUI._SpellUprank.Apply() end
             if EllesmereUI._JunkItems then EllesmereUI._JunkItems.Apply() end
+            if EllesmereUI._ZoneLevels then EllesmereUI._ZoneLevels.Apply() end
             EllesmereUI:InvalidatePageCache()
         end,
     })

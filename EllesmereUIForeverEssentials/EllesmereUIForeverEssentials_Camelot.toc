@@ -23,6 +23,9 @@ EllesmereUIForeverEssentials_MapReveal.lua
 EllesmereUIForeverEssentials_FlightTimerData.lua
 EllesmereUIForeverEssentials_FlightTimer.lua
 
+# World map zone levels
+EllesmereUIForeverEssentials_ZoneLevels.lua
+
 # Threat (threat meter)
 EllesmereUIForeverEssentials_ThreatData.lua
 EllesmereUIForeverEssentials_Window.lua
