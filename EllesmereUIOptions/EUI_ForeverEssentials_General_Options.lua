@@ -150,7 +150,7 @@ end
 
 _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
     local W = EllesmereUI.Widgets
-    local SU = EllesmereUI._SpellUprank
+    local SU, CS, CT = EllesmereUI._SpellUprank, EllesmereUI._ClassicSpellbook, EllesmereUI._ClassicTalents
     local BLANK = EllesmereUI.BlankRowCfg
     local y = yOffset
     local _, h
@@ -208,6 +208,31 @@ _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
             disabled = revealOff, disabledTooltip = "Reveal Unexplored Areas",
         })
     end
+
+    ---------------------------------------------------------------------------
+    --  CLASSIC WINDOWS (the vanilla spellbook and talent window)
+    ---------------------------------------------------------------------------
+    _, h = W:Spacer(parent, y, 20);  y = y - h
+    _, h = W:SectionHeader(parent, "CLASSIC WINDOWS", y);  y = y - h
+
+    _, h = W:DualRow(parent, y,
+        { type = "toggle", text = "Classic Spellbook",
+          tooltip = "Your spellbook key opens the vanilla spellbook. The micro menu still opens Talents & Spellbook. "
+              .. "A search or option changed in combat applies when the fight ends.",
+          getValue = function() return CS.Get("enabled") end,
+          setValue = function(v)
+              CS.Cfg().enabled = v
+              CS.Apply()
+          end },
+        { type = "toggle", text = "Classic Talents",
+          tooltip = "Your talents key opens the vanilla talent window for your active spec. "
+              .. "The micro menu still opens Talents & Spellbook.",
+          getValue = function() return CT.Get("enabled") end,
+          setValue = function(v)
+              CT.Cfg().enabled = v
+              CT.Apply()
+          end }
+    );  y = y - h
 
     ---------------------------------------------------------------------------
     --  SIMPLIFIED STATS (item tooltips)
