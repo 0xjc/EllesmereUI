@@ -65,6 +65,9 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUIDB.junkListExcluded = nil
                 EllesmereUIDB.simplifiedStats = nil
                 EllesmereUIDB.macroManager = nil
+                -- The CVars a session holds stay recorded, so Apply can give them back.
+                local fi = EllesmereUIDB.fishing
+                EllesmereUIDB.fishing = fi and fi.held and { held = fi.held } or nil
                 if EllesmereUIDB.unlockAnchors then
                     EllesmereUIDB.unlockAnchors.EUI_FlightTimer = nil
                     EllesmereUIDB.unlockAnchors.EUI_ThreatMeter = nil
@@ -92,6 +95,7 @@ initFrame:SetScript("OnEvent", function(self)
             end
             if EllesmereUI._SpellUprank then EllesmereUI._SpellUprank.Apply() end
             if EllesmereUI._JunkItems then EllesmereUI._JunkItems.Apply() end
+            if EllesmereUI._Fishing then EllesmereUI._Fishing.Apply() end
             EllesmereUI:InvalidatePageCache()
         end,
     })

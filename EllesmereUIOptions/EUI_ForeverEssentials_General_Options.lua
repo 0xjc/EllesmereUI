@@ -396,5 +396,78 @@ _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
         );  y = y - h
     end
 
+    ---------------------------------------------------------------------------
+    --  FISHING (EllesmereUIForeverEssentials_Fishing.lua)
+    ---------------------------------------------------------------------------
+    local FI = EllesmereUI._Fishing
+    local function SetFish(key, v)
+        FI.Cfg()[key] = v
+        FI.Apply()
+    end
+
+    _, h = W:Spacer(parent, y, 20);  y = y - h
+    _, h = W:SectionHeader(parent, "FISHING", y);  y = y - h
+
+    -- Fishing Key (keybind, its options in the cog) | Double-Click to Cast
+    local fishKeyRow
+    fishKeyRow, h = W:DualRow(parent, y,
+        { type = "label", text = "Fishing Key",
+          tooltip = "One key for the whole loop: casts your line, then reels it in once the bobber bites. With no fishing pole in hand, it first equips the best one in your bags. Use the cog to reel in, show the bobber indicator and apply lures." },
+        { type = "toggle", text = "Double-Click to Cast",
+          tooltip = "With a fishing pole in hand, a quick double right-click on the world casts your line (applying a lure first if its cog's option is on). Never on a character, in combat or while your line is in the water: right-click the bobber to reel in.",
+          getValue = function() return FI.Get("doubleClick") end,
+          setValue = function(v)
+              SetFish("doubleClick", v)
+              EllesmereUI:RefreshPage()  -- the cog's disabled state
+          end }
+    );  y = y - h
+    if not EllesmereUI._prebuilding then
+        local rgn = fishKeyRow._leftRegion
+        local kbBtn, refresh = EllesmereUI.BuildKeybindButton(rgn, {
+            w = 140, h = 30, font = 13,
+            get = function() return FI.Get("key") end,
+            set = function(v)
+                SetFish("key", v)
+                EllesmereUI:RefreshPage()  -- the cog's disabled state
+            end,
+            tooltip = "Left-click to set a keybind.\nRight-click to unbind.",
+        })
+        EllesmereUI.PanelPP.Point(kbBtn, "RIGHT", rgn, "RIGHT", -20, 0)
+        EllesmereUI.RegisterWidgetRefresh(refresh)
+
+        local function fishRow(label, tooltip, key)
+            return { type = "toggle", label = label, tooltip = tooltip,
+                get = function() return FI.Get(key) end,
+                set = function(v) SetFish(key, v) end }
+        end
+        -- A label half has no control: the cog sits left of the keybind
+        -- button, which also bounds the label.
+        EllesmereUI.BuildInlineCog(rgn, {
+            title = "Fishing Key",
+            rows = {
+                fishRow("Reel In With the Key", "While your line is in the water and the bobber is on screen, the Fishing Key reels it in; the line out, the key casts again. Turns on soft interact while you fish, and puts your settings back after.", "reel"),
+                fishRow("Bobber Indicator", "While your line is in the water, an icon shows whether the bobber is targeted: green, the key reels in; red, keep the bobber on screen. Hover it for details; place it in Unlock Mode.", "indicator"),
+                fishRow("Apply Lure", "When your fishing pole has no lure, the Fishing Key first applies the best lure in your bags; the next press casts.", "lure"),
+            },
+            anchorTo = kbBtn,
+            disabled = function() return FI.Get("key") == nil end,
+            disabledTooltip = "Fishing Key",
+        })
+        EllesmereUI.BuildInlineCog(fishKeyRow._rightRegion, {
+            title = "Double-Click to Cast",
+            rows = { fishRow("Apply Lure", "When your fishing pole has no lure, a double-click first applies the best lure in your bags; the next one casts.", "clickLure") },
+            disabled = function() return not FI.Get("doubleClick") end,
+            disabledTooltip = "Double-Click to Cast",
+        })
+    end
+
+    _, h = W:DualRow(parent, y,
+        { type = "toggle", text = "Fishing Sounds",
+          tooltip = "While you fish, lowers music and ambience, raises sound effects so you hear the bobber splash, and keeps sound on when the game is in the background. Your sound settings come back when you move, enter combat or change zone.",
+          getValue = function() return FI.Get("sound") end,
+          setValue = function(v) SetFish("sound", v) end },
+        BLANK()
+    );  y = y - h
+
     return math.abs(y)
 end
