@@ -9115,3 +9115,10 @@ L["Simple Loot Council"] = true
 L["Simple Loot Council did not start: the EllesmereUI module expected the standalone copy to load, and it did not. Please report this; turning SimpleLootCouncil on in the AddOns list works around it."] = "O Simple Loot Council não iniciou: o módulo do EllesmereUI esperava que a cópia independente fosse carregada, mas ela não foi. Por favor, reporte este problema; ativar o SimpleLootCouncil na lista de AddOns contorna a falha."
 L["Simple Loot Council is installed twice, and the standalone copy is the one running. Switch to the EllesmereUI module? Your council, history and settings carry over."] = "O Simple Loot Council está instalado duas vezes, e a cópia independente é a que está em execução. Trocar para o módulo do EllesmereUI? Seu conselho, histórico e configurações serão mantidos."
 L["Simple Loot Council: the standalone copy could not be turned off for you. Turn off SimpleLootCouncil in the AddOns list, then reload."] = "Simple Loot Council: não foi possível desativar a cópia independente para você. Desative o SimpleLootCouncil na lista de AddOns e depois recarregue."
+
+-- == Simple Loot Council options / Nameplates ================================
+L["Loot council voting for your raid, synced over addon messages."] = "Votação do conselho de saque para a sua raide, sincronizada por mensagens de addon."
+L["STANDALONE COPY RUNNING"] = "CÓPIA INDEPENDENTE EM EXECUÇÃO"
+L["Show a border on enemy buffs you can dispel, purge or soothe."] = "Mostra uma borda nos buffs inimigos que você pode dissipar, expurgar ou confortar."
+L["Show a border on your debuffs while they can be refreshed without losing any duration."] = "Mostra uma borda nos seus debuffs enquanto eles podem ser renovados sem perder nenhuma duração."
+L["Switch To The EllesmereUI Module"] = "Mudar para o Módulo da EllesmereUI"
