@@ -253,6 +253,44 @@ _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
     end
 
     ---------------------------------------------------------------------------
+    --  COMPANION PETS (EllesmereUIForeverEssentials_PetSummon.lua)
+    ---------------------------------------------------------------------------
+    local PS = EllesmereUI._PetSummon
+    if PS and C_PetJournal then
+        _, h = W:Spacer(parent, y, 20);  y = y - h
+        _, h = W:SectionHeader(parent, "COMPANION PETS", y);  y = y - h
+
+        _, h = W:DualRow(parent, y,
+            { type = "toggle", text = "Auto Summon Pet",
+              tooltip = "Summons a random favorite pet again a moment after the game takes yours away (death, loading screen, taxi, vehicle...), or any random pet while you have no favorite. A pet you dismiss yourself stays dismissed. Never in combat, dungeons, raids, PvP, stealth or while mounted.",
+              getValue = function() return PS.Get("enabled") end,
+              setValue = function(v)
+                  PS.Cfg().enabled = v
+                  PS.Apply()
+                  EllesmereUI:RefreshPage()  -- Favorites per Character's disabled state
+              end },
+            { type = "toggle", text = "Favorites per Character",
+              tooltip = "This character summons among its own favorites instead of your account's. Right-click a pet in the Pet Journal and check Favorite for This Character; a blue star marks it in the list. While this character has none, your account's favorites are used. Saved for this character only.",
+              disabled = function() return not PS.Get("enabled") end,
+              disabledTooltip = "Auto Summon Pet",
+              -- This character's own setting, read without creating its table.
+              getValue = function()
+                  local chars, guid = PS.Get("chars"), UnitGUID("player")
+                  return chars ~= nil and guid ~= nil and chars[guid] ~= nil and chars[guid].own == true
+              end,
+              setValue = function(v)
+                  local guid = UnitGUID("player")
+                  if not guid then return end
+                  local cfg = PS.Cfg()
+                  cfg.chars = cfg.chars or {}
+                  cfg.chars[guid] = cfg.chars[guid] or {}
+                  cfg.chars[guid].own = v or nil
+                  PS.RefreshJournal()
+              end }
+        );  y = y - h
+    end
+
+    ---------------------------------------------------------------------------
     --  NAME FORMAT (while a module with a Name Format is on)
     ---------------------------------------------------------------------------
     local sources = NameFormatSources()

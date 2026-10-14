@@ -65,6 +65,8 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUIDB.junkListExcluded = nil
                 EllesmereUIDB.simplifiedStats = nil
                 EllesmereUIDB.macroManager = nil
+                -- The per-character favorites are the player's picks: only the switch resets.
+                if EllesmereUIDB.petSummon then EllesmereUIDB.petSummon.enabled = nil end
                 if EllesmereUIDB.unlockAnchors then
                     EllesmereUIDB.unlockAnchors.EUI_FlightTimer = nil
                     EllesmereUIDB.unlockAnchors.EUI_ThreatMeter = nil
@@ -92,6 +94,7 @@ initFrame:SetScript("OnEvent", function(self)
             end
             if EllesmereUI._SpellUprank then EllesmereUI._SpellUprank.Apply() end
             if EllesmereUI._JunkItems then EllesmereUI._JunkItems.Apply() end
+            if EllesmereUI._PetSummon then EllesmereUI._PetSummon.Apply() end
             EllesmereUI:InvalidatePageCache()
         end,
     })
