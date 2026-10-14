@@ -12,12 +12,14 @@
 # Main Lua
 EllesmereUIForeverEssentials.lua
 
-# General (spell uprank, junk items, simplified stats, map reveal)
+# General (spell uprank, junk items, simplified stats, map reveal, map travel pins)
 EllesmereUIForeverEssentials_Uprank.lua
 EllesmereUIForeverEssentials_JunkItems.lua
 EllesmereUIForeverEssentials_SimplifiedStats.lua
 EllesmereUIForeverEssentials_MapRevealData.lua
 EllesmereUIForeverEssentials_MapReveal.lua
+EllesmereUIForeverEssentials_MapTravelData.lua
+EllesmereUIForeverEssentials_MapTravel.lua
 
 # Travel (flight timer)
 EllesmereUIForeverEssentials_FlightTimerData.lua
