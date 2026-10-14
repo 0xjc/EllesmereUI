@@ -225,8 +225,8 @@ local function TabLeave()
     EllesmereUI.HideWidgetTooltip()
 end
 
-local function TurnSound()
-    PlaySound(SOUNDKIT.IG_ABILITY_PAGE_TURN)
+local function TurnSound(b)
+    if not b.idle then PlaySound(SOUNDKIT.IG_ABILITY_PAGE_TURN) end
 end
 
 -- Out of combat only, like every frame made here. A click shows its line.
@@ -254,12 +254,34 @@ local function NewArrow(dir, x, step)
     b:SetSize(32, 32)
     b:SetPoint("CENTER", book, "BOTTOMLEFT", x, 105)
     local tex = "Interface\\Buttons\\UI-SpellbookIcon-" .. dir .. "Page-"
+    b.art = tex
     b:SetNormalTexture(tex .. "Up")
     b:SetPushedTexture(tex .. "Down")
+    b:SetDisabledTexture(tex .. "Disabled")
     b:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
     b:SetScript("PostClick", TurnSound)
     book:WrapScript(b, "OnClick", ("PAGES[LINE] = (PAGES[LINE] or 1) + (%d)\n"):format(step) .. AIM)
     return b
+end
+
+-- An arrow with nowhere to go shows its disabled art and cannot be clicked. The arrows are
+-- secure frames, so only out of combat can they be disabled: combat starts with
+-- both enabled (the idle one clicks silently) and the fight's end syncs them.
+local function ArrowsFor(page)
+    local canPrev, canNext = page > 1, page < PageCount()
+    for arrow, can in pairs({ [book.prev] = canPrev, [book.next] = canNext }) do
+        arrow:SetNormalTexture(arrow.art .. (can and "Up" or "Disabled"))
+        arrow.idle = not can
+    end
+    if InCombatLockdown() then
+        EllesmereUI.CombatQueue.Defer(QUEUE_KEY .. "Arrows", function()
+            local _, key = Shown()
+            ArrowsFor(pages[key] or 1)
+        end)
+        return
+    end
+    book.prev:SetEnabled(canPrev)
+    book.next:SetEnabled(canNext)
 end
 
 -- Draws the page on show. No protected call: it also runs in combat.
@@ -272,9 +294,7 @@ local function Paint()
     for i, tab in ipairs(book.tabs) do
         tab:SetChecked(not query and i == line)
     end
-    -- An arrow with nowhere to go is dimmed, not disabled.
-    book.prev:SetAlpha(page > 1 and 1 or 0.4)
-    book.next:SetAlpha(page < PageCount() and 1 or 0.4)
+    ArrowsFor(page)
     book.pageText:SetFormattedText(PAGE_NUMBER, page)
     PaintCooldowns()
 end
@@ -424,10 +444,9 @@ local function Build()
     local title = book:CreateFontString(nil, "ARTWORK", "GameFontNormal")
     title:SetPoint("CENTER", 6, 230)
     title:SetText(SPELLBOOK)
-    book.pageText = book:CreateFontString(nil, "OVERLAY", "GameFontBlack")
+    book.pageText = book:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     book.pageText:SetWidth(102)
     book.pageText:SetPoint("BOTTOM", -14, 99) -- between the page arrows
-    book.pageText:SetTextColor(0.25, 0.12, 0)
 
     toggle = CreateFrame("Button", TOGGLE_NAME, UIParent, "SecureHandlerClickTemplate")
     toggle:SetFrameRef("book", book)
@@ -498,6 +517,10 @@ local function OnEvent(_, event)
         PaintCooldowns()
     elseif event == "PLAYER_REGEN_DISABLED" then
         if stale then Refresh() end
+        if book then
+            book.prev:SetEnabled(true)
+            book.next:SetEnabled(true)
+        end
     elseif book:IsShown() then
         Refresh()
     else
