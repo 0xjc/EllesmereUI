@@ -16,6 +16,7 @@ EllesmereUIForeverEssentials.lua
 EllesmereUIForeverEssentials_Uprank.lua
 EllesmereUIForeverEssentials_JunkItems.lua
 EllesmereUIForeverEssentials_SimplifiedStats.lua
+EllesmereUIForeverEssentials_MapFade.lua
 EllesmereUIForeverEssentials_MapRevealData.lua
 EllesmereUIForeverEssentials_MapReveal.lua
 
