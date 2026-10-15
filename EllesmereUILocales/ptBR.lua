@@ -9151,3 +9151,9 @@ L["stat colors"] = "cores das estatísticas"
 L["tooltip stats"] = "estatísticas da dica"
 L["unexplored"] = "inexplorado"
 L["world map"] = "mapa-múndi"
+
+-- == Simple Loot Council / Forever Essentials Macros / Unit Frames ==
+L["%1$s or %2$s"] = "%1$s ou %2$s"
+L["Health # Short (230.5K)"] = "Vida # Curta (230,5K)"
+L["Simple Loot Council is installed twice, and the standalone copy is the one running. Switch to the EllesmereUI module? It keeps the council, history and settings it already has; the standalone copy's own are left as they are."] = "O Simple Loot Council está instalado duas vezes, e a cópia independente é a que está em execução. Mudar para o módulo da EllesmereUI? Ele mantém o conselho, o histórico e as configurações que já tem; os da cópia independente permanecem como estão."
+L["Stance %d"] = "Postura %d"
