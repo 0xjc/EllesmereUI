@@ -2577,7 +2577,10 @@ local function BmCheckStyles(cls, meta)
             local vk = BmVisualKey(m.kind, m.ind, m.size, font, m.spellID)
             if bmStyleFP[m.styleKey] ~= vk then
                 bmStyleFP[m.styleKey] = vk
+                local previousStyle = AK.styles[m.styleKey]
                 AK.styles[m.styleKey] = BuildBmStyleFor(m.kind, m.ind, cls.iscale, m.size, m.spellID)
+                -- Pool registration applies to every member, including disabled ones.
+                AK.styles[m.styleKey].bmPandemicRegister = previousStyle and previousStyle.bmPandemicRegister
                 AK.RestyleSoon(m.styleKey)
             end
         end

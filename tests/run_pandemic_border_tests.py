@@ -55,3 +55,29 @@ key = between(aura, '    local ck = kind ..', '    if anySegs then')
 lua.execute('function PoolKey(a,b) local kind="icon"; local ownPat={"o","o"}; local members={{ind={pandemicBorderEnabled=a}},{ind={pandemicBorderEnabled=b}}}\n'+key+'\nreturn ck end')
 lua.execute('assert(PoolKey(true,false)==PoolKey(false,true)); assert(PoolKey(true,true)==PoolKey(true,false)); assert(PoolKey(false,false)~=PoolKey(true,false))')
 print('PASS: lazy pandemic regions, one registration, structural enable fingerprint')
+
+lua.execute('''
+bmStyleFP = {}; bmOwnFP = {}
+EllesmereUI = {GetFontPath = function() return 'font' end}
+AK = {styles = {pooled = {bmPandemicRegister = true}}, RestyleSoon = function() end}
+BmVisualKey = function() return 'changed' end
+BuildBmStyleFor = function() return {bmPandemicEnabled = false} end
+BmOwnKey = function() return 'own' end
+''')
+lua.execute(between(aura, 'local function BmCheckStyles(', 'local function ReloadBm(') + '\nCheckStyles = BmCheckStyles')
+lua.execute('''
+local cls = {styleKey = 'test', iscale = 1}
+CheckStyles(cls, {{styleKey = 'pooled', kind = 'icon', ind = {}, size = 18},
+                  {styleKey = 'standalone', kind = 'icon', ind = {}, size = 18}})
+assert(AK.styles.pooled.bmPandemicRegister == true, 'restyle preserves shared-pool registration')
+assert(AK.styles.standalone.bmPandemicRegister == nil, 'restyle does not opt in standalone icons')
+local d = {stackCarrier = {GetFrameLevel = function() return 20 end}}
+local button = {AddPandemicRegion = function() bound = bound + 1 end}
+local before = made
+Apply(button, d, AK.styles.pooled)
+assert(made == before + 5 and d.bmPandemicBound, 'new disabled-member buttons register after restyle')
+d.bmRegistered = true
+Apply(button, d, {bmPandemicEnabled = true})
+assert(made == before + 5 and d.bmPandemicBound, 'enabled reuse retains the registered region')
+''')
+print('PASS: restyle preserves pool registration for newly initialized buttons')
