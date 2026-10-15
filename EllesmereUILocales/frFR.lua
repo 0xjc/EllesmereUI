@@ -5842,6 +5842,8 @@ L["Dungeon and raid entrances, on continent and zone maps; hover one for its nam
 L["Flight Points"] = "Points de vol"
 L["On zone maps, the flight masters, those you have not found yet included."] = "Sur les cartes de zone, les maîtres de vol, y compris ceux que vous n'avez pas encore trouvés."
 L["Click to link it in chat."] = "Cliquez pour le lier dans le chat."
+L["Right-click to open the map it leads to."] = "Clic droit pour ouvrir la carte de destination."
+L["Open the Map of"] = "Ouvrir la carte de"
 L["Boat to %s"] = "Bateau vers %s"
 L["Zeppelin to %s"] = "Zeppelin vers %s"
 L["Skycutter to %s"] = "Aéronef vers %s"

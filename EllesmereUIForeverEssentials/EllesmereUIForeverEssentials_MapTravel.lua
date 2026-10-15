@@ -6,7 +6,8 @@ if not (EllesmereUI and EllesmereUI.IS_FOREVER) then return end
 --  a continent adds instance entrances, a zone adds flight points and its
 --  exits; each set has its cog toggle. Hovering a pin names it; a left click
 --  prints its map pin link in chat, as /way does, pointing at the zone it
---  stands in. Pins never move the map.
+--  stands in; a right click on a transport or an exit opens the map it leads
+--  to (a menu when it leads to several), as the game's own map links do.
 --
 --  As Reveal Unexplored Areas: nothing of Blizzard's map is hooked; a data
 --  provider reports map changes and zoom, and the pins are frames of our own
@@ -72,6 +73,9 @@ local function PinOnEnter(self)
     if C_Map.CanSetUserWaypointOnMap(self.linkMap) then
         tip = tip .. "\n\n" .. EllesmereUI.COLOR_CODES.DIM .. EllesmereUI.L("Click to link it in chat.") .. "|r"
     end
+    if self.dests then
+        tip = tip .. "\n" .. EllesmereUI.COLOR_CODES.DIM .. EllesmereUI.L("Right-click to open the map it leads to.") .. "|r"
+    end
     EllesmereUI.ShowWidgetTooltip(self, tip)
 end
 
@@ -104,10 +108,37 @@ local function PrintLink(mapID, x, y, label, atlas)
     end
 end
 
+-- The map a pin leads to, as the game's map links open theirs; never in
+-- combat.
+local function OpenMap(mapID)
+    if mapID and not InCombatLockdown() then WorldMapFrame:SetMapID(mapID) end
+end
+
+-- A right click on a transport or an exit: the map it leads to, or a menu of
+-- them when the pin stands for several.
+local function OpenDestination(pin)
+    local dests = pin.dests
+    if #dests == 1 then
+        OpenMap(dests[1].map)
+        return
+    end
+    MenuUtil.CreateContextMenu(pin, function(_, root)
+        root:CreateTitle(EllesmereUI.L("Open the Map of"))
+        for i = 1, #dests do
+            local d = dests[i]
+            root:CreateButton(d.label, function() OpenMap(d.map) end)
+        end
+    end)
+end
+
 -- A left click on a pin: its link in chat, led by its icon, kind and name, on
 -- the zone it stands in (world and continent maps take no pin). A line
 -- printed in combat taints chat history, so it waits for the end of combat.
 local function PinOnMouseUp(self, button)
+    if button == "RightButton" then
+        if self.dests then OpenDestination(self) end
+        return
+    end
     if button ~= "LeftButton" or not C_Map.CanSetUserWaypointOnMap(self.linkMap) then return end
     local mapID, x, y, atlas = self.linkMap, self.linkX, self.linkY, self.atlas
     local label = self.link or PinLabel(self.tip)
@@ -159,8 +190,10 @@ end
 -- A pin at (x, y) of the canvas (0..1); count > 1 shows as a badge. link: its
 -- kind and name for the chat line ("Dungeon: The Deadmines"). Its chat link
 -- points at the shown map; a pin drawn from a zone onto a wider map points
--- back at the zone (the caller sets linkMap, linkX, linkY).
-local function Place(x, y, atlas, size, tip, rotation, count, link)
+-- back at the zone (the caller sets linkMap, linkX, linkY). dests: the maps
+-- it leads to ({ map, label }), for the right click; without, the right
+-- click goes on to the map (back out a level).
+local function Place(x, y, atlas, size, tip, rotation, count, link, dests)
     local p = NextPin()
     p.x, p.y, p.size = x, y, size
     p:SetSize(size, size)
@@ -168,8 +201,13 @@ local function Place(x, y, atlas, size, tip, rotation, count, link)
     if atlas:find("\\", 1, true) then p.tex:SetTexture(atlas) else p.tex:SetAtlas(atlas) end
     p.tex:SetRotation(rotation or 0)
     p.count:SetText(count and count > 1 and count or "")
-    p.tip, p.link, p.atlas = tip, link, atlas
+    p.tip, p.link, p.atlas, p.dests = tip, link, atlas, dests
     p.linkMap, p.linkX, p.linkY = shownMap, x, y
+    if dests then
+        securecallfunction(p.SetPassThroughButtons, p)
+    else
+        securecallfunction(p.SetPassThroughButtons, p, "RightButton")
+    end
     p:Show()
     return p
 end
@@ -243,13 +281,15 @@ local function TransportGroups(zone)
         end
         -- Each destination on its own line, led by its transport's icon.
         local line = ("|A:%s:16:16|a %s"):format(KIND_ATLAS[t[3]], TransportTip(t))
+        local dest = { map = t[4], label = line }
         if g then
             g.tip = g.tip .. "\n" .. line
             g.link = g.link .. ", " .. TransportTip(t)
             g.count = g.count + 1
+            g.dests[#g.dests + 1] = dest
         else
             groups[#groups + 1] = { x = t[1], y = t[2], atlas = KIND_ATLAS[t[3]], tip = line,
-                link = TransportTip(t), count = 1 }
+                link = TransportTip(t), count = 1, dests = { dest } }
         end
     end
     transportGroups[zone] = groups
@@ -262,7 +302,7 @@ local function DrawZone(zone)
         local groups = TransportGroups(zone)
         for i = 1, #groups do
             local g = groups[i]
-            Place(g.x / 100, g.y / 100, g.atlas, PIN_SIZE, g.tip, nil, g.count, g.link)
+            Place(g.x / 100, g.y / 100, g.atlas, PIN_SIZE, g.tip, nil, g.count, g.link, g.dests)
         end
     end
     if On("instances") then
@@ -283,7 +323,8 @@ local function DrawZone(zone)
                 local x, y = e[1] / 100, e[2] / 100
                 Place(x, y, "poi-traveldirections-arrow", ARROW_SIZE, ZoneName(e[3]),
                     ExitRotation(zone, x, y, e[3]), nil,
-                    EllesmereUI.Lf("Path from %s to %s", ZoneName(zone), ZoneName(e[3])))
+                    EllesmereUI.Lf("Path from %s to %s", ZoneName(zone), ZoneName(e[3])),
+                    { { map = e[3], label = ZoneName(e[3]) } })
             end
         end
     end
@@ -308,7 +349,7 @@ local function DrawWider(map, instances)
                 local g = groups[i]
                 local x, y = OnWiderMap(zone, map, g.x / 100, g.y / 100)
                 if x then
-                    local p = Place(x, y, g.atlas, PIN_SIZE, g.tip, nil, g.count, g.link)
+                    local p = Place(x, y, g.atlas, PIN_SIZE, g.tip, nil, g.count, g.link, g.dests)
                     p.linkMap, p.linkX, p.linkY = zone, g.x / 100, g.y / 100
                 end
             end
