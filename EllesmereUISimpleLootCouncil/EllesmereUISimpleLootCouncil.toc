@@ -5,12 +5,11 @@
 ## Notes: Lets a raid's loot council vote on item distribution over addon comms.
 ## Author: Laxx
 ## X-License: All Rights Reserved
-## Version: 9.5.4
+## Version: 9.5.5
 ## X-SLC-Version: 0.43.17
 ## X-SLC-Commit: 1da691235297
 ## X-SLC-Port-Commit: 966d05366729
 ## Dependencies: EllesmereUI
-## DefaultState: disabled
 ## SavedVariables: SimpleLootCouncilDB
 ## OptionalDeps: wowutils, GuildsOfWoW, Simulationcraft
 ## IconTexture: Interface\AddOns\EllesmereUI\media\eg-logo.tga
