@@ -178,6 +178,25 @@ _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
     _, h = W:Spacer(parent, y, 20);  y = y - h
     _, h = W:SectionHeader(parent, "WORLD MAP", y);  y = y - h
 
+    -- Fade Map While Moving | Show the Game Behind the Map. Runtime in
+    -- EllesmereUIForeverEssentials_MapFade.lua.
+    local MF = EllesmereUI._MapFade
+    local function SetFade(key, v)
+        MF.Cfg()[key] = v
+        MF.Apply()
+    end
+
+    _, h = W:DualRow(parent, y,
+        { type = "toggle", text = "Fade Map While Moving",
+          tooltip = "Turns on the game's own map fade: while you move, the world map fades to half so you can see where you go, and comes back once you stop or put the cursor over it.",
+          getValue = function() return MF.Get("enabled") end,
+          setValue = function(v) SetFade("enabled", v) end },
+        { type = "toggle", text = "Show the Game Behind the Map",
+          tooltip = "Lightens the black screen behind the maximized world map so you can see the game around it.",
+          getValue = function() return MF.Get("dim") end,
+          setValue = function(v) SetFade("dim", v) end }
+    );  y = y - h
+
     local revealRow
     revealRow, h = W:DualRow(parent, y,
         { type = "toggle", text = "Reveal Unexplored Areas",

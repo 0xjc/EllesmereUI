@@ -5832,3 +5832,8 @@ L["Summons a random favorite pet again a moment after the game takes yours away 
 L["Favorites per Character"] = "Favorites par personnage"
 L["This character summons among its own favorites instead of your account's. Right-click a pet in the Pet Journal and check Favorite for This Character; a blue star marks it in the list. While this character has none, your account's favorites are used. Saved for this character only."] = "Ce personnage invoque parmi ses propres favorites au lieu de celles du compte. Clic droit sur une mascotte dans le journal des mascottes, puis cochez Favorite de ce personnage ; une étoile bleue la signale dans la liste. Tant que ce personnage n'en a aucune, les favorites du compte sont utilisées. Réglage propre à ce personnage."
 L["Favorite for This Character"] = "Favorite de ce personnage"
+-- Fade Map While Moving (EllesmereUIForeverEssentials_MapFade.lua)
+L["Fade Map While Moving"] = "Estomper la carte en mouvement"
+L["Turns on the game's own map fade: while you move, the world map fades to half so you can see where you go, and comes back once you stop or put the cursor over it."] = "Active l'estompage de carte du jeu : pendant vos déplacements, la carte du monde s'estompe à moitié pour que vous voyiez où vous allez, puis revient dès que vous vous arrêtez ou que vous la survolez."
+L["Lightens the black screen behind the maximized world map so you can see the game around it."] = "Éclaircit l'écran noir derrière la carte du monde agrandie pour voir le jeu autour."
+L["Show the Game Behind the Map"] = "Voir le jeu derrière la carte"

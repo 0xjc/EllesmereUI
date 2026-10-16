@@ -67,6 +67,9 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUIDB.macroManager = nil
                 -- The per-character favorites are the player's picks: only the switch resets.
                 if EllesmereUIDB.petSummon then EllesmereUIDB.petSummon.enabled = nil end
+                -- The game's mapFade from before stays, so Apply can give it back.
+                local mf = EllesmereUIDB.worldMapFade
+                EllesmereUIDB.worldMapFade = mf and mf.mapFadeWas ~= nil and { mapFadeWas = mf.mapFadeWas } or nil
                 if EllesmereUIDB.unlockAnchors then
                     EllesmereUIDB.unlockAnchors.EUI_FlightTimer = nil
                     EllesmereUIDB.unlockAnchors.EUI_ThreatMeter = nil
@@ -95,6 +98,7 @@ initFrame:SetScript("OnEvent", function(self)
             if EllesmereUI._SpellUprank then EllesmereUI._SpellUprank.Apply() end
             if EllesmereUI._JunkItems then EllesmereUI._JunkItems.Apply() end
             if EllesmereUI._PetSummon then EllesmereUI._PetSummon.Apply() end
+            if EllesmereUI._MapFade then EllesmereUI._MapFade.Apply() end
             EllesmereUI:InvalidatePageCache()
         end,
     })
