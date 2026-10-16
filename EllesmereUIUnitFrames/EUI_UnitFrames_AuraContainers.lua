@@ -2832,9 +2832,8 @@ local function ApplyDispelSlotStyle(button, d, style)
 
     -- The portrait's Outer Ring (its texture on the backdrop, backdrop._outerRing)
     -- gets the same copy while it shows: the ring's own art laid on the ring's own
-    -- rect (anchor-derived, so size and position follow it), on a holder one level
-    -- over the portrait backdrop (a detached backdrop sits at frame+15, over the
-    -- unified border and its copy).
+    -- rect (anchor-derived, so size and position follow it), one level over the
+    -- ring's parent, including when cast-icon decoration raises the ring.
     local bd = ub and uf.Portrait and uf.Portrait.backdrop
     local ring = bd and bd._outerRing
     if ring and ring:IsShown() and bd:IsShown() then
@@ -2852,7 +2851,7 @@ local function ApplyDispelSlotStyle(button, d, style)
             d.ufRingAnchor = ring
         end
         d.ufRingOn = true
-        host:SetFrameLevel(bd:GetFrameLevel() + 1)
+        host:SetFrameLevel(ring:GetParent():GetFrameLevel() + 1)
         local art = ring:GetTexture()
         if d.ufRingArt ~= art then
             d.ufRingTex:SetTexture(art)
