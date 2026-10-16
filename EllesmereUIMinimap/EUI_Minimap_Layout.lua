@@ -55,8 +55,6 @@ local MO_Evaluate
 -- The Great Vault and M+ Portal buttons, built in BuildCustomIndicators.
 local _greatVaultBtn = nil
 local _portalBtn = nil
--- Never assigned in this module; LayoutIndicatorFrames still checks it.
-local indicatorBg = nil  -- combined bg strip for square mode (legacy, still used when free move is off)
 
 local function BuildCustomIndicators(minimap)
     if _customIndicators.tracking then
@@ -703,7 +701,6 @@ local function LayoutIndicatorFrames(minimap, p, circleMode)
             diffFrame:ClearAllPoints()
             diffFrame:SetPoint("TOPRIGHT", blizzHdr, "BOTTOMRIGHT", 0, 1)
         end
-        if indicatorBg then indicatorBg:Hide() end
 
     elseif circleMode then
         -- Circle layout: horizontal row growing left from the clock. Each element chains
@@ -748,8 +745,6 @@ local function LayoutIndicatorFrames(minimap, p, circleMode)
         if ci.crafting and ci.crafting:IsShown() then
             PlaceLeft(ci.crafting)
         end
-
-        if indicatorBg then indicatorBg:Hide() end
 
     else
         -- Square layout: element row (corner + growth from Element Row Position), same running-total
@@ -810,8 +805,6 @@ local function LayoutIndicatorFrames(minimap, p, circleMode)
         if ci.crafting and ci.crafting:IsShown() then
             PlaceElement(ci.crafting)
         end
-
-        if indicatorBg then indicatorBg:Hide() end
     end
 
     -- Ungrouped buttons along the button row; the flyout toggle is its first slot.

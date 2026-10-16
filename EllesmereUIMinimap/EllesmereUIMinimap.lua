@@ -235,50 +235,6 @@ local minimapDecorations = {
     "TimeManagerClockButton",
 }
 
-local minimapButtonMap = {
-    -- Zoom buttons are handled in ApplyMinimap (hideZoomButtons reparents Minimap.ZoomIn/ZoomOut to the hidden frame), not via this name map.
-    { key = "hideTrackingButton",   names = { "MiniMapTrackingButton" } },
-    { key = "hideGameTime",         names = { "GameTimeFrame" } },
-    { key = "hideMail",             names = { "MiniMapMailFrame" } },
-    { key = "hideRaidDifficulty",   names = { "MiniMapInstanceDifficulty", "GuildInstanceDifficulty" } },
-    { key = "hideCraftingOrder",    names = { "MiniMapCraftingOrderFrame" } },
-    -- hideAddonCompartment is NOT listed here: the compartment is reparented
-    -- rather than alpha-hidden, and EBS._ApplyAddonCompartment owns it.
-}
-
-local minimapButtonHooks = {}
-
-local function HideMinimapButton(name)
-    local btn = _G[name]
-    if not btn then return end
-    btn:Hide()
-    btn:SetAlpha(0)
-    if not minimapButtonHooks[name] then
-        hooksecurefunc(btn, "Show", function(self)
-            if InCombatLockdown() then return end
-            local mp = EBS.db and EBS.db.profile.minimap
-            if not mp then return end
-            for _, entry in ipairs(minimapButtonMap) do
-                for _, btnName in ipairs(entry.names) do
-                    if btnName == name and mp[entry.key] then
-                        self:SetAlpha(0)
-                        return
-                    end
-                end
-            end
-        end)
-        minimapButtonHooks[name] = true
-    end
-end
-
-local function ShowMinimapButton(name)
-    local btn = _G[name]
-    if not btn then return end
-    btn:SetAlpha(1)
-    btn:EnableMouse(true)
-    btn:Show()
-end
-
 local cachedAddonButtons = {}
 local _addonVisible = {}       -- persistent: tracks whether each addon WANTS its button visible
 EBS._suppressVisTrack = false -- flag to suppress tracking during our own Show/Hide calls
