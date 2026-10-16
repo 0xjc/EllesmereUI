@@ -527,6 +527,42 @@ _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
     end
 
     ---------------------------------------------------------------------------
+    --  GATHERING (EllesmereUIForeverEssentials_GatherSkill.lua)
+    ---------------------------------------------------------------------------
+    local GS = EllesmereUI._GatherSkill
+    _, h = W:Spacer(parent, y, 20);  y = y - h
+    _, h = W:SectionHeader(parent, "GATHERING", y);  y = y - h
+
+    local gsRow
+    gsRow, h = W:DualRow(parent, y,
+        { type = "toggle", text = "Gathering Skill in Tooltips",
+          tooltip = "On herb and ore node tooltips, adds the skill the node needs to the game's \"Requires Herbalism\" or \"Requires Mining\" line and, when you can gather it, colors that line by your chance to raise your skill there: orange, yellow, green, grey.",
+          getValue = function() return GS.Get("enabled") end,
+          setValue = function(v)
+              GS.Cfg().enabled = v
+              GS.Apply()
+              EllesmereUI:RefreshPage()  -- the cog's disabled state
+          end },
+        BLANK()
+    );  y = y - h
+    if not EllesmereUI._prebuilding then
+        EllesmereUI.BuildInlineCog(gsRow._leftRegion, {
+            title = "Gathering Skill in Tooltips",
+            rows = {
+                { type = "toggle", label = "Minimap",
+                  tooltip = "Also on the minimap: a tracked herb or ore node's name is followed by its required skill, in the same colors (red when you cannot gather it).",
+                  get = function() return GS.Get("minimap") end,
+                  set = function(v)
+                      GS.Cfg().minimap = v
+                      GS.Apply()
+                  end },
+            },
+            disabled = function() return not GS.Get("enabled") end,
+            disabledTooltip = "Gathering Skill in Tooltips",
+        })
+    end
+
+    ---------------------------------------------------------------------------
     --  JUNK ITEMS (the rows after the toggle are built while the window is
     --  on; the toggle rebuilds the page)
     ---------------------------------------------------------------------------
