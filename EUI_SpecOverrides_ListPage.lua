@@ -1,3 +1,42 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_SpecOverrides_ListPage.lua
+--
+--  The management list page and Promote Override to Profile.
+--  Reads the earlier Spec Overrides files through EUI_NS._soInternals.
+-------------------------------------------------------------------------------
+local _, EUI_NS = ...
+EUI_NS = EUI_NS.__euiCoreNS or EUI_NS  -- standalone builds: the core's own table (EllesmereUI.lua)
+local I = EUI_NS._soInternals
+-- EllesmereUI_SpecOverrides.lua or an earlier Spec Overrides file failed to
+-- load.
+if not I or I.broken then return end
+I.broken = true
+
+local ACCENT_B, ACCENT_G, ACCENT_R = I.ACCENT_B, I.ACCENT_G, I.ACCENT_R
+local BlacklistedFKey, CurrentSpecID, DeepCopy = I.BlacklistedFKey, I.CurrentSpecID, I.DeepCopy
+local EntryHolderGroup, EntryOwning = I.EntryHolderGroup, I.EntryOwning
+local FKeyLoaded, GetGroups, GetStore, GOLD_B = I.FKeyLoaded, I.GetGroups, I.GetStore, I.GOLD_B
+local GOLD_G, GOLD_R, GroupById = I.GOLD_G, I.GOLD_R, I.GroupById
+local HasRegisteredDefault, L, LIST_PAGE = I.HasRegisteredDefault, I.L, I.LIST_PAGE
+local MatchOwnedFKey, NIL_SENT, ReadLive = I.MatchOwnedFKey, I.NIL_SENT, I.ReadLive
+local RebuildFKeyIndex, RunRefreshers = I.RebuildFKeyIndex, I.RunRefreshers
+local SpecInAnyGroup, SpecName = I.SpecInAnyGroup, I.SpecName
+local SpecStrandedOnEntry, SplitFKey = I.SpecStrandedOnEntry, I.SplitFKey
+local WriteLive, GetUnlockStore = I.WriteLive, I.GetUnlockStore
+local WriteDefaultValues, GetBmStore = I.WriteDefaultValues, I.GetBmStore
+local GetCondBmStore, GetCondDmStore = I.GetCondBmStore, I.GetCondDmStore
+local GetDmStore, IsTBBChildKey, LayerSkipsKey = I.GetDmStore, I.IsTBBChildKey, I.LayerSkipsKey
+local Cond, EXCLUDED_CONTEXTS, RequestGoldWalk = I.Cond, I.EXCLUDED_CONTEXTS, I.RequestGoldWalk
+local EnterGroupEdit = I.EnterGroupEdit
+
+-- This file's copies of shared names; Set<Name> keeps every copy current
+-- (the lists are built at the end of EllesmereUI_SpecOverrides.lua).
+local _editGroup = nil
+I.editGroupSetters[#I.editGroupSetters + 1] = function(v) _editGroup = v end
+local _activeSpec = nil
+I.activeSpecSetters[#I.activeSpecSetters + 1] = function(v) _activeSpec = v end
+
 -------------------------------------------------------------------------------
 --  Management list page ("Spec Overrides" tab under Profiles & Presets).
 --  Purely a list: per group, each captured setting with Go To / Remove.
@@ -1019,3 +1058,5 @@ function EllesmereUI.Conditions_BuildListPage(parent, startY)
     return -y + 40
 end
 
+I.PruneOrphanEntries = PruneOrphanEntries
+I.broken = false

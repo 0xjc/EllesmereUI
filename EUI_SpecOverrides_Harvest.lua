@@ -1,9 +1,64 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_SpecOverrides_Harvest.lua
+--
+--  Harvest and apply (save-on-leave, apply-on-enter) and the unlock layout
+--  overrides.
+--  Reads the earlier Spec Overrides files through EUI_NS._soInternals.
+-------------------------------------------------------------------------------
+local _, EUI_NS = ...
+EUI_NS = EUI_NS.__euiCoreNS or EUI_NS  -- standalone builds: the core's own table (EllesmereUI.lua)
+local I = EUI_NS._soInternals
+-- EllesmereUI_SpecOverrides.lua or an earlier Spec Overrides file failed to
+-- load.
+if not I or I.broken then return end
+I.broken = true
+
+local BlacklistedFKey, ConflictSpec = I.BlacklistedFKey, I.ConflictSpec
+local CurrentSpecID, DeepCopy, EntryOwning = I.CurrentSpecID, I.DeepCopy, I.EntryOwning
+local FKeyLoaded, FS, GetGroups = I.FKeyLoaded, I.FS, I.GetGroups
+local GetProfileRoot, GetStore, GOLD_B = I.GetProfileRoot, I.GetStore, I.GOLD_B
+local GOLD_G, GOLD_R, GroupById = I.GOLD_G, I.GOLD_R, I.GroupById
+local HasRegisteredDefault, L, MatchOwnedFKey = I.HasRegisteredDefault, I.L, I.MatchOwnedFKey
+local NIL_SENT, PS, PxCo, ReadLive = I.NIL_SENT, I.PS, I.PxCo, I.ReadLive
+local RebuildFKeyIndex, RunRefreshers = I.RebuildFKeyIndex, I.RunRefreshers
+local SnapValue, SpecInAnyGroup, SplitFKey = I.SnapValue, I.SpecInAnyGroup, I.SplitFKey
+local WriteLive, SetEditGroup, SetDefaultView = I.WriteLive, I.SetEditGroup, I.SetDefaultView
+local SetInTransition, SetActiveSpec = I.SetInTransition, I.SetActiveSpec
+
+-- This file's copies of shared names; Set<Name> keeps every copy current
+-- (the lists are built at the end of EllesmereUI_SpecOverrides.lua).
+local _editGroup = nil
+I.editGroupSetters[#I.editGroupSetters + 1] = function(v) _editGroup = v end
+local _defaultView = false   -- panel open in Default Editing Mode: live holds
+                             -- the stored DEFAULT values for captured paths
+I.defaultViewSetters[#I.defaultViewSetters + 1] = function(v) _defaultView = v end
+local _enterSnap = nil       -- profiles snapshot from session start (set by editing-as
+                             -- enter flows; baseline for exit-sweep + HarvestGroup revert detection)
+I.enterSnapSetters[#I.enterSnapSetters + 1] = function(v) _enterSnap = v end
+local RequestGoldWalk
+I.goldWalkSetters[#I.goldWalkSetters + 1] = function(v) RequestGoldWalk = v end
+local SweepUncaptured
+I.sweepSetters[#I.sweepSetters + 1] = function(v) SweepUncaptured = v end
+local TeardownEditSession
+I.teardownSetters[#I.teardownSetters + 1] = function(v) TeardownEditSession = v end
+local PanelShown
+I.panelShownSetters[#I.panelShownSetters + 1] = function(v) PanelShown = v end
+local EnterDefaultView
+I.enterDefaultViewSetters[#I.enterDefaultViewSetters + 1] = function(v) EnterDefaultView = v end
+local UpdateIndicator
+I.updateIndicatorSetters[#I.updateIndicatorSetters + 1] = function(v) UpdateIndicator = v end
+local RefreshCardsPopup
+I.refreshCardsSetters[#I.refreshCardsSetters + 1] = function(v) RefreshCardsPopup = v end
+
 -------------------------------------------------------------------------------
 --  Harvest / Apply  (save-on-leave, apply-on-enter)
 -------------------------------------------------------------------------------
 local _inTransition = false   -- suppresses HarvestCurrent between leave & apply
+I.inTransitionSetters[#I.inTransitionSetters + 1] = function(v) _inTransition = v end
 local _activeSpec = nil       -- spec whose values currently sit in the live db
                               -- (ignoring a temporary Editing-as swap)
+I.activeSpecSetters[#I.activeSpecSetters + 1] = function(v) _activeSpec = v end
 
 -- Reads the live value of every captured path into a map.
 local function HarvestMap()
@@ -351,8 +406,8 @@ local function HarvestDefaults()
 end
 
 local function ApplyValuesFor(specID)
-    _inTransition = false
-    if specID then _activeSpec = specID end
+    SetInTransition(false)
+    if specID then SetActiveSpec(specID) end
     -- While Editing-as (or the Default view) holds swapped values live, generic
     -- re-applies (e.g. a fallback RefreshAllAddons) must preserve the swap.
     if _editGroup then
@@ -562,21 +617,21 @@ function EllesmereUI.SpecOverrides_OnSpecChanged(oldSpecID, newSpecID)
         -- to the group's members. Live holds group values, so the outgoing
         -- spec must NOT be harvested from it.
         local g = _editGroup
-        _editGroup = nil
+        SetEditGroup(nil)
         if SweepUncaptured then SweepUncaptured(g) end
         HarvestGroup(g)
         if TeardownEditSession then TeardownEditSession() end
     elseif _defaultView then
         -- Live holds the DEFAULT values; bank them there. The outgoing spec's
         -- own values were banked when the view was entered.
-        _defaultView = false
+        SetDefaultView(false)
         HarvestDefaults()
         if UpdateIndicator then UpdateIndicator() end
     elseif oldSpecID and oldSpecID ~= newSpecID then
         Harvest(oldSpecID)
     end
-    _activeSpec = newSpecID
-    _inTransition = true
+    SetActiveSpec(newSpecID)
+    SetInTransition(true)
 end
 
 -- WoW Forever: creating or deleting a group can move the spec the class acts
@@ -643,7 +698,7 @@ function EllesmereUI.SpecOverrides_HarvestCurrent()
     end
     if _editGroup then
         local g = _editGroup
-        _editGroup = nil
+        SetEditGroup(nil)
         if SweepUncaptured then SweepUncaptured(g) end
         HarvestGroup(g)
         if TeardownEditSession then TeardownEditSession() end
@@ -655,7 +710,7 @@ function EllesmereUI.SpecOverrides_HarvestCurrent()
     if _defaultView then
         -- Bank default-view edits, then restore the real spec's values so the
         -- caller (export/switch/logout) sees canonical live data.
-        _defaultView = false
+        SetDefaultView(false)
         HarvestDefaults()
         if UpdateIndicator then UpdateIndicator() end
         local touched = WriteSpecValues(_activeSpec or CurrentSpecID())
@@ -757,7 +812,7 @@ end
 --- deliberately preview their OWN swapped values, so the RF effective overlay
 --- must stay OFF there ("click an override" keeps previewing that override).
 --- Only the Default view needs panel-closed effective resolution.
---- (_CondOv, not the Cond local: Cond is declared further down the file.)
+--- (_CondOv, not the Cond local: Cond is declared in EUI_SpecOverrides_Conditional.lua.)
 function EllesmereUI.SpecOverrides_ViewActive()
     if _editGroup then return false end
     local C = EllesmereUI._CondOv
@@ -934,3 +989,8 @@ function EllesmereUI.SpecOverrides_EffectiveUnlockLayer()
     return nil
 end
 
+I.ApplyValuesFor, I.GetUnlockStore = ApplyValuesFor, GetUnlockStore
+I.HarvestDefaults, I.HarvestGroup, I.OwnerGid = HarvestDefaults, HarvestGroup, OwnerGid
+I.PruneRedundantValues, I.WriteDefaultValues = PruneRedundantValues, WriteDefaultValues
+I.WriteGroupValues, I.WriteSpecValues = WriteGroupValues, WriteSpecValues
+I.broken = false

@@ -255,17 +255,8 @@ local ROLE_ORDER = { "TANK", "HEALER", "DAMAGER" }
 local L = function(s) return EllesmereUI.L(s) or s end
 
 -- Forward declarations
-local ExitGroupEdit, EnterGroupEdit, ShowEditBanner, HideEditBanner, SetEditStatus
-local _unlockRoundtrip = nil -- session to restore after an options-entered
-                             -- unlock roundtrip: { kind = "spec"|"cond", id = groupId }
-local UpdateIndicator, RequestGoldWalk, RefreshCardsPopup, SweepUncaptured
-local TeardownEditSession, EnterDefaultView, ExitDefaultView
-local EnsurePanelHideHook, PanelShown, ApplyEditOverlay
-local _enterSnap = nil       -- profiles snapshot from session start (set by editing-as
-                             -- enter flows; baseline for exit-sweep + HarvestGroup revert detection)
+local RequestGoldWalk -- assigned by EUI_SpecOverrides_Borders.lua
 local _editGroup = nil       -- group table ref while "editing as" is active
-local _defaultView = false   -- panel open in Default Editing Mode: live holds
-                             -- the stored DEFAULT values for captured paths
 
 -------------------------------------------------------------------------------
 --  Small utilities
@@ -651,7 +642,7 @@ local function MatchOwnedFKey(fkey)
     -- size with a stale number no corrector can fix (e.g. baseline matched Power,
     -- group layer did not; default 360 overwrote the layer's 280). UnlockBaselineLinks
     -- returns nil when live IS baseline (already covered above). Looked up via the
-    -- namespace, not a local, because the function is defined later in this file.
+    -- namespace, not a local, because the function is defined in EUI_SpecOverrides_Layers.lua.
     if EllesmereUI.SpecOverrides_UnlockBaselineLinks then
         local _, bw, bh = EllesmereUI.SpecOverrides_UnlockBaselineLinks()
         if bw and dim ~= "h" and bw[info.elem] ~= nil then return true end
@@ -813,10 +804,11 @@ end
 --  Targeted addon refresh (combat-deferred)
 -------------------------------------------------------------------------------
 local _combatFolders = nil
+local SetCombatFolders -- built at the end of this file (combatFoldersSetters)
 
 local function RunRefreshers(folders)
     if InCombatLockdown() then
-        _combatFolders = _combatFolders or {}
+        if not _combatFolders then SetCombatFolders({}) end
         for f in pairs(folders) do _combatFolders[f] = true end
         return
     end
@@ -837,3 +829,60 @@ local function RunRefreshers(folders)
     end
 end
 
+-- Main-chunk locals the EUI_SpecOverrides_*.lua files re-import by name.
+-- editGroupSetters and the lists beside it: every file that reads one of
+-- these names keeps its own copy and adds a setter here; each place that
+-- assigns it writes through the Set<Name> function built below, which runs
+-- them all.
+-- broken: true while an EUI_SpecOverrides_*.lua file loads; a file that
+-- fails leaves it set, and the files behind it return at their first lines.
+local _, EUI_NS = ...
+EUI_NS = EUI_NS.__euiCoreNS or EUI_NS  -- standalone builds: the core's own table (EllesmereUI.lua)
+EUI_NS._soInternals = {
+    ACCENT_B = ACCENT_B, ACCENT_G = ACCENT_G, ACCENT_R = ACCENT_R,
+    BlacklistedFKey = BlacklistedFKey, CLASS_COORDS = CLASS_COORDS, CLASS_ORDER = CLASS_ORDER,
+    ConflictSpec = ConflictSpec, CurrentSpecID = CurrentSpecID, DBFor = DBFor,
+    DeepCopy = DeepCopy, EDIT_B = EDIT_B, EDIT_G = EDIT_G, EDIT_R = EDIT_R,
+    EntryHolderGroup = EntryHolderGroup, EntryOwning = EntryOwning, FKeyLoaded = FKeyLoaded,
+    FOLDER_BLACKLIST = FOLDER_BLACKLIST, FS = FS, GetGroups = GetGroups,
+    GetProfileRoot = GetProfileRoot, GetStore = GetStore, GLYPH_SPRITE = GLYPH_SPRITE,
+    GOLD_B = GOLD_B, GOLD_G = GOLD_G, GOLD_R = GOLD_R, GroupById = GroupById,
+    HasRegisteredDefault = HasRegisteredDefault, L = L, LayerOwnedFKey = LayerOwnedFKey,
+    LIST_PAGE = LIST_PAGE, MatchOwnedFKey = MatchOwnedFKey, MODERN_SPRITE = MODERN_SPRITE,
+    MULTISPEC_ICON = MULTISPEC_ICON, NextGroupId = NextGroupId, NIL_SENT = NIL_SENT,
+    NumAllowedFKey = NumAllowedFKey, PROFILES_MODULE = PROFILES_MODULE, PS = PS, PxCo = PxCo,
+    ReadLive = ReadLive, RebuildFKeyIndex = RebuildFKeyIndex, ROLE_ICONS = ROLE_ICONS,
+    ROLE_ORDER = ROLE_ORDER, RunRefreshers = RunRefreshers, SegKey = SegKey,
+    SnapValue = SnapValue, SpecInAnyGroup = SpecInAnyGroup, SpecName = SpecName,
+    SpecStrandedOnEntry = SpecStrandedOnEntry, SplitFKey = SplitFKey, WriteLive = WriteLive,
+    editGroupSetters = { function(v) _editGroup = v end },
+    combatFoldersSetters = { function(v) _combatFolders = v end },
+    goldWalkSetters = { function(v) RequestGoldWalk = v end },
+    defaultViewSetters = {}, enterSnapSetters = {}, inTransitionSetters = {},
+    activeSpecSetters = {}, watchResyncSetters = {}, exitGroupEditSetters = {},
+    sweepSetters = {}, teardownSetters = {}, panelShownSetters = {},
+    enterDefaultViewSetters = {}, updateIndicatorSetters = {}, refreshCardsSetters = {},
+    broken = false,
+}
+-- A read of a name this table lacks fails where it happens (a part file's
+-- re-import, the loop below), not later as a nil upvalue inside a function.
+setmetatable(EUI_NS._soInternals, { __index = function(_, k)
+    error("EUI_NS._soInternals has no entry " .. tostring(k), 2)
+end })
+-- Set<Name> hands a new value to every copy registered in <name>Setters.
+for setter, listName in pairs({
+    SetEditGroup = "editGroupSetters", SetDefaultView = "defaultViewSetters",
+    SetEnterSnap = "enterSnapSetters", SetCombatFolders = "combatFoldersSetters",
+    SetInTransition = "inTransitionSetters", SetActiveSpec = "activeSpecSetters",
+    SetWatchResync = "watchResyncSetters", SetRequestGoldWalk = "goldWalkSetters",
+    SetExitGroupEdit = "exitGroupEditSetters", SetSweepUncaptured = "sweepSetters",
+    SetTeardownEditSession = "teardownSetters", SetPanelShown = "panelShownSetters",
+    SetEnterDefaultView = "enterDefaultViewSetters",
+    SetUpdateIndicator = "updateIndicatorSetters", SetRefreshCardsPopup = "refreshCardsSetters",
+}) do
+    local list = EUI_NS._soInternals[listName]
+    EUI_NS._soInternals[setter] = function(v)
+        for i = 1, #list do list[i](v) end
+    end
+end
+SetCombatFolders = EUI_NS._soInternals.SetCombatFolders

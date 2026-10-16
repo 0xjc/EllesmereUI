@@ -1,3 +1,45 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_SpecOverrides_Popups.lua
+--
+--  Group icons, the toolbar button and its indicator, group creation, the
+--  cards popup and the Conditional Overrides UI.
+--  Reads the earlier Spec Overrides files through EUI_NS._soInternals.
+-------------------------------------------------------------------------------
+local _, EUI_NS = ...
+EUI_NS = EUI_NS.__euiCoreNS or EUI_NS  -- standalone builds: the core's own table (EllesmereUI.lua)
+local I = EUI_NS._soInternals
+-- EllesmereUI_SpecOverrides.lua or an earlier Spec Overrides file failed to
+-- load.
+if not I or I.broken then return end
+I.broken = true
+
+local ACCENT_B, ACCENT_G, ACCENT_R = I.ACCENT_B, I.ACCENT_G, I.ACCENT_R
+local CLASS_COORDS, CLASS_ORDER, ConflictSpec = I.CLASS_COORDS, I.CLASS_ORDER, I.ConflictSpec
+local CurrentSpecID, DeepCopy = I.CurrentSpecID, I.DeepCopy
+local EntryHolderGroup, GetGroups, GetStore = I.EntryHolderGroup, I.GetGroups, I.GetStore
+local GLYPH_SPRITE, GroupById, L, LIST_PAGE = I.GLYPH_SPRITE, I.GroupById, I.L, I.LIST_PAGE
+local MatchOwnedFKey, MODERN_SPRITE = I.MatchOwnedFKey, I.MODERN_SPRITE
+local MULTISPEC_ICON, NextGroupId = I.MULTISPEC_ICON, I.NextGroupId
+local PROFILES_MODULE, RebuildFKeyIndex = I.PROFILES_MODULE, I.RebuildFKeyIndex
+local ROLE_ICONS, ROLE_ORDER, RunRefreshers = I.ROLE_ICONS, I.ROLE_ORDER, I.RunRefreshers
+local SpecInAnyGroup, SpecName = I.SpecInAnyGroup, I.SpecName
+local SpecStrandedOnEntry, OwnerGid, Cond = I.SpecStrandedOnEntry, I.OwnerGid, I.Cond
+local IsExcludedContext, RequestGoldWalk = I.IsExcludedContext, I.RequestGoldWalk
+local EnsurePanelHideHook, EnterGroupEdit = I.EnsurePanelHideHook, I.EnterGroupEdit
+local ExitGroupEdit, SetUpdateIndicator = I.ExitGroupEdit, I.SetUpdateIndicator
+local SetRefreshCardsPopup = I.SetRefreshCardsPopup
+
+-- This file's copies of shared names; Set<Name> keeps every copy current
+-- (the lists are built at the end of EllesmereUI_SpecOverrides.lua).
+local _editGroup = nil
+I.editGroupSetters[#I.editGroupSetters + 1] = function(v) _editGroup = v end
+local _activeSpec = nil
+I.activeSpecSetters[#I.activeSpecSetters + 1] = function(v) _activeSpec = v end
+
+-- Forward declarations (assigned further down in this file)
+local UpdateIndicator, RefreshCardsPopup
+
 -------------------------------------------------------------------------------
 --  Group icon rendering
 -------------------------------------------------------------------------------
@@ -43,6 +85,7 @@ UpdateIndicator = function()
     specBtn._tex:SetDesaturated(false)
     specBtn._tex:SetVertexColor(1, 1, 1, 1)
 end
+SetUpdateIndicator(UpdateIndicator)
 
 --- The toolbar button is DISABLED while the active page is excluded from the
 --- override systems (blacklisted module pages, QoL Shifter/Upgrade Calc):
@@ -1073,6 +1116,7 @@ RefreshCardsPopup = function()
 
     p:SetHeight(-y + 12)
 end
+SetRefreshCardsPopup(RefreshCardsPopup)
 
 function EllesmereUI.SpecOverrides_ToggleCardsPopup(anchorBtn)
     if cardsPopup and cardsPopup:IsShown() then
@@ -1505,3 +1549,4 @@ Cond.RefreshCards = function()
     if RefreshCardsPopup then RefreshCardsPopup() end
 end
 
+I.broken = false

@@ -1,3 +1,39 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_SpecOverrides_Layers.lua
+--
+--  Layer harvest and apply, the Buff Manager forks with their session swap
+--  and the Debuff Manager forks.
+--  Reads the earlier Spec Overrides files through EUI_NS._soInternals.
+-------------------------------------------------------------------------------
+local _, EUI_NS = ...
+EUI_NS = EUI_NS.__euiCoreNS or EUI_NS  -- standalone builds: the core's own table (EllesmereUI.lua)
+local I = EUI_NS._soInternals
+-- EllesmereUI_SpecOverrides.lua or an earlier Spec Overrides file failed to
+-- load.
+if not I or I.broken then return end
+I.broken = true
+
+local CurrentSpecID, DeepCopy, GetGroups = I.CurrentSpecID, I.DeepCopy, I.GetGroups
+local GetProfileRoot, GroupById, L = I.GetProfileRoot, I.GroupById, I.L
+local RunRefreshers, ApplyValuesFor = I.RunRefreshers, I.ApplyValuesFor
+local GetUnlockStore, OwnerGid = I.GetUnlockStore, I.OwnerGid
+
+-- This file's copies of shared names; Set<Name> keeps every copy current
+-- (the lists are built at the end of EllesmereUI_SpecOverrides.lua).
+local _editGroup = nil
+I.editGroupSetters[#I.editGroupSetters + 1] = function(v) _editGroup = v end
+local _defaultView = false
+I.defaultViewSetters[#I.defaultViewSetters + 1] = function(v) _defaultView = v end
+local _inTransition = false
+I.inTransitionSetters[#I.inTransitionSetters + 1] = function(v) _inTransition = v end
+local _activeSpec = nil
+I.activeSpecSetters[#I.activeSpecSetters + 1] = function(v) _activeSpec = v end
+local ExitGroupEdit
+I.exitGroupEditSetters[#I.exitGroupEditSetters + 1] = function(v) ExitGroupEdit = v end
+local RefreshCardsPopup
+I.refreshCardsSetters[#I.refreshCardsSetters + 1] = function(v) RefreshCardsPopup = v end
+
 -------------------------------------------------------------------------------
 --  Layer harvest / apply
 --
@@ -564,7 +600,7 @@ function EllesmereUI.SpecOverrides_HarvestUnlockLayout(userCommit)
     -- Default Editing Mode / editing-as session: live module sizes are the VIEW's
     -- swapped values, not the active layer's state (value writes resize bars); banking
     -- that geometry poisons the layer bucket. Fail-open: skip, next clean boundary
-    -- banks. (_CondOv, not the Cond local: Cond is declared later and would read nil here.)
+    -- banks. (_CondOv, not the Cond local: Cond lives in EUI_SpecOverrides_Conditional.lua.)
     if _defaultView or _editGroup
        or (EllesmereUI._CondOv and EllesmereUI._CondOv._edit) then return end
     -- Resolve the live layer's owning bucket: group layer (numeric active),
@@ -1852,3 +1888,10 @@ function EllesmereUI.SpecOverrides_EnterUnlockForGroup(g)
     end)
 end
 
+I.BmApplyLayer, I.BmHarvestLayer, I.BmOwnerGid = BmApplyLayer, BmHarvestLayer, BmOwnerGid
+I.BmSessionEngage, I.DmApplyLayer = BmSessionEngage, DmApplyLayer
+I.DmHarvestLayer, I.DmOwnerGid, I.DmSessionEngage = DmHarvestLayer, DmOwnerGid, DmSessionEngage
+I.GetBmStore, I.GetCondBmStore, I.GetCondDmStore = GetBmStore, GetCondBmStore, GetCondDmStore
+I.GetDmStore, I.IsTBBChildKey, I.LayerSkipsKey = GetDmStore, IsTBBChildKey, LayerSkipsKey
+I.LiteProfile = LiteProfile
+I.broken = false

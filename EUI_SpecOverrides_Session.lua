@@ -1,3 +1,61 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_SpecOverrides_Session.lua
+--
+--  The auto-capture watcher, notified writes, the exit sweep and the
+--  Editing-as sessions (spec group, Default view, conditional).
+--  Reads the earlier Spec Overrides files through EUI_NS._soInternals.
+-------------------------------------------------------------------------------
+local _, EUI_NS = ...
+EUI_NS = EUI_NS.__euiCoreNS or EUI_NS  -- standalone builds: the core's own table (EllesmereUI.lua)
+local I = EUI_NS._soInternals
+-- EllesmereUI_SpecOverrides.lua or an earlier Spec Overrides file failed to
+-- load.
+if not I or I.broken then return end
+I.broken = true
+
+local BlacklistedFKey, CurrentSpecID, DBFor = I.BlacklistedFKey, I.CurrentSpecID, I.DBFor
+local EDIT_B, EDIT_G, EDIT_R, EntryOwning = I.EDIT_B, I.EDIT_G, I.EDIT_R, I.EntryOwning
+local FKeyLoaded, FOLDER_BLACKLIST, GetGroups = I.FKeyLoaded, I.FOLDER_BLACKLIST, I.GetGroups
+local GetStore, HasRegisteredDefault, L = I.GetStore, I.HasRegisteredDefault, I.L
+local LayerOwnedFKey, MatchOwnedFKey, NIL_SENT = I.LayerOwnedFKey, I.MatchOwnedFKey, I.NIL_SENT
+local NumAllowedFKey, PS, PxCo, ReadLive = I.NumAllowedFKey, I.PS, I.PxCo, I.ReadLive
+local RebuildFKeyIndex, RunRefreshers, SegKey = I.RebuildFKeyIndex, I.RunRefreshers, I.SegKey
+local SnapValue, SplitFKey, WriteLive = I.SnapValue, I.SplitFKey, I.WriteLive
+local HarvestDefaults, HarvestGroup = I.HarvestDefaults, I.HarvestGroup
+local WriteDefaultValues, WriteGroupValues = I.WriteDefaultValues, I.WriteGroupValues
+local WriteSpecValues, Cond, CurrentContext = I.WriteSpecValues, I.Cond, I.CurrentContext
+local DiffProfiles, IsExcludedContext = I.DiffProfiles, I.IsExcludedContext
+local RequestGoldWalk, SnapshotProfiles = I.RequestGoldWalk, I.SnapshotProfiles
+local UpdateEditLocks, SetEditGroup = I.UpdateEditLocks, I.SetEditGroup
+local SetDefaultView, SetEnterSnap = I.SetDefaultView, I.SetEnterSnap
+local SetWatchResync, SetExitGroupEdit = I.SetWatchResync, I.SetExitGroupEdit
+local SetSweepUncaptured = I.SetSweepUncaptured
+local SetTeardownEditSession, SetPanelShown = I.SetTeardownEditSession, I.SetPanelShown
+local SetEnterDefaultView = I.SetEnterDefaultView
+
+-- This file's copies of shared names; Set<Name> keeps every copy current
+-- (the lists are built at the end of EllesmereUI_SpecOverrides.lua).
+local _editGroup = nil
+I.editGroupSetters[#I.editGroupSetters + 1] = function(v) _editGroup = v end
+local _defaultView = false
+I.defaultViewSetters[#I.defaultViewSetters + 1] = function(v) _defaultView = v end
+local _enterSnap = nil
+I.enterSnapSetters[#I.enterSnapSetters + 1] = function(v) _enterSnap = v end
+local _inTransition = false
+I.inTransitionSetters[#I.inTransitionSetters + 1] = function(v) _inTransition = v end
+local _activeSpec = nil
+I.activeSpecSetters[#I.activeSpecSetters + 1] = function(v) _activeSpec = v end
+local UpdateIndicator
+I.updateIndicatorSetters[#I.updateIndicatorSetters + 1] = function(v) UpdateIndicator = v end
+
+-- Forward declarations (assigned further down in this file)
+local SweepUncaptured, EnsurePanelHideHook, SetEditStatus, ShowEditBanner
+local HideEditBanner, ApplyEditOverlay, TeardownEditSession, PanelShown
+local EnterDefaultView, ExitDefaultView, ExitGroupEdit, EnterGroupEdit
+local _unlockRoundtrip = nil -- session to restore after an options-entered
+                             -- unlock roundtrip: { kind = "spec"|"cond", id = groupId }
+
 -------------------------------------------------------------------------------
 --  Auto-capture watcher (runs while Editing-as is active)
 -------------------------------------------------------------------------------
@@ -23,6 +81,7 @@ function _lastAttr.Snap(region, into)
     return into
 end
 local _watchResync = false   -- absorb the next tick's diff (page rebuild seeds)
+I.watchResyncSetters[#I.watchResyncSetters + 1] = function(v) _watchResync = v end
 local _sessionIgnored = {}   -- fkeys written on excluded pages this session
                              -- (never captured, and skipped by the exit sweep)
 
@@ -249,7 +308,7 @@ local function OwnerOf(fkey)
     return t, SegKey(t, segs[#segs])
 end
 
--- do ... end: this file sits at Lua 5.1's ~200-local-per-chunk ceiling, so the helper
+-- do ... end: Lua 5.1 allows ~200 locals per chunk, so the helper
 -- below is released at `end` instead of taking a top-level slot. The global it wires up
 -- stays, as always.
 do
@@ -372,7 +431,7 @@ function EllesmereUI.SpecOverrides_ClearStoreKey(stores, key)
         -- The restore write is ours, not the user's: re-snapshot so neither the ticker
         -- nor the queued notified pass can diff it straight back into a capture.
         _watchSnap = SnapshotProfiles()
-        _watchResync = true
+        SetWatchResync(true)
         RequestGoldWalk()
     end
     return cleared
@@ -418,7 +477,7 @@ local function WatchTick()
         end
         if newOnes then AutoCapture(newOnes) end
     end
-    _watchResync = false
+    SetWatchResync(false)
     _watchSnap = SnapshotProfiles()
 end
 
@@ -436,7 +495,7 @@ end)
 -- Also the panel-lifecycle bootstrap: page activity means the panel exists/opened,
 -- so install the show/hide hooks and enter the Default view when idle.
 local function OnPageRebuilt()
-    _watchResync = true
+    SetWatchResync(true)
     RequestGoldWalk()
     if ApplyEditOverlay then ApplyEditOverlay() end   -- chrome-page suppression
     if EnsurePanelHideHook then EnsurePanelHideHook() end
@@ -676,6 +735,7 @@ SweepUncaptured = function(group)
         RebuildFKeyIndex()
     end
 end
+SetSweepUncaptured(SweepUncaptured)
 
 -------------------------------------------------------------------------------
 --  Editing-as core
@@ -844,7 +904,7 @@ end
 TeardownEditSession = function()
     if _watchTicker then _watchTicker:Cancel(); _watchTicker = nil end
     _watchSnap = nil
-    _enterSnap = nil
+    SetEnterSnap(nil)
     _sessionIgnored = {}
     HideEditBanner()
     SetEditOverlayShown(false)
@@ -854,6 +914,7 @@ TeardownEditSession = function()
     -- Unlock the sidebar (session over for either system).
     if EllesmereUI.RefreshSidebarOverrideLocks then EllesmereUI.RefreshSidebarOverrideLocks() end
 end
+SetTeardownEditSession(TeardownEditSession)
 
 -- Passive override chrome: the Buff Manager page binds to the live fork even
 -- WITHOUT an editing session (the prelude auto-activates it), so the session's
@@ -906,6 +967,7 @@ PanelShown = function()
     local root = _G.EllesmereUIFrame
     return root and root:IsShown() or false
 end
+SetPanelShown(PanelShown)
 
 EnterDefaultView = function()
     if _defaultView or _editGroup or Cond._edit or _inTransition then return end
@@ -913,7 +975,7 @@ EnterDefaultView = function()
     if not store or #store == 0 then return end
     -- Bank the real spec's live edits first, then swap the defaults in.
     EllesmereUI.SpecOverrides_HarvestCurrent()
-    _defaultView = true
+    SetDefaultView(true)
     local touched = WriteDefaultValues()
     if touched then RunRefreshers(touched) end
     -- FORCED rebuild: default values may drive different page structure than
@@ -921,10 +983,11 @@ EnterDefaultView = function()
     EllesmereUI:RefreshPage(true)
     UpdateIndicator()
 end
+SetEnterDefaultView(EnterDefaultView)
 
 ExitDefaultView = function(restore)
     if not _defaultView then return end
-    _defaultView = false
+    SetDefaultView(false)
     HarvestDefaults()
     if restore ~= false then
         local touched = WriteSpecValues(_activeSpec or CurrentSpecID())
@@ -973,7 +1036,7 @@ ExitGroupEdit = function(noRecheck)
     if not _editGroup then return end
     WatchTick()   -- catch trailing edits from the last sub-tick window
     local g = _editGroup
-    _editGroup = nil
+    SetEditGroup(nil)
     SweepUncaptured(g)
     HarvestGroup(g)
     TeardownEditSession()
@@ -996,6 +1059,7 @@ ExitGroupEdit = function(noRecheck)
     -- preamble exit).
     if EllesmereUI.IS_FOREVER and not noRecheck then EllesmereUI._SO_ForeverConverge() end
 end
+SetExitGroupEdit(ExitGroupEdit)
 
 --- Force-closes every editing-as session (spec group, conditional, Default view).
 --- Profile apply/import/switch call this BEFORE swapping stores: the exits bank and
@@ -1062,14 +1126,14 @@ EnterGroupEdit = function(group)
     -- bank the real spec's live edits and swap the group in.
     ExitDefaultView()
     EllesmereUI.SpecOverrides_HarvestCurrent()
-    _editGroup = group
+    SetEditGroup(group)
     local touched = WriteGroupValues(group)
     if touched then RunRefreshers(touched) end
     -- FORCED rebuild (structure may differ under the group's values); runs
     -- before the snapshot so lazy page seeding is absorbed.
     EllesmereUI:RefreshPage(true)
     _watchSnap = SnapshotProfiles()
-    _enterSnap = _watchSnap   -- session baseline for the exit sweep
+    SetEnterSnap(_watchSnap)   -- session baseline for the exit sweep
     _sessionIgnored = {}
     _lastAttr.snap, _lastAttr.busy = nil, false
     _watchTicker = C_Timer.NewTicker(0.4, WatchTick)
@@ -1263,7 +1327,7 @@ Cond.EnterEdit = function(g)
     -- FORCED rebuild (structure may differ under the conditional's values).
     EllesmereUI:RefreshPage(true)
     _watchSnap = SnapshotProfiles()
-    _enterSnap = _watchSnap
+    SetEnterSnap(_watchSnap)
     _sessionIgnored = {}
     _lastAttr.snap, _lastAttr.busy = nil, false
     _watchTicker = C_Timer.NewTicker(0.4, WatchTick)
@@ -1276,3 +1340,6 @@ Cond.EnterEdit = function(g)
     EnsurePanelHideHook()
 end
 
+I.EnsurePanelHideHook, I.EnterGroupEdit = EnsurePanelHideHook, EnterGroupEdit
+I.ExitGroupEdit, I.OnPageRebuilt = ExitGroupEdit, OnPageRebuilt
+I.broken = false

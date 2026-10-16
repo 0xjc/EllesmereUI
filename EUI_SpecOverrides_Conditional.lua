@@ -1,3 +1,45 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_SpecOverrides_Conditional.lua
+--
+--  The Conditional Overrides integration (engine in
+--  EllesmereUI_Conditions.lua), the profile-import store merge and the
+--  default re-baseline.
+--  Reads the earlier Spec Overrides files through EUI_NS._soInternals.
+-------------------------------------------------------------------------------
+local _, EUI_NS = ...
+EUI_NS = EUI_NS.__euiCoreNS or EUI_NS  -- standalone builds: the core's own table (EllesmereUI.lua)
+local I = EUI_NS._soInternals
+-- EllesmereUI_SpecOverrides.lua or an earlier Spec Overrides file failed to
+-- load.
+if not I or I.broken then return end
+I.broken = true
+
+local BlacklistedFKey, CurrentSpecID, DBFor = I.BlacklistedFKey, I.CurrentSpecID, I.DBFor
+local DeepCopy, EntryOwning, FKeyLoaded = I.DeepCopy, I.EntryOwning, I.FKeyLoaded
+local GetGroups, GetProfileRoot, GetStore = I.GetGroups, I.GetProfileRoot, I.GetStore
+local HasRegisteredDefault, L, MatchOwnedFKey = I.HasRegisteredDefault, I.L, I.MatchOwnedFKey
+local NIL_SENT, PROFILES_MODULE, PxCo = I.NIL_SENT, I.PROFILES_MODULE, I.PxCo
+local ReadLive, RebuildFKeyIndex = I.ReadLive, I.RebuildFKeyIndex
+local RunRefreshers, SplitFKey, WriteLive = I.RunRefreshers, I.SplitFKey, I.WriteLive
+local BmApplyLayer, BmHarvestLayer, BmOwnerGid = I.BmApplyLayer, I.BmHarvestLayer, I.BmOwnerGid
+local BmSessionEngage, DmApplyLayer = I.BmSessionEngage, I.DmApplyLayer
+local DmHarvestLayer, DmOwnerGid = I.DmHarvestLayer, I.DmOwnerGid
+local DmSessionEngage, GetBmStore = I.DmSessionEngage, I.GetBmStore
+local GetCondBmStore, GetCondDmStore = I.GetCondBmStore, I.GetCondDmStore
+local GetDmStore, LiteProfile = I.GetDmStore, I.LiteProfile
+
+-- This file's copies of shared names; Set<Name> keeps every copy current
+-- (the lists are built at the end of EllesmereUI_SpecOverrides.lua).
+local _editGroup = nil
+I.editGroupSetters[#I.editGroupSetters + 1] = function(v) _editGroup = v end
+local _defaultView = false
+I.defaultViewSetters[#I.defaultViewSetters + 1] = function(v) _defaultView = v end
+local _inTransition = false
+I.inTransitionSetters[#I.inTransitionSetters + 1] = function(v) _inTransition = v end
+local RequestGoldWalk
+I.goldWalkSetters[#I.goldWalkSetters + 1] = function(v) RequestGoldWalk = v end
+
 -------------------------------------------------------------------------------
 --  CONDITIONAL OVERRIDES integration (engine in EllesmereUI_Conditions.lua). Same
 --  machine as spec overrides keyed by conditional GROUP instead of spec: entries
@@ -465,7 +507,7 @@ end
 --- surfaces (Profiles & Presets, Patch Notes, Global Settings): they lock like
 --- every other excluded module. Plugin pages ("plugin:" keys) are never part of
 --- the override systems, so they are always excluded.
--- Block-scoped: this file's main chunk sits near the 200-local cap.
+-- Block-scoped: keeps ns out of the main chunk's locals (Lua 5.1 allows ~200).
 do
     local _, ns = ...
     ns = ns.__euiCoreNS or ns  -- standalone builds: the core's own table (EllesmereUI.lua)
@@ -1222,3 +1264,5 @@ function Cond.ResolveGid()
     return EllesmereUI.Conditions_AppliedGid and EllesmereUI.Conditions_AppliedGid() or nil
 end
 
+I.Cond, I.EXCLUDED_CONTEXTS = Cond, EXCLUDED_CONTEXTS
+I.broken = false

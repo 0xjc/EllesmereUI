@@ -1,3 +1,36 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_SpecOverrides_Borders.lua
+--
+--  Element contexts, profile snapshots and diffs, unlock-session value
+--  banking, the golden borders and the edit locks.
+--  Reads the earlier Spec Overrides files through EUI_NS._soInternals.
+-------------------------------------------------------------------------------
+local _, EUI_NS = ...
+EUI_NS = EUI_NS.__euiCoreNS or EUI_NS  -- standalone builds: the core's own table (EllesmereUI.lua)
+local I = EUI_NS._soInternals
+-- EllesmereUI_SpecOverrides.lua or an earlier Spec Overrides file failed to
+-- load.
+if not I or I.broken then return end
+I.broken = true
+
+local BlacklistedFKey, ConflictSpec, DeepCopy = I.BlacklistedFKey, I.ConflictSpec, I.DeepCopy
+local EntryOwning, FKeyLoaded, FS, GetGroups = I.EntryOwning, I.FKeyLoaded, I.FS, I.GetGroups
+local GetStore, GOLD_B, GOLD_G, GOLD_R = I.GetStore, I.GOLD_B, I.GOLD_G, I.GOLD_R
+local GroupById, L, MatchOwnedFKey, NIL_SENT = I.GroupById, I.L, I.MatchOwnedFKey, I.NIL_SENT
+local PS, ReadLive, SpecName, Cond = I.PS, I.ReadLive, I.SpecName, I.Cond
+local EXCLUDED_CONTEXTS, SetRequestGoldWalk = I.EXCLUDED_CONTEXTS, I.SetRequestGoldWalk
+
+-- This file's copies of shared names; Set<Name> keeps every copy current
+-- (the lists are built at the end of EllesmereUI_SpecOverrides.lua).
+local _editGroup = nil
+I.editGroupSetters[#I.editGroupSetters + 1] = function(v) _editGroup = v end
+local _defaultView = false
+I.defaultViewSetters[#I.defaultViewSetters + 1] = function(v) _defaultView = v end
+
+-- Forward declarations (assigned further down in this file)
+local RequestGoldWalk
+
 -------------------------------------------------------------------------------
 --  Element-context providers for selector pages ("which bar / frame is selected").
 --  Options pages with an element selector register a provider so captured entries
@@ -679,4 +712,9 @@ RequestGoldWalk = function()
         end
     end)
 end
+SetRequestGoldWalk(RequestGoldWalk)
 
+I.CurrentContext, I.DiffProfiles = CurrentContext, DiffProfiles
+I.IsExcludedContext, I.RequestGoldWalk = IsExcludedContext, RequestGoldWalk
+I.SnapshotProfiles, I.UpdateEditLocks = SnapshotProfiles, UpdateEditLocks
+I.broken = false

@@ -1,3 +1,28 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_SpecOverrides_Hooks.lua
+--
+--  The page hooks and the events.
+--  Reads the earlier Spec Overrides files through EUI_NS._soInternals.
+-------------------------------------------------------------------------------
+local _, EUI_NS = ...
+EUI_NS = EUI_NS.__euiCoreNS or EUI_NS  -- standalone builds: the core's own table (EllesmereUI.lua)
+local I = EUI_NS._soInternals
+-- EllesmereUI_SpecOverrides.lua or an earlier Spec Overrides file failed to
+-- load.
+if not I or I.broken then return end
+I.broken = true
+
+local DeepCopy, GetStore, RunRefreshers = I.DeepCopy, I.GetStore, I.RunRefreshers
+local PruneRedundantValues, RequestGoldWalk = I.PruneRedundantValues, I.RequestGoldWalk
+local OnPageRebuilt, PruneOrphanEntries = I.OnPageRebuilt, I.PruneOrphanEntries
+local SetCombatFolders, SetWatchResync = I.SetCombatFolders, I.SetWatchResync
+
+-- This file's copies of shared names; Set<Name> keeps every copy current
+-- (the lists are built at the end of EllesmereUI_SpecOverrides.lua).
+local _combatFolders = nil
+I.combatFoldersSetters[#I.combatFoldersSetters + 1] = function(v) _combatFolders = v end
+
 -------------------------------------------------------------------------------
 --  Hooks + events
 -------------------------------------------------------------------------------
@@ -12,7 +37,7 @@ end
 if EllesmereUI.RefreshPage then
     hooksecurefunc(EllesmereUI, "RefreshPage", function(_, force)
         if force then
-            _watchResync = true
+            SetWatchResync(true)
         end
         RequestGoldWalk()
     end)
@@ -59,10 +84,10 @@ evFrame:SetScript("OnEvent", function(_, event)
     elseif event == "PLAYER_REGEN_ENABLED" then
         if _combatFolders then
             local fl = _combatFolders
-            _combatFolders = nil
+            SetCombatFolders(nil)
             RunRefreshers(fl)
         end
     end
 end)
 
-
+I.broken = false
