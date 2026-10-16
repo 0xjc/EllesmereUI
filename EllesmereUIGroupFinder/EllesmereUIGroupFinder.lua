@@ -21,11 +21,7 @@ local DEFAULTS = {
     missingRoles     = true,
     specIcons        = true,
     iconSize         = 125,
-    oneClick         = false,
-    keepNote         = false,
     cancelOldest     = false,
-    signUpDeclined   = false,
-    applicantColumns = true,
 }
 ns.DEFAULTS = DEFAULTS
 
@@ -44,54 +40,56 @@ local db
 
 local function Profile() return db and db.profile end
 
+-- Account-wide data under EllesmereUIDB.<key> (outside profiles).
+local function Account(key)
+    if not EllesmereUIDB then EllesmereUIDB = {} end
+    local t = EllesmereUIDB[key]
+    if type(t) ~= "table" then
+        t = {}
+        EllesmereUIDB[key] = t
+    end
+    return t
+end
+
+-- The on/off switch is account-wide, so a profile switch, a spec profile or
+-- an import never turns the module on or off.
 function ns.Enabled()
-    local p = Profile()
-    return p and p.enabled == true or false
+    local t = EllesmereUIDB and EllesmereUIDB.groupFinder
+    return type(t) == "table" and t.enabled == true or false
 end
 
 function ns.SetEnabled(v)
-    local p = Profile()
-    if p then p.enabled = v and true or false end
+    Account("groupFinder").enabled = v and true or false
 end
+
+-- Before the profile is open: the defaults, read-only (writes never reach
+-- the shared DEFAULTS table).
+local readOnly = { search = setmetatable({}, { __index = DEFAULTS, __newindex = function() end }),
+                   apps   = setmetatable({}, { __index = APPS_DEFAULTS, __newindex = function() end }) }
 
 function ns.Cfg()
     local p = Profile()
-    return p and p.search or DEFAULTS
+    return p and p.search or readOnly.search
 end
 
 function ns.AppsCfg()
     local p = Profile()
-    return p and p.apps
+    return p and p.apps or readOnly.apps
 end
 
 -- Application counts are account-wide and outside profiles.
 function ns.AppCountsStore()
-    if type(EllesmereUIGroupFinderAppsDB) ~= "table" then EllesmereUIGroupFinderAppsDB = {} end
-    local sv = EllesmereUIGroupFinderAppsDB
-    if type(sv.dungeon) ~= "table" then sv.dungeon = {} end
-    return sv.dungeon
-end
-
-function ns.ApplyDefaults()
-    local p = Profile()
-    if not p then return end
-    if type(p.search) ~= "table" then p.search = {} end
-    if type(p.apps) ~= "table" then p.apps = {} end
-    EllesmereUI.Lite.DeepMergeDefaults(p.search, DEFAULTS)
-    EllesmereUI.Lite.DeepMergeDefaults(p.apps, APPS_DEFAULTS)
-    p.search.padding = DEFAULTS.padding
+    local t = Account("groupFinderApps")
+    if type(t.dungeon) ~= "table" then t.dungeon = {} end
+    return t.dungeon
 end
 
 function ns.ResetSettings()
-    local p = Profile()
-    if not p then return end
-    p.search, p.apps = {}, {}
-    ns.ApplyDefaults()
+    if db then db:ResetProfile() end
 end
 
 function GF:OnInitialize()
-    db = EllesmereUI.Lite.NewDB("EllesmereUIGroupFinderDB", { profile = { enabled = false } })
-    ns.ApplyDefaults()
+    db = EllesmereUI.Lite.NewDB("EllesmereUIGroupFinderDB", { profile = { search = DEFAULTS, apps = APPS_DEFAULTS } })
 end
 
 function GF:OnEnable()
@@ -103,7 +101,7 @@ function GF:OnEnable()
         print("|cff0cd29fEllesmereUI|r Group Finder has been turned off because Premade Groups Filter is loaded.")
         return
     end
-    ns.ApplyDefaults()
+
     if ns.Apps_Enable then ns.Apps_Enable() end
     local function Start()
         if ns.Search_OnEnable then ns.Search_OnEnable() end

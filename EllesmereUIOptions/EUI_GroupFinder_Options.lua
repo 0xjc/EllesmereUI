@@ -67,8 +67,8 @@ initFrame:SetScript("OnEvent", function(self)
               end },
             pgfNote);  y = y - h
 
-        -- The group list's look, the sign-up helpers, Role Icon Size and the
-        -- applicant columns are in the Group Settings menu on the search panel
+        -- The group list's look, the sign-up helpers and Role Icon Size are in
+        -- the Group Settings menu on the search panel
         -- (the person button, row 2).
         y = AddAppsSections(parent, y)
 
@@ -143,37 +143,21 @@ initFrame:SetScript("OnEvent", function(self)
             APToggle("Cancelled", "showCancelled", true, "You cancelled the application."));  y = y - h
 
         row, h = W:SectionHeader(parent, "RESET APPLICATION COUNTS", y); y = y - h
-        do
-            local PPn = EUI.PanelPP
-            local BTN_W, BTN_H, GAP = 200, 32, 20
-            local ROW_H = BTN_H + 16
-            local rowFrame = CreateFrame("Frame", nil, parent)
-            local totalW = parent:GetWidth() - EUI.CONTENT_PAD * 2
-            PPn.Size(rowFrame, totalW, ROW_H)
-            PPn.Point(rowFrame, "TOPLEFT", parent, "TOPLEFT", EUI.CONTENT_PAD, y)
-            local defs = {
-                { "Reset Session", "session" },
-                { "Reset Character", "character" },
-                { "Reset Account", "account" },
-            }
-            for i, d in ipairs(defs) do
-                local b = CreateFrame("Button", nil, rowFrame)
-                PPn.Size(b, BTN_W, BTN_H)
-                PPn.Point(b, "CENTER", rowFrame, "CENTER", (i - 2) * (BTN_W + GAP), 0)
-                b:SetFrameLevel(rowFrame:GetFrameLevel() + 1)
-                EUI.MakeStyledButton(b, d[1], 13, EUI.WB_COLOURS, function()
-                    EUI:ShowConfirmPopup({
-                        title = d[1],
-                        message = ("Reset the %s application counts to zero?"):format(d[2]),
-                        confirmText = "Reset", cancelText = "Cancel",
-                        onConfirm = function()
-                            if ns.ResetApplications then ns.ResetApplications(d[2]) end
-                        end,
-                    })
-                end)
+        local function Reset(label, scope)
+            return function()
+                EUI:ShowConfirmPopup({
+                    title = label,
+                    message = ("Reset the %s application counts to zero?"):format(scope),
+                    confirmText = "Reset", cancelText = "Cancel",
+                    onConfirm = function()
+                        if ns.ResetApplications then ns.ResetApplications(scope) end
+                    end,
+                })
             end
-            y = y - ROW_H
         end
+        row, h = W:WideTripleButton(parent, "Reset Session", "Reset Character", "Reset Account", y,
+            Reset("Reset Session", "session"), Reset("Reset Character", "character"), Reset("Reset Account", "account"))
+        y = y - h
         return y
     end
 
@@ -185,7 +169,6 @@ initFrame:SetScript("OnEvent", function(self)
         onReset     = function()
             ns.ResetSettings()
             if ns.Search_Layout then ns.Search_Layout() end
-            if ns.Search_ApplySignUp then ns.Search_ApplySignUp() end
             if ns.ApplyApplications then ns.ApplyApplications() end
         end,
     })

@@ -10,15 +10,12 @@ local CM = EllesmereUI
 local DUNGEONS = GROUP_FINDER_CATEGORY_ID_DUNGEONS or 2
 local DELVES   = GROUP_FINDER_CATEGORY_ID_DELVES or 121
 local RAIDS    = GROUP_FINDER_CATEGORY_ID_RAIDS or 3
--- Zones whose delve map pins tell which delves are Bountiful this week
--- (Midnight; update per expansion). Same source Premade Groups Filter uses.
-local DELVE_ZONE_MAPS = { 2393, 2395, 2405, 2413, 2437, 2443, 2424, 2512 }
 local GOLD_R, GOLD_G, GOLD_B = 1, 0.82, 0
--- Our own icons (media/icons: white glyphs, tinted in code).
-local MEDIA    = "Interface\\AddOns\\" .. ADDON_NAME .. "\\media\\icons\\"
-local COG_TEX  = MEDIA .. "gear.png"
-local X_TEX    = MEDIA .. "x.png"
-local RAID_TEX = MEDIA .. "pin.png"
+-- EllesmereUI's own icons (white glyphs, tinted in code).
+local MEDIA    = "Interface\\AddOns\\EllesmereUI\\media\\icons\\"
+local COG_TEX  = MEDIA .. "cogs.png"
+local X_TEX    = MEDIA .. "eui-close.png"
+local RAID_TEX = MEDIA .. "raid-tools.png"
 
 local ROW1_Y   = -42   -- row 1 centre (Blizzard's title row: top -33, 18 tall)
 local ROW1_H    = 24   -- search box and Difficulty height
@@ -69,9 +66,7 @@ function XF.Untip()
     XF.tipOwner = nil
     if CM.HideWidgetTooltip then CM.HideWidgetTooltip() else GameTooltip:Hide() end
 end
-XF.SCORE_W = 46   -- applicant list: the Score column (stretched to the refresh button)
-XF.CHECK_TEX = "Interface\\AddOns\\" .. ADDON_NAME .. "\\media\\icons\\check.png"   -- Invite
-XF.PERSON_TEX = "Interface\\AddOns\\" .. ADDON_NAME .. "\\media\\icons\\person.png"   -- Group Settings
+XF.PERSON_ATLAS = "groupfinder-icon-friend"   -- Group Settings (Blizzard atlas)
 
 local SP                -- LFGListFrame.SearchPanel
 local row, diffBtn, menu, resetBtn, refreshBtn, gfFont
@@ -358,15 +353,31 @@ local function BuildDelves()
     return list, byAct
 end
 
+-- This week's Bountiful delves. No zone list to keep up to date: every zone
+-- under the world map (946, its whole tree) is asked for its delve pins, and a
+-- pin whose art is the bountiful one marks its delve. Only this season's
+-- delves (the Group Finder's list, by name) are looked up. The walk runs at
+-- most once a minute.
+XF.bountifulScanAt = nil
 local function ScanBountiful()
+    local now = GetTime()
+    if XF.bountifulScanAt and now - XF.bountifulScanAt < 60 then return end
+    local POI, MAP = C_AreaPoiInfo, C_Map
+    if not (POI and POI.GetDelvesForMap and POI.GetAreaPOIInfo and MAP and MAP.GetMapChildrenInfo) then return end
+    local season = {}
+    for _, d in ipairs(delves or {}) do season[d.name] = true end
+    if not next(season) then return end
+    XF.bountifulScanAt = now
     wipe(bountiful)
-    local API = C_AreaPoiInfo
-    if not (API and API.GetDelvesForMap and API.GetAreaPOIInfo) then return end
-    for _, mapID in ipairs(DELVE_ZONE_MAPS) do
-        local ok, pois = pcall(API.GetDelvesForMap, mapID)
-        for _, poiID in ipairs(ok and type(pois) == "table" and pois or {}) do
-            local info = API.GetAreaPOIInfo(mapID, poiID)
-            if info and info.atlasName == "delves-bountiful" and info.name then bountiful[info.name] = true end
+    local okZones, zones = pcall(MAP.GetMapChildrenInfo, 946, Enum.UIMapType.Zone, true)
+    for _, zone in ipairs(okZones and type(zones) == "table" and zones or {}) do
+        local okPins, pins = pcall(POI.GetDelvesForMap, zone.mapID)
+        for _, poiID in ipairs(okPins and type(pins) == "table" and pins or {}) do
+            local pin = POI.GetAreaPOIInfo(zone.mapID, poiID)
+            local name, art = pin and pin.name, pin and pin.atlasName
+            if name and season[name] and type(art) == "string" and art:find("bountiful", 1, true) then
+                bountiful[name] = true
+            end
         end
     end
 end
@@ -708,6 +719,7 @@ end
 
 function XF.IsDeclinedResult(id)
     local _, status = C_LFGList.GetApplicationInfo(id)
+    if IsSecret(status) then return false end
     if status == "declined" or status == "declined_full" or status == "declined_delisted" then return true end
     local info = ResultInfo(id)
     local guid = info and info.partyGUID
@@ -803,102 +815,49 @@ function XF.ResultsSecret()
     return IsSecret(info.activityIDs) and true or false
 end
 
-local function FilterResults()
-    if not SP or XF.ResultsSecret() then return end
+-- Whether a group passes the client-side filters (regions, delves / tiers,
+-- bosses, raids, roles, Bloodlust / Battle Res, Party Fit, Not Declined).
+-- Blizzard's result list is never changed: a group that does not pass is
+-- dimmed by our own overlay on its row (DecorateEntry).
+function XF.PassesFilters(id)
+    if not SP or XF.ResultsSecret() then return true end
     local regions, delveOn, bossOn = RegionFilterActive(), DelveFilterActive(), BossFilterActive()
     local raidOn, extraOn = RaidListFilterActive(), XF.ExtraFilterActive()
-    if not (regions or delveOn or bossOn or raidOn or extraOn) then return end
-    local need = extraOn and Cfg().partyFit and XF.PartyNeeds() or nil
-    local hideDeclined = extraOn and Cfg().notDeclined
-    local res = SP.results
-    if type(res) ~= "table" or #res == 0 then return end
-    local chosen = regions and ChosenRegions()
-    local applied = {}
-    for _, id in ipairs(SP.applications or {}) do applied[id] = true end
-    local kept, keptSet = {}, {}
-    for _, id in ipairs(res) do
-        local keep = true
-        -- Applied groups always stay, except declined ones under Not Declined.
-        if hideDeclined and applied[id] and XF.IsDeclinedResult(id) then
-            keep = false
-        elseif not applied[id] then
-            if regions then
-                local region = LeaderRegion(id)
-                if region ~= nil and not chosen[region] then keep = false end
-            end
-            if keep and delveOn and not DelveKeep(id) then keep = false end
-            if keep and bossOn and not BossKeep(id) then keep = false end
-            if keep and raidOn and not RaidListKeep(id) then keep = false end
-            if keep and extraOn and not XF.ExtraKeep(id, need) then keep = false end
-        end
-        if keep then
-            kept[#kept + 1] = id
-            keptSet[id] = true
-        end
+    if not (regions or delveOn or bossOn or raidOn or extraOn) then return true end
+    local c = Cfg()
+    local _, appStatus = C_LFGList.GetApplicationInfo(id)
+    if IsSecret(appStatus) then return true end
+    if appStatus and appStatus ~= "none" then
+        -- Groups you applied to stay lit, except declined ones under Not Declined.
+        return not (extraOn and c.notDeclined and XF.IsDeclinedResult(id))
     end
-    if #kept == #res then return end
-    -- Displayed total: kept results plus applications not among them (as
-    -- Blizzard counts them).
-    local total = #kept
-    for id in pairs(applied) do
-        if not keptSet[id] and not (hideDeclined and XF.IsDeclinedResult(id)) then total = total + 1 end
+    if regions then
+        local region = LeaderRegion(id)
+        if region ~= nil and not ChosenRegions()[region] then return false end
     end
-    SP.results = kept
-    SP.totalResults = total
-    LFGListSearchPanel_UpdateResults(SP)
+    if delveOn and not DelveKeep(id) then return false end
+    if bossOn and not BossKeep(id) then return false end
+    if raidOn and not RaidListKeep(id) then return false end
+    if extraOn and not XF.ExtraKeep(id, c.partyFit and XF.PartyNeeds() or nil) then return false end
+    return true
 end
 
--- Re-filter the current results now (Blizzard rebuilds the list from its
--- cached results; no search is sent).
+-- A filter changed: redraw the rows on screen (no search is sent, nothing of
+-- Blizzard's list is touched).
 local function Refilter()
-    if SP and SP:IsShown() and not XF.ResultsSecret() then LFGListSearchPanel_UpdateResultList(SP) end
-end
-
--- Member names in the group tooltip, class coloured, beside Blizzard's member
--- lines (dungeon and arena listings), as Premade Groups Filter does.
-local function AddMemberNames(tooltip, resultID)
-    if Cfg().classTooltip == false or not (tooltip and tooltip.IsShown and tooltip:IsShown()) then return end
-    local info = ResultInfo(resultID)
-    if not info or info.isDelisted then return end
-    local acts = info.activityIDs
-    local act = type(acts) == "table" and not IsSecret(acts) and acts[1]
-    if not act or IsSecret(act) then return end
-    local ai = C_LFGList.GetActivityInfoTable(act)
-    local DT = Enum.LFGListDisplayType
-    if not (ai and DT) or (ai.displayType ~= DT.RoleEnumerate and ai.displayType ~= DT.ClassEnumerate) then return end
-    local n = info.numMembers
-    if type(n) ~= "number" or IsSecret(n) then return end
-    local tname = tooltip:GetName()
-    if not tname then return end
-    local start
-    for i = 1, tooltip:NumLines() do
-        local left = _G[tname .. "TextLeft" .. i]
-        local text = left and left:GetText()
-        if text and not IsSecret(text) and text == MEMBERS_COLON then start = i; break end
+    if not (SP and SP:IsShown()) or XF.ResultsSecret() then return end
+    local box = SP.ScrollBox
+    if box and box.ForEachFrame and XF.DecorateEntry then
+        box:ForEachFrame(function(entry) XF.DecorateEntry(entry) end)
     end
-    if not start then return end
-    local shown = false
-    for i = 1, n do
-        local pinfo = C_LFGList.GetSearchResultPlayerInfo(resultID, i)
-        local name = pinfo and pinfo.name
-        local right = _G[tname .. "TextRight" .. (start + i)]
-        if name and right and not IsSecret(name) then
-            local col = (pinfo.classFilename and RAID_CLASS_COLORS[pinfo.classFilename]) or NORMAL_FONT_COLOR
-            right:SetText(name)
-            right:SetTextColor(col.r, col.g, col.b)
-            right:Show()
-            shown = true
-        end
-    end
-    if shown then tooltip:Show() end
 end
 
 -------------------------------------------------------------------------------
---  Result rows and tooltip (Premade Groups Filter's display options).
+--  Result rows and tooltip: name colours, leader rating, role / spec icons.
 -------------------------------------------------------------------------------
 local function Opt(key)
     local v = Cfg()[key]
-    if v == nil then return key ~= "oneClick" end
+    if v == nil then return true end
     return v and true or false
 end
 
@@ -1037,7 +996,7 @@ local function DecorateIcons(entry, resultID, info, ai)
     if not icons then return end
     local shown = enum:IsShown()
     local crownOn, specOn, missOn = Opt("leaderCrown"), Opt("specIcons"), Opt("missingRoles")
-    local disabled = info.isDelisted and true or false
+    local disabled = (not IsSecret(info.isDelisted) and info.isDelisted) and true or false
     -- Members by role + class, to match Blizzard's icons (it fills them by
     -- role, then class, right to left).
     local members = {}
@@ -1166,28 +1125,8 @@ local function DecorateIcons(entry, resultID, info, ai)
 end
 
 -------------------------------------------------------------------------------
---  Sign-up options (profile search.*, off by default).
+--  Cancel Oldest Application (profile search.cancelOldest, off by default).
 -------------------------------------------------------------------------------
-function XF.ApplyKeepNote()
-    if not LFGListApplicationDialog_Show then return end
-    if Cfg().keepNote then
-        if not XF.origShowDialog then
-            XF.origShowDialog = LFGListApplicationDialog_Show
-            LFGListApplicationDialog_Show = function(self, resultID)
-                local info = C_LFGList.GetSearchResultInfo(resultID)
-                local acts = info and info.activityIDs
-                self.resultID = resultID
-                self.activityID = type(acts) == "table" and acts[1] or nil
-                LFGListApplicationDialog_UpdateRoles(self)
-                StaticPopupSpecial_Show(self)
-            end
-        end
-    elseif XF.origShowDialog then
-        LFGListApplicationDialog_Show = XF.origShowDialog
-        XF.origShowDialog = nil
-    end
-end
-
 -- The pending application to give up first: the one closest to timing out.
 function XF.OldestApplication()
     local oldest, left = nil, math.huge
@@ -1202,186 +1141,15 @@ end
 
 -- At the limit and pointing at a group you could sign up to.
 function XF.ShouldCancelOldest(resultID)
-    if not Cfg().cancelOldest or not resultID then return false end
+    if not Cfg().cancelOldest or not resultID or XF.ResultsSecret() then return false end
     local _, active = C_LFGList.GetNumApplications()
     if type(active) ~= "number" or active < (MAX_LFG_LIST_APPLICATIONS or 5) then return false end
     local _, status, pendingStatus = C_LFGList.GetApplicationInfo(resultID)
     if status ~= "none" or pendingStatus then return false end
     local info = ResultInfo(resultID)
-    return info ~= nil and not info.isDelisted
+    return info ~= nil and not IsSecret(info.isDelisted) and not info.isDelisted
 end
 
-function XF.DropDecline(resultID)
-    local declines = LFGListFrame and LFGListFrame.declines
-    local info = declines and ResultInfo(resultID)
-    local guid = info and info.partyGUID
-    if guid and not IsSecret(guid) and declines[guid] then
-        declines[guid] = nil
-        if SP and SP:IsShown() then LFGListSearchPanel_UpdateResults(SP) end
-    end
-end
-
-function XF.ApplySignUp()
-    XF.ApplyKeepNote()
-    if Cfg().signUpDeclined and LFGListFrame and type(LFGListFrame.declines) == "table" then
-        wipe(LFGListFrame.declines)
-        if SP and SP:IsShown() then LFGListSearchPanel_UpdateResults(SP) end
-    end
-end
-ns.Search_ApplySignUp = function() XF.ApplySignUp() end
-
--------------------------------------------------------------------------------
---  Applicant list (your own listing): a "Score" column after iLvl.
--------------------------------------------------------------------------------
--- Whether the columns show for the current listing.
-function XF.ApplicantMode()
-    if Cfg().applicantColumns == false then return false end
-    local e = C_LFGList.GetActiveEntryInfo and C_LFGList.GetActiveEntryInfo()
-    local acts = e and e.activityIDs
-    local act = type(acts) == "table" and not IsSecret(acts) and acts[1]
-    if not act or IsSecret(act) then return false end
-    local ai = C_LFGList.GetActivityInfoTable(act)
-    if not ai or ai.isMythicPlusActivity or ai.isRatedPvpActivity then return false end
-    return true
-end
-
-function XF.RIOProfile(name)
-    if not (RaiderIO and RaiderIO.GetProfile) or type(name) ~= "string" or IsSecret(name) then return nil end
-    local n, realm = name:match("^([^%-]+)%-(.+)$")
-    if not n then n, realm = name, GetNormalizedRealmName and GetNormalizedRealmName() end
-    local ok, p = pcall(RaiderIO.GetProfile, n, realm)
-    return ok and type(p) == "table" and p or nil
-end
-
-function XF.ApplicantHeaders(on)
-    local AV = LFGListFrame and LFGListFrame.ApplicationViewer
-    if not (AV and AV.ItemLevelColumnHeader) then return end
-    if not XF.hdrScore then
-        local function Hdr(text, w)
-            local h = CreateFrame("Button", nil, AV, "LFGListColumnHeaderTemplate")
-            h:SetScript("OnClick", nil)
-            h:SetSize(w, 24)
-            h:SetText(text)
-            -- The skin's button look, as the host skin gives Blizzard's
-            -- headers (Blizzard's header art faded, theme fill and border).
-            local S = Skin()
-            if S and S.Button then S.Button(h) end
-            for _, k in ipairs({ "Left", "Middle", "Right" }) do
-                local r = h[k]
-                if type(r) == "table" and r.SetAlpha then r:SetAlpha(0) end
-            end
-            return h
-        end
-        XF.hdrScore = Hdr("Score", XF.SCORE_W)
-        XF.hdrScore:SetPoint("LEFT", AV.ItemLevelColumnHeader, "RIGHT", 0, 0)
-    end
-    XF.hdrScore:SetShown(on and true or false)
-    if XF.LayoutViewer then XF.LayoutViewer() end
-end
-
-function XF.DecorateApplicant(button, id)
-    local on = XF.ApplicantMode()
-    XF.ApplicantHeaders(on)
-    if type(button) ~= "table" or type(button.Members) ~= "table" then return end
-    -- Rows as wide as the (widened) list: Blizzard's rows are a fixed 309,
-    -- their background and Invite / Decline follow the right edge.
-    local AVb = LFGListFrame and LFGListFrame.ApplicationViewer
-    local box = AVb and AVb.ScrollBox
-    local bw = type(box) == "table" and box.GetWidth and box:GetWidth()
-    if type(bw) == "number" and bw > 0 and not InCombatLockdown() and button.SetWidth then button:SetWidth(bw) end
-    local info = C_LFGList.GetApplicantInfo(id)
-    local n = info and info.numMembers
-    if IsSecret(n) then n = nil end
-    -- Scores only for pending applicants: Blizzard writes the outcome
-    -- (Declined, Cancelled, Invited ...) across the row once there is one.
-    local st, pst = info and info.applicationStatus, info and info.pendingApplicationStatus
-    local pending = st == "applied" and not IsSecret(st) and (pst == nil or (not IsSecret(pst) and pst == ""))
-    for i, member in ipairs(button.Members) do
-        local d = FFD[member]
-        if not d then
-            d = {}
-            FFD[member] = d
-            local f = CreateFrame("Frame", nil, member)
-            f:SetAllPoints(member)
-            f:EnableMouse(false)
-            d.score = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-            d.score:SetJustifyH("LEFT")
-            d.score:SetPoint("LEFT", member, "LEFT", 200, 0)
-        end
-        d.score:Hide()
-        -- Left-aligned with the Score header's label (measured; a fixed
-        -- offset until the header is laid out).
-        local ml = member.GetLeft and member:GetLeft()
-        local hl = XF.hdrScore and XF.hdrScore:IsShown() and XF.hdrScore:GetLeft()
-        local lab = XF.hdrScore and XF.hdrScore.GetFontString and XF.hdrScore:GetFontString()
-        local tl = lab and lab:GetLeft()
-        if ml and (tl or hl) then
-            d.score:ClearAllPoints()
-            d.score:SetPoint("LEFT", member, "LEFT", (tl or hl) - ml, 0)
-        end
-        if on and pending and type(n) == "number" and i <= n then
-            local name, _, _, _, _, _, _, _, _, _, _, dungeonScore = C_LFGList.GetApplicantMemberInfo(id, i)
-            local prof = XF.RIOProfile(name)
-            local mk = prof and prof.mythicKeystoneProfile
-            local score = mk and tonumber(mk.currentScore)
-            if not score and type(dungeonScore) == "number" and not IsSecret(dungeonScore) then score = dungeonScore end
-            if score and score > 0 then
-                d.score:SetText(tostring(math.floor(score)))
-                d.score:SetTextColor(RatingColor(score))
-                d.score:Show()
-            end
-        end
-    end
-    -- Blizzard's small Invite button instead of the wide one (out of combat).
-    local wide, small = button.InviteButton, button.InviteButtonSmall
-    if on and wide and small and wide:IsShown() and not InCombatLockdown() then
-        small:SetEnabled(wide:IsEnabled())
-        small:SetHeight(wide:GetHeight())
-        wide:Hide()
-        small:Show()
-    end
-    XF.ApplicantButtonLook(small, XF.CHECK_TEX, 0.3, 0.9, 0.35)
-    XF.ApplicantButtonLook(button.DeclineButton, X_TEX, 1, 0.15, 0.15)
-end
-
--- Invite (check) and Decline (X) as our glyph buttons, as Cancel Application:
--- Blizzard's button art faded, our button laid over it taking no mouse, so
--- Blizzard's keeps the click.
-function XF.ApplicantButtonLook(b, tex, r, g, bl)
-    if type(b) ~= "table" or not b.GetRegions or not XF.GlyphButton then return end
-    local d = FFD[b]
-    if not d then
-        d = {}
-        FFD[b] = d
-        for _, reg in ipairs({ b:GetRegions() }) do
-            if reg.SetAlpha then reg:SetAlpha(0) end
-        end
-        for _, getter in ipairs({ "GetNormalTexture", "GetPushedTexture", "GetHighlightTexture", "GetDisabledTexture" }) do
-            local t = b[getter] and b[getter](b)
-            if t then t:SetAlpha(0) end
-        end
-        local look = XF.GlyphButton(b, ROW1_H - 4, tex)
-        look:EnableMouse(false)
-        look:SetPoint("CENTER", b, "CENTER", 0, 0)
-        look:SetFrameLevel(b:GetFrameLevel() + 1)
-        look.Glyph:SetSize(11, 11)
-        look.Glyph:SetVertexColor(XF.GLYPH, XF.GLYPH, XF.GLYPH, 1)
-        d.look = look
-        b:HookScript("OnEnter", function(self)
-            if not self:IsEnabled() then return end
-            SetBorderColor(d.look, r, g, bl, 1)
-            d.look.Glyph:SetVertexColor(r, g, bl, 1)
-            d.look.Glyph:SetAlpha(1)
-        end)
-        b:HookScript("OnLeave", function(self)
-            SetBorderColor(d.look, ThemeBorder())
-            d.look.Glyph:SetVertexColor(XF.GLYPH, XF.GLYPH, XF.GLYPH, 1)
-            d.look.Glyph:SetAlpha(self:IsEnabled() and 0.8 or 0.35)
-        end)
-    end
-    d.look:SetShown(b:IsShown())
-    d.look.Glyph:SetAlpha(b:IsEnabled() and 0.8 or 0.35)
-end
 
 local function DecorateEntry(entry)
     local resultID = entry and entry.resultID
@@ -1396,51 +1164,31 @@ local function DecorateEntry(entry)
         f:EnableMouse(false)
         fd.rating = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         fd.rating:SetJustifyH("RIGHT")
-        -- Cancel Oldest Application: a bar under the hovered row while it
-        -- would apply.
-        local bar = CreateFrame("Frame", nil, entry)
-        bar:SetPoint("TOPLEFT", entry, "BOTTOMLEFT", 3, 0)
-        bar:SetPoint("TOPRIGHT", entry, "BOTTOMRIGHT", -3, 0)
-        bar:SetHeight(16)
-        bar:SetFrameStrata("HIGH")
-        local bbg = bar:CreateTexture(nil, "BACKGROUND")
-        bbg:SetAllPoints()
-        bbg:SetColorTexture(0.35, 0.08, 0.08, 0.9)
-        local btx = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-        btx:SetPoint("CENTER")
-        btx:SetText("Click to cancel your oldest application")
-        bar:EnableMouse(false)
-        bar:Hide()
-        fd.cancelBar = bar
-        entry:HookScript("OnEnter", function(self)
-            local d = FFD[self]
-            if d and d.cancelBar then d.cancelBar:SetShown(XF.ShouldCancelOldest(self.resultID)) end
-        end)
-        entry:HookScript("OnLeave", function(self)
-            local d = FFD[self]
-            if d and d.cancelBar then d.cancelBar:Hide() end
-        end)
-        -- One click sign-up: after Blizzard selects the group. At the limit
-        -- with Cancel Oldest Application, this click cancels instead.
+        -- Groups the filters leave out: our dark wash over the whole row
+        -- (above Blizzard's row content, taking no mouse).
+        local wash = CreateFrame("Frame", nil, entry)
+        wash:SetAllPoints(entry)
+        wash:SetFrameLevel(entry:GetFrameLevel() + 20)
+        wash:EnableMouse(false)
+        fd.dim = wash:CreateTexture(nil, "OVERLAY")
+        fd.dim:SetAllPoints(wash)
+        fd.dim:SetColorTexture(0, 0, 0, 0.65)
+        fd.dim:Hide()
+        -- Cancel Oldest Application: at the application limit a left click
+        -- on a group gives up the oldest pending application (the group's
+        -- tooltip says so, XF.CancelHint).
         entry:HookScript("OnClick", function(self, button)
-            if button == "LeftButton" and XF.ShouldCancelOldest(self.resultID) then
-                local oldest = XF.OldestApplication()
-                if oldest then
-                    C_LFGList.CancelApplication(oldest)
-                    local d = FFD[self]
-                    if d and d.cancelBar then d.cancelBar:Hide() end
-                    if LFGListSearchPanel_UpdateButtonStatus then LFGListSearchPanel_UpdateButtonStatus(SP) end
-                    return
-                end
-            end
-            if button ~= "LeftButton" or not Opt("oneClick") or self.isApplication then return end
-            if SP.selectedResult == self.resultID and SP.SignUpButton and SP.SignUpButton:IsEnabled() then
-                LFGListSearchPanel_SignUp(SP)
-            end
+            if button ~= "LeftButton" or not XF.ShouldCancelOldest(self.resultID) then return end
+            local oldest = XF.OldestApplication()
+            if oldest then C_LFGList.CancelApplication(oldest) end
         end)
     end
     fd.rating:Hide()
+    fd.dim:Hide()
     if XF.CancelLook then XF.CancelLook(entry) end
+    -- Result data secret (restricted content): no decoration.
+    if XF.ResultsSecret() then return end
+    fd.dim:SetShown(not XF.PassesFilters(resultID))
     local info = ResultInfo(resultID)
     if not info then return end
     local acts = info.activityIDs
@@ -1448,7 +1196,9 @@ local function DecorateEntry(entry)
     local ai = act and not IsSecret(act) and C_LFGList.GetActivityInfoTable(act)
 
     -- Group name colour (Blizzard already reds declined ones).
-    if Opt("nameColors") and entry.Name and not info.isDelisted and not info.censored then
+    local delisted, censored = info.isDelisted, info.censored
+    if IsSecret(delisted) or IsSecret(censored) then return end
+    if Opt("nameColors") and entry.Name and not delisted and not censored then
         local _, appStatus = C_LFGList.GetApplicationInfo(resultID)
         local declined = appStatus == "declined" or appStatus == "declined_full" or appStatus == "declined_delisted"
         if declined or LockedOut(ai, resultID) then
@@ -1485,7 +1235,7 @@ local function DecorateEntry(entry)
             local actName = entry.ActivityName
             if actName then actName:SetWidth(176 - extra) end
             local name = entry.Name
-            if name and not info.censored then
+            if name and not censored then
                 local ok, w = pcall(name.GetWidth, name)
                 local cap = (entry.isApplication and 165 or 176) - extra
                 if ok and type(w) == "number" and not IsSecret(w) and w > cap then name:SetWidth(cap) end
@@ -1495,21 +1245,30 @@ local function DecorateEntry(entry)
 
     DecorateIcons(entry, resultID, info, ai)
 end
+XF.DecorateEntry = DecorateEntry
+
+-- Cancel Oldest Application: a line at the end of the group's tooltip while a
+-- click on it would cancel the oldest pending application.
+function XF.CancelHint(tooltip, resultID)
+    if not (tooltip and tooltip.IsShown and tooltip:IsShown()) or not XF.ShouldCancelOldest(resultID) then return end
+    tooltip:AddLine(" ")
+    tooltip:AddLine("Click: cancel your oldest application to sign up here", 1, 0.35, 0.35, true)
+    tooltip:Show()
+end
 
 -- Members in the tooltip, one line each (role icon, spec and class in class
--- colour, name on the right), tanks then healers then damage, for groups whose
--- tooltip has no member list (Blizzard lists members for dungeons and arenas
--- only).
+-- colour, name on the right), tanks then healers then damage, appended under
+-- Blizzard's tooltip for every group.
 local ROLE_ICON = { TANK = "groupfinder-icon-role-micro-tank", HEALER = "groupfinder-icon-role-micro-heal", DAMAGER = "groupfinder-icon-role-micro-dps" }
 local function AddClassesByRole(tooltip, resultID)
     if not Opt("classTooltip") or not (tooltip and tooltip.IsShown and tooltip:IsShown()) then return end
+    if XF.ResultsSecret() then return end
     local info = ResultInfo(resultID)
-    if not info or info.isDelisted then return end
+    if not info or IsSecret(info.isDelisted) or info.isDelisted then return end
     local acts = info.activityIDs
     local act = type(acts) == "table" and not IsSecret(acts) and acts[1]
     local ai = act and not IsSecret(act) and C_LFGList.GetActivityInfoTable(act)
-    local DT = Enum.LFGListDisplayType
-    if not ai or (DT and (ai.displayType == DT.RoleEnumerate or ai.displayType == DT.ClassEnumerate)) then return end
+    if not ai then return end
     local n = info.numMembers
     if type(n) ~= "number" or IsSecret(n) or n < 1 then return end
     local byRole = { TANK = {}, HEALER = {}, DAMAGER = {} }
@@ -2221,17 +1980,15 @@ XF.GROUP_MENU = {
     { key = "classTooltip",   label = "Members in Tooltip",
       tip = "Group tooltips list every member: role, specialization, class and name." },
     { title = "Sign Up" },
-    { key = "cancelOldest",   label = "Cancel Oldest Application", signUp = true,
+    { key = "cancelOldest",   label = "Cancel Oldest Application",
       tip = "At the application limit, clicking a group cancels your oldest pending application so you can sign up." },
-    { key = "signUpDeclined", label = "Sign Up to Declined Groups", signUp = true,
-      tip = "Lets you sign up again to groups that declined you, once they relist." },
-    { key = "keepNote",       label = "Keep Sign Up Note", signUp = true,
+    -- These two are the Quality of Life module's Persistent Signup Note and
+    -- Quick Signup (EllesmereUIDB keys, applied by its own functions).
+    { key = "persistSignupNote", label = "Keep Sign Up Note", core = "_applyPersistSignupNote",
       tip = "Keeps your note to the group leader filled in between sign-ups." },
-    { key = "oneClick",       label = "One Click Sign Up",
+    { key = "quickSignup",    label = "One Click Sign Up", core = "_applyQuickSignup",
       tip = "A single click on a group opens its sign-up." },
     { title = "Misc" },
-    { key = "applicantColumns", label = "Score Column",
-      tip = "Your own listing's applicant list shows each applicant's Mythic+ score. Mythic+ listings keep Blizzard's Rating column instead." },
     { key = "iconSize",       label = "Role Icon Size", stepper = { min = 100, max = 160, step = 5 },
       tip = "Size of the role and specialization icons in the group list." },
 }
@@ -2241,6 +1998,17 @@ function XF.GroupOpt(key)
     local v = Cfg()[key]
     if v == nil then v = ns.DEFAULTS and ns.DEFAULTS[key] end
     return v and true or false
+end
+
+-- A row's value: core rows read EllesmereUIDB, the rest the search settings.
+function XF.ItemOn(spec)
+    if spec.core then return EllesmereUIDB and EllesmereUIDB[spec.key] and true or false end
+    return XF.GroupOpt(spec.key)
+end
+
+-- Core rows are greyed out while their apply function is not there.
+function XF.ItemAvailable(spec)
+    return not spec.core or type(CM[spec.core]) == "function"
 end
 
 -- A menu row with a small switch (the settings window's switch look) and
@@ -2274,7 +2042,10 @@ function XF.SwitchItem(m, y, spec)
     item:SetScript("OnEnter", function(self)
         self.label:SetTextColor(1, 1, 1, 1)
         hl:SetColorTexture(1, 1, 1, CM.DD_ITEM_HL_A or 0.08)
-        if spec.tip then XF.Tip(self, spec.label, spec.tip) end
+        if spec.tip then
+            XF.Tip(self, spec.label, spec.tip,
+                not XF.ItemAvailable(spec) and "Needs the Quality of Life module" or nil)
+        end
     end)
     item:SetScript("OnLeave", function(self)
         self.label:SetTextColor(tR, tG, tB, tA)
@@ -2282,7 +2053,8 @@ function XF.SwitchItem(m, y, spec)
         XF.Untip()
     end)
     function item:Paint()
-        local on = XF.GroupOpt(spec.key)
+        local on = XF.ItemOn(spec)
+        self:SetAlpha(XF.ItemAvailable(spec) and 1 or 0.4)
         self.sw.knob:ClearAllPoints()
         if on then
             local r, g, b = Accent()
@@ -2296,10 +2068,17 @@ function XF.SwitchItem(m, y, spec)
         end
     end
     item:SetScript("OnClick", function(self)
-        Cfg()[spec.key] = not XF.GroupOpt(spec.key)
+        if spec.core then
+            local apply = CM[spec.core]
+            if type(apply) ~= "function" or not EllesmereUIDB then return end
+            EllesmereUIDB[spec.key] = not XF.ItemOn(spec)
+            apply()
+        else
+            Cfg()[spec.key] = not XF.GroupOpt(spec.key)
+        end
         PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
         self:Paint()
-        if spec.signUp then XF.ApplySignUp() else Refilter() end
+        Refilter()
     end)
     item:Paint()
     return item
@@ -3027,7 +2806,8 @@ local function CogFilterButton(btn)
     d.cogFrame:SetFrameLevel(btn:GetFrameLevel() + 3)
     d.cogFrame:EnableMouse(false)
     d.cog = d.cogFrame:CreateTexture(nil, "OVERLAY")
-    d.cog:SetTexture(XF.PERSON_TEX)
+    d.cog:SetAtlas(XF.PERSON_ATLAS, false)
+    d.cog:SetDesaturated(true)
     d.cog:SetVertexColor(XF.GLYPH, XF.GLYPH, XF.GLYPH)
     d.cog:SetPoint("CENTER")
     d.cog:SetAlpha(0.8)
@@ -3123,104 +2903,6 @@ local function LayoutSquares(size, after, show)
             sq:Hide()
         end
     end
-end
-
--- Applicant list (your listing): Search Again's look on its refresh button
--- (Blizzard's own button laid invisibly over ours takes the click, as on the
--- search panel), and the column headers one gap apart with the last one
--- reaching the refresh button, one gap short of it.
-function XF.LayoutViewer()
-    local AV = LFGListFrame and LFGListFrame.ApplicationViewer
-    if not AV or InCombatLockdown() then return end
-    local nameH, roleH, ilvlH, ratingH = AV.NameColumnHeader, AV.RoleColumnHeader, AV.ItemLevelColumnHeader, AV.RatingColumnHeader
-    for _, f in ipairs({ nameH, roleH, ilvlH, AV.Inset }) do if type(f) ~= "table" then return end end
-    if type(ratingH) ~= "table" then ratingH = nil end
-    local blz = AV.RefreshButton
-    if type(blz) ~= "table" then blz = nil end
-    if not XF.avRefresh then
-        local b = GlyphButton(AV, 24, "UI-RefreshButton", true)
-        b.Glyph:SetSize(14, 14)
-        b:EnableMouse(false)   -- the look only; Blizzard's button is the click
-        XF.avRefresh = b
-        if blz then
-            blz:SetAlpha(0)
-            blz:HookScript("OnEnter", function() b.Glyph:SetAlpha(1) end)
-            blz:HookScript("OnLeave", function() b.Glyph:SetAlpha(0.8) end)
-        end
-    end
-    local rb = XF.avRefresh
-    -- Laid out with the search panel's spacing.
-    local pad = tonumber(Cfg().padding) or 12
-    local TOP = -150                          -- Blizzard's header row bottom (its Inset top)
-    local top, bottom = TOP - SQ_GAP, BOTTOM_Y + 22 + SQ_GAP
-    rb:ClearAllPoints()
-    rb:SetPoint("BOTTOMRIGHT", AV, "TOPRIGHT", -pad, TOP)
-    nameH:ClearAllPoints()
-    nameH:SetPoint("BOTTOMLEFT", AV, "TOPLEFT", pad, TOP)
-    local bar, box = AV.ScrollBar, AV.ScrollBox
-    if type(bar) ~= "table" then bar = nil end
-    if type(box) ~= "table" then box = nil end
-    if bar then
-        bar:ClearAllPoints()
-        bar:SetPoint("TOP", AV, "TOPRIGHT", -pad / 2, top)
-        bar:SetPoint("BOTTOM", AV, "BOTTOMRIGHT", -pad / 2, bottom)
-    end
-    if box then
-        box:ClearAllPoints()
-        box:SetPoint("TOPLEFT", AV, "TOPLEFT", pad, top)
-        box:SetPoint("BOTTOMRIGHT", AV, "BOTTOMRIGHT", -pad, bottom)
-    end
-    AV.Inset:ClearAllPoints()
-    AV.Inset:SetPoint("TOPLEFT", AV, "TOPLEFT", pad, top)
-    AV.Inset:SetPoint("BOTTOMRIGHT", AV, "BOTTOMRIGHT", -pad, bottom)
-    -- The settings cog at the left padding, then the shown bottom buttons
-    -- (Browse Groups for leaders, Delist, Edit, in Blizzard's order) sharing
-    -- the rest of the width evenly, one gap apart.
-    local btns = {}
-    for _, k in ipairs({ "BrowseGroupsButton", "RemoveEntryButton", "EditButton" }) do
-        local b = AV[k]
-        if type(b) == "table" and b.IsShown and b:IsShown() then btns[#btns + 1] = b end
-    end
-    local avW = AV:GetWidth()
-    local cog = XF.SettingsCog(AV)
-    local x0 = pad + (cog and (XF.COG_H + SQ_GAP) or 0)
-    if #btns > 0 and type(avW) == "number" and avW > 0 then
-        local w = (avW - pad - x0 - (#btns - 1) * SQ_GAP) / #btns
-        for i, b in ipairs(btns) do
-            b:ClearAllPoints()
-            b:SetWidth(w)
-            if i == 1 then
-                b:SetPoint("BOTTOMLEFT", AV, "BOTTOMLEFT", x0, BOTTOM_Y)
-            else
-                b:SetPoint("LEFT", btns[i - 1], "RIGHT", SQ_GAP, 0)
-            end
-        end
-    end
-    if blz then
-        blz:ClearAllPoints()
-        blz:SetAllPoints(rb)
-        blz:SetFrameLevel(rb:GetFrameLevel() + 4)
-    end
-    -- Blizzard's widths 100 / 62 / 35 (Rating 50); each loses one gap.
-    nameH:SetWidth(100 - SQ_GAP)
-    roleH:ClearAllPoints()
-    roleH:SetPoint("LEFT", nameH, "RIGHT", SQ_GAP, 0)
-    roleH:SetWidth(62 - SQ_GAP)
-    ilvlH:ClearAllPoints()
-    ilvlH:SetPoint("LEFT", roleH, "RIGHT", SQ_GAP, 0)
-    ilvlH:SetWidth(35 - SQ_GAP)
-    local fill
-    if ratingH and ratingH:IsShown() then
-        ratingH:ClearAllPoints()
-        ratingH:SetPoint("LEFT", ilvlH, "RIGHT", SQ_GAP, 0)
-        fill = ratingH
-    elseif XF.hdrScore and XF.hdrScore:IsShown() then
-        XF.hdrScore:ClearAllPoints()
-        XF.hdrScore:SetPoint("LEFT", ilvlH, "RIGHT", SQ_GAP, 0)
-        XF.hdrScore:SetWidth(XF.SCORE_W - SQ_GAP)
-        fill = XF.hdrScore
-    end
-    if fill then fill:SetPoint("RIGHT", rb, "LEFT", -SQ_GAP, 0) end
 end
 
 -- Difficulty, the search prompt and the typed search text in the font of the
@@ -3467,6 +3149,8 @@ function XF.SettingsCog(panel)
         XF.cog = cog
     end
     local pad = tonumber(Cfg().padding) or 12
+    -- The panel's child, so it hides with the panel (the applicant list has none).
+    if cog:GetParent() ~= panel then cog:SetParent(panel) end
     cog:ClearAllPoints()
     cog:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", pad, BOTTOM_Y)
     cog:SetFrameLevel(panel:GetFrameLevel() + 10)
@@ -3524,13 +3208,6 @@ end
 local function LayoutCategoryButtons()
     PinBottomButtons(LFGListFrame and LFGListFrame.CategorySelection, { "StartGroupButton" }, "FindGroupButton")
     LayoutCategoryList()
-    -- Raider.IO's group export button sits on Start a Group: faded and
-    -- unclickable (it re-shows itself on group events, so not hidden).
-    local rio = _G.RaiderIO_ExportButton
-    if rio then
-        rio:SetAlpha(0)
-        rio:EnableMouse(false)
-    end
 end
 
 -- A Blizzard dropdown button in our Difficulty button's look: the theme border,
@@ -3718,23 +3395,37 @@ end
 -------------------------------------------------------------------------------
 local SW_W, SW_H, SW_PAD = 30, 16, 2
 
+-- The checkbox's state, raw: Blizzard sets these boxes from a secret value
+-- at times (e.g. editing a listing during an encounter). Returns the value,
+-- or nil and true while it is secret.
+local function CheckedState(cb)
+    local v = cb:GetChecked()
+    if IsSecret(v) then return nil, true end
+    return v and true or false, false
+end
+
 local function PaintSwitch(cb)
     local d = FFD[cb]
     if not d then return end
-    local on = cb:GetChecked() and true or false
+    local raw = cb:GetChecked()
     local enabled = cb:IsEnabled()
     local sw = d.switch
-    sw.knob:ClearAllPoints()
-    if on then
-        local r, g, b = Accent()
-        sw.track:SetColorTexture(r, g, b, 0.75)
-        sw.knob:SetColorTexture(1, 1, 1, 1)
-        sw.knob:SetPoint("RIGHT", sw, "RIGHT", -SW_PAD, 0)
-    else
-        sw.track:SetColorTexture(0.267, 0.267, 0.267, 0.65)
-        sw.knob:SetColorTexture(1, 1, 1, 0.5)
-        sw.knob:SetPoint("LEFT", sw, "LEFT", SW_PAD, 0)
+    local r, g, b = Accent()
+    sw.trackOn:SetColorTexture(r, g, b, 0.75)
+    if IsSecret(raw) then
+        -- Both looks drawn; the secret value picks which one shows.
+        sw.trackOn:SetAlphaFromBoolean(raw, 1, 0)
+        sw.knobOn:SetAlphaFromBoolean(raw, 1, 0)
+        sw.trackOff:SetAlphaFromBoolean(raw, 0, 1)
+        sw.knobOff:SetAlphaFromBoolean(raw, 0, 1)
+        sw:SetAlpha(enabled and 1 or 0.4)
+        return
     end
+    local on = raw and true or false
+    sw.trackOn:SetAlpha(on and 1 or 0)
+    sw.knobOn:SetAlpha(on and 1 or 0)
+    sw.trackOff:SetAlpha(on and 0 or 1)
+    sw.knobOff:SetAlpha(on and 0 or 1)
     sw:SetAlpha(enabled and 1 or 0.4)
     local row = d.row
     local dim = (on and enabled) and 1 or 0.45
@@ -3762,10 +3453,20 @@ local function SwitchCheckbox(row)
         sw:SetPoint("LEFT", cb, "LEFT", 0, 0)
         sw:SetFrameLevel(cb:GetFrameLevel() + 3)
         sw:EnableMouse(false)
-        sw.track = sw:CreateTexture(nil, "BACKGROUND")
-        sw.track:SetAllPoints()
-        sw.knob = sw:CreateTexture(nil, "ARTWORK")
-        sw.knob:SetSize(SW_H - SW_PAD * 2, SW_H - SW_PAD * 2)
+        -- On and off looks, each drawn once; PaintSwitch shows one of them.
+        sw.trackOff = sw:CreateTexture(nil, "BACKGROUND")
+        sw.trackOff:SetAllPoints()
+        sw.trackOff:SetColorTexture(0.267, 0.267, 0.267, 0.65)
+        sw.trackOn = sw:CreateTexture(nil, "BACKGROUND", nil, 1)
+        sw.trackOn:SetAllPoints()
+        sw.knobOff = sw:CreateTexture(nil, "ARTWORK")
+        sw.knobOff:SetSize(SW_H - SW_PAD * 2, SW_H - SW_PAD * 2)
+        sw.knobOff:SetPoint("LEFT", sw, "LEFT", SW_PAD, 0)
+        sw.knobOff:SetColorTexture(1, 1, 1, 0.5)
+        sw.knobOn = sw:CreateTexture(nil, "ARTWORK", nil, 1)
+        sw.knobOn:SetSize(SW_H - SW_PAD * 2, SW_H - SW_PAD * 2)
+        sw.knobOn:SetPoint("RIGHT", sw, "RIGHT", -SW_PAD, 0)
+        sw.knobOn:SetColorTexture(1, 1, 1, 1)
         d.switch = sw
         -- Click anywhere on the switch (it is wider than the checkbox).
         local w = cb:GetWidth()
@@ -3775,32 +3476,36 @@ local function SwitchCheckbox(row)
             row.Label:SetPoint("LEFT", row, "LEFT", SW_W + 6, 0)
         end
         -- Each switch stays as you set it.
-        d.curOn = cb:GetChecked() and true or false
+        d.curOn = CheckedState(cb)
         hooksecurefunc(cb, "SetChecked", function(self, v)
             local fd = FFD[self]
             if fd then
-                fd.prevOn, fd.curOn, fd.setAt = fd.curOn, v and true or false, GetTime()
+                -- A secret value is not remembered (nil: unknown).
+                local now = nil
+                if not IsSecret(v) then now = v and true or false end
+                fd.prevOn, fd.curOn, fd.setAt = fd.curOn, now, GetTime()
             end
             PaintSwitch(self)
         end)
         if cb.SetEnabled then hooksecurefunc(cb, "SetEnabled", PaintSwitch) end
         cb:HookScript("OnClick", function(self)
             local fd = FFD[self]
-            if fd then fd.curOn = self:GetChecked() and true or false end
+            local on = CheckedState(self)
+            if fd then fd.curOn = on end
             PaintSwitch(self)
             -- Blizzard focuses the box on its click, before we enable it.
             local box = fd and fd.row and fd.row.EditBox
-            if box and self:GetChecked() and box.SetFocus then box:SetFocus() end
+            if box and on and box.SetFocus then box:SetFocus() end
         end)
         if row.EditBox and row.EditBox.HookScript then
             -- No typing while the switch is off: Blizzard re-enables these
             -- boxes on its own updates, so focus (click or Tab) is refused too.
             row.EditBox:HookScript("OnEditFocusGained", function(box)
-                if not cb:GetChecked() then box:ClearFocus() end
+                if CheckedState(cb) == false then box:ClearFocus() end
             end)
             if row.EditBox.SetEnabled then
                 hooksecurefunc(row.EditBox, "SetEnabled", function(box, v)
-                    if v and not cb:GetChecked() and not FFD[cb].reEnable then
+                    if not IsSecret(v) and v and CheckedState(cb) == false and not FFD[cb].reEnable then
                         FFD[cb].reEnable = true
                         box:SetEnabled(false)
                         FFD[cb].reEnable = nil
@@ -3809,7 +3514,7 @@ local function SwitchCheckbox(row)
             end
             row.EditBox:HookScript("OnEditFocusLost", function()
                 local fd = FFD[cb]
-                if fd and fd.prevOn and not fd.curOn and fd.setAt == GetTime() then
+                if fd and fd.prevOn and fd.curOn == false and fd.setAt == GetTime() then
                     cb:SetChecked(true)
                 end
             end)
@@ -3870,25 +3575,13 @@ local function Init()
             seenResults = {}
             for _, id in ipairs(SP.results) do seenResults[id] = true end
         end
-        FilterResults()
         if SP:IsShown() then Paint() end
     end)
     if LFGListUtil_SetSearchEntryTooltip then
-        hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", AddMemberNames)
         hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", AddClassesByRole)
+        hooksecurefunc("LFGListUtil_SetSearchEntryTooltip", XF.CancelHint)
     end
     if LFGListSearchEntry_Update then hooksecurefunc("LFGListSearchEntry_Update", DecorateEntry) end
-    if LFGListApplicationViewer_UpdateApplicant then
-        hooksecurefunc("LFGListApplicationViewer_UpdateApplicant", XF.DecorateApplicant)
-    end
-    if LFGListApplicationViewer_UpdateInfo then
-        hooksecurefunc("LFGListApplicationViewer_UpdateInfo", function()
-            XF.ApplicantHeaders(XF.ApplicantMode())
-            XF.LayoutViewer()
-        end)
-        local AV = LFGListFrame.ApplicationViewer
-        if AV then AV:HookScript("OnShow", function() XF.LayoutViewer() end) end
-    end
     -- Every search: clears the "filters changed" hint and starts the sweep.
     hooksecurefunc("LFGListSearchPanel_DoSearch", function()
         -- The search before this one, for "new" groups (same category only).
@@ -3901,18 +3594,8 @@ local function Init()
     local ev = CreateFrame("Frame")
     ev:RegisterEvent("CHALLENGE_MODE_MAPS_UPDATE")
     ev:RegisterEvent("LFG_LIST_SEARCH_FAILED")
-    ev:RegisterEvent("LFG_LIST_APPLICATION_STATUS_UPDATED")
-    XF.ApplySignUp()
     XF.AdoptRating()
-    ev:SetScript("OnEvent", function(_, event, id, newStatus)
-        if event == "LFG_LIST_APPLICATION_STATUS_UPDATED" then
-            -- Blizzard notes the decline in its own handler of this event;
-            -- dropped right after it.
-            if Cfg().signUpDeclined and type(newStatus) == "string" and newStatus:find("^declined") then
-                C_Timer.After(0, function() XF.DropDecline(id) end)
-            end
-            return
-        end
+    ev:SetScript("OnEvent", function(_, event)
         if event == "LFG_LIST_SEARCH_FAILED" then
             -- The server refused a search: hold Search Again longer.
             pending = true
