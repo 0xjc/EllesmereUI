@@ -1538,7 +1538,13 @@ function ns.SetCdStateShiftHidden(fc, shiftHidden)
     fc._cdStateShiftHidden = shiftHidden
     -- Overflow-diverted frames render on the target bar, so the gap-close relayout must hit the
     -- bar the frame is actually laid out on. Normally unreachable for diverted frames (Phase 3b's no-op rule), but a one-reanchor window exists after a shift effect is first configured.
-    local bk = fc._overflowLayoutBar or fc.barKey
+    ns.QueueShiftLayout(fc._overflowLayoutBar or fc.barKey)
+end
+
+-- The relayout a layout-dropped icon needs when it joins or leaves its bar's
+-- layout without the bar's icon list changing (the reanchor pass lays a bar out
+-- only when that list changes). One pass per bar on the next frame.
+function ns.QueueShiftLayout(bk)
     if not bk or ns._cdShiftLayoutPending[bk] then return end
     ns._cdShiftLayoutPending[bk] = true
     C_Timer.After(0, function()

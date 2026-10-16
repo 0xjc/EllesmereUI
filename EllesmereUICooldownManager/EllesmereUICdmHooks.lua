@@ -380,6 +380,76 @@ end
 ns.FD = FD
 
 -------------------------------------------------------------------------------
+--  Show When Missing: "Also Show Below N Seconds" (per-icon, off by default).
+--  The active buff comes back for its last N seconds. One timer per opted-in
+--  active buff, armed from the reanchor pass that hides it, queues the relayout
+--  at that moment; nothing runs in between. An aura whose times read secret
+--  (restricted combat, for auras Blizzard keeps secret) simply stays hidden.
+-------------------------------------------------------------------------------
+do
+    -- The buff's expiration time: a plain number, or nil when unknown or secret.
+    local function ReadExpiration(frame)
+        local ad = frame.auraDataCached
+        local exp = ad and ad.expirationTime
+        -- Secret probe first: any other test on a secret is a hard error.
+        if issecretvalue and issecretvalue(exp) then return nil end
+        if type(exp) == "number" and exp > 0 then return exp end
+        return nil
+    end
+
+    local function Disarm(fc)
+        if fc._missingTimer then fc._missingTimer:Cancel(); fc._missingTimer = nil end
+        fc._missingExp = nil
+    end
+
+    local function Arm(fc, exp, delay)
+        if fc._missingTimer and fc._missingExp == exp then return end
+        Disarm(fc)
+        fc._missingExp = exp
+        fc._missingTimer = C_Timer.NewTimer(delay, function()
+            fc._missingTimer = nil
+            fc._missingExp = nil
+            if ns.QueueReanchor then ns.QueueReanchor() end
+        end)
+    end
+
+    -- Called from the reanchor pass for a Show When Missing buff. seconds nil =
+    -- option off. Returns true while the buff should show.
+    function ns.MissingShowBelow(frame, fc, seconds)
+        if not seconds or seconds <= 0 then
+            if fc._missingTimer or fc._missingLow then Disarm(fc); fc._missingLow = nil end
+            return false
+        end
+        local exp = ReadExpiration(frame)
+        if not exp then
+            Disarm(fc); fc._missingLow = nil
+            return false
+        end
+        local left = exp - GetTime()
+        if left <= seconds then
+            -- Showing. Re-evaluate once this aura would have ended: it either
+            -- is gone by then or was refreshed and must hide again.
+            fc._missingLow = seconds
+            Arm(fc, exp, math.max(left, 0) + 0.2)
+            return true
+        end
+        fc._missingLow = nil
+        Arm(fc, exp, left - seconds)
+        return false
+    end
+
+    -- Buff ticker (already armed by the aura change): a refreshed buff that is
+    -- showing goes back into hiding at once instead of at its old end time.
+    function ns.MissingLowRecheck(frame, fc)
+        local exp = ReadExpiration(frame)
+        if exp and exp - GetTime() > fc._missingLow and ns.QueueReanchor then
+            fc._missingLow = nil
+            ns.QueueReanchor()
+        end
+    end
+end
+
+-------------------------------------------------------------------------------
 --  Resource verification for the CD Ready Glow.
 --
 --  IsSpellUsable() can briefly report a resource-gated spell usable right after

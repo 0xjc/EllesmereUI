@@ -1703,7 +1703,8 @@ end
 -- user enters the seconds-remaining boundary below which Threshold Color /
 -- Threshold Decimals apply. 0 disarms the feature for the spell. Mirrors
 -- ShowAlphaPopup's look; onConfirm receives the integer seconds (0-59).
-local function ShowThresholdSecondsPopup(currentVal, onConfirm)
+-- texts (optional): { title =, hint = }, already localized, for other seconds settings using this popup.
+local function ShowThresholdSecondsPopup(currentVal, onConfirm, texts)
     local env = ns._CDMO_OptEnv
     local FONT_PATH, GetCDMOptOutline = env.FONT_PATH, env.GetCDMOptOutline
     local popupName = "EUI_CDM_ThresholdSecondsPopup"
@@ -1733,13 +1734,13 @@ local function ShowThresholdSecondsPopup(currentVal, onConfirm)
         title:SetFont(FONT_PATH, 14, GetCDMOptOutline())
         title:SetPoint("TOP", popup, "TOP", 0, -18)
         title:SetTextColor(1, 1, 1, 1)
-        title:SetText(EllesmereUI.L("Threshold Seconds"))
+        popup._title = title
 
         local hint = popup:CreateFontString(nil, "OVERLAY")
         hint:SetFont(FONT_PATH, 11, GetCDMOptOutline())
         hint:SetPoint("TOP", title, "BOTTOM", 0, -6)
         hint:SetTextColor(0.7, 0.7, 0.7, 0.85)
-        hint:SetText(EllesmereUI.L("Seconds left when threshold text starts (0 = off)"))
+        popup._hint = hint
 
         local box = CreateFrame("EditBox", nil, popup)
         box:SetSize(180, 28)
@@ -1796,6 +1797,8 @@ local function ShowThresholdSecondsPopup(currentVal, onConfirm)
         box:SetScript("OnEscapePressed", function() dimmer:Hide() end)
     end
     popup._onConfirm = onConfirm
+    popup._title:SetText(texts and texts.title or EllesmereUI.L("Threshold Seconds"))
+    popup._hint:SetText(texts and texts.hint or EllesmereUI.L("Seconds left when threshold text starts (0 = off)"))
     popup._box:SetText(currentVal and tostring(currentVal) or "")
     ns.PadPopupOpen(popup._dimmer, popup, popup._cancelBtn)  -- controller cursor
     popup._dimmer:Show()

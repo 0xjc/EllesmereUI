@@ -5825,6 +5825,37 @@ L["Shows the parts of the world map you have not explored yet. Use the cog to pi
 L["Unexplored Color"] = "Couleur des zones inexplorées"
 L["Tints the areas you have not explored yet. White shows them as they are."] = "Teinte les zones que vous n'avez pas encore explorées. Le blanc les affiche telles quelles."
 
+-- Most Valuable Reward (EllesmereUIForeverEssentials_QuestRewards.lua)
+L["QUEST REWARDS"] = "RÉCOMPENSES DE QUÊTE"
+L["Most Valuable Reward"] = "Récompense la plus chère"
+L["Among a quest's reward choices, a money bag marks the one that sells for most, its count included."] = "Parmi les récompenses de quête au choix, une bourse marque celle qui se revend le plus cher, quantité comprise."
+-- Show Zone Levels (EllesmereUIForeverEssentials_ZoneLevels.lua)
+L["Show Zone Levels"] = "Afficher les niveaux des zones"
+L["Shows the level range of the zone you hover on a continent of the world map, under its name, colored by difficulty."] = "Affiche la tranche de niveaux de la zone survolée sur un continent de la carte du monde, sous son nom, colorée selon la difficulté."
+-- Auto Summon Pet (EllesmereUIForeverEssentials_PetSummon.lua)
+L["COMPANION PETS"] = "MASCOTTES"
+L["Auto Summon Pet"] = "Invocation auto de mascotte"
+L["Summons a random favorite pet again a moment after the game takes yours away (death, loading screen, taxi, vehicle...), or any random pet while you have no favorite. A pet you dismiss yourself stays dismissed. Never in combat, dungeons, raids, PvP, stealth or while mounted."] = "Réinvoque une mascotte favorite au hasard peu après que le jeu a retiré la vôtre (mort, écran de chargement, taxi, véhicule...), ou n'importe quelle mascotte au hasard si vous n'avez aucune favorite. Une mascotte que vous renvoyez vous-même reste renvoyée. Jamais en combat, en donjon, en raid, en JcJ, camouflé ou sur une monture."
+L["Favorites per Character"] = "Favorites par personnage"
+L["This character summons among its own favorites instead of your account's. Right-click a pet in the Pet Journal and check Favorite for This Character; a blue star marks it in the list. While this character has none, your account's favorites are used. Saved for this character only."] = "Ce personnage invoque parmi ses propres favorites au lieu de celles du compte. Clic droit sur une mascotte dans le journal des mascottes, puis cochez Favorite de ce personnage ; une étoile bleue la signale dans la liste. Tant que ce personnage n'en a aucune, les favorites du compte sont utilisées. Réglage propre à ce personnage."
+L["Favorite for This Character"] = "Favorite de ce personnage"
+-- Fishing (EllesmereUIForeverEssentials_Fishing.lua)
+L["FISHING"] = "PÊCHE"
+L["Fishing Key"] = "Touche de pêche"
+L["One key for the whole loop: casts your line, then reels it in once the bobber bites. With no fishing pole in hand, it first equips the best one in your bags. Use the cog to reel in, show the bobber indicator and apply lures."] = "Une seule touche pour tout : elle lance votre ligne, puis la ramène quand ça mord. Sans canne en main, elle équipe d'abord la meilleure de vos sacs. Le rouage permet de ferrer, d'afficher l'indicateur du bouchon et de poser des appâts."
+L["Reel In With the Key"] = "Ferrer avec la touche"
+L["While your line is in the water and the bobber is on screen, the Fishing Key reels it in; the line out, the key casts again. Turns on soft interact while you fish, and puts your settings back after."] = "Tant que votre ligne est à l'eau et que le bouchon est à l'écran, la touche de pêche la ramène ; la ligne sortie, la touche relance. Active l'interaction douce pendant que vous pêchez, puis remet vos réglages."
+L["Bobber Indicator"] = "Indicateur du bouchon"
+L["While your line is in the water, an icon shows whether the bobber is targeted: green, the key reels in; red, keep the bobber on screen. Hover it for details; place it in Unlock Mode."] = "Tant que votre ligne est à l'eau, une icône indique si le bouchon est ciblé : en vert, la touche ferre ; en rouge, gardez le bouchon à l'écran. Survolez-la pour le détail ; placez-la en mode déverrouillage."
+L["Bobber found: %s reels in"] = "Bouchon repéré : %s pour ferrer"
+L["Bobber not found: keep it on screen, cast again, or right-click it to reel in."] = "Bouchon introuvable : gardez-le à l'écran, relancez, ou faites un clic droit dessus pour ferrer."
+L["Apply Lure"] = "Poser un appât"
+L["When your fishing pole has no lure, the Fishing Key first applies the best lure in your bags; the next press casts."] = "Quand votre canne n'a pas d'appât, la touche de pêche pose d'abord le meilleur appât de vos sacs ; l'appui suivant lance la ligne."
+L["Double-Click to Cast"] = "Double clic pour lancer"
+L["With a fishing pole in hand, a quick double right-click on the world casts your line (applying a lure first if its cog's option is on). Never on a character, in combat or while your line is in the water: right-click the bobber to reel in."] = "Canne en main, un double clic droit rapide sur le monde lance votre ligne (en posant d'abord un appât si l'option de son rouage est active). Jamais sur un personnage, en combat ni quand votre ligne est à l'eau : clic droit sur le bouchon pour ferrer."
+L["When your fishing pole has no lure, a double-click first applies the best lure in your bags; the next one casts."] = "Quand votre canne n'a pas d'appât, un double clic pose d'abord le meilleur appât de vos sacs ; le suivant lance la ligne."
+L["Fishing Sounds"] = "Sons de pêche"
+L["While you fish, lowers music and ambience, raises sound effects so you hear the bobber splash, and keeps sound on when the game is in the background. Your sound settings come back when you move, enter combat or change zone."] = "Pendant que vous pêchez, baisse la musique et l'ambiance, monte les effets sonores pour entendre le bouchon plonger, et garde le son quand le jeu est en arrière-plan. Vos réglages de son reviennent quand vous bougez, entrez en combat ou changez de zone."
 -- Fade Map While Moving (EllesmereUIForeverEssentials_MapFade.lua)
 L["Fade Map While Moving"] = "Estomper la carte en mouvement"
 L["Turns on the game's own map fade: while you move, the world map fades to half so you can see where you go, and comes back once you stop or put the cursor over it."] = "Active l'estompage de carte du jeu : pendant vos déplacements, la carte du monde s'estompe à moitié pour que vous voyiez où vous allez, puis revient dès que vous vous arrêtez ou que vous la survolez."
