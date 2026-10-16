@@ -1818,7 +1818,16 @@ initFrame:SetScript("OnEvent", function(self)
                   EllesmereUIDB.merchantShowItemLevel = v
                   if EllesmereUI._Merchant_RefreshItemLevels then EllesmereUI._Merchant_RefreshItemLevels() end
               end },
-            { type="label", text="" }
+            { type="toggle", text="Bulk Buy",
+              tooltip="Shift-click a vendor item to buy any amount at once, past a single stack. Items that cost currency or other items, and large gold totals, ask for confirmation first.",
+              getValue=function()
+                  return EllesmereUIDB and EllesmereUIDB.merchantBulkBuy == true
+              end,
+              setValue=function(v)
+                  if not EllesmereUIDB then EllesmereUIDB = {} end
+                  EllesmereUIDB.merchantBulkBuy = v
+                  if EllesmereUI._Merchant_RefreshBulkBuy then EllesmereUI._Merchant_RefreshBulkBuy() end
+              end }
         ); y = y - h
 
         return y
@@ -4090,7 +4099,7 @@ initFrame:SetScript("OnEvent", function(self)
                     "charSheetSocketPanel", "charSheetIconZoom", "charSheetEnchantNames",
                     "charSheetEnchantSize", "inspectShowEnchants", "inspectShowItemLevel",
                     "inspectShowUpgradeTrack", "merchantShowAsList", "merchantListRowHeight",
-                    "merchantShowItemLevel", "tooltipItemLevel", "tooltipShowMode",
+                    "merchantShowItemLevel", "merchantBulkBuy", "tooltipItemLevel", "tooltipShowMode",
                     "tooltipShowModifier", "tooltipGrowthDirection", "tooltipBgColor",
                     "tooltipBgOpacity", "showSpellID", "spellIDModifier", "showIconID",
                     "showItemID", "friendsListCard",

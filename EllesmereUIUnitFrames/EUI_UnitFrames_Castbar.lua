@@ -400,6 +400,26 @@ function ns.UF_CastBorderPad(unit, s)
     return w, h
 end
 
+-- Keep portrait decoration above the cast icon without lowering it behind 3D.
+local function CastIconPortraitOverlay(bd, on)
+    local overlay = bd._castIconOverlay
+    if on then
+        if not overlay then
+            overlay = CreateFrame("Frame", nil, bd)
+            overlay:SetAllPoints(bd)
+            bd._castIconOverlay = overlay
+        end
+        overlay:SetFrameStrata(bd:GetFrameStrata())
+        overlay:SetFrameLevel(bd:GetFrameLevel() + 3)
+    elseif not overlay then
+        return
+    end
+    local parent = on and overlay or bd
+    if bd._shapeBorderTex then bd._shapeBorderTex:SetParent(parent) end
+    if bd._innerShadow then bd._innerShadow:SetParent(parent) end
+    if bd._outerRing then bd._outerRing:SetParent(parent) end
+end
+
 -- Show Icon on Portrait: lays the cast icon over the portrait backdrop bd, or
 -- (bd nil) hands it back to the bar layout. ico = the cast icon frame, tex =
 -- its texture, s = the unit's settings. Our own frames only (the options
@@ -412,6 +432,7 @@ end
 -- view round the icon. Levelled over the backdrop and its 3D model.
 -- ico._pbd = the backdrop it sits on.
 function ns.UF_CastIconPortraitLayout(ico, tex, bd, s)
+    if ico._pbd and ico._pbd ~= bd then CastIconPortraitOverlay(ico._pbd, false) end
     if not bd then
         if not ico._pbd then return end
         ico._pbd = nil
@@ -439,6 +460,16 @@ function ns.UF_CastIconPortraitLayout(ico, tex, bd, s)
     -- (frame +10) still closes an attached portrait's edges over the icon.
     ico:SetFrameStrata(bd:GetFrameStrata())
     ico:SetFrameLevel(bd:GetFrameLevel() + 2)
+    if not ico._pOverlayHooked then
+        ico:HookScript("OnShow", function(self)
+            if self._pbd then CastIconPortraitOverlay(self._pbd, true) end
+        end)
+        ico:HookScript("OnHide", function(self)
+            if self._pbd then CastIconPortraitOverlay(self._pbd, false) end
+        end)
+        ico._pOverlayHooked = true
+    end
+    CastIconPortraitOverlay(bd, ico:IsShown())
     if not tex then return end
     tex:ClearAllPoints()
     tex:SetAllPoints(ico)

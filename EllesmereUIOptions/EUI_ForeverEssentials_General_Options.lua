@@ -150,7 +150,7 @@ end
 
 _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
     local W = EllesmereUI.Widgets
-    local SU = EllesmereUI._SpellUprank
+    local SU, CS, CT = EllesmereUI._SpellUprank, EllesmereUI._ClassicSpellbook, EllesmereUI._ClassicTalents
     local BLANK = EllesmereUI.BlankRowCfg
     local y = yOffset
     local _, h
@@ -178,6 +178,25 @@ _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
     _, h = W:Spacer(parent, y, 20);  y = y - h
     _, h = W:SectionHeader(parent, "WORLD MAP", y);  y = y - h
 
+    -- Fade Map While Moving | Show the Game Behind the Map. Runtime in
+    -- EllesmereUIForeverEssentials_MapFade.lua.
+    local MF = EllesmereUI._MapFade
+    local function SetFade(key, v)
+        MF.Cfg()[key] = v
+        MF.Apply()
+    end
+
+    _, h = W:DualRow(parent, y,
+        { type = "toggle", text = "Fade Map While Moving",
+          tooltip = "Turns on the game's own map fade: while you move, the world map fades to half so you can see where you go, and comes back once you stop or put the cursor over it.",
+          getValue = function() return MF.Get("enabled") end,
+          setValue = function(v) SetFade("enabled", v) end },
+        { type = "toggle", text = "Show the Game Behind the Map",
+          tooltip = "Lightens the black screen behind the maximized world map so you can see the game around it.",
+          getValue = function() return MF.Get("dim") end,
+          setValue = function(v) SetFade("dim", v) end }
+    );  y = y - h
+
     local revealRow
     revealRow, h = W:DualRow(parent, y,
         { type = "toggle", text = "Reveal Unexplored Areas",
@@ -188,7 +207,13 @@ _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
               MR.Apply()
               EllesmereUI:RefreshPage()  -- the cog's disabled state
           end },
-        BLANK()
+        { type = "toggle", text = "Show Zone Levels",
+          tooltip = "Shows the level range of the zone you hover on a continent of the world map, under its name, colored by difficulty.",
+          getValue = function() return EllesmereUI._ZoneLevels.Get("enabled") end,
+          setValue = function(v)
+              EllesmereUI._ZoneLevels.Cfg().enabled = v
+              EllesmereUI._ZoneLevels.Apply()
+          end }
     );  y = y - h
     if not EllesmereUI._prebuilding then
         EllesmereUI.BuildInlineCog(revealRow._leftRegion, {
@@ -208,6 +233,31 @@ _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
             disabled = revealOff, disabledTooltip = "Reveal Unexplored Areas",
         })
     end
+
+    ---------------------------------------------------------------------------
+    --  CLASSIC WINDOWS (the vanilla spellbook and talent window)
+    ---------------------------------------------------------------------------
+    _, h = W:Spacer(parent, y, 20);  y = y - h
+    _, h = W:SectionHeader(parent, "CLASSIC WINDOWS", y);  y = y - h
+
+    _, h = W:DualRow(parent, y,
+        { type = "toggle", text = "Classic Spellbook",
+          tooltip = "Your spellbook key opens the vanilla spellbook. The micro menu still opens Talents & Spellbook. "
+              .. "A search or option changed in combat applies when the fight ends.",
+          getValue = function() return CS.Get("enabled") end,
+          setValue = function(v)
+              CS.Cfg().enabled = v
+              CS.Apply()
+          end },
+        { type = "toggle", text = "Classic Talents",
+          tooltip = "Your talents key opens the vanilla talent window for your active spec. "
+              .. "The micro menu still opens Talents & Spellbook.",
+          getValue = function() return CT.Get("enabled") end,
+          setValue = function(v)
+              CT.Cfg().enabled = v
+              CT.Apply()
+          end }
+    );  y = y - h
 
     ---------------------------------------------------------------------------
     --  SIMPLIFIED STATS (item tooltips)
@@ -250,6 +300,173 @@ _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
               getValue = function() return SS.Get("numColor") end,
               setValue = function(v) SS.Cfg().numColor = (v ~= "signed") and v or nil end }
         );  y = y - h
+    end
+
+    ---------------------------------------------------------------------------
+    --  QUEST REWARDS (EllesmereUIForeverEssentials_QuestRewards.lua)
+    ---------------------------------------------------------------------------
+    local QR = EllesmereUI._QuestRewards
+    _, h = W:Spacer(parent, y, 20);  y = y - h
+    _, h = W:SectionHeader(parent, "QUEST REWARDS", y);  y = y - h
+
+    _, h = W:DualRow(parent, y,
+        { type = "toggle", text = "Most Valuable Reward",
+          tooltip = "Among a quest's reward choices, a money bag marks the one that sells for most, its count included.",
+          getValue = function() return QR.Get("enabled") end,
+          setValue = function(v)
+              QR.Cfg().enabled = v
+              QR.Apply()
+          end },
+        BLANK()
+    );  y = y - h
+    --  COMPANION PETS (EllesmereUIForeverEssentials_PetSummon.lua)
+    ---------------------------------------------------------------------------
+    local PS = EllesmereUI._PetSummon
+    if PS and C_PetJournal then
+        _, h = W:Spacer(parent, y, 20);  y = y - h
+        _, h = W:SectionHeader(parent, "COMPANION PETS", y);  y = y - h
+
+        _, h = W:DualRow(parent, y,
+            { type = "toggle", text = "Auto Summon Pet",
+              tooltip = "Summons a random favorite pet again a moment after the game takes yours away (death, loading screen, taxi, vehicle...), or any random pet while you have no favorite. A pet you dismiss yourself stays dismissed. Never in combat, dungeons, raids, PvP, stealth or while mounted.",
+              getValue = function() return PS.Get("enabled") end,
+              setValue = function(v)
+                  PS.Cfg().enabled = v
+                  PS.Apply()
+                  EllesmereUI:RefreshPage()  -- Favorites per Character's disabled state
+              end },
+            { type = "toggle", text = "Favorites per Character",
+              tooltip = "This character summons among its own favorites instead of your account's. Right-click a pet in the Pet Journal and check Favorite for This Character; a blue star marks it in the list. While this character has none, your account's favorites are used. Saved for this character only.",
+              disabled = function() return not PS.Get("enabled") end,
+              disabledTooltip = "Auto Summon Pet",
+              -- This character's own setting, read without creating its table.
+              getValue = function()
+                  local chars, guid = PS.Get("chars"), UnitGUID("player")
+                  return chars ~= nil and guid ~= nil and chars[guid] ~= nil and chars[guid].own == true
+              end,
+              setValue = function(v)
+                  local guid = UnitGUID("player")
+                  if not guid then return end
+                  local cfg = PS.Cfg()
+                  cfg.chars = cfg.chars or {}
+                  cfg.chars[guid] = cfg.chars[guid] or {}
+                  cfg.chars[guid].own = v or nil
+                  PS.RefreshJournal()
+              end }
+        );  y = y - h
+    end
+
+    ---------------------------------------------------------------------------
+    --  ACTIVE STANCE, FORM, ASPECT & AURA
+    ---------------------------------------------------------------------------
+    local AF = EllesmereUI._ActiveForm
+    if AF then
+        local function afOff() return not AF.Get("enabled") end
+        local function AFSet(key, v)
+            AF.Cfg()[key] = v
+            AF.Apply()
+        end
+        local _, classFile = UnitClass("player")
+        local label = classFile == "WARRIOR" and "Show Current Stance"
+            or classFile == "DRUID" and "Show Current Form"
+            or classFile == "PALADIN" and "Show Current Aura"
+            or classFile == "HUNTER" and "Show Current Aspect"
+            or "Show Current Stance / Form"
+
+        _, h = W:Spacer(parent, y, 20);  y = y - h
+        _, h = W:SectionHeader(parent, "ACTIVE STANCE, FORM, ASPECT & AURA", y);  y = y - h
+
+        _, h = EllesmereUI.BuildVisibilityRow(W, parent, y, {
+            leftCfg = { type = "toggle", text = label,
+                tooltip = "Shows an icon for your active stance, form, aura or aspect. Hidden while none is active.",
+                getValue = function() return not afOff() end,
+                setValue = EllesmereUI.SectionToggleSetValue(function(v) AFSet("enabled", v) end) },
+            -- The table exists once it was turned on, and the row is greyed out
+            -- while it is off, so viewing the page saves nothing.
+            getStore = function() return afOff() and AF.Read() or AF.Cfg() end,
+            caps = { partyIncludesRaid = false, luaDragonriding = true, noMouseover = true },
+            disabledFn = afOff, disabledTooltip = label,
+            onChanged = EllesmereUI.RequestVisibilityUpdate,
+            onOptionChanged = EllesmereUI.RequestVisibilityUpdate,
+        });  y = y - h
+
+        if not afOff() then
+            -- Icon Size | Icon Zoom
+            _, h = W:DualRow(parent, y,
+                { type = "slider", text = "Icon Size",
+                  min = 16, max = 96, step = 1, isPercent = false,
+                  getValue = function() return AF.Get("iconSize") end,
+                  setValue = function(v) AFSet("iconSize", v) end },
+                { type = "slider", text = "Icon Zoom",
+                  tooltip = "Crops the icon's edges.",
+                  min = 0, max = 25, step = 1, isPercent = false,
+                  getValue = function() return AF.Get("zoom") end,
+                  setValue = function(v) AFSet("zoom", v) end }
+            );  y = y - h
+
+            -- Border Style | Border Size (+ color swatch)
+            local texValues, texOrder = EllesmereUI.GetBorderTextureDropdown()
+            local borderRow
+            borderRow, h = W:DualRow(parent, y,
+                { type = "dropdown", text = "Border Style",
+                  values = texValues, order = texOrder,
+                  getValue = function() return AF.Get("borderTexture") end,
+                  setValue = function(v)
+                      local c = AF.Cfg()
+                      c.borderTexture = v
+                      c.borderTextureOffset, c.borderTextureOffsetY = nil, nil
+                      local color = EllesmereUI.GetBorderStyleSelectDefaults(v)
+                      c.borderR, c.borderG, c.borderB, c.borderA = color.r, color.g, color.b, 1
+                      local defaultSize = EllesmereUI.GetBorderDefaultSize(nil, v)
+                      if defaultSize then c.borderSize = defaultSize end
+                      if c.borderSizePx then c.borderSizePx = false end
+                      AF.Apply()
+                      -- Rebuild: the offset row follows the Solid / textured pick.
+                      EllesmereUI:RefreshPage(true)
+                  end },
+                EllesmereUI.BorderPxSliderCfg{
+                  text = "Border Size",
+                  getStep = function() return AF.Get("borderSize") end,
+                  setStep = function(v) AF.Cfg().borderSize = v end,
+                  getTex = function() return AF.Get("borderTexture") end,
+                  getPx = function() return AF.Read().borderSizePx end,
+                  setPx = function(v) AF.Cfg().borderSizePx = v end,
+                  apply = AF.Apply }
+            );  y = y - h
+
+            if not EllesmereUI._prebuilding then
+                local rgn = borderRow._rightRegion
+                local swatch, updateSwatch = EllesmereUI.BuildColorSwatch(rgn, rgn:GetFrameLevel() + 5,
+                    function()
+                        return AF.Get("borderR"), AF.Get("borderG"), AF.Get("borderB"), AF.Get("borderA")
+                    end,
+                    function(r, g, b, a)
+                        local c = AF.Cfg()
+                        c.borderR, c.borderG, c.borderB, c.borderA = r, g, b, a or 1
+                        AF.Apply()
+                    end, true, 20)
+                swatch:SetPoint("RIGHT", rgn._lastInline or rgn._control, "LEFT", -12, 0)
+                rgn._lastInline = swatch
+                EllesmereUI.RegisterWidgetRefresh(updateSwatch)
+            end
+
+            -- Width | Height Offset: only while a textured style is selected.
+            local texKey = AF.Get("borderTexture")
+            if texKey ~= "" and texKey ~= "solid" then
+                local offL, offR = EllesmereUI.BorderOffsetRowCfgs{
+                    getTex = function() return AF.Get("borderTexture") end,
+                    getStep = function() return AF.Get("borderSize") end,
+                    getSizeKey = function() return AF.Get("borderSize") end,
+                    getPx = function() return AF.Read().borderSizePx end,
+                    getX = function() return AF.Read().borderTextureOffset end,
+                    setX = function(v) AF.Cfg().borderTextureOffset = v end,
+                    getY = function() return AF.Read().borderTextureOffsetY end,
+                    setY = function(v) AF.Cfg().borderTextureOffsetY = v end,
+                    apply = AF.Apply,
+                }
+                _, h = W:DualRow(parent, y, offL, offR);  y = y - h
+            end
+        end
     end
 
     ---------------------------------------------------------------------------
@@ -350,6 +567,18 @@ _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
 
     if not junkOff() then
         _, h = W:DualRow(parent, y,
+            { type = "toggle", text = "Only Show When Bag Space Is Low",
+              tooltip = "Shows the window only when free slots in regular bags are below the threshold. Existing visibility conditions still apply.",
+              getValue = function() return JI.Get("onlyLowBagSpace") == true end,
+              setValue = function(v) JunkSet("onlyLowBagSpace", v) end },
+            { type = "slider", text = "Free-Slot Threshold",
+              min = 1, max = 100, step = 1, isPercent = false,
+              tooltip = "Show when fewer than this many regular bag slots are free. A threshold of 5 shows at 0-4 free slots.",
+              getValue = function() return JI.Get("freeSlotThreshold") end,
+              setValue = function(v) JunkSet("freeSlotThreshold", v) end }
+        );  y = y - h
+
+        _, h = W:DualRow(parent, y,
             { type = "slider", text = "Items Shown",
               min = 1, max = 6, step = 1, isPercent = false,
               tooltip = "How many junk stacks the window lists.",
@@ -395,6 +624,79 @@ _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
               setValue = function(v) JunkSet("showFreeSlots", v) end }
         );  y = y - h
     end
+
+    ---------------------------------------------------------------------------
+    --  FISHING (EllesmereUIForeverEssentials_Fishing.lua)
+    ---------------------------------------------------------------------------
+    local FI = EllesmereUI._Fishing
+    local function SetFish(key, v)
+        FI.Cfg()[key] = v
+        FI.Apply()
+    end
+
+    _, h = W:Spacer(parent, y, 20);  y = y - h
+    _, h = W:SectionHeader(parent, "FISHING", y);  y = y - h
+
+    -- Fishing Key (keybind, its options in the cog) | Double-Click to Cast
+    local fishKeyRow
+    fishKeyRow, h = W:DualRow(parent, y,
+        { type = "label", text = "Fishing Key",
+          tooltip = "One key for the whole loop: casts your line, then reels it in once the bobber bites. With no fishing pole in hand, it first equips the best one in your bags. Use the cog to reel in, show the bobber indicator and apply lures." },
+        { type = "toggle", text = "Double-Click to Cast",
+          tooltip = "With a fishing pole in hand, a quick double right-click on the world casts your line (applying a lure first if its cog's option is on). Never on a character, in combat or while your line is in the water: right-click the bobber to reel in.",
+          getValue = function() return FI.Get("doubleClick") end,
+          setValue = function(v)
+              SetFish("doubleClick", v)
+              EllesmereUI:RefreshPage()  -- the cog's disabled state
+          end }
+    );  y = y - h
+    if not EllesmereUI._prebuilding then
+        local rgn = fishKeyRow._leftRegion
+        local kbBtn, refresh = EllesmereUI.BuildKeybindButton(rgn, {
+            w = 140, h = 30, font = 13,
+            get = function() return FI.Get("key") end,
+            set = function(v)
+                SetFish("key", v)
+                EllesmereUI:RefreshPage()  -- the cog's disabled state
+            end,
+            tooltip = "Left-click to set a keybind.\nRight-click to unbind.",
+        })
+        EllesmereUI.PanelPP.Point(kbBtn, "RIGHT", rgn, "RIGHT", -20, 0)
+        EllesmereUI.RegisterWidgetRefresh(refresh)
+
+        local function fishRow(label, tooltip, key)
+            return { type = "toggle", label = label, tooltip = tooltip,
+                get = function() return FI.Get(key) end,
+                set = function(v) SetFish(key, v) end }
+        end
+        -- A label half has no control: the cog sits left of the keybind
+        -- button, which also bounds the label.
+        EllesmereUI.BuildInlineCog(rgn, {
+            title = "Fishing Key",
+            rows = {
+                fishRow("Reel In With the Key", "While your line is in the water and the bobber is on screen, the Fishing Key reels it in; the line out, the key casts again. Turns on soft interact while you fish, and puts your settings back after.", "reel"),
+                fishRow("Bobber Indicator", "While your line is in the water, an icon shows whether the bobber is targeted: green, the key reels in; red, keep the bobber on screen. Hover it for details; place it in Unlock Mode.", "indicator"),
+                fishRow("Apply Lure", "When your fishing pole has no lure, the Fishing Key first applies the best lure in your bags; the next press casts.", "lure"),
+            },
+            anchorTo = kbBtn,
+            disabled = function() return FI.Get("key") == nil end,
+            disabledTooltip = "Fishing Key",
+        })
+        EllesmereUI.BuildInlineCog(fishKeyRow._rightRegion, {
+            title = "Double-Click to Cast",
+            rows = { fishRow("Apply Lure", "When your fishing pole has no lure, a double-click first applies the best lure in your bags; the next one casts.", "clickLure") },
+            disabled = function() return not FI.Get("doubleClick") end,
+            disabledTooltip = "Double-Click to Cast",
+        })
+    end
+
+    _, h = W:DualRow(parent, y,
+        { type = "toggle", text = "Fishing Sounds",
+          tooltip = "While you fish, lowers music and ambience, raises sound effects so you hear the bobber splash, and keeps sound on when the game is in the background. Your sound settings come back when you move, enter combat or change zone.",
+          getValue = function() return FI.Get("sound") end,
+          setValue = function(v) SetFish("sound", v) end },
+        BLANK()
+    );  y = y - h
 
     return math.abs(y)
 end
