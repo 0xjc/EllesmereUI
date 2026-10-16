@@ -1,10 +1,10 @@
 if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
 -------------------------------------------------------------------------------
---  EUI_GroupFinder_Options.lua  --  Settings page for the Group Finder
+-- EUI_GroupFinder_Options.lua: Group Finder settings page
 -------------------------------------------------------------------------------
 local ADDON_NAME = "EllesmereUIGroupFinder"
-local ns = EllesmereUI._ModuleNS[ADDON_NAME]  -- module namespace (published by the module at its load)
-if not ns then return end  -- module disabled: no options page
+local ns = EllesmereUI._ModuleNS[ADDON_NAME]
+if not ns then return end  -- module off: no page
 local EUI = EllesmereUI
 
 local PAGE_SEARCH = "Premade Search"
@@ -27,7 +27,7 @@ initFrame:SetScript("OnEvent", function(self)
         if relayout and ns.Search_Layout then ns.Search_Layout() end
     end
 
-    local AddAppsSections   -- the Applications card's settings, at the page's end (below)
+    local AddAppsSections
 
     local function BuildSearchPage(pageName, parent, yOffset)
         local W = EUI.Widgets
@@ -37,7 +37,7 @@ initFrame:SetScript("OnEvent", function(self)
         if EUI.ClearContentHeader then EUI:ClearContentHeader() end
         parent._showRowDivider = true
 
-        -- Everything here is off until enabled; turning it on or off reloads.
+        -- Off until enabled; toggling reloads.
         local function PGFLoaded() return C_AddOns.IsAddOnLoaded("PremadeGroupsFilter") end
         local pgfNote = PGFLoaded()
             and { type = "label", text = "|cffff6060Premade Groups Filter is loaded. Disable it to use the Group Finder.|r" }
@@ -52,8 +52,7 @@ initFrame:SetScript("OnEvent", function(self)
               setValue = function(v)
                   v = v and true or false
                   if v == ns.Enabled() then return end
-                  -- Saved only once the reload is confirmed; Cancel (or a
-                  -- dismiss) puts the toggle back.
+                  -- Only saved once the reload is confirmed.
                   EUI:ShowConfirmPopup({
                       title       = v and "Enable Group Finder" or "Disable Group Finder",
                       message     = v and "Your UI will reload to turn on the Group Finder."
@@ -67,9 +66,8 @@ initFrame:SetScript("OnEvent", function(self)
               end },
             pgfNote);  y = y - h
 
-        -- The group list's look, the sign-up helpers and Role Icon Size are in
-        -- the Group Settings menu on the search panel
-        -- (the person button, row 2).
+        -- List look, sign-up options and icon size live in the Group Settings
+        -- menu on the panel.
         y = AddAppsSections(parent, y)
 
         _, h = W:Spacer(parent, y, 20); y = y - h
@@ -78,7 +76,7 @@ initFrame:SetScript("OnEvent", function(self)
     end
 
     -----------------------------------------------------------------------
-    --  Applications settings (the counter card: Applications.lua)
+    -- Applications settings
     -----------------------------------------------------------------------
     local function APCfg() return ns.AppsCfg() end
     local function APGet(key, default)
@@ -119,7 +117,7 @@ initFrame:SetScript("OnEvent", function(self)
               getValue=function() return APGet("scope", "character") end,
               setValue=function(v) APSet("scope", v) end });  y = y - h
 
-        -- Built-in textures, then SharedMedia's after a divider.
+        -- Built-in textures, then SharedMedia's.
         local tex, names, order = ns.BarTextureTables()
         local texValues, texOrder = {}, {}
         for _, key in ipairs(order) do
@@ -173,5 +171,5 @@ initFrame:SetScript("OnEvent", function(self)
         end,
     })
 end)
--- LoadOnDemand: this addon loads after PLAYER_LOGIN, so the event above will never fire; run the init now.
+-- LoadOnDemand: PLAYER_LOGIN already fired, so run it now.
 if IsLoggedIn() then initFrame:GetScript("OnEvent")(initFrame) end

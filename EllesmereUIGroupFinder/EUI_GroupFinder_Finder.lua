@@ -1,10 +1,8 @@
 if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
 -------------------------------------------------------------------------------
---  EUI_GroupFinder_Finder.lua
---  Dungeon Finder and Raid Finder layout: dropdown and role buttons centred,
---  the rewards as a centred two-column table, the dice / killed-bosses icons
---  beside the dropdown, the role checkboxes in the house checkbox look.
---  Positions and our own textures only, out of combat.
+-- EUI_GroupFinder_Finder.lua: Dungeon / Raid Finder layout. Centred dropdown
+-- and roles, rewards as a centred table, our checkboxes. Positions and our own
+-- textures only, out of combat.
 -------------------------------------------------------------------------------
 local _, ns = ...
 local EUI = EllesmereUI
@@ -16,10 +14,8 @@ local function GetFFD(frame)
     return d
 end
 
--- Started by the module's OnEnable once Blizzard_GroupFinder is loaded.
 function ns.Finder_Enable()
     if not PVEFrame or InCombatLockdown() then return end
-    -- Dungeon Finder and Raid Finder layout.
     local DropdownIcons
     local FINDERS = {
         { frame = "LFDQueueFrame", dropdown = "LFDQueueFrameTypeDropdown", dropY = 287, roleY = 334,
@@ -27,7 +23,7 @@ function ns.Finder_Enable()
         { frame = "RaidFinderQueueFrame", dropdown = "RaidFinderQueueFrameSelectionDropdown", dropY = 289, roleY = 336,
           rewards = "RaidFinderQueueFrameScrollFrameChildFrame" },
     }
-    local DD_W = 270   -- Blizzard opens the menu at least this wide too (minimum = button width)
+    local DD_W = 270  -- Blizzard's menu is at least as wide as the button
     local function LayoutFinder(f)
         local q = _G[f.frame]
         if not q or (InCombatLockdown() and q:IsProtected()) then return end
@@ -60,14 +56,13 @@ function ns.Finder_Enable()
             local sc = 0.7
             guide:SetScale(sc)
             guide:ClearAllPoints()
-            -- Offsets of a scaled frame are in its own units, hence the / sc.
+            -- Scaled frame, so offsets get divided by the scale.
             local midY = f.roleY + (dps:GetHeight() or 0) / 2
             guide:SetPoint("RIGHT", q, "BOTTOMRIGHT", -14 / sc, midY / sc)
         end
     end
-    -- The random dungeon's "included dungeons" dice and the "bosses already
-    -- killed" alert sat after the title, in the rewards scroll frame (which
-    -- clips anything moved outside it).
+    -- The dice / killed-bosses icons live in the clipping rewards frame, so we
+    -- show our own copies by the dropdown.
     local DD_ICONS = {
         { key = "randomList",    tex = "Interface\\Buttons\\UI-GroupLoot-Dice-Up",          tip = "LFGRandomList_OnEnter" },
         { key = "encounterList", tex = "Interface\\DialogFrame\\UI-Dialog-Icon-AlertNew", tip = "LFGRewardsFrameEncounterList_OnEnter" },
@@ -109,8 +104,8 @@ function ns.Finder_Enable()
             end
         end
     end
-    local gfNameOff   -- reward button: its name text's offset from the left edge
-    local gfLineX     -- the queue panel's centre line, in the rewards frame's x
+    local gfNameOff  -- name offset inside a reward button
+    local gfLineX  -- panel centre line in rewards-frame x
     local function LayoutRewards(parentFrame)
         if not parentFrame or InCombatLockdown() then return end
         local name = parentFrame.GetName and parentFrame:GetName()
@@ -118,15 +113,12 @@ function ns.Finder_Enable()
         for _, f in ipairs(FINDERS) do if name == f.rewards then q, fin = _G[f.frame], f end end
         if not q then return end
         DropdownIcons(fin, parentFrame)
-        -- Everything here is centred on the queue panel's own centre line, the
-        -- one its dropdown and role buttons are centred on.
+        -- Everything centres on the queue panel's centre line.
         local qc = q.GetCenter and q:GetCenter()
         local cl = parentFrame.GetLeft and parentFrame:GetLeft()
         if qc and cl then gfLineX = qc - cl end
         local lineX = gfLineX or 163
-        -- The title (the dropdown's choice again) and the description are
-        -- faded; "Rewards" and its line: centred text on that line, growing
-        -- from the middle (280 wide), from the top.
+        -- Fade the title and description; centre 'Rewards' and its line.
         if parentFrame.title then parentFrame.title:SetAlpha(0) end
         if parentFrame.description then parentFrame.description:SetAlpha(0) end
         local prev
@@ -144,9 +136,7 @@ function ns.Finder_Enable()
                 prev = fs
             end
         end
-        -- Rewards as a two-column table: one reward per row (the items, then
-        -- the money reward), the icon in the left column and its name on one
-        -- line in the right one, the whole table centred on the line.
+        -- Rewards as a centred two-column table: icon, then name.
         local rows = {}
         for i = 1, 20 do
             local it = _G[name .. "Item" .. i]
@@ -162,24 +152,21 @@ function ns.Finder_Enable()
             return b.Name or (b.GetName and b:GetName() and _G[b:GetName() .. "Name"])
         end
         local function Place()
-            -- The name's offset in the button (the icon column) is the
-            -- template's: measured once and kept; ~43 until then.
+            -- Name offset in the button, measured once (~43 until then).
             local off = gfNameOff or 43
             local tableW = 0
             for _, b in ipairs(rows) do
                 local fs = NameOf(b)
                 if fs and fs.SetWidth then
-                    fs:SetWidth(180)          -- one line, not wrapped in the button's narrow name box
+                    fs:SetWidth(180)  -- keep it on one line
                     if fs.SetWordWrap then fs:SetWordWrap(false) end
                 end
-                -- The text's own width, not the (180) box's; 0 while the
-                -- client has not measured it yet (re-placed next frame).
+                -- Text width, 0 until the client measures it.
                 local tw = 0
                 if fs and fs.GetUnboundedStringWidth then tw = fs:GetUnboundedStringWidth() or 0
                 elseif fs and fs.GetStringWidth then tw = fs:GetStringWidth() or 0 end
                 tableW = math.max(tableW, off + math.min(tw, 180))
             end
-            -- `over` is 280 wide and centred on the line.
             local x = 140 - tableW / 2
             for i, b in ipairs(rows) do
                 b:ClearAllPoints()
@@ -189,7 +176,7 @@ function ns.Finder_Enable()
                     b:SetPoint("TOPLEFT", rows[i - 1], "BOTTOMLEFT", 0, -6)
                 end
             end
-            -- Experience (while levelling) under the table's last row.
+            -- Experience under the last row.
             local xp = parentFrame.xpLabel
             if xp and xp:IsShown() then
                 xp:ClearAllPoints()
@@ -197,10 +184,8 @@ function ns.Finder_Enable()
             end
         end
         Place()
-        -- Once more on the next frame: the names' widths (and, the first time,
-        -- the name's offset in the button) are only known after the client lays
-        -- the new text out; placing with them unmeasured put the table off
-        -- centre.
+        -- Again next frame, once the names are measured (otherwise it lands off
+        -- centre).
         local probe = NameOf(rows[1])
         C_Timer.After(0, function()
             if InCombatLockdown() then return end
@@ -211,8 +196,7 @@ function ns.Finder_Enable()
             Place()
         end)
     end
-    -- Role checkboxes in our checkbox look (dark square, theme ring; accent
-    -- ring and fill when ticked).
+    -- Role checkboxes in our checkbox look.
     local function PaintRoleCheck(cb)
         local d = FFD[cb]
         if not d or not d.gfBox then return end
@@ -231,7 +215,7 @@ function ns.Finder_Enable()
             if t then t:SetAlpha(0) end
         end
         local box = CreateFrame("Frame", nil, cb)
-        box:SetSize(24, 24)   -- in the checkbox's 0.7 scale: ~17 on screen
+        box:SetSize(24, 24)  -- about 17 on screen at 0.7 scale
         box:SetPoint("CENTER")
         box:SetFrameLevel(cb:GetFrameLevel() + 2)
         box:EnableMouse(false)

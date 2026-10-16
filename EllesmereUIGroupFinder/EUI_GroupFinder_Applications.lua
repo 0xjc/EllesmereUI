@@ -1,8 +1,7 @@
 if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
 -------------------------------------------------------------------------------
---  EUI_GroupFinder_Applications.lua
---  M+ applications bar in the Dungeons & Raids rail: counts each Dungeons
---  application's outcome per session, character and account.
+-- EUI_GroupFinder_Applications.lua: M+ applications bar in the rail, counts per
+-- session, character and account.
 -------------------------------------------------------------------------------
 local ADDON_NAME, ns = ...
 local CM = EllesmereUI
@@ -11,7 +10,7 @@ local function IsSecret(v) return issecretvalue ~= nil and issecretvalue(v) end
 local function PlainString(v)
     if type(v) == "string" and not IsSecret(v) and v ~= "" then return v end
 end
--- The realm form UnitFullName returns: no spaces or hyphens.
+-- Realm the way UnitFullName returns it.
 local function NormRealm(realm)
     realm = PlainString(realm)
     if not realm then return nil end
@@ -23,9 +22,8 @@ local function MyRealm()
 end
 
 local KEYS = { "applied", "accepted", "declined", "delisted", "cancelled", "invited" }
-local SESSION_GAP = 300   -- a relog within 5 minutes keeps the session
+local SESSION_GAP = 300  -- relogging within 5 min keeps the session
 
--- newStatus -> counter (LFG_LIST_APPLICATION_STATUS_UPDATED)
 local STATUS_KEY = {
     applied = "applied",
     declined = "declined", declined_full = "declined", timedout = "declined",
@@ -35,8 +33,7 @@ local STATUS_KEY = {
     inviteaccepted = "accepted",
 }
 
--- Bar segments, in order. Invites are still counted but not shown: every
--- invite is taken as accepted, so Accepted covers them.
+-- Bar segments. Invites aren't shown, every invite counts as accepted.
 local SEGMENTS = {
     { key = "accepted",  label = "Accepted",  cfg = "showAccepted",  r = 0.35, g = 0.85, b = 0.40 },
     { key = "declined",  label = "Declined",  cfg = "showDeclined",  r = 0.95, g = 0.30, b = 0.30 },
@@ -46,8 +43,7 @@ local SEGMENTS = {
 local SCOPES = { "session", "character", "account" }
 local SCOPE_LABEL = { session = "Session", character = "Character", account = "Account" }
 
--- The bar textures: the suite's built-in set plus LibSharedMedia's statusbar
--- textures (the host keeps the tables current as other addons register more).
+-- Built-in bar textures plus SharedMedia's.
 local barTextures, barTexNames, barTexOrder = {}, {}, {}
 if CM.BuildBarTextureTables then
     barTextures, barTexNames, barTexOrder = CM.BuildBarTextureTables()
@@ -96,10 +92,10 @@ local function Counts(scope)
 end
 
 -------------------------------------------------------------------------------
---  Card.
+-- Card
 -------------------------------------------------------------------------------
 local card
-local TITLE_SIZE = 12   -- the title (and the Premade Groups title); the Font Size setting is the counts' only
+local TITLE_SIZE = 12
 
 local function FontPath() return (CM.GetFontPath and CM.GetFontPath()) or STANDARD_TEXT_FONT end
 
@@ -108,8 +104,7 @@ local function Scope()
     return SCOPE_LABEL[s] and s or "character"
 end
 
--- The counts use the search box's font and size (Search.lua sets it from
--- the panel's Back button); the host's font at 12 until it is there.
+-- Counts use the search box font (12 until it's set).
 local function CountFont()
     local sb = _G.LFGListFrame and _G.LFGListFrame.SearchPanel and _G.LFGListFrame.SearchPanel.SearchBox
     local path, size
@@ -132,8 +127,7 @@ local function ShowTip(self)
     GameTooltip:Show()
 end
 
--- Where the Premade Groups search rows sit (Search.lua), in PVEFrame's
--- coordinates: row 1's centre, row 2's top and height.
+-- Where the search rows sit, in PVEFrame coordinates.
 local function Place()
     local pve = _G.PVEFrame
     local inset = pve and pve.Inset
@@ -158,14 +152,12 @@ local function Place()
     card.title:SetPoint("LEFT", pve, "TOPLEFT", x1, dy + r1)
 end
 
--- Fonts and sizes from the settings.
 local function Layout()
     if not card then return end
     local path = FontPath()
     local npath, nsize = CountFont()
     card.title:SetFont(path, TITLE_SIZE, "")
-    -- The Premade Groups screen's title ("Premade Groups", top of its
-    -- category list) at the same size, and its yellow for ours.
+    -- The Premade Groups title, same size and colour as ours.
     local lbl = _G.LFGListFrame and _G.LFGListFrame.CategorySelection and _G.LFGListFrame.CategorySelection.Label
     if lbl and lbl.GetFont then
         local lpath, lsize, lflags = lbl:GetFont()
@@ -194,8 +186,7 @@ end
 local function Refresh()
     if not (card and card:IsShown()) then return end
     local c = Counts(Scope())
-    -- Bar share per shown outcome. The bar is
-    -- split between the shown outcomes only, so it always fills.
+    -- Split the bar between the shown outcomes so it always fills.
     local shares, total = {}, 0
     for i, seg in ipairs(SEGMENTS) do
         local v = c[seg.key]
@@ -213,18 +204,16 @@ local function Refresh()
         tex:SetPoint("TOPLEFT", bar, "TOPLEFT", x, 0)
         tex:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", x, 0)
         tex:SetWidth(math.max(sw, 0.01))
-        -- Each segment shows its own slice of the texture, so a textured bar
-        -- reads as one continuous bar split by colour.
+        -- Each segment shows its slice of the texture so it reads as one bar.
         if textured and w > 0 then tex:SetTexCoord(x / w, (x + sw) / w, 0, 1) end
         tex:SetShown(sw >= 0.5)
-        -- The count, centred in its segment (the shown count, as on the bar).
         num:SetText(tostring(c[seg.key]))
         num:ClearAllPoints()
         num:SetPoint("CENTER", tex, "CENTER", 0, 0)
         num:SetShown(sw >= 0.5 and (num:GetStringWidth() or 0) + 4 <= sw)
         x = x + sw
     end
-    card.empty:SetShown(total == 0)   -- nothing counted yet (a fresh install)
+    card.empty:SetShown(total == 0)  -- nothing counted yet
 end
 
 local BuildCardInto
@@ -241,8 +230,7 @@ BuildCardInto = function()
     local pve = _G.PVEFrame
     if not (host and pve and pve.Inset) then return nil end
 
-    -- Built into a local and published at the end, so a failure part-way can
-    -- never leave a half-built card for Layout/Refresh to trip over.
+    -- Build into a local first so a failure never leaves half a card.
     local card = CreateFrame("Frame", nil, host)
     card:SetAllPoints(host)
     card:SetFrameLevel(host:GetFrameLevel() + 5)
@@ -253,18 +241,17 @@ BuildCardInto = function()
     end
 
     card.title = NewText(card)
-    card.title:SetTextColor(1, 0.82, 0, 1)   -- until the Premade Groups title's colour is read (Layout)
+    card.title:SetTextColor(1, 0.82, 0, 1)
     card.title:SetText("M+ Applications")
 
 
-    -- The box: the theme border of the panel's buttons around the bar.
     local box = CreateFrame("Frame", nil, card)
     box:EnableMouse(true)
     box:SetScript("OnEnter", ShowTip)
     box:SetScript("OnLeave", function() GameTooltip:Hide() end)
     local bg = box:CreateTexture(nil, "BACKGROUND")
     bg:SetAllPoints()
-    bg:SetColorTexture(0.2, 0.2, 0.2, 1)   -- the empty bar
+    bg:SetColorTexture(0.2, 0.2, 0.2, 1)
     local S = ns.Skin and ns.Skin()
     if S and S.AddBorder then
         S.AddBorder(box)
@@ -299,14 +286,12 @@ BuildCardInto = function()
     return card
 end
 
--- Shown only on the Premade Groups search for Dungeons (Find a Group in
--- Dungeons), the only category it counts.
+-- Only shown on the Dungeons search, the only thing it counts.
 local function InDungeonSearch()
     local sp = _G.LFGListFrame and _G.LFGListFrame.SearchPanel
     return sp and sp:IsShown() and sp.categoryID == (GROUP_FINDER_CATEGORY_ID_DUNGEONS or 2) or false
 end
 
--- Show/hide the card, re-place and re-layout it from the settings.
 local function Apply()
     local on = On()
     local want = on and InDungeonSearch()
@@ -316,7 +301,7 @@ local function Apply()
         if want then
             Layout()
         elseif not on and card.lblSize then
-            -- Off: the Premade Groups title back to its own size.
+            -- Off: title back to its own size.
             local lbl = _G.LFGListFrame and _G.LFGListFrame.CategorySelection and _G.LFGListFrame.CategorySelection.Label
             local lpath, _, lflags = lbl and lbl:GetFont()
             if lpath then lbl:SetFont(lpath, card.lblSize, lflags) end
@@ -325,19 +310,16 @@ local function Apply()
     Refresh()
 end
 ns.ApplyApplications = Apply
--- The search panel's rows can change size (side padding, the panel's width):
--- follow them.
+-- Follow the search rows when they resize.
 if ns.Search_Layout then
-    -- (also how a category change shows / hides it)
     hooksecurefunc(ns, "Search_Layout", function() Apply() end)
 end
 
 -------------------------------------------------------------------------------
---  Counting
+-- Counting
 -------------------------------------------------------------------------------
--- Whether a search result is a Dungeons category group.
 local DUNGEONS = GROUP_FINDER_CATEGORY_ID_DUNGEONS or 2
-local isDungeon = {}   -- resultID -> true / false while its application is open
+local isDungeon = {}  -- resultID -> is a dungeon group
 local function LookUpDungeon(id)
     local info = C_LFGList.GetSearchResultInfo(id)
     if type(info) ~= "table" or IsSecret(info) or (canaccesstable and not canaccesstable(info)) then return nil end
@@ -350,7 +332,6 @@ local function LookUpDungeon(id)
     return cat == DUNGEONS
 end
 
--- One status change of one application.
 local function Count(status, oldStatus, resultID)
     local key = STATUS_KEY[status]
     if type(resultID) ~= "number" or IsSecret(resultID) then return end
@@ -358,7 +339,7 @@ local function Count(status, oldStatus, resultID)
         if oldStatus == "applied" then return end
         isDungeon[resultID] = LookUpDungeon(resultID)
     elseif isDungeon[resultID] == nil then
-        isDungeon[resultID] = LookUpDungeon(resultID)   -- sent before a reload
+        isDungeon[resultID] = LookUpDungeon(resultID)
     end
     local dungeon = isDungeon[resultID]
     if status ~= "applied" and status ~= "invited" then isDungeon[resultID] = nil end
@@ -387,7 +368,7 @@ local function HookPVE()
     local pve = _G.PVEFrame
     if hooked or not pve then return end
     hooked = true
-    -- Next frame: the skin lays the window out on the same show.
+    -- Next frame, after the skin lays the window out.
     pve:HookScript("OnShow", function() C_Timer.After(0, Apply) end)
     if pve:IsShown() then C_Timer.After(0, Apply) end
     local sp = _G.LFGListFrame and _G.LFGListFrame.SearchPanel
@@ -397,7 +378,6 @@ local function HookPVE()
     end
 end
 
--- Started by the module's OnEnable (PLAYER_LOGIN) while the module is on.
 function ns.Apps_Enable()
     local name, realm = UnitFullName("player")
     name = PlainString(name)

@@ -1,18 +1,16 @@
 if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
 -------------------------------------------------------------------------------
---  EUI_GroupFinder_Rail.lua
---  Dungeons & Raids rail entries in the house button look with their art,
---  and the window's bottom tabs flush left.
+-- EUI_GroupFinder_Rail.lua: rail entries in the house button look with their
+-- art, bottom tabs flush left.
 -------------------------------------------------------------------------------
 local ADDON_NAME, ns = ...
 local CM = EllesmereUI
 
 local FFD = setmetatable({}, { __mode = "k" })
 local ART = "Interface\\AddOns\\" .. ADDON_NAME .. "\\media\\rail\\"
-local BOX_H = 75      -- the box's height (the art's 300 px / 4); a little taller than Blizzard's 72
-local NAME_X = 12    -- the name's inset from the box's left
--- Art per entry, by the name Blizzard gives it (the entries move around:
--- Scenarios, when shown, takes slot 2).
+local BOX_H = 75  -- art is 300px / 4
+local NAME_X = 12
+-- Art per entry by name (entries move around, e.g. Scenarios takes slot 2).
 local function ArtFor(btn)
     local name = btn.name and btn.name:GetText()
     if not name then return nil end
@@ -27,9 +25,8 @@ local function RailButton(i)
     return gf and (gf["groupButton" .. i] or _G["GroupFinderFrameGroupButton" .. i])
 end
 
--- The host skin re-strips these buttons whenever Blizzard repaints them, fading
--- every texture on them it does not know (alpha 0), ours included: ours go
--- straight back to full alpha (our own textures, so hooking them is safe).
+-- The skin fades unknown textures on these buttons, ours included, so put ours
+-- back to full alpha.
 local function Keep(tex)
     hooksecurefunc(tex, "SetAlpha", function(t, a)
         if a ~= 1 and not FFD[t] then
@@ -41,14 +38,13 @@ local function Keep(tex)
     return tex
 end
 
-local PaintBorder   -- below
+local PaintBorder
 
 local function Style(btn, i)
     if not btn or (btn.IsForbidden and btn:IsForbidden()) or FFD[btn] then return end
     local d = {}
     FFD[btn] = d
-    -- The drawn box: inset from the rail's sides by the search panel's side
-    -- padding, as the Premade Groups category buttons (Questing ...
+    -- Drawn box, inset like the Premade Groups category buttons.
     d.box = CreateFrame("Frame", nil, btn)
     d.box:EnableMouse(false)
     d.bg = Keep(btn:CreateTexture(nil, "BACKGROUND", nil, 7))
@@ -67,14 +63,13 @@ local function Style(btn, i)
     d.hover = Keep(btn:CreateTexture(nil, "HIGHLIGHT"))
     d.hover:SetAllPoints(d.box)
     d.hover:SetColorTexture(1, 1, 1, 0.1)
-    -- A white border while hovered or selected (the theme's otherwise).
+    -- White border on hover or select.
     d.index = i
     btn:HookScript("OnEnter", function(self) FFD[self].hovered = true; PaintBorder(self) end)
     btn:HookScript("OnLeave", function(self) FFD[self].hovered = nil; PaintBorder(self) end)
 end
 
--- Selected = Blizzard's GroupFinderFrame.selectionIndex (set by
--- GroupFinderFrame_SelectGroupButton, post-hooked below).
+-- Selected = GroupFinderFrame.selectionIndex.
 PaintBorder = function(btn)
     local d = btn and FFD[btn]
     local PP = CM.PanelPP or CM.PP
@@ -89,9 +84,7 @@ PaintBorder = function(btn)
     end
 end
 
--- The full-width backgrounds behind our box: Blizzard's own (bg,
--- "bluemenu-main") and the host skin's card ("Ui-Dialog-New-Background", which
--- the skin re-fades to its own alpha on theme changes).
+-- Hide the backgrounds behind our box (Blizzard's and the skin's card).
 local CARD_ATLAS = "Ui-Dialog-New-Background"
 local function Hide(tex)
     if not tex or FFD[tex] ~= nil then return end
@@ -115,8 +108,7 @@ local function HideBackgrounds(btn)
             Hide(r)
         end
     end
-    -- The host skin's selected-entry wash hangs off that card (full width):
-    -- moved onto our box instead (it is only ever anchored once).
+    -- Move the skin's selected wash onto our box.
     local d = FFD[btn]
     if card and d and not d.selMoved then
         for _, r in ipairs(regions) do
@@ -130,14 +122,13 @@ local function HideBackgrounds(btn)
     end
 end
 
--- The box (side padding, BOX_H centred), the entry's art, Blizzard's icon
--- and ring faded and its name at the box's left; re-done on every show.
+-- Box, art and name; Blizzard's icon and ring faded. Redone every show.
 local function Place(btn)
     local d = btn and FFD[btn]
     if not d then return end
     local pad = tonumber(ns.Cfg and ns.Cfg().padding) or 12
     local h = btn:GetHeight() or BOX_H
-    local dy = (h - BOX_H) / 2   -- negative: the box reaches past the button
+    local dy = (h - BOX_H) / 2  -- negative = box reaches past the button
     d.box:ClearAllPoints()
     d.box:SetPoint("TOPLEFT", btn, "TOPLEFT", pad, -dy)
     d.box:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -pad, dy)
@@ -156,7 +147,7 @@ local function Place(btn)
     end
 end
 
--- The window's bottom tab row (Dungeons & Raids / Player vs.
+-- Bottom tab row flush left with no gaps.
 local function AlignTabs()
     local pve = _G.PVEFrame
     if not pve or InCombatLockdown() then return end
@@ -190,7 +181,7 @@ local function Hook()
     local pve = _G.PVEFrame
     if hooked or not pve then return end
     hooked = true
-    -- Next frame: the host's skin lays the rail out on the same show.
+    -- Next frame, after the skin lays the rail out.
     pve:HookScript("OnShow", function() C_Timer.After(0, StyleAll) end)
     if GroupFinderFrame_SelectGroupButton then
         hooksecurefunc("GroupFinderFrame_SelectGroupButton", function()
@@ -200,5 +191,4 @@ local function Hook()
     if pve:IsShown() then C_Timer.After(0, StyleAll) end
 end
 
--- Started by the module's OnEnable while the module is on.
 function ns.Rail_Enable() Hook() end
