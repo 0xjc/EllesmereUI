@@ -32,12 +32,11 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 -- (PLAYER_SWING_RANGE_UPDATE, ACTIONBAR_UPDATE_STATE, the auto attack and
 -- auto-repeat edges). A row whose attack is on with no swing running waits
 -- (parked full), entered on the end edge or an attack edge and left on the
--- next swing or an attack-stop edge. Auto Shot's aim is added to its swing
--- once per swing. The Movement Guide's GO and STILL zones are placed once per
--- swing, its smoothing is arithmetic on the swing start, and its aim phase
--- starts on the ticker's Stop by edge or a stop that ends a held shot, with
--- PLAYER_STARTED/STOPPED_MOVING registered only while a wand or
--- Auto Shot is on with that mode. An idle row costs nothing: its timer holds
+-- next swing or an attack-stop edge. The Movement Guide's GO and STILL zones
+-- are placed once per swing, its smoothing is arithmetic on the swing start,
+-- and its aim phase starts on the ticker's Stop by edge or a stop that ends a
+-- held shot, with PLAYER_STARTED/STOPPED_MOVING registered only while a wand
+-- or Auto Shot is on with that mode. An idle row costs nothing: its timer holds
 -- a finished duration, which paints a static state.
 --
 -- Everything is gated on the swing API and the engine timer it feeds: on retail
@@ -105,16 +104,14 @@ local SMOOTH_TOL  = 0.25
 local SMOOTH_GAIN = 0.25
 
 -- Aim: wand Shoot and Auto Shot need the player to stand still for AIM_TIME
--- before a shot (Forever beta patch note). A wand's aim is the last AIM_TIME
--- of its reported swing; Auto Shot's comes after it (PLAYER_SWING's duration
--- leaves it out, measured), so a Hunter's Ranged row adds it to run to the
--- shot. Either way the shot lands at the later of the swing's end and AIM_TIME
--- after the player last stopped moving, never while moving, so a stop must be
--- made AIM_TIME plus one latency before the bar's end (Stop by). AIM_CLASS:
--- the classes whose Ranged row is one of the two; AIM_COLOR: STILL's fallback.
+-- before a shot (Forever beta patch note). The countdown runs alongside the
+-- reported swing, from each stop, so the shot lands at the later of the
+-- swing's end and AIM_TIME after the player last stopped moving, never while
+-- moving: a stop must be made AIM_TIME plus one latency before the bar's end
+-- (Stop by). AIM_CLASS: the classes whose Ranged row is one of the two;
+-- AIM_COLOR: STILL's fallback.
 local AIM_TIME  = 0.5
 local AIM_CLASS = { PRIEST = true, MAGE = true, WARLOCK = true, HUNTER = true }
-local AIM_AFTER = { HUNTER = true }
 local AIM_COLOR = { r = 1, g = 0.82, b = 0.25 }
 
 -- Shell + ticker host at FILE SCOPE (attribution rule, see _erbEventFrame in the
@@ -130,7 +127,7 @@ local tickFrame = CreateFrame("Frame")
 -- on-next-swing attacks: id, colour key + fallback, resolved name), queued (the
 -- entry painted, false = none), meleeOn / repeatOn (auto attack / auto-repeat
 -- on, from the edges), seeded (both read since the highlight came on), active
--- (the state painted), aimClass / aimAfter (this class's AIM_CLASS / AIM_AFTER),
+-- (the state painted), aimClass (this class's AIM_CLASS),
 -- moveEvents / moving (the movement edges registered / the player moving).
 -- Per row, _rtt (the latency read for its swing) and, on a guide row, _aimAt
 -- (its Stop by point), _aiming and _aimFrom (an aim phase running, and from
@@ -591,8 +588,6 @@ end
 -- only, up to _aimAt; the ticker starts the aim phase there.
 local function StartRow(row, dur, cfg)
     if type(dur) ~= "number" or dur ~= dur or dur <= 0 or dur == math.huge then return end
-    -- Auto Shot fires AIM_TIME after its reported swing: run the row to the shot.
-    if S.aimAfter and row._def.type == SWING.Ranged then dur = dur + AIM_TIME end
     local now = GetTime()
     local start = now
     local due = row._due
@@ -1220,7 +1215,6 @@ local function EnsureBuilt()
     end
     local _, classFile = UnitClass("player")
     S.aimClass = AIM_CLASS[classFile]
-    S.aimAfter = AIM_AFTER[classFile]
     -- On-next-swing spell names, once per session, for a class that has one.
     local ids = EllesmereUI.FOREVER_NEXT_SWING and EllesmereUI.FOREVER_NEXT_SWING[classFile]
     if ids and C_Spell and C_Spell.GetSpellName then
