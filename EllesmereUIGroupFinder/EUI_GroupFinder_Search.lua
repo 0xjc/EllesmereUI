@@ -1164,16 +1164,6 @@ local function DecorateEntry(entry)
         f:EnableMouse(false)
         fd.rating = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         fd.rating:SetJustifyH("RIGHT")
-        -- Groups the filters leave out: our dark wash over the whole row
-        -- (above Blizzard's row content, taking no mouse).
-        local wash = CreateFrame("Frame", nil, entry)
-        wash:SetAllPoints(entry)
-        wash:SetFrameLevel(entry:GetFrameLevel() + 20)
-        wash:EnableMouse(false)
-        fd.dim = wash:CreateTexture(nil, "OVERLAY")
-        fd.dim:SetAllPoints(wash)
-        fd.dim:SetColorTexture(0, 0, 0, 0.65)
-        fd.dim:Hide()
         -- Cancel Oldest Application: at the application limit a left click
         -- on a group gives up the oldest pending application (the group's
         -- tooltip says so, XF.CancelHint).
@@ -1184,11 +1174,12 @@ local function DecorateEntry(entry)
         end)
     end
     fd.rating:Hide()
-    fd.dim:Hide()
+    entry:SetAlpha(1)
     if XF.CancelLook then XF.CancelLook(entry) end
     -- Result data secret (restricted content): no decoration.
     if XF.ResultsSecret() then return end
-    fd.dim:SetShown(not XF.PassesFilters(resultID))
+    -- Filtered out: faded like the list behind an open Filters menu.
+    if not XF.PassesFilters(resultID) then entry:SetAlpha(XF.DIM_ALPHA) end
     local info = ResultInfo(resultID)
     if not info then return end
     local acts = info.activityIDs
@@ -1837,8 +1828,9 @@ end
 
 -- The side panel of a Filters menu: Region, Playstyle, then Party Fit / Not
 -- Declined (and Min.
+XF.DIM_ALPHA = 0.35
 local function DimForMenu(on)
-    local a = on and 0.35 or 1
+    local a = on and XF.DIM_ALPHA or 1
     if row then row:SetAlpha(a) end
     if SP.FilterButton then SP.FilterButton:SetAlpha(a) end
     if SP.ScrollBox then SP.ScrollBox:SetAlpha(a) end
