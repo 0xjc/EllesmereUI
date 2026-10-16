@@ -12,16 +12,24 @@
 # Main Lua
 EllesmereUIForeverEssentials.lua
 
-# General (spell uprank, junk items, simplified stats, map reveal)
+# General (spell uprank, classic spellbook and talents, junk items, simplified stats, map reveal)
 EllesmereUIForeverEssentials_Uprank.lua
+EllesmereUIForeverEssentials_ClassicSpellbook.lua
+EllesmereUIForeverEssentials_ClassicTalents.lua
 EllesmereUIForeverEssentials_JunkItems.lua
 EllesmereUIForeverEssentials_SimplifiedStats.lua
+EllesmereUIForeverEssentials_MapFade.lua
+EllesmereUIForeverEssentials_ActiveForm.lua
 EllesmereUIForeverEssentials_MapRevealData.lua
 EllesmereUIForeverEssentials_MapReveal.lua
+EllesmereUIForeverEssentials_QuestRewards.lua
 
 # Travel (flight timer)
 EllesmereUIForeverEssentials_FlightTimerData.lua
 EllesmereUIForeverEssentials_FlightTimer.lua
+
+# World map zone levels
+EllesmereUIForeverEssentials_ZoneLevels.lua
 
 # Threat (threat meter)
 EllesmereUIForeverEssentials_ThreatData.lua
@@ -29,8 +37,14 @@ EllesmereUIForeverEssentials_Window.lua
 EllesmereUIForeverEssentials_ThreatMeter.lua
 EllesmereUIForeverEssentials_ThreatFeed.lua
 
+# Companion pets (auto summon)
+EllesmereUIForeverEssentials_PetSummon.lua
+
 # Loot (loot feed)
 EllesmereUIForeverEssentials_LootFeed.lua
 
 # Macros (macro manager)
 EllesmereUIForeverEssentials_MacroManager.lua
+
+# Fishing (key, double-click, bobber indicator, sounds)
+EllesmereUIForeverEssentials_Fishing.lua
