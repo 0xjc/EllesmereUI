@@ -4327,6 +4327,48 @@ EllesmereUI.RegisterMigration({
     end,
 })
 
+-- The Swing Timer's indicator toggles became two settings: Attack State (Off /
+-- Queued Only / Full) replaces Highlight Queued Attacks, Highlight Active Attack
+-- and Show Shot Pending; Movement Guide (Off / Segments / Wind-Up Bar) replaces
+-- Latency Overlay and Smooth Swing Timing. Only explicit values
+-- move (defaults are stripped at logout); the colour keys keep their names.
+-- GLOBAL with per-profile stamps, gated on existing profiles, like the
+-- visibility migration above.
+EllesmereUI.RegisterMigration({
+    id          = "swing_timer_indicators_v1",
+    scope       = "global",
+    description = "Move the Swing Timer's indicator toggles into Attack State and Movement Guide.",
+    body        = function(ctx)
+        local ID = "swing_timer_indicators_v1"
+        local db = ctx.db
+        if not (db and type(db.profiles) == "table" and next(db.profiles)) then return end
+        for _, profData in pairs(db.profiles) do
+            if type(profData) == "table" then
+                local stamps = profData._migrations
+                if type(stamps) ~= "table" then
+                    stamps = {}
+                    profData._migrations = stamps
+                end
+                if not stamps[ID] then
+                    local erb = type(profData.addons) == "table" and profData.addons.EllesmereUIResourceBars
+                    local st = type(erb) == "table" and erb.swingTimer
+                    if type(st) == "table" then
+                        if st.activeHighlight or st.pendingEnabled then
+                            st.attackState = "full"
+                        elseif st.queueHighlight == false then
+                            st.attackState = "off"
+                        end
+                        if st.latencyEnabled then st.moveGuide = "segments" end
+                        st.queueHighlight, st.activeHighlight, st.pendingEnabled = nil, nil, nil
+                        st.latencyEnabled, st.smoothTiming = nil, nil
+                    end
+                    stamps[ID] = true
+                end
+            end
+        end
+    end,
+})
+
 -- Spell ID on Tooltip became on by default (an unset showSpellID reads as on,
 -- EllesmereUI.SpellIDOn). An account from before keeps it off: its unset value
 -- is written off. Existing users ONLY: a fresh install or Reset ALL has no
