@@ -1,6 +1,68 @@
--- Set while Blizzard's Toggle Minimap key has hidden the map (the hook sits below
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Minimap_Apply.lua
+--
+--  ApplyMinimap, the full apply pass.
+--  Reads the earlier Minimap files through ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIMinimap.lua or an earlier EUI_Minimap_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EBS, flyoutOwnedFrames = I.EBS, I.flyoutOwnedFrames
+local GetBorderStyleColor, GetFFD = I.GetBorderStyleColor, I.GetFFD
+local minimapDecorations, PP, QueueApplyAll = I.minimapDecorations, I.PP, I.QueueApplyAll
+local TEMP_DISABLED, BuildFlyoutContents = I.TEMP_DISABLED, I.BuildFlyoutContents
+local CollectFlyoutButtons, CreateFlyoutToggle = I.CollectFlyoutButtons, I.CreateFlyoutToggle
+local HideFlyoutPanel, InvalidateFlyout = I.HideFlyoutPanel, I.InvalidateFlyout
+local ApplyMinimapFont, GetCoordsModePos = I.ApplyMinimapFont, I.GetCoordsModePos
+local GetDescColor, GetElementModes = I.GetDescColor, I.GetElementModes
+local MAP_POS_ANCHORS, RefreshClockCVars = I.MAP_POS_ANCHORS, I.RefreshClockCVars
+local ResolveElementAnchor, UpdateClock = I.ResolveElementAnchor, I.UpdateClock
+local UpdateCoords, UpdateLocation = I.UpdateCoords, I.UpdateLocation
+local HideAllMinimapButtons = I.HideAllMinimapButtons
+local RestartZoomResetTimer, SaveZoomLevel = I.RestartZoomResetTimer, I.SaveZoomLevel
+local HideVaultTooltip, ShowVaultTooltip = I.HideVaultTooltip, I.ShowVaultTooltip
+local GetCalendarLockoutEntries = I.GetCalendarLockoutEntries
+local HideCalendarTooltip, ShowCalendarTooltip = I.HideCalendarTooltip, I.ShowCalendarTooltip
+local ApplyOmniumFolio, CaptureBlizzardMinimap = I.ApplyOmniumFolio, I.CaptureBlizzardMinimap
+local LayoutIndicatorFrames = I.LayoutIndicatorFrames
+local SyncIndicatorVisibility, DesiredMapParent = I.SyncIndicatorVisibility, I.DesiredMapParent
+
+-- The setters are called as I.Set<Name> in this file: ApplyMinimap is close to
+-- Lua's limit of 60 upvalues per function, and I costs one where a local per
+-- setter costs six.
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._internals, which hands the value to every copy.
+local flyoutToggle
+I.flyoutToggleSetters[#I.flyoutToggleSetters + 1] = function(v) flyoutToggle = v end
+local flyoutPanel
+I.flyoutPanelSetters[#I.flyoutPanelSetters + 1] = function(v) flyoutPanel = v end
+local coordFrame
+I.coordFrameSetters[#I.coordFrameSetters + 1] = function(v) coordFrame = v end
+local coordTicker
+I.coordTickerSetters[#I.coordTickerSetters + 1] = function(v) coordTicker = v end
+local clockFrame
+I.clockFrameSetters[#I.clockFrameSetters + 1] = function(v) clockFrame = v end
+local clockBg
+I.clockBgSetters[#I.clockBgSetters + 1] = function(v) clockBg = v end
+local locationFrame
+I.locationFrameSetters[#I.locationFrameSetters + 1] = function(v) locationFrame = v end
+local locationBg
+I.locationBgSetters[#I.locationBgSetters + 1] = function(v) locationBg = v end
+
+local clockTicker
+local fpsBg
+local diffTextFrame
+local addonButtonPoll = nil
+
+-- Set while Blizzard's Toggle Minimap key has hidden the map (the hook, in EUI_Minimap_Lifecycle.lua, sits below
 -- UpdateMinimapVisibility); every visibility pass then keeps the map hidden.
 local _mmKeyHidden
+I.mmKeyHiddenSetters[#I.mmKeyHiddenSetters + 1] = function(v) _mmKeyHidden = v end
 
 local function ApplyMinimap()
     if TEMP_DISABLED.minimap then return end
@@ -602,7 +664,7 @@ local function ApplyMinimap()
     local clockMode, locationMode = GetElementModes(p)
     if clockMode ~= "none" then
         if not clockBg then
-            clockBg = CreateFrame("Button", nil, minimap, "BackdropTemplate")
+            I.SetClockBg(CreateFrame("Button", nil, minimap, "BackdropTemplate"))
             clockBg:SetSize(80, 16)
             clockBg:SetPoint("TOP", minimap, "TOP", 0, 7)
             clockBg:SetBackdrop({ bgFile = "Interface\\ChatFrame\\ChatFrameBackground" })
@@ -620,7 +682,7 @@ local function ApplyMinimap()
             end)
         end
         if not clockFrame then
-            clockFrame = clockBg:CreateFontString(nil, "OVERLAY")
+            I.SetClockFrame(clockBg:CreateFontString(nil, "OVERLAY"))
             ApplyMinimapFont(clockFrame, 10)
             clockFrame:SetPoint("CENTER", clockBg, "CENTER", 0, 0)
             clockFrame:SetTextColor(1, 1, 1, 0.9)
@@ -733,7 +795,7 @@ local function ApplyMinimap()
     -- Location bar -- none, inside the map, or boxed on the map edge
     if locationMode ~= "none" then
         if not locationBg then
-            locationBg = CreateFrame("Frame", nil, minimap, "BackdropTemplate")
+            I.SetLocationBg(CreateFrame("Frame", nil, minimap, "BackdropTemplate"))
             locationBg:SetSize(120, 18)
             locationBg:SetPoint("BOTTOM", minimap, "BOTTOM", 0, -7)
             locationBg:SetBackdrop({ bgFile = "Interface\\ChatFrame\\ChatFrameBackground" })
@@ -745,7 +807,7 @@ local function ApplyMinimap()
             locationBg:SetScript("OnEvent", function() UpdateLocation() end)
         end
         if not locationFrame then
-            locationFrame = locationBg:CreateFontString(nil, "OVERLAY")
+            I.SetLocationFrame(locationBg:CreateFontString(nil, "OVERLAY"))
             ApplyMinimapFont(locationFrame, 10)
             locationFrame:SetPoint("CENTER", locationBg, "CENTER", 0, 0)
             locationFrame:SetTextColor(1, 1, 1, 0.9)
@@ -803,7 +865,7 @@ local function ApplyMinimap()
 
     -- Coordinates -- mode (never/hover/always) + anchor position around the map
     if not coordFrame then
-        coordFrame = minimap:CreateFontString(nil, "OVERLAY")
+        I.SetCoordFrame(minimap:CreateFontString(nil, "OVERLAY"))
         ApplyMinimapFont(coordFrame, 11)
         coordFrame:SetTextColor(1, 1, 1, 0.9)
     end
@@ -818,7 +880,7 @@ local function ApplyMinimap()
     coordFrame:SetScale(p and p.coordsScale or 1.0)
     _G._EBS_CoordFrame = coordFrame
     if not coordTicker then
-        coordTicker = CreateFrame("Frame")  -- kept for Show/Hide API
+        I.SetCoordTicker(CreateFrame("Frame"))  -- kept for Show/Hide API
         coordTicker._ticker = nil
         coordTicker.Show = function(self)
             if self._ticker then return end
@@ -1139,4 +1201,5 @@ local function ApplyMinimap()
     EBS._ApplyAddonCompartment()
 end
 
-
+I.ApplyMinimap = ApplyMinimap
+I.broken = false

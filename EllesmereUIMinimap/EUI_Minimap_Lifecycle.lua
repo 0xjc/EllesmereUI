@@ -1,3 +1,31 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Minimap_Lifecycle.lua
+--
+--  Opacity, icon scale, visibility, ApplyAll, the micro menu, OnInitialize,
+--  OnEnable and the Farming HUD compatibility.
+--  Reads the earlier Minimap files through ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIMinimap.lua or an earlier EUI_Minimap_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local defaults, EBS, GetFFD = I.defaults, I.EBS, I.GetFFD
+local flyoutSavedRegions, ApplyOmniumFolio = I.flyoutSavedRegions, I.ApplyOmniumFolio
+local ApplyMinimap, SetMMKeyHidden = I.ApplyMinimap, I.SetMMKeyHidden
+local SetApplyAll = I.SetApplyAll
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._internals, which hands the value to every copy.
+local _mmKeyHidden
+I.mmKeyHiddenSetters[#I.mmKeyHiddenSetters + 1] = function(v) _mmKeyHidden = v end
+
+-- Assigned below; SetApplyAll hands it to EllesmereUIMinimap.lua. It runs
+-- once, at load.
+local ApplyAll
+
 -------------------------------------------------------------------------------
 --  Visibility (registered with the shared EllesmereUI visibility dispatcher)
 -------------------------------------------------------------------------------
@@ -9,7 +37,7 @@
 -- dims with it; the engine-drawn blips do not (see the mouseover note below).
 -- SetAlpha is not a protected call, so it is legal in combat too.
 -- Floor 10: below it the map is invisible yet still takes clicks, pings and the wheel;
--- hiding it is Visibility's job. EBS fields: this file is near the main-chunk local cap.
+-- hiding it is Visibility's job. EBS fields, not locals.
 -- An open Farming HUD owns the reparented map, so it stays at full alpha until the
 -- HUD's hide edge hands the Opacity back.
 function EBS._MapAlpha(p)
@@ -179,7 +207,7 @@ end
 -- module runs.
 hooksecurefunc("ToggleMinimap", function()
     if C_GameRules.IsGameRuleActive(Enum.GameRule.MinimapDisabled) then return end
-    _mmKeyHidden = not Minimap:IsShown()
+    SetMMKeyHidden(not Minimap:IsShown())
     local p = EBS.db and EBS.db.profile and EBS.db.profile.minimap
     if p and p.enabled then UpdateMinimapVisibility() end
 end)
@@ -193,6 +221,7 @@ ApplyAll = function()
         C_Timer.After(0, EllesmereUI.RequestVisibilityUpdate)
     end
 end
+SetApplyAll(ApplyAll)
 
 -------------------------------------------------------------------------------
 --  Minimap Micro Menu (middle-click popup, taint-free): SecureActionButtonTemplate
@@ -573,3 +602,5 @@ do
         FarmHud:HookScript("OnHide", function() ToggleMinimapBorders(true); EBS._ApplyMapAlpha() end)
     end)
 end
+
+I.broken = false

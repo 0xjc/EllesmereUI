@@ -1,8 +1,29 @@
-local coordFrame, coordTicker
-local clockFrame, clockTicker, clockBg
-local locationFrame, locationBg
-local fpsBg
-local diffTextFrame
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Minimap_Info.lua
+--
+--  The clock, coordinates and location text: font, colours, anchors and
+--  their update functions.
+--  Reads the earlier Minimap files through ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIMinimap.lua or an earlier EUI_Minimap_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EBS, EG = I.EBS, I.EG
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._internals, which hands the value to every copy.
+local coordFrame
+I.coordFrameSetters[#I.coordFrameSetters + 1] = function(v) coordFrame = v end
+local clockFrame
+I.clockFrameSetters[#I.clockFrameSetters + 1] = function(v) clockFrame = v end
+local locationFrame
+I.locationFrameSetters[#I.locationFrameSetters + 1] = function(v) locationFrame = v end
+local locationBg
+I.locationBgSetters[#I.locationBgSetters + 1] = function(v) locationBg = v end
 
 local function ApplyMinimapFont(fs, size) EllesmereUI.ApplyModuleFont(fs, nil, size, "minimap") end
 
@@ -196,3 +217,9 @@ local function UpdateLocation()
     end
 end
 
+I.ApplyMinimapFont, I.GetCoordsModePos = ApplyMinimapFont, GetCoordsModePos
+I.GetDescColor, I.GetElementModes = GetDescColor, GetElementModes
+I.MAP_POS_ANCHORS, I.RefreshClockCVars = MAP_POS_ANCHORS, RefreshClockCVars
+I.ResolveElementAnchor, I.UpdateClock = ResolveElementAnchor, UpdateClock
+I.UpdateCoords, I.UpdateLocation = UpdateCoords, UpdateLocation
+I.broken = false

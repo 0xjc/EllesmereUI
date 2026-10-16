@@ -1,3 +1,20 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Minimap_Styles.lua
+--
+--  The addon compartment and the stock styles (Blizzard Style, Classic WoW
+--  UI).
+--  Reads the earlier Minimap files through ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIMinimap.lua or an earlier EUI_Minimap_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local ADDON_NAME, EBS, GetFFD, PP = I.ADDON_NAME, I.EBS, I.GetFFD, I.PP
+local GetElementModes, _customIndicators = I.GetElementModes, I._customIndicators
+
 -------------------------------------------------------------------------------
 --  Addon Compartment
 --  Blizzard's addon-compartment button is a child of MinimapCluster, which this
@@ -8,8 +25,7 @@
 --  Handled exactly like the Omnium Folio: plain (non-secure) Blizzard button,
 --  so SetParent/SetPoint/SetScale are safe, and the same re-assert hooks keep
 --  Blizzard's own relayout from dragging it back into the hidden cluster.
---  Namespace-scoped (EBS fields, not locals) -- this file is at the 200-local
---  main-chunk cap.
+--  Namespace-scoped (EBS fields, not locals).
 -------------------------------------------------------------------------------
 function EBS._ParkAddonCompartment(btn)
     if not EBS._hiddenFrame then
@@ -693,3 +709,5 @@ EBS._ApplyClassicMinimapChrome = function(minimap, mapSize)
     header:Show()
 end
 
+I.DesiredMapParent = DesiredMapParent
+I.broken = false

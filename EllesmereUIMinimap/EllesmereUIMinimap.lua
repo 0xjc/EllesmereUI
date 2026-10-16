@@ -279,17 +279,50 @@ local function ShowMinimapButton(name)
     btn:Show()
 end
 
-local addonButtonPoll = nil
 local cachedAddonButtons = {}
 local _addonVisible = {}       -- persistent: tracks whether each addon WANTS its button visible
-local _suppressVisTrack = false -- flag to suppress tracking during our own Show/Hide calls
+EBS._suppressVisTrack = false -- flag to suppress tracking during our own Show/Hide calls
 local flyoutOwnedFrames = {}
 
--- Forward decl: assigned by the Mouseover Extra Buttons controller below, so
--- earlier-created flyout panels can fire it from OnShow/OnHide.
-local MO_Evaluate
-
--- EBS._HVRevealMapHover (defined below in the folio code; namespace-scoped, not a
--- local -- 200-local cap) is fired by earlier child elements' OnEnter (mail etc.),
+-- EBS._HVRevealMapHover (defined in EUI_Minimap_Layout.lua; namespace-scoped, not a
+-- local) is fired by earlier child elements' OnEnter (mail etc.),
 -- since entering the map directly onto a mouse-enabled child never fires the minimap's own OnEnter.
 
+-- Main-chunk locals the EUI_Minimap_*.lua files re-import by name.
+-- applyAllSetters and the lists beside it: every file that reads one of
+-- these keeps its own copy and adds a setter here; a write from another file
+-- goes through the Set<Name> function built below, which runs them all.
+-- broken: true while an EUI_Minimap_*.lua file loads; a file that fails
+-- leaves it set, and the files behind it return at their first lines.
+ns._internals = {
+    _addonVisible = _addonVisible, ADDON_NAME = ADDON_NAME,
+    cachedAddonButtons = cachedAddonButtons, defaults = defaults, EBS = EBS, EG = EG,
+    flyoutOwnedFrames = flyoutOwnedFrames, GetBorderStyleColor = GetBorderStyleColor,
+    GetFFD = GetFFD, minimapDecorations = minimapDecorations, PP = PP,
+    QueueApplyAll = QueueApplyAll, TEMP_DISABLED = TEMP_DISABLED,
+    applyAllSetters = { function(v) ApplyAll = v end },
+    moEvaluateSetters = {}, flyoutToggleSetters = {}, flyoutPanelSetters = {},
+    portalFlyoutSetters = {}, coordFrameSetters = {}, coordTickerSetters = {},
+    clockFrameSetters = {}, clockBgSetters = {}, locationFrameSetters = {},
+    locationBgSetters = {}, mmKeyHiddenSetters = {},
+    broken = false,
+}
+-- Set<Name> hands a new value to every copy registered in <name>Setters.
+for setter, listName in pairs({
+    SetApplyAll = "applyAllSetters", SetMOEvaluate = "moEvaluateSetters",
+    SetFlyoutToggle = "flyoutToggleSetters", SetFlyoutPanel = "flyoutPanelSetters",
+    SetPortalFlyout = "portalFlyoutSetters", SetCoordFrame = "coordFrameSetters",
+    SetCoordTicker = "coordTickerSetters", SetClockFrame = "clockFrameSetters",
+    SetClockBg = "clockBgSetters", SetLocationFrame = "locationFrameSetters",
+    SetLocationBg = "locationBgSetters", SetMMKeyHidden = "mmKeyHiddenSetters",
+}) do
+    local list = ns._internals[listName]
+    ns._internals[setter] = function(v)
+        for i = 1, #list do list[i](v) end
+    end
+end
+-- A re-import of a name this table lacks fails where the part file loads,
+-- not later as a nil upvalue inside one of its functions.
+setmetatable(ns._internals, { __index = function(_, k)
+    error("ns._internals has no entry " .. tostring(k), 2)
+end })

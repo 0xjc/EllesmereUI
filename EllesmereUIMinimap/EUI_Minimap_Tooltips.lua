@@ -1,3 +1,23 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Minimap_Tooltips.lua
+--
+--  The friends tooltip and the calendar tooltip with its lockout list.
+--  Reads the earlier Minimap files through ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIMinimap.lua or an earlier EUI_Minimap_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EBS, GetCustomTooltipScale = I.EBS, I.GetCustomTooltipScale
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._internals, which hands the value to every copy.
+local MO_Evaluate
+I.moEvaluateSetters[#I.moEvaluateSetters + 1] = function(v) MO_Evaluate = v end
+
 -------------------------------------------------------------------------------
 --  Friends Online indicator: guild, BNet favorites and BNet/character friends on
 --  hover. Zero background work -- all data is read live when the tooltip opens.
@@ -115,8 +135,8 @@ end
 
 -- Custom two-column friends tooltip (same pattern as the M+ death tooltip). FTT_FONT
 -- stays file-scope (shared with the calendar/vault tooltips below); everything else
--- lives in the do-block so locals release instead of eating main-chunk slots (200-local
--- cap). Only ShowFriendsTooltip/HideFriendsTooltip are used outside, hence the forward declarations.
+-- lives in the do-block so locals release instead of eating main-chunk slots.
+-- Only ShowFriendsTooltip/HideFriendsTooltip are used outside, hence the forward declarations.
 local function FTT_FONT()
     return (EllesmereUI.GetFontPath("minimap")) or EllesmereUI.EXPRESSWAY or "Fonts\\FRIZQT__.TTF"
 end
@@ -808,3 +828,7 @@ local function GetCalendarLockoutEntries()
     return entries
 end
 
+I.FRIENDS_ATLAS, I.GetCalendarLockoutEntries = FRIENDS_ATLAS, GetCalendarLockoutEntries
+I.HideCalendarTooltip, I.HideFriendsTooltip = HideCalendarTooltip, HideFriendsTooltip
+I.ShowCalendarTooltip, I.ShowFriendsTooltip = ShowCalendarTooltip, ShowFriendsTooltip
+I.broken = false

@@ -1,3 +1,63 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Minimap_Layout.lua
+--
+--  BuildCustomIndicators, the mouseover controller, LayoutIndicatorFrames,
+--  the Blizzard minimap snapshot, the Omnium Folio and the map hover
+--  reveal.
+--  Reads the earlier Minimap files through ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIMinimap.lua or an earlier EUI_Minimap_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local _addonVisible, cachedAddonButtons, EBS = I._addonVisible, I.cachedAddonButtons, I.EBS
+local GetFFD, PP, flyoutSavedParents = I.GetFFD, I.PP, I.flyoutSavedParents
+local GetBtnRowMode, GetCustomTooltipScale = I.GetBtnRowMode, I.GetCustomTooltipScale
+local GetElementRowMode, GetInteractableBtnSize = I.GetElementRowMode, I.GetInteractableBtnSize
+local GetRowBase, IsJunkTexture, IsUngrouped = I.GetRowBase, I.IsJunkTexture, I.IsUngrouped
+local RestoreButtonDecorations = I.RestoreButtonDecorations
+local StripButtonDecorations, GetCoordsModePos = I.StripButtonDecorations, I.GetCoordsModePos
+local UpdateCoords, ApplyBtnOffset = I.UpdateCoords, I.ApplyBtnOffset
+local EnableFreeMove, FOLIO_REPLACEMENT_BUTTONS = I.EnableFreeMove, I.FOLIO_REPLACEMENT_BUTTONS
+local _customIndicators, CreateGreatVaultBtn = I._customIndicators, I.CreateGreatVaultBtn
+local CreateIndicatorBtn, CreatePortalBtn = I.CreateIndicatorBtn, I.CreatePortalBtn
+local INDICATOR_ATLAS_OFFSET = I.INDICATOR_ATLAS_OFFSET
+local INDICATOR_ATLAS_RATIO = I.INDICATOR_ATLAS_RATIO
+local INDICATOR_ATLAS_SCALE, SizeGreatVaultBtn = I.INDICATOR_ATLAS_SCALE, I.SizeGreatVaultBtn
+local SizePortalBtn, FRIENDS_ATLAS = I.SizePortalBtn, I.FRIENDS_ATLAS
+local GetCalendarLockoutEntries = I.GetCalendarLockoutEntries
+local HideCalendarTooltip, HideFriendsTooltip = I.HideCalendarTooltip, I.HideFriendsTooltip
+local ShowCalendarTooltip, ShowFriendsTooltip = I.ShowCalendarTooltip, I.ShowFriendsTooltip
+local SetMOEvaluate = I.SetMOEvaluate
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._internals, which hands the value to every copy.
+local flyoutToggle
+I.flyoutToggleSetters[#I.flyoutToggleSetters + 1] = function(v) flyoutToggle = v end
+local flyoutPanel
+I.flyoutPanelSetters[#I.flyoutPanelSetters + 1] = function(v) flyoutPanel = v end
+local _portalFlyout
+I.portalFlyoutSetters[#I.portalFlyoutSetters + 1] = function(v) _portalFlyout = v end
+local coordFrame
+I.coordFrameSetters[#I.coordFrameSetters + 1] = function(v) coordFrame = v end
+local coordTicker
+I.coordTickerSetters[#I.coordTickerSetters + 1] = function(v) coordTicker = v end
+local clockBg
+I.clockBgSetters[#I.clockBgSetters + 1] = function(v) clockBg = v end
+
+-- Assigned below; SetMOEvaluate hands it to the earlier files. It runs once,
+-- at load: a file behind this one would have to import the function.
+local MO_Evaluate
+
+-- The Great Vault and M+ Portal buttons, built in BuildCustomIndicators.
+local _greatVaultBtn = nil
+local _portalBtn = nil
+-- Never assigned in this module; LayoutIndicatorFrames still checks it.
+local indicatorBg = nil  -- combined bg strip for square mode (legacy, still used when free move is off)
+
 local function BuildCustomIndicators(minimap)
     if _customIndicators.tracking then
         -- Re-apply accent to the friends icon: a later ApplyAll (e.g. PLAYER_ENTERING_WORLD, after
@@ -275,6 +335,7 @@ MO_Evaluate = function()
         end)
     end
 end
+SetMOEvaluate(MO_Evaluate)
 
 local function MO_HookFrame(frame)
     if not frame or _moHooked[frame] then return end
@@ -909,10 +970,10 @@ local function LayoutIndicatorFrames(minimap, p, circleMode)
                 if GetFFD(btn).ungroupBg then GetFFD(btn).ungroupBg:Hide() end
                 if btn._ungroupRing then btn._ungroupRing:Hide() end
             end
-            _suppressVisTrack = true
+            EBS._suppressVisTrack = true
             btn:SetAlpha(1)
             btn:Show()
-            _suppressVisTrack = false
+            EBS._suppressVisTrack = false
         end
 
         local heb = p.hideExtraBtns or {}
@@ -1174,7 +1235,7 @@ function EBS._HVHideNow()
     end
 end
 
--- Central map-region hover reveal (EBS field, declared top of file). Fired from the
+-- Central map-region hover reveal (EBS field, see EllesmereUIMinimap.lua). Fired from the
 -- minimap's OnEnter/OnLeave and from over-map children's OnEnter (clock, FPS text,
 -- corner mail, folio): no-ops off-region, reveals zoom buttons and hover-mode folio,
 -- and runs one self-cancelling watcher (minimap's FFD data) that hides them once the
@@ -1308,3 +1369,7 @@ local function ApplyOmniumFolio()
     end
 end
 
+I.ApplyOmniumFolio, I.CaptureBlizzardMinimap = ApplyOmniumFolio, CaptureBlizzardMinimap
+I.LayoutIndicatorFrames = LayoutIndicatorFrames
+I.SyncIndicatorVisibility = SyncIndicatorVisibility
+I.broken = false

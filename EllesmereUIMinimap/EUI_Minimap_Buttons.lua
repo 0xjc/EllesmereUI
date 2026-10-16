@@ -1,3 +1,28 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Minimap_Buttons.lua
+--
+--  Free move offsets, the zoom memory, the folio and flyout blacklists and
+--  the scan that collects and hides the addon buttons.
+--  Reads the earlier Minimap files through ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIMinimap.lua or an earlier EUI_Minimap_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local _addonVisible, cachedAddonButtons, EBS = I._addonVisible, I.cachedAddonButtons, I.EBS
+local flyoutOwnedFrames, GetFFD, QueueApplyAll = I.flyoutOwnedFrames, I.GetFFD, I.QueueApplyAll
+local InvalidateFlyout, IsUngrouped = I.InvalidateFlyout, I.IsUngrouped
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._internals, which hands the value to every copy.
+local flyoutToggle
+I.flyoutToggleSetters[#I.flyoutToggleSetters + 1] = function(v) flyoutToggle = v end
+local flyoutPanel
+I.flyoutPanelSetters[#I.flyoutPanelSetters + 1] = function(v) flyoutPanel = v end
+
 -------------------------------------------------------------------------------
 --  Free Move Button System
 --  freeMoveBtns: shift+drag any minimap-area button. Offsets are stored in
@@ -184,7 +209,7 @@ end
 local addonButtonHooks = {}
 
 local function HideMinimapChild(btn)
-    _suppressVisTrack = true
+    EBS._suppressVisTrack = true
     -- Hide() on a protected frame is blocked inside lockdown for ANY insecure caller,
     -- taint or not, and the block is silent (no Lua error) -- so the SetAlpha below
     -- still ran and the button just went invisible-but-shown. Skip only the blocked
@@ -195,11 +220,11 @@ local function HideMinimapChild(btn)
         btn:Hide()
     end
     btn:SetAlpha(0)
-    _suppressVisTrack = false
+    EBS._suppressVisTrack = false
     if not addonButtonHooks[btn] then
         -- Track addon-intended visibility via Show/Hide hooks
         hooksecurefunc(btn, "Show", function(self)
-            if not _suppressVisTrack then
+            if not EBS._suppressVisTrack then
                 -- Don't track addon Show() while the flyout is open: the button is
                 -- visible in our grid and a later Hide() would mark it unwanted.
                 if not (flyoutPanel and flyoutPanel:IsShown()) then
@@ -220,7 +245,7 @@ local function HideMinimapChild(btn)
             end
         end)
         hooksecurefunc(btn, "Hide", function(self)
-            if not _suppressVisTrack then
+            if not EBS._suppressVisTrack then
                 -- Freeze tracking while open: addon refresh Hide() calls would otherwise
                 -- blank buttons from the grid.
                 if flyoutPanel and flyoutPanel:IsShown() then
@@ -257,7 +282,7 @@ end
 -- Third-party addon buttons show a game tooltip from their OnEnter: LibDBIcon buttons
 -- use the lib's own LibDBIconTooltip (anchored by screen half, tooltips BELOW the
 -- icons), everything else the global GameTooltip. Post-hook each collected button so
--- its tooltip follows Grow Tooltip/Popup -- by then the addon owned/anchored/shown it, so re-pointing wins. Namespace-scoped (200-local cap).
+-- its tooltip follows Grow Tooltip/Popup -- by then the addon owned/anchored/shown it, so re-pointing wins. Namespace-scoped.
 do
     local hooked = {}
     local function repoint(tt, btn)
@@ -335,7 +360,7 @@ _G._EBS_AddonVisible = _addonVisible
 
 -- Hide all collected minimap buttons from the map surface. Ungrouped buttons are left
 -- alone (positioned by LayoutIndicatorFrames); buttons inside the open flyout are
--- skipped too, since HideMinimapChild's _suppressVisTrack bypasses the force-show protection in the Hide hook and would zero their alpha with no recovery.
+-- skipped too, since HideMinimapChild's EBS._suppressVisTrack bypasses the force-show protection in the Hide hook and would zero their alpha with no recovery.
 local function HideAllMinimapButtons()
     GatherMinimapButtons()
     local flyoutOpen = flyoutPanel and flyoutPanel:IsShown()
@@ -350,3 +375,8 @@ local function HideAllMinimapButtons()
     end
 end
 
+I.ApplyBtnOffset, I.EnableFreeMove = ApplyBtnOffset, EnableFreeMove
+I.FOLIO_REPLACEMENT_BUTTONS = FOLIO_REPLACEMENT_BUTTONS
+I.HideAllMinimapButtons, I.RestartZoomResetTimer = HideAllMinimapButtons, RestartZoomResetTimer
+I.SaveZoomLevel = SaveZoomLevel
+I.broken = false

@@ -1,9 +1,30 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Minimap_Indicators.lua
+--
+--  The custom indicator buttons, the Great Vault button with its tooltip
+--  and the M+ Portal button.
+--  Reads the earlier Minimap files through ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIMinimap.lua or an earlier EUI_Minimap_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EBS, GetFFD, GetCustomTooltipScale = I.EBS, I.GetFFD, I.GetCustomTooltipScale
+local GetInteractableBtnSize, SetPortalFlyout = I.GetInteractableBtnSize, I.SetPortalFlyout
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._internals, which hands the value to every copy.
+local MO_Evaluate
+I.moEvaluateSetters[#I.moEvaluateSetters + 1] = function(v) MO_Evaluate = v end
+
 -------------------------------------------------------------------------------
 --  Minimap Indicator Buttons (custom replacements for Blizzard's reparented frames)
 --  Our own Button with black bg, icon and click handler: no Blizzard frame
 --  reparenting = no taint, no layout fights.
 -------------------------------------------------------------------------------
-local indicatorBg = nil  -- combined bg strip for square mode (legacy, still used when free move is off)
 local _customIndicators = {}  -- { tracking, calendar, mail, crafting }
 
 -- Native atlas aspect ratios (width / height) and per-icon scale multipliers
@@ -103,7 +124,6 @@ local function CreateIndicatorBtn(name, parent, upAtlas, overAtlas, downAtlas, o
 end
 
 -- Great Vault button: top of the ungrouped stack above the flyout toggle; a single "whole" atlas scaled to fit.
-local _greatVaultBtn = nil
 local GREAT_VAULT_WHOLE_ATLAS = "greatVault-whole-normal"
 
 local function GetOrderedWeeklyActivities(activityType)
@@ -375,17 +395,17 @@ end
 -------------------------------------------------------------------------------
 -- M+ Portal button. Identical flyout as Chat sidebar but anchored to minimap.
 -------------------------------------------------------------------------------
-local _portalBtn = nil
 local _portalFlyout
+I.portalFlyoutSetters[#I.portalFlyoutSetters + 1] = function(v) _portalFlyout = v end
 
 local function ToggleMinimapPortalFlyout(anchorBtn)
     if InCombatLockdown() then return end
     if not _portalFlyout then
-        _portalFlyout = EllesmereUI.CreatePortalFlyout({
+        SetPortalFlyout(EllesmereUI.CreatePortalFlyout({
             name = "EUIMinimap", bg = { 0.04, 0.04, 0.06 }, clamp = true, unitEvents = true,
             labelFont = (EllesmereUI.GetFontPath("minimap")) or "Fonts\\FRIZQT__.TTF",
             labelFlags = "OUTLINE",
-        })
+        }))
         -- Keep the mouseover stack shown while open; re-evaluate on close so it can hide.
         _portalFlyout:HookScript("OnShow", function() if MO_Evaluate then MO_Evaluate() end end)
         _portalFlyout:HookScript("OnHide", function() if MO_Evaluate then MO_Evaluate() end end)
@@ -483,3 +503,10 @@ local function CreatePortalBtn(parent)
     return btn
 end
 
+I._customIndicators, I.CreateGreatVaultBtn = _customIndicators, CreateGreatVaultBtn
+I.CreateIndicatorBtn, I.CreatePortalBtn = CreateIndicatorBtn, CreatePortalBtn
+I.HideVaultTooltip, I.INDICATOR_ATLAS_OFFSET = HideVaultTooltip, INDICATOR_ATLAS_OFFSET
+I.INDICATOR_ATLAS_RATIO, I.INDICATOR_ATLAS_SCALE = INDICATOR_ATLAS_RATIO, INDICATOR_ATLAS_SCALE
+I.ShowVaultTooltip, I.SizeGreatVaultBtn = ShowVaultTooltip, SizeGreatVaultBtn
+I.SizePortalBtn = SizePortalBtn
+I.broken = false

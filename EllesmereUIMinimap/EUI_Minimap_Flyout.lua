@@ -1,8 +1,37 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Minimap_Flyout.lua
+--
+--  The addon button flyout: junk filter, decoration strip and restore, the
+--  grid layout, the Grow table, the panel, the toggle button and the button
+--  row sizes and modes.
+--  Reads the earlier Minimap files through ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIMinimap.lua or an earlier EUI_Minimap_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local _addonVisible, cachedAddonButtons, EBS = I._addonVisible, I.cachedAddonButtons, I.EBS
+local EG, flyoutOwnedFrames, GetFFD = I.EG, I.flyoutOwnedFrames, I.GetFFD
+local QueueApplyAll, SetFlyoutPanel = I.QueueApplyAll, I.SetFlyoutPanel
+local SetFlyoutToggle = I.SetFlyoutToggle
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._internals, which hands the value to every copy.
+-- Assigned in EUI_Minimap_Layout.lua (see SetMOEvaluate), so the flyout
+-- panels created here can fire it from OnShow/OnHide.
+local MO_Evaluate
+I.moEvaluateSetters[#I.moEvaluateSetters + 1] = function(v) MO_Evaluate = v end
+
 -------------------------------------------------------------------------------
 --  Minimap Button Flyout
 -------------------------------------------------------------------------------
 local flyoutToggle = nil   -- the square trigger button
 local flyoutPanel  = nil   -- the popup grid container
+I.flyoutToggleSetters[#I.flyoutToggleSetters + 1] = function(v) flyoutToggle = v end
+I.flyoutPanelSetters[#I.flyoutPanelSetters + 1] = function(v) flyoutPanel = v end
 local flyoutSavedParents = {}  -- original parent/point data for restore
 local flyoutSavedRegions = {}  -- original region states for restore
 
@@ -129,7 +158,7 @@ end
 -- EUI-look black box behind an addon button, on the button row and in the flyout grid alike.
 -- A child frame of the button, so it is re-pinned just below the button on every layout:
 -- the flyout's child loop lifts every child above the button, which would bury the icon.
--- EBS field, not local -- 200-local cap.
+-- EBS field, not local.
 function EBS._ShowAddonBtnBox(btn)
     local d = GetFFD(btn)
     if not d.ungroupBg then
@@ -241,10 +270,10 @@ local function LayoutFlyoutButtons()
         btn:ClearAllPoints()
         btn:SetPoint("TOPLEFT", flyoutPanel, "TOPLEFT", xOff, yOff)
         btn:SetSize(btnSize, btnSize)
-        _suppressVisTrack = true
+        EBS._suppressVisTrack = true
         btn:SetAlpha(1)
         btn:Show()
-        _suppressVisTrack = false
+        EBS._suppressVisTrack = false
         btn:SetFrameLevel(flyoutPanel:GetFrameLevel() + 5)
         if btn.SetFixedFrameLevel then btn:SetFixedFrameLevel(true) end
         StripButtonDecorations(btn)
@@ -300,7 +329,7 @@ end
 -- Grow Tooltip/Popup: shared open-direction for all popups/tooltips off minimap
 -- buttons (M+ portals, group flyout, custom tooltips). Auto follows Button Row
 -- Position: vertical rows open left, horizontal rows open down. Namespace-scoped
--- (EBS field, not local -- 200-local cap). edge = anchor tuples (tooltip point,
+-- (EBS field, not local). edge = anchor tuples (tooltip point,
 -- anchor point, x, y) for corner-hung popups; center = centered on the facing edge
 -- (vault tooltip); tt = named sides for ShowWidgetTooltip labels.
 EBS._Grow = {
@@ -341,7 +370,7 @@ local function EnsureFlyoutPanel()
         -- Controller cursor: the shared overlay parent (UIParent without a
         -- controller UI, so nothing changes then); tracked once scripts are set.
         local overlayParent = EllesmereUI.OverlayParent()
-        flyoutPanel = CreateFrame("Frame", nil, overlayParent, "BackdropTemplate")
+        SetFlyoutPanel(CreateFrame("Frame", nil, overlayParent, "BackdropTemplate"))
         flyoutPanel:SetFrameStrata("DIALOG")
         flyoutPanel:SetBackdrop({
             bgFile   = "Interface\\ChatFrame\\ChatFrameBackground",
@@ -577,8 +606,18 @@ local function CreateFlyoutToggle()
         end
     end)
 
-    flyoutToggle = btn
+    SetFlyoutToggle(btn)
     flyoutOwnedFrames[btn] = true
     return btn
 end
 
+I.BuildFlyoutContents, I.CollectFlyoutButtons = BuildFlyoutContents, CollectFlyoutButtons
+I.CreateFlyoutToggle, I.flyoutSavedParents = CreateFlyoutToggle, flyoutSavedParents
+I.flyoutSavedRegions, I.GetBtnRowMode = flyoutSavedRegions, GetBtnRowMode
+I.GetCustomTooltipScale, I.GetElementRowMode = GetCustomTooltipScale, GetElementRowMode
+I.GetInteractableBtnSize, I.GetRowBase = GetInteractableBtnSize, GetRowBase
+I.HideFlyoutPanel, I.InvalidateFlyout = HideFlyoutPanel, InvalidateFlyout
+I.IsJunkTexture, I.IsUngrouped = IsJunkTexture, IsUngrouped
+I.RestoreButtonDecorations = RestoreButtonDecorations
+I.StripButtonDecorations = StripButtonDecorations
+I.broken = false
