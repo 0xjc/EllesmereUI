@@ -207,7 +207,13 @@ _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
               MR.Apply()
               EllesmereUI:RefreshPage()  -- the cog's disabled state
           end },
-        BLANK()
+        { type = "toggle", text = "Show Zone Levels",
+          tooltip = "Shows the level range of the zone you hover on a continent of the world map, under its name, colored by difficulty.",
+          getValue = function() return EllesmereUI._ZoneLevels.Get("enabled") end,
+          setValue = function(v)
+              EllesmereUI._ZoneLevels.Cfg().enabled = v
+              EllesmereUI._ZoneLevels.Apply()
+          end }
     );  y = y - h
     if not EllesmereUI._prebuilding then
         EllesmereUI.BuildInlineCog(revealRow._leftRegion, {
