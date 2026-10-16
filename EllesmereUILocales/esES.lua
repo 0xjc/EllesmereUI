@@ -9287,15 +9287,15 @@ L["|cffa335eeChampion|r"] = "|cffa335eeCampeón|r"
 L["|cffff8000Hero|r"] = "|cffff8000Héroe|r"
 L["|cffffd100Myth|r"] = "|cffffd100Mito|r"
 L["~%dx  Adventurer Crest"] = "~%dx  Blasón de aventurero"
-L["~%dx  Adventurer Crest\n|cff888888Scan at Upgrader for exact costs|r"] = "~%dx  Blasón de aventurero\n|cff888888Busca en el mejorador para ver los costes exactos|r"
+L["~%dx  Adventurer Crest\r\n|cff888888Scan at Upgrader for exact costs|r"] = "~%dx  Blasón de aventurero\n|cff888888Busca en el mejorador para ver los costes exactos|r"
 L["~%dx  Champion Crest"] = "~%dx  Blasón de campeón"
-L["~%dx  Champion Crest\n|cff888888Scan at Upgrader for exact costs|r"] = "~%dx  Blasón de campeón\n|cff888888Busca en el mejorador para ver los costes exactos|r"
+L["~%dx  Champion Crest\r\n|cff888888Scan at Upgrader for exact costs|r"] = "~%dx  Blasón de campeón\n|cff888888Busca en el mejorador para ver los costes exactos|r"
 L["~%dx  Hero Crest"] = "~%dx  Blasón de héroe"
-L["~%dx  Hero Crest\n|cff888888Scan at Upgrader for exact costs|r"] = "~%dx  Blasón de héroe\n|cff888888Busca en el mejorador para ver los costes exactos|r"
+L["~%dx  Hero Crest\r\n|cff888888Scan at Upgrader for exact costs|r"] = "~%dx  Blasón de héroe\n|cff888888Busca en el mejorador para ver los costes exactos|r"
 L["~%dx  Myth Crest"] = "~%dx  Blasón de mito"
-L["~%dx  Myth Crest\n|cff888888Scan at Upgrader for exact costs|r"] = "~%dx  Blasón de mito\n|cff888888Busca en el mejorador para ver los costes exactos|r"
+L["~%dx  Myth Crest\r\n|cff888888Scan at Upgrader for exact costs|r"] = "~%dx  Blasón de mito\n|cff888888Busca en el mejorador para ver los costes exactos|r"
 L["~%dx  Veteran Crest"] = "~%dx  Blasón de veterano"
-L["~%dx  Veteran Crest\n|cff888888Scan at Upgrader for exact costs|r"] = "~%dx  Blasón de veterano\n|cff888888Busca en el mejorador para ver los costes exactos|r"
+L["~%dx  Veteran Crest\r\n|cff888888Scan at Upgrader for exact costs|r"] = "~%dx  Blasón de veterano\n|cff888888Busca en el mejorador para ver los costes exactos|r"
 L["Another override group already provides the custom unlock mode for your current spec."] = "Otro grupo de ajustes ya da el modo desbloqueo personalizado para tu especialización actual."
 L["Buff Manager Override Active"] = "Gestor de beneficios propio activo"
 L["Conditional Overrides: override settings by condition (dungeon, raid, keybind...)"] = "Ajustes condicionales: cambia ajustes según la condición (mazmorra, banda, atajo...)"
