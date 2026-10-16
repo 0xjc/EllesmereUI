@@ -1280,6 +1280,27 @@ local function AddClassesByRole(tooltip, resultID)
             list[#list + 1] = p
         end
     end
+    -- Dungeons and arenas: Blizzard's tooltip already lists each member's role,
+    -- spec and class, so only the names are added, on one wrapped line, in
+    -- the same role order.
+    local DT = Enum.LFGListDisplayType
+    if DT and (ai.displayType == DT.RoleEnumerate or ai.displayType == DT.ClassEnumerate) then
+        local names = {}
+        for _, role in ipairs({ "TANK", "HEALER", "DAMAGER" }) do
+            for _, p in ipairs(byRole[role]) do
+                local name = p.name and not IsSecret(p.name) and p.name
+                if name then
+                    local col = RAID_CLASS_COLORS[p.classFilename]
+                    names[#names + 1] = (col and col.colorStr) and ("|c" .. col.colorStr .. name .. "|r") or name
+                end
+            end
+        end
+        if #names == 0 then return end
+        tooltip:AddLine(" ")
+        tooltip:AddLine("Names: " .. table.concat(names, "|cffb3b3b3,|r "), 1, 0.82, 0, true)
+        tooltip:Show()
+        return
+    end
     local added = false
     for _, role in ipairs({ "TANK", "HEALER", "DAMAGER" }) do
         for _, p in ipairs(byRole[role]) do
@@ -1978,7 +1999,7 @@ XF.GROUP_MENU = {
     { key = "leaderCrown",    label = "Show Group Leader",
       tip = "Puts a small crown above the group leader's icon." },
     { key = "classTooltip",   label = "Members in Tooltip",
-      tip = "Group tooltips list every member: role, specialization, class and name." },
+      tip = "Group tooltips add each member's name (dungeons and arenas, where Blizzard already lists the roles and classes), or a line per member with role, specialization, class and name (other groups)." },
     { title = "Sign Up" },
     { key = "cancelOldest",   label = "Cancel Oldest Application",
       tip = "At the application limit, clicking a group cancels your oldest pending application so you can sign up." },
@@ -1986,8 +2007,8 @@ XF.GROUP_MENU = {
     -- Quick Signup (EllesmereUIDB keys, applied by its own functions).
     { key = "persistSignupNote", label = "Keep Sign Up Note", core = "_applyPersistSignupNote",
       tip = "Keeps your note to the group leader filled in between sign-ups." },
-    { key = "quickSignup",    label = "One Click Sign Up", core = "_applyQuickSignup",
-      tip = "A single click on a group opens its sign-up." },
+    { key = "quickSignup",    label = "Quick Sign Up", core = "_applyQuickSignup",
+      tip = "Double-click a group to sign up straight away. Hold Shift to keep the sign-up dialog open, e.g. to type a note." },
     { title = "Misc" },
     { key = "dungeonAbbr",    label = "Dungeon Names",
       tip = "Each dungeon square shows the dungeon's short name (e.g. KR for King's Rest, AoF for Altar of Fangs).",
