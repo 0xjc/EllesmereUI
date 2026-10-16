@@ -65,6 +65,8 @@ initFrame:SetScript("OnEvent", function(self)
                 EllesmereUIDB.junkListExcluded = nil
                 EllesmereUIDB.simplifiedStats = nil
                 EllesmereUIDB.macroManager = nil
+                -- The per-character favorites are the player's picks: only the switch resets.
+                if EllesmereUIDB.petSummon then EllesmereUIDB.petSummon.enabled = nil end
                 -- The CVars a session holds stay recorded, so Apply can give them back.
                 local fi = EllesmereUIDB.fishing
                 EllesmereUIDB.fishing = fi and fi.held and { held = fi.held } or nil
@@ -98,6 +100,7 @@ initFrame:SetScript("OnEvent", function(self)
             end
             if EllesmereUI._SpellUprank then EllesmereUI._SpellUprank.Apply() end
             if EllesmereUI._JunkItems then EllesmereUI._JunkItems.Apply() end
+            if EllesmereUI._PetSummon then EllesmereUI._PetSummon.Apply() end
             if EllesmereUI._Fishing then EllesmereUI._Fishing.Apply() end
             if EllesmereUI._MapFade then EllesmereUI._MapFade.Apply() end
             EllesmereUI:InvalidatePageCache()

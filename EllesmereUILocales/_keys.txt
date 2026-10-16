@@ -510,6 +510,7 @@ FPS
 Fallback
 Fallback Direction
 Favor
+Favorite for This Character
 Favorites
 Feral
 Filters
