@@ -172,8 +172,12 @@ function ns.Finder_Enable()
                     fs:SetWidth(180)          -- one line, not wrapped in the button's narrow name box
                     if fs.SetWordWrap then fs:SetWordWrap(false) end
                 end
-                local tw = fs and fs.GetStringWidth and fs:GetStringWidth() or 0
-                tableW = math.max(tableW, off + tw)
+                -- The text's own width, not the (180) box's; 0 while the
+                -- client has not measured it yet (re-placed next frame).
+                local tw = 0
+                if fs and fs.GetUnboundedStringWidth then tw = fs:GetUnboundedStringWidth() or 0
+                elseif fs and fs.GetStringWidth then tw = fs:GetStringWidth() or 0 end
+                tableW = math.max(tableW, off + math.min(tw, 180))
             end
             -- `over` is 280 wide and centred on the line.
             local x = 140 - tableW / 2
@@ -193,16 +197,19 @@ function ns.Finder_Enable()
             end
         end
         Place()
+        -- Once more on the next frame: the names' widths (and, the first time,
+        -- the name's offset in the button) are only known after the client lays
+        -- the new text out; placing with them unmeasured put the table off
+        -- centre.
         local probe = NameOf(rows[1])
-        if not gfNameOff and probe and probe.GetLeft then
-            C_Timer.After(0, function()
+        C_Timer.After(0, function()
+            if InCombatLockdown() then return end
+            if not gfNameOff and probe and probe.GetLeft then
                 local l, nlft = rows[1]:GetLeft(), probe:GetLeft()
-                if l and nlft and nlft > l then
-                    gfNameOff = nlft - l
-                    Place()
-                end
-            end)
-        end
+                if l and nlft and nlft > l then gfNameOff = nlft - l end
+            end
+            Place()
+        end)
     end
     -- Role checkboxes in our checkbox look (dark square, theme ring; accent
     -- ring and fill when ticked).
