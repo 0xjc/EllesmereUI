@@ -1,3 +1,35 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Chat_Sidebar.lua
+--
+--  Sidebar side, icon colour, background and scale, free-moved icons, the
+--  portal flyout, the input position and the sidebar width.
+--  Reads the earlier Chat files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIChat.lua or an earlier EUI_Chat_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EUI = _G.EllesmereUI
+local ECHAT = ns.ECHAT
+local PP = EUI.PP
+local min, max = min, max
+
+local CFD, GetEditBoxHeight, GetFont = I.CFD, I.GetEditBoxHeight, I.GetFont
+local HideSidebarIconTooltip = I.HideSidebarIconTooltip
+local ShowSidebarIconTooltip = I.ShowSidebarIconTooltip
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._internals, which hands the value to every copy.
+local BG_R = I.BG_R
+I.bgRSetters[#I.bgRSetters + 1] = function(v) BG_R = v end
+local BG_G = I.BG_G
+I.bgGSetters[#I.bgGSetters + 1] = function(v) BG_G = v end
+local BG_B = I.BG_B
+I.bgBSetters[#I.bgBSetters + 1] = function(v) BG_B = v end
+
 -- Flip sidebar to left or right side of chat bg
 function ECHAT.ApplySidebarPosition()
     local cfg = ECHAT.DB()
@@ -614,3 +646,4 @@ function ECHAT.ApplySidebarWidth()
     if ECHAT.ApplySidebarPosition then ECHAT.ApplySidebarPosition() end
 end
 
+I.broken = false

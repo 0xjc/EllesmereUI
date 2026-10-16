@@ -1,5 +1,45 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Chat_Visibility.lua
+--
+--  The fade: the alpha cache, mouse passthrough at full hide, the fade
+--  driver and the visibility rules.
+--  Reads the earlier Chat files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIChat.lua or an earlier EUI_Chat_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EUI = _G.EllesmereUI
+local ECHAT = ns.ECHAT
+local min, max = min, max
+
+local _chatFadeFrame, CFD, FADE_IN_DURATION = I._chatFadeFrame, I.CFD, I.FADE_IN_DURATION
+local FADE_OUT_DURATION, GetIdleFadeAlpha = I.FADE_OUT_DURATION, I.GetIdleFadeAlpha
+local IDLE_FADE_OUT_DURATION = I.IDLE_FADE_OUT_DURATION
+local SetChatAlphaCurrent, SetVisChatVisible = I.SetChatAlphaCurrent, I.SetVisChatVisible
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._internals, which hands the value to every copy.
+local _sidebarFadeAlpha = I._sidebarFadeAlpha
+I.sidebarFadeAlphaSetters[#I.sidebarFadeAlphaSetters + 1] = function(v) _sidebarFadeAlpha = v end
+local _chatAlphaCurrent = I._chatAlphaCurrent
+I.chatAlphaCurrentSetters[#I.chatAlphaCurrentSetters + 1] = function(v) _chatAlphaCurrent = v end
+
+-- Unified fade system: all alpha changes go through a target + lerp.
+local _visChatVisible = true
+I.visChatVisibleSetters[#I.visChatVisibleSetters + 1] = function(v) _visChatVisible = v end
+local _idleFadeActive = false
+I.idleFadeActiveSetters[#I.idleFadeActiveSetters + 1] = function(v) _idleFadeActive = v end
+local _chatAlphaTarget = 1
+local _visAlpha = 1
+
 -- Frame cache for _ApplyAlpha, so the fade loop does no repeated _G lookups.
 local _alphaFrames
+-- EUI_Chat_Skin.lua drops the cache through this when it skins a frame.
+local function SetAlphaFrames(v) _alphaFrames = v end
 -- A live sidebar visibility change must refresh the cached sidebar mode, or
 -- the fade keeps writing the old mode's alpha (a painted sidebar comes back).
 -- Updated in place: this runs on every passthrough exit, and nothing else in
@@ -383,7 +423,7 @@ local function RequestPassthroughSweep()
 end
 
 local function _ApplyAlpha(alpha)
-    _chatAlphaCurrent = alpha
+    SetChatAlphaCurrent(alpha)
     SetChatMousePassthrough(alpha <= 0)
     if not _alphaFrames then _BuildAlphaCache() end
     -- Our tab strip (UIParent-parented) fades directly; its buttons inherit.
@@ -502,9 +542,9 @@ _chatFadeFrame:SetScript("OnUpdate", function(self, dt)
         or (_idleFadeActive and IDLE_FADE_OUT_DURATION or FADE_OUT_DURATION)
     local speed = dt / duration
     if fadingIn then
-        _chatAlphaCurrent = min(_chatAlphaTarget, _chatAlphaCurrent + speed)
+        SetChatAlphaCurrent(min(_chatAlphaTarget, _chatAlphaCurrent + speed))
     else
-        _chatAlphaCurrent = max(_chatAlphaTarget, _chatAlphaCurrent - speed)
+        SetChatAlphaCurrent(max(_chatAlphaTarget, _chatAlphaCurrent - speed))
     end
     -- The alpha step accumulates every frame but is only pushed to widgets on a
     -- throttle. Still smooth; saves ~75% of SetAlpha calls at 120fps.
@@ -521,7 +561,7 @@ end)
 -- idle fade cannot exceed this.
 function ECHAT.SetChatAlpha(alpha)
     _visAlpha = alpha
-    _visChatVisible = (alpha >= 1)
+    SetVisChatVisible(alpha >= 1)
     _SetAlphaTarget(alpha)
 end
 
@@ -554,3 +594,6 @@ function ECHAT.RefreshVisibility()
     end
 end
 
+I._idleFadeActive, I._visChatVisible = _idleFadeActive, _visChatVisible
+I.RequestPassthroughSweep, I.SetAlphaFrames = RequestPassthroughSweep, SetAlphaFrames
+I.broken = false

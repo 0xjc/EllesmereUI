@@ -1,3 +1,23 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Chat_Position.lua
+--
+--  Where the main chat window sits and how large it is: the Edit Mode
+--  store, the saved position and its guard, genesis capture, the resize
+--  grip and the size lock.
+--  Reads the earlier Chat files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIChat.lua or an earlier EUI_Chat_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local ECHAT = ns.ECHAT
+local min, max, floor, abs = min, max, floor, math.abs
+
+local CFD, EnsureChatClampInsets = I.CFD, I.EnsureChatClampInsets
+
 -------------------------------------------------------------------------------
 --  Chat position: owned by EUI unlock mode once a position is saved (genesis-
 --  captured otherwise). Two writers place ChatFrame1: Edit Mode on every
@@ -891,3 +911,4 @@ function ECHAT.ApplyLockChatSize()
     end
 end
 
+I.broken = false

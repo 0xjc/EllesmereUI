@@ -1,7 +1,53 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Chat_Skin.lua
+--
+--  SkinChatFrame: panel, sidebar and its buttons, scroll bar and the rest
+--  of one chat frame's chrome.
+--  Reads the earlier Chat files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIChat.lua or an earlier EUI_Chat_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EUI = _G.EllesmereUI
+local ECHAT = ns.ECHAT
+local PP = EUI.PP
+local min, max = min, max
+
+local CFD, GetEditBoxHeight, GetFont = I.CFD, I.GetEditBoxHeight, I.GetFont
+local GetFrameFontSize, GetInnerBorderColor = I.GetFrameFontSize, I.GetInnerBorderColor
+local GetOutlineFlag, GetTabAreaHeight = I.GetOutlineFlag, I.GetTabAreaHeight
+local HideSidebarIconTooltip = I.HideSidebarIconTooltip
+local ShowSidebarIconTooltip = I.ShowSidebarIconTooltip
+local RequestPassthroughSweep, SetAlphaFrames = I.RequestPassthroughSweep, I.SetAlphaFrames
+local OnHyperlinkEnter, OnHyperlinkLeave = I.OnHyperlinkEnter, I.OnHyperlinkLeave
+local ReadActiveChatText, ShowCopyPopup = I.ReadActiveChatText, I.ShowCopyPopup
+local _skinned, SkinEditBox = I._skinned, I.SkinEditBox
+local SetSidebarFadeTarget = I.SetSidebarFadeTarget
+local SetSidebarLayoutVisible = I.SetSidebarLayoutVisible
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._internals, which hands the value to every copy.
+local BG_R = I.BG_R
+I.bgRSetters[#I.bgRSetters + 1] = function(v) BG_R = v end
+local BG_G = I.BG_G
+I.bgGSetters[#I.bgGSetters + 1] = function(v) BG_G = v end
+local BG_B = I.BG_B
+I.bgBSetters[#I.bgBSetters + 1] = function(v) BG_B = v end
+local BG_A = I.BG_A
+I.bgASetters[#I.bgASetters + 1] = function(v) BG_A = v end
+local _sidebarMouseoverLayoutVisible = I._sidebarMouseoverLayoutVisible
+I.sidebarLayoutVisibleSetters[#I.sidebarLayoutVisibleSetters + 1] = function(v) _sidebarMouseoverLayoutVisible = v end
+local _sidebarFadeFrame
+I.sidebarFadeFrameSetters[#I.sidebarFadeFrameSetters + 1] = function(v) _sidebarFadeFrame = v end
+
 local function SkinChatFrame(cf)
     if not cf or _skinned[cf] then return end
     _skinned[cf] = true
-    _alphaFrames = nil
+    SetAlphaFrames(nil)
     -- A frame skinned while the panel is fully hidden must join the passthrough
     -- set; deferred so it runs after this skin completes.
     RequestPassthroughSweep()
@@ -102,7 +148,7 @@ local function SkinChatFrame(cf)
 
     -- NEVER HookScript("OnEvent") on chat frames -- even post-hooks taint the
     -- C-level event dispatcher. Idle reset + pulse detection live on standalone
-    -- event frames (sections 5/6 below).
+    -- event frames (sections 5/6 in EUI_Chat_Init.lua).
 
     -- Unified dark background (covers chat + edit box as one panel). Parented to
     -- UIParent, NEVER to the chat frame: an insecure frame parented to a Blizzard chat
@@ -172,9 +218,9 @@ local function SkinChatFrame(cf)
                 -- Fade target MUST be set before the layout pass: the icon
                 -- shown-state in ApplySidebarIcons reads it to decide whether
                 -- the faded-out cutoff still applies.
-                _sidebarFadeTarget = 1
+                SetSidebarFadeTarget(1)
                 if not _sidebarMouseoverLayoutVisible then
-                    _sidebarMouseoverLayoutVisible = true
+                    SetSidebarLayoutVisible(true)
                     if ECHAT.ApplyTabPadding then
                         ECHAT.ApplyTabPadding()
                     elseif ECHAT.ApplyExtendedBackground then
@@ -191,7 +237,7 @@ local function SkinChatFrame(cf)
                     local over = sidebar:IsMouseOver()
                     if issecretvalue and issecretvalue(over) then over = false end
                     if not over then
-                        _sidebarFadeTarget = 0
+                        SetSidebarFadeTarget(0)
                         if _sidebarFadeFrame then _sidebarFadeFrame:Show() end
                     end
                 end)
@@ -927,3 +973,5 @@ local function SkinChatFrame(cf)
     -- container; our windows carry their own thin scrollbar instead.
 end
 
+I.SkinChatFrame = SkinChatFrame
+I.broken = false

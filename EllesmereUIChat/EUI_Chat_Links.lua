@@ -1,3 +1,24 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Chat_Links.lua
+--
+--  Reading the chat text, the copy popup, URL detection with its popup and
+--  the hyperlink tooltip.
+--  Reads the earlier Chat files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local addonName, ns = ...
+local I = ns._internals
+-- EllesmereUIChat.lua or an earlier EUI_Chat_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EUI = _G.EllesmereUI
+local ECHAT = ns.ECHAT
+local PP = EUI.PP
+local min, max = min, max
+
+local GetFont = I.GetFont
+
 -------------------------------------------------------------------------------
 --  Chat text helpers
 -------------------------------------------------------------------------------
@@ -408,3 +429,7 @@ hooksecurefunc("SetItemRef", function(link)
     end
 end)
 
+I.ContainsURL, I.OnHyperlinkEnter = ContainsURL, OnHyperlinkEnter
+I.OnHyperlinkLeave, I.ReadActiveChatText = OnHyperlinkLeave, ReadActiveChatText
+I.ShowCopyPopup, I.WrapURLs = ShowCopyPopup, WrapURLs
+I.broken = false

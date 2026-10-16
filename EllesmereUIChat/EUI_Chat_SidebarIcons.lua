@@ -1,3 +1,28 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Chat_SidebarIcons.lua
+--
+--  Which sidebar icons show, their order and the chain that anchors the
+--  visible ones, and the Chat Menu icon over Blizzard's chat menu button.
+--  Reads the earlier Chat files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIChat.lua or an earlier EUI_Chat_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local ECHAT = ns.ECHAT
+
+local CFD, GetTabAreaHeight = I.CFD, I.GetTabAreaHeight
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._internals, which hands the value to every copy.
+local _sidebarFadeTarget = I._sidebarFadeTarget
+I.sidebarFadeTargetSetters[#I.sidebarFadeTargetSetters + 1] = function(v) _sidebarFadeTarget = v end
+local _sidebarFadeAlpha = I._sidebarFadeAlpha
+I.sidebarFadeAlphaSetters[#I.sidebarFadeAlphaSetters + 1] = function(v) _sidebarFadeAlpha = v end
+
 -- Show/hide individual sidebar icons and re-anchor visible ones to close gaps
 -- Chain refs for ApplySidebarIcons (static: that pass runs on every sidebar
 -- fade edge).
@@ -256,3 +281,4 @@ do
     end
 end
 
+I.broken = false

@@ -1,3 +1,22 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Chat_EditBox.lua
+--
+--  The skinned-frame registry, the message events, the chat-state callbacks
+--  and SkinEditBox.
+--  Reads the earlier Chat files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIChat.lua or an earlier EUI_Chat_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local ECHAT = ns.ECHAT
+
+local CFD, GetEditBoxFont, GetEditBoxFontSize = I.CFD, I.GetEditBoxFont, I.GetEditBoxFontSize
+local GetEditBoxHeight, GetOutlineFlag = I.GetEditBoxHeight, I.GetOutlineFlag
+
 -------------------------------------------------------------------------------
 --  Chat frame reskin
 -------------------------------------------------------------------------------
@@ -71,8 +90,7 @@ end
 
 -- Shared registration point for the focus-gained side: the permanent-frame
 -- gate is applied once and the owner string keeps repeat passes idempotent.
--- On ECHAT rather than a file local because this file runs close to the
--- 200-local ceiling.
+-- On ECHAT rather than a file local: EUI_Chat_Init.lua registers through it too.
 function ECHAT._RegisterEditBoxFocusGained(owner, fn)
     if not (EventRegistry and EventRegistry.RegisterCallback) then return end
     EventRegistry:RegisterCallback("ChatFrame.OnEditBoxFocusGained", function(_, eb)
@@ -320,3 +338,5 @@ local function SkinEditBox(cf)
     end
 end
 
+I._skinned, I.CHAT_MSG_EVENTS, I.SkinEditBox = _skinned, CHAT_MSG_EVENTS, SkinEditBox
+I.broken = false

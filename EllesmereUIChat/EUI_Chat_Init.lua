@@ -1,3 +1,44 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Chat_Init.lua
+--
+--  The tab refresh shim and the PLAYER_LOGIN pass that skins the frames and
+--  starts the watchers.
+--  Reads the earlier Chat files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIChat.lua or an earlier EUI_Chat_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EUI = _G.EllesmereUI
+local ECHAT = ns.ECHAT
+local max = max
+
+local CFD, EnsureDB, GetFont = I.CFD, I.EnsureDB, I.GetFont
+local GetFrameFontSize, GetIdleFadeAlpha = I.GetFrameFontSize, I.GetIdleFadeAlpha
+local GetOutlineFlag, RequestPassthroughSweep = I.GetOutlineFlag, I.RequestPassthroughSweep
+local ContainsURL, WrapURLs, _skinned = I.ContainsURL, I.WrapURLs, I._skinned
+local CHAT_MSG_EVENTS, SkinChatFrame = I.CHAT_MSG_EVENTS, I.SkinChatFrame
+local SetBgR, SetBgG, SetBgB, SetBgA = I.SetBgR, I.SetBgG, I.SetBgB, I.SetBgA
+local SetIdleFadeActive = I.SetIdleFadeActive
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._internals, which hands the value to every copy.
+local BG_R = I.BG_R
+I.bgRSetters[#I.bgRSetters + 1] = function(v) BG_R = v end
+local BG_G = I.BG_G
+I.bgGSetters[#I.bgGSetters + 1] = function(v) BG_G = v end
+local BG_B = I.BG_B
+I.bgBSetters[#I.bgBSetters + 1] = function(v) BG_B = v end
+local BG_A = I.BG_A
+I.bgASetters[#I.bgASetters + 1] = function(v) BG_A = v end
+local _visChatVisible = I._visChatVisible
+I.visChatVisibleSetters[#I.visChatVisibleSetters + 1] = function(v) _visChatVisible = v end
+local _idleFadeActive = I._idleFadeActive
+I.idleFadeActiveSetters[#I.idleFadeActiveSetters + 1] = function(v) _idleFadeActive = v end
+
 -------------------------------------------------------------------------------
 --  Tab refresh shim: the owned strip (EllesmereUIChat_Tabs.lua) redraws from
 --  a coalesced deferred pass; this also re-hides anything of Blizzard's tab
@@ -21,10 +62,10 @@ initFrame:SetScript("OnEvent", function(self)
     --  1. Load saved background color/opacity before skinning any frames
     ---------------------------------------------------------------------------
     local p = ECHAT.DB()
-    BG_R = p.bgR or BG_R
-    BG_G = p.bgG or BG_G
-    BG_B = p.bgB or BG_B
-    BG_A = p.bgAlpha or BG_A
+    SetBgR(p.bgR or BG_R)
+    SetBgG(p.bgG or BG_G)
+    SetBgB(p.bgB or BG_B)
+    SetBgA(p.bgAlpha or BG_A)
 
     ---------------------------------------------------------------------------
     --  2. Skin all 20 chat frames (bg, tabs, edit box, etc.), then bring them
@@ -382,7 +423,7 @@ initFrame:SetScript("OnEvent", function(self)
         local function StartIdleFade()
             if ECHAT.DB().idleFadeEnabled == false then return end
             if _idleFadeActive then return end
-            _idleFadeActive = true
+            SetIdleFadeActive(true)
             ECHAT.SetIdleFadeAlpha(GetIdleFadeAlpha())
             -- Faded: arm the hover-reveal motion overlay.
 
@@ -391,7 +432,7 @@ initFrame:SetScript("OnEvent", function(self)
 
         local function CancelIdleFade()
             local wasActive = _idleFadeActive
-            _idleFadeActive = false
+            SetIdleFadeActive(false)
             if idleTimer then
                 idleTimer:Cancel()
                 idleTimer = nil
@@ -1057,3 +1098,5 @@ initFrame:SetScript("OnEvent", function(self)
     ECHAT.SeatChatMenu()
 
 end)
+
+I.broken = false

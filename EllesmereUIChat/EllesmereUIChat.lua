@@ -305,8 +305,6 @@ end
 ECHAT.GetFont = GetFont
 ECHAT.GetOutlineFlag = GetOutlineFlag
 
--- Unified fade system: all alpha changes go through a target + lerp.
-local _visChatVisible = true
 -- Strength 100 is a true full hide: alpha 0 plus mouse passthrough
 -- (SetChatMousePassthrough).
 local function GetIdleFadeAlpha()
@@ -314,15 +312,12 @@ local function GetIdleFadeAlpha()
     local strength = min(cfg.idleFadeStrength or 40, 100)
     return 1 - (strength / 100)
 end
-local _idleFadeActive = false
 local FADE_IN_DURATION = 0.35
 local FADE_OUT_DURATION = 1.0
 local IDLE_FADE_OUT_DURATION = 2.0
-local _chatAlphaTarget = 1
 local _chatAlphaCurrent = 1
 local _chatFadeFrame = CreateFrame("Frame")
 _chatFadeFrame:Hide()
-local _visAlpha = 1
 -- Tab fade rides the strip: our tab buttons are children of our own strip
 -- container, which _ApplyAlpha fades directly. The old constraints on
 -- Blizzard's tabs still stand for anyone tempted to touch the HIDDEN strip:
@@ -349,6 +344,13 @@ local function GetTabAreaHeight()
     return GetTabHeight() + GetTabPadding()
 end
 
+-- Set<Name> for the locals this file shares with the EUI_Chat_*.lua files
+-- (the background colour here, the sidebar fade state further down). Every
+-- file that reads one keeps a copy, so a write goes through these; they are
+-- assigned at the end of this file, next to ns._internals.
+local SetBgR, SetBgG, SetBgB, SetBgA
+local SetSidebarLayoutVisible, SetSidebarFadeFrame
+local SetSidebarFadeTarget, SetSidebarFadeAlpha
 local BG_R, BG_G, BG_B, BG_A = 0.03, 0.045, 0.05, 0.70
 
 local EDIT_BG_R, EDIT_BG_G, EDIT_BG_B = 0.05, 0.065, 0.08
@@ -405,10 +407,10 @@ end
 -- Apply background settings from DB to all skinned chat frames
 function ECHAT.ApplyBackground()
     local p = ECHAT.DB()
-    BG_R = p.bgR or 0.03
-    BG_G = p.bgG or 0.045
-    BG_B = p.bgB or 0.05
-    BG_A = p.bgAlpha or 0.65
+    SetBgR(p.bgR or 0.03)
+    SetBgG(p.bgG or 0.045)
+    SetBgB(p.bgB or 0.05)
+    SetBgA(p.bgAlpha or 0.65)
 
     -- "none" = solid color instead of a texture
     local texKey = p.bgTexture or "none"
@@ -787,21 +789,21 @@ function ECHAT.ApplySidebarVisibility()
     if not sidebar then return end
 
     if mode == "never" then
-        _sidebarMouseoverLayoutVisible = false
-        _sidebarFadeTarget = 0
-        _sidebarFadeAlpha = 0
+        SetSidebarLayoutVisible(false)
+        SetSidebarFadeTarget(0)
+        SetSidebarFadeAlpha(0)
         sidebar:SetAlpha(0)
         sidebar:EnableMouse(false)
     elseif mode == "mouseover" then
-        _sidebarMouseoverLayoutVisible = false
-        _sidebarFadeTarget = 0
-        _sidebarFadeAlpha = 0
+        SetSidebarLayoutVisible(false)
+        SetSidebarFadeTarget(0)
+        SetSidebarFadeAlpha(0)
         sidebar:SetAlpha(0)
         sidebar:EnableMouse(true)
     else
-        _sidebarMouseoverLayoutVisible = true
-        _sidebarFadeTarget = 1
-        _sidebarFadeAlpha = 1
+        SetSidebarLayoutVisible(true)
+        SetSidebarFadeTarget(1)
+        SetSidebarFadeAlpha(1)
         sidebar:SetAlpha(1)
         sidebar:EnableMouse(true)
     end
@@ -810,7 +812,7 @@ function ECHAT.ApplySidebarVisibility()
         ns._sidebarSeparateBorder:SetAlpha(_sidebarFadeAlpha)
     end
     -- The fade's cached sidebar mode follows the new visibility (declared
-    -- further down the file, hence the runtime lookup).
+    -- in EUI_Chat_Visibility.lua, hence the runtime lookup).
     if ECHAT.InvalidateAlphaCache then ECHAT.InvalidateAlphaCache() end
 
     -- Re-anchor the extended panel border as the sidebar enters/leaves layout.
@@ -821,14 +823,14 @@ function ECHAT.ApplySidebarVisibility()
     end
 
     if not _sidebarFadeFrame then
-        _sidebarFadeFrame = CreateFrame("Frame")
+        SetSidebarFadeFrame(CreateFrame("Frame"))
         _sidebarFadeFrame:Hide()
         _sidebarFadeFrame:SetScript("OnUpdate", function(self, dt)
             local step = dt * 4  -- 0.25s fade
             if _sidebarFadeTarget > _sidebarFadeAlpha then
-                _sidebarFadeAlpha = min(_sidebarFadeTarget, _sidebarFadeAlpha + step)
+                SetSidebarFadeAlpha(min(_sidebarFadeTarget, _sidebarFadeAlpha + step))
             else
-                _sidebarFadeAlpha = max(_sidebarFadeTarget, _sidebarFadeAlpha - step)
+                SetSidebarFadeAlpha(max(_sidebarFadeTarget, _sidebarFadeAlpha - step))
             end
             local sb = _G.ChatFrame1 and CFD(_G.ChatFrame1).sidebar
             if sb then sb:SetAlpha(min(_sidebarFadeAlpha, _chatAlphaCurrent)) end
@@ -838,7 +840,7 @@ function ECHAT.ApplySidebarVisibility()
             if _sidebarFadeAlpha == _sidebarFadeTarget then
                 self:Hide()
                 if _sidebarFadeTarget == 0 and _sidebarMouseoverLayoutVisible then
-                    _sidebarMouseoverLayoutVisible = false
+                    SetSidebarLayoutVisible(false)
                     if ECHAT.ApplyTabPadding then
                         ECHAT.ApplyTabPadding()
                     elseif ECHAT.ApplyExtendedBackground then
@@ -1059,8 +1061,8 @@ end
 function ECHAT.PositionChatPanelsNow()
     for i = 1, 20 do
         local cf = _G["ChatFrame" .. i]
-        -- Gate on the panel existing, NOT on _skinned: this function sits
-        -- above that local, so referencing it here reads a nil GLOBAL.
+        -- Gate on the panel existing, NOT on _skinned: that table is a local of
+        -- EUI_Chat_EditBox.lua, so referencing it here reads a nil GLOBAL.
         if cf and CFD(cf).bg then ECHAT._PositionChatPanelNow(cf) end
     end
     -- The owned tab strip is anchored to the panel and follows for free.
@@ -1488,3 +1490,63 @@ do
     end
 end
 
+-- Main-chunk locals the EUI_Chat_*.lua files re-import by name.
+-- bgRSetters and the lists beside it: every file that reads one of these
+-- shared locals keeps its own copy and adds a setter here; every write goes
+-- through the Set<Name> function built below, which runs them all. BG_R and
+-- the other shared locals stand in the table with their value at load, for
+-- the copies to start from.
+-- broken: true while an EUI_Chat_*.lua file loads; a file that fails leaves
+-- it set, and the files behind it return at their first lines.
+ns._internals = {
+    _chatAlphaCurrent = _chatAlphaCurrent, _chatFadeFrame = _chatFadeFrame,
+    _sidebarFadeAlpha = _sidebarFadeAlpha, _sidebarFadeTarget = _sidebarFadeTarget,
+    _sidebarMouseoverLayoutVisible = _sidebarMouseoverLayoutVisible, BG_A = BG_A, BG_B = BG_B,
+    BG_G = BG_G, BG_R = BG_R, CFD = CFD, EnsureChatClampInsets = EnsureChatClampInsets,
+    EnsureDB = EnsureDB, FADE_IN_DURATION = FADE_IN_DURATION,
+    FADE_OUT_DURATION = FADE_OUT_DURATION, GetEditBoxFont = GetEditBoxFont,
+    GetEditBoxFontSize = GetEditBoxFontSize, GetEditBoxHeight = GetEditBoxHeight,
+    GetFont = GetFont, GetFrameFontSize = GetFrameFontSize, GetIdleFadeAlpha = GetIdleFadeAlpha,
+    GetInnerBorderColor = GetInnerBorderColor, GetOutlineFlag = GetOutlineFlag,
+    GetTabAreaHeight = GetTabAreaHeight, HideSidebarIconTooltip = HideSidebarIconTooltip,
+    IDLE_FADE_OUT_DURATION = IDLE_FADE_OUT_DURATION,
+    ShowSidebarIconTooltip = ShowSidebarIconTooltip,
+    bgRSetters = { function(v) BG_R = v end },
+    bgGSetters = { function(v) BG_G = v end },
+    bgBSetters = { function(v) BG_B = v end },
+    bgASetters = { function(v) BG_A = v end },
+    sidebarLayoutVisibleSetters = { function(v) _sidebarMouseoverLayoutVisible = v end },
+    sidebarFadeTargetSetters = { function(v) _sidebarFadeTarget = v end },
+    sidebarFadeAlphaSetters = { function(v) _sidebarFadeAlpha = v end },
+    sidebarFadeFrameSetters = { function(v) _sidebarFadeFrame = v end },
+    chatAlphaCurrentSetters = { function(v) _chatAlphaCurrent = v end },
+    visChatVisibleSetters = {}, idleFadeActiveSetters = {},
+    broken = false,
+}
+-- Set<Name> hands a new value to every copy registered in <name>Setters.
+for setter, listName in pairs({
+    SetBgR = "bgRSetters", SetBgG = "bgGSetters", SetBgB = "bgBSetters", SetBgA = "bgASetters",
+    SetSidebarLayoutVisible = "sidebarLayoutVisibleSetters",
+    SetSidebarFadeTarget = "sidebarFadeTargetSetters",
+    SetSidebarFadeAlpha = "sidebarFadeAlphaSetters",
+    SetSidebarFadeFrame = "sidebarFadeFrameSetters",
+    SetChatAlphaCurrent = "chatAlphaCurrentSetters",
+    SetVisChatVisible = "visChatVisibleSetters", SetIdleFadeActive = "idleFadeActiveSetters",
+}) do
+    local list = ns._internals[listName]
+    ns._internals[setter] = function(v)
+        for i = 1, #list do list[i](v) end
+    end
+end
+-- The Set<Name> functions this file calls itself (declared above BG_R).
+do
+    local I = ns._internals
+    SetBgR, SetBgG, SetBgB, SetBgA = I.SetBgR, I.SetBgG, I.SetBgB, I.SetBgA
+    SetSidebarLayoutVisible, SetSidebarFadeFrame = I.SetSidebarLayoutVisible, I.SetSidebarFadeFrame
+    SetSidebarFadeTarget, SetSidebarFadeAlpha = I.SetSidebarFadeTarget, I.SetSidebarFadeAlpha
+end
+-- A re-import of a name this table lacks fails where the part file loads,
+-- not later as a nil upvalue inside one of its functions.
+setmetatable(ns._internals, { __index = function(_, k)
+    error("ns._internals has no entry " .. tostring(k), 2)
+end })
