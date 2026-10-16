@@ -5859,3 +5859,8 @@ L["North"] = "Nord"
 L["East"] = "Est"
 L["West"] = "Ouest"
 L["Graveyard, Library, Armory, Cathedral"] = "Cimetière, Bibliothèque, Armurerie, Cathédrale"
+-- Fade Map While Moving (EllesmereUIForeverEssentials_MapFade.lua)
+L["Fade Map While Moving"] = "Estomper la carte en mouvement"
+L["Turns on the game's own map fade: while you move, the world map fades to half so you can see where you go, and comes back once you stop or put the cursor over it."] = "Active l'estompage de carte du jeu : pendant vos déplacements, la carte du monde s'estompe à moitié pour que vous voyiez où vous allez, puis revient dès que vous vous arrêtez ou que vous la survolez."
+L["Lightens the black screen behind the maximized world map so you can see the game around it."] = "Éclaircit l'écran noir derrière la carte du monde agrandie pour voir le jeu autour."
+L["Show the Game Behind the Map"] = "Voir le jeu derrière la carte"
