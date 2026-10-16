@@ -13,7 +13,7 @@ local GOLD_R, GOLD_G, GOLD_B = 1, 0.82, 0
 local MEDIA    = "Interface\\AddOns\\EllesmereUI\\media\\icons\\"
 local COG_TEX  = MEDIA .. "cogs.png"
 local X_TEX    = MEDIA .. "eui-close.png"
-local RAID_TEX = MEDIA .. "raid-tools.png"
+local RAID_TEX = "Interface\\AddOns\\" .. ADDON_NAME .. "\\media\\icons\\raid.png"  -- EUI's raid-tools.png on a clear background
 
 local ROW1_Y   = -42  -- row 1 centre
 local ROW1_H    = 24
@@ -3048,7 +3048,7 @@ local function Layout()
     if raidBtn then
         raidBtn:SetShown(showBosses and raidList ~= nil)
         raidBtn:SetSize(size, size)
-        raidBtn.Glyph:SetSize(math.floor(size * 0.6), math.floor(size * 0.6))
+        raidBtn.Glyph:SetSize(math.floor(size * 0.55), math.floor(size * 0.55))
         raidBtn:ClearAllPoints()
         local after = resetBtn or filter
         if after then raidBtn:SetPoint("LEFT", after, "RIGHT", SQ_GAP, 0)
