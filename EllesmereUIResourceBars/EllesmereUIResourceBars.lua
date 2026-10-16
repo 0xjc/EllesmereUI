@@ -11,8 +11,6 @@ EllesmereUI._ModuleNS[ADDON_NAME] = ns  -- LOD options files read this module ns
 local ERB = EllesmereUI.Lite.NewAddon(ADDON_NAME)
 ns.ERB = ERB
 
-local PP = EllesmereUI.PP
-
 -- Per-addon border texture defaults (size key = borderSize 0-4); shared by
 -- TBB, class/power/health bars, and cast bar
 EllesmereUI.RegisterBorderDefaults("resourcebars", EllesmereUI.BORDER_DEFAULTS_BARS)
@@ -35,19 +33,13 @@ local function SnapXY(x, y, frame, pos)
     return x, y
 end
 
-local floor, ceil, abs, min, max = math.floor, math.ceil, math.abs, math.min, math.max
-local format = string.format
-local UnitHealth, UnitHealthMax = UnitHealth, UnitHealthMax
-local UnitPower, UnitPowerMax = UnitPower, UnitPowerMax
+local UnitHealthMax = UnitHealthMax
+local UnitPowerMax = UnitPowerMax
 local UnitClass = UnitClass
 -- Vanilla-based clients (WoW Forever) have no specialization API: every
 -- reader then sees "no spec", the state a fresh character is in anyway.
 local GetSpecialization = GetSpecialization or function() return nil end
-local InCombatLockdown = InCombatLockdown
 local GetShapeshiftFormID = GetShapeshiftFormID
-local IsPlayerSpell = IsPlayerSpell
-local UnitSpellHaste = UnitSpellHaste
-local GetInventoryItemID = GetInventoryItemID
 
 -------------------------------------------------------------------------------
 --  Constants
