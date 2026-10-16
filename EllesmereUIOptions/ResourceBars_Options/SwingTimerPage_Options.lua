@@ -567,8 +567,9 @@ function ns.ERB_BuildSwingTimerPage(pageName, parent, yOffset)
         EllesmereUI.RegisterWidgetRefresh(UpdateQueueSwatch)
     end
 
-    -- One swatch beside a toggle (store keys prefix .. R/G/B/A, `def` the
-    -- fallback), disabled while the timer or its toggle is off. Built only
+    -- One swatch beside a toggle or dropdown (store keys prefix .. R/G/B/A,
+    -- `def` the fallback), disabled while the timer is off or `flag` (the
+    -- toggle's store key, or a predicate on the store) is not met. Built only
     -- outside the search pre-build.
     local function ToggleSwatch(row, rgn, prefix, def, flag, flagTip, name)
         local sw, updateSw = EllesmereUI.BuildColorSwatch(
@@ -596,7 +597,11 @@ function ns.ERB_BuildSwingTimerPage(pageName, parent, yOffset)
             local p = DB()
             local tip
             if not p or not p.swingTimer.enabled then tip = ST_TIP
-            elseif not p.swingTimer[flag] then tip = flagTip end
+            else
+                local on
+                if type(flag) == "function" then on = flag(p.swingTimer) else on = p.swingTimer[flag] end
+                if not on then tip = flagTip end
+            end
             if tip then sw:SetAlpha(0.15); sw:Disable() else sw:SetAlpha(1); sw:Enable() end
             sw._disabledTooltip = tip
             updateSw()
@@ -646,19 +651,22 @@ function ns.ERB_BuildSwingTimerPage(pageName, parent, yOffset)
             "pendingEnabled", "Show Attack Pending", "Attack Pending Color")
     end
 
-    -- Row: Show Aim Window (+ aim color swatch) | (blank: last row of the section)
+    -- Row: Aim Window (Off / Shaded Zone / Wind-Up Bar, + aim color swatch) |
+    -- (blank: last row of the section)
     local aimRow
     aimRow, h = W:DualRow(parent, y,
-        { type = "toggle", text = "Show Aim Window",
-          tooltip = "Shades the last half second of each Ranged swing for wand Shoot and Auto Shot. Stand still from there: if you move, the shot waits until you have stood still for half a second.",
+        { type = "dropdown", text = "Aim Window",
+          tooltip = "Wand Shoot and Auto Shot need you to stand still for half a second before each shot. Shaded Zone marks that half second on the Ranged row. Wind-Up Bar shows it as its own fill: it holds while you move and restarts the half second when you stop.",
           disabled = stOff, disabledTooltip = ST_TIP,
-          getValue = function() local p = DB(); return p and p.swingTimer.aimWindow == true end,
-          setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.aimWindow = v; RefreshST(); EllesmereUI:RefreshPage() end },
+          values = { off = "Off", zone = "Shaded Zone", windup = "Wind-Up Bar" },
+          order = { "off", "zone", "windup" },
+          getValue = function() local p = DB(); return p and p.swingTimer.aimMode or "off" end,
+          setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.aimMode = v; RefreshST(); EllesmereUI:RefreshPage() end },
         EllesmereUI.BlankRowCfg()
     );  y = y - h
     if not EllesmereUI._prebuilding then
         ToggleSwatch(aimRow, aimRow._leftRegion, "aim", { 1, 0.82, 0.25 },
-            "aimWindow", "Show Aim Window", "Aim Window Color")
+            function(g) return g.aimMode ~= nil and g.aimMode ~= "off" end, "Aim Window", "Aim Window Color")
     end
 
     return math.abs(y)
