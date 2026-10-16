@@ -1515,6 +1515,13 @@ local DEFAULTS = {
             queueHighlight = true,  -- melee rows take the queue colour + spell name while an on-next-swing attack is queued
             queueR = 1, queueG = 0.70, queueB = 0.20, queueA = 1,   -- Heroic Strike / Maul
             queueCleaveR = 0.95, queueCleaveG = 0.35, queueCleaveB = 0.25, queueCleaveA = 1,   -- Cleave
+            activeHighlight = false, -- rows take the active colour while their auto attack is on (melee: Auto Attack; ranged: Shoot / Auto Shot), and sit full while it is on with no swing running
+            activeR = 0.047, activeG = 0.824, activeB = 0.616, activeA = 1,   -- EUI teal #0CD29D
+            latencyEnabled = false,  -- latency zone at the end of each running swing
+            latencyR = 0.835, latencyG = 0.290, latencyB = 0.290, latencyA = 1,   -- cast bar latency default
+            pendingEnabled = false,  -- a row whose attack is on with no swing running fills with the pending colour
+            pendingR = 0.659, pendingG = 0.502, pendingB = 0.949, pendingA = 1,   -- violet #A880F2
+            smoothTiming = false,    -- start each swing from the expected rhythm, nudged by each arrival, not at the event's arrival
             borderSize    = 1,
             borderR       = 0, borderG = 0, borderB = 0, borderA = 1,
             borderTexture = "solid",
@@ -5046,6 +5053,17 @@ end
 -- active state, so only buffs the Cooldown Manager tracks are found; any ID may
 -- still be entered and tried.
 local _euiBuffViewers = { "BuffBarCooldownViewer", "BuffIconCooldownViewer" }
+-- Spell names never change within a session, so the buff check and its viewer
+-- scan read them from here instead of asking the client on every update.
+local _euiSpellNames = {}
+local function CachedSpellName(spellID)
+    local nm = _euiSpellNames[spellID]
+    if nm == nil then
+        nm = C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(spellID) or false
+        _euiSpellNames[spellID] = nm
+    end
+    return nm or nil
+end
 local function BuffActiveViaCooldownViewer(spellID, wantName)
     local gci = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo
     if not gci then return false end
@@ -5055,8 +5073,16 @@ local function BuffActiveViaCooldownViewer(spellID, wantName)
         if pool and pool.EnumerateActive then
             for frame in pool:EnumerateActive() do
                 if frame:IsShown() then    -- shown = the buff is currently up
-                    local cdID = frame.cooldownID or (frame.cooldownInfo and frame.cooldownInfo.cooldownID)
-                    local info = cdID and gci(cdID)
+                    -- The item's own cooldownInfo is the data provider's live
+                    -- table (Blizzard updates its override and linked IDs in
+                    -- place), so reading it allocates nothing; a
+                    -- GetCooldownViewerCooldownInfo call builds a fresh copy per
+                    -- item. Only an item without one asks.
+                    local info = frame.cooldownInfo
+                    if not info then
+                        local cdID = frame.cooldownID
+                        info = cdID and gci(cdID)
+                    end
                     if info then
                         if info.spellID == spellID or info.overrideSpellID == spellID then return true end
                         if info.linkedSpellIDs then
@@ -5064,8 +5090,7 @@ local function BuffActiveViaCooldownViewer(spellID, wantName)
                                 if lid == spellID then return true end
                             end
                         end
-                        if wantName and info.spellID and C_Spell and C_Spell.GetSpellName
-                           and C_Spell.GetSpellName(info.spellID) == wantName then
+                        if wantName and info.spellID and CachedSpellName(info.spellID) == wantName then
                             return true
                         end
                     end
@@ -5081,7 +5106,7 @@ IP.BuffActiveViaViewer = BuffActiveViaCooldownViewer
 
 local function PlayerHasBuff(spellID)
     if not spellID or spellID == 0 or not C_UnitAuras then return false end
-    local nm = C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(spellID)
+    local nm = CachedSpellName(spellID)
     -- 1) Exact aura spellId match.
     local byID = C_UnitAuras.GetPlayerAuraBySpellID
     if byID then

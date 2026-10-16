@@ -4220,6 +4220,7 @@ do
         EllesmereUILoadoutManager = true,
         EllesmereUIGroupFinder = true,
         EllesmereUIForeverEssentials = true,
+        EllesmereUISimpleLootCouncil = true,
     }
 
     -- Shared tail of every accepted registration. Only reachable from the
