@@ -33,9 +33,10 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 -- auto-repeat edges); the latency zone is sized once per swing. A row whose
 -- attack is on with no swing running waits (parked full), entered on the end
 -- edge or an attack edge and left on the next swing or an attack-stop edge;
--- Smooth Swing Timing is arithmetic on the swing start. An idle row
--- costs nothing: its timer holds a finished duration, which paints a static
--- state.
+-- Smooth Swing Timing is arithmetic on the swing start. Auto Shot's aim is
+-- added to its swing once per swing, and the aim zone is placed with the
+-- latency zone. An idle row costs nothing: its timer holds a finished
+-- duration, which paints a static state.
 --
 -- Everything is gated on the swing API and the engine timer it feeds: on retail
 -- this file returns right below and nothing below exists. Off by default = no
@@ -100,6 +101,16 @@ local PENDING_COLOR = { r = 0.659, g = 0.502, b = 0.949 }
 local SMOOTH_TOL  = 0.25
 local SMOOTH_GAIN = 0.25
 
+-- Aim: wand Shoot and Auto Shot need the player to stand still for AIM_TIME
+-- before a shot (Forever beta patch note). A wand's aim is the last AIM_TIME
+-- of its reported swing; Auto Shot's comes after it (PLAYER_SWING's duration
+-- leaves it out, measured), so a Hunter's Ranged row adds it to run to the
+-- shot. AIM_CLASS: the classes whose Ranged row is one of the two.
+local AIM_TIME  = 0.5
+local AIM_CLASS = { PRIEST = true, MAGE = true, WARLOCK = true, HUNTER = true }
+local AIM_AFTER = { HUNTER = true }
+local AIM_COLOR = { r = 1, g = 0.82, b = 0.25 }
+
 -- Shell + ticker host at FILE SCOPE (attribution rule, see _erbEventFrame in the
 -- main file): the OnEvent and OnLoop work bills ResourceBars. Children stay lazy.
 local shell = CreateFrame("Frame", "ERB_SwingTimerFrame", UIParent)
@@ -113,7 +124,7 @@ local tickFrame = CreateFrame("Frame")
 -- on-next-swing attacks: id, colour key + fallback, resolved name), queued (the
 -- entry painted, false = none), meleeOn / repeatOn (auto attack / auto-repeat
 -- on, from the edges), seeded (both read since the highlight came on), active
--- (the state painted)
+-- (the state painted), aimClass / aimAfter (this class's AIM_CLASS / AIM_AFTER)
 local S = { rows = {}, byType = {}, shown = 0, live = 0, rangeOn = {}, queueSpells = {}, queued = false,
             meleeOn = false, repeatOn = false, active = { melee = false, ranged = false } }
 
@@ -338,55 +349,66 @@ local function UpdateSpark(row, cfg)
     row._spark:SetShown(on and true or false)
 end
 
--- Latency zone: the swing's last world-latency seconds (the cast bar's
--- ShowLatencyOverlay recipe), sized once per swing. With Deplete Fill the
--- swing ends on the left under the fill, so the zone draws over it there;
--- a filling bar ends on the right and sweeps over the zone below it. Built on
--- first enable; none on an idle or combined off-hand row.
-local function HideLatency(row)
-    if row._latBack then
-        row._latBack:Hide()
-        row._latFront:Hide()
+-- Zones mark the last stretch of a running swing at the bar's ending edge: the
+-- latency zone (the swing's last world-latency seconds, the cast bar's
+-- ShowLatencyOverlay recipe) and the aim zone (the last AIM_TIME: stand still
+-- from here). With Deplete Fill the swing ends on the left under the fill, so
+-- a zone draws over it there (front); a filling bar ends on the right and
+-- sweeps over a zone below it (back). Each is a back/front texture pair built
+-- on first enable and placed once per swing; the latency zone draws over the
+-- aim zone. None on an idle, waiting or combined off-hand row.
+local function HideZone(z)
+    if z then
+        z.back:Hide()
+        z.front:Hide()
     end
 end
 
-local function StyleLatency(row, cfg, texPath)
-    if not cfg.latencyEnabled or row._merged then
-        HideLatency(row)
-        return
+local function HideZones(row)
+    local zones = row._zones
+    if zones then
+        HideZone(zones.lat)
+        HideZone(zones.aim)
     end
-    if not row._latBack then
-        row._latBack = row._clip:CreateTexture(nil, "ARTWORK", nil, 7)
-        row._latBack:Hide()
-        row._latFront = row._bar:CreateTexture(nil, "OVERLAY", nil, 0)
-        row._latFront:Hide()
-    end
-    local r, g, b, a = cfg.latencyR or 0.835, cfg.latencyG or 0.290, cfg.latencyB or 0.290, cfg.latencyA or 1
-    row._latBack:SetTexture(texPath)
-    row._latBack:SetVertexColor(r, g, b, a)
-    row._latFront:SetTexture(texPath)
-    row._latFront:SetVertexColor(r, g, b, a)
 end
 
-local function UpdateLatency(row, cfg, dur)
-    local back, front = row._latBack, row._latFront
-    if not back then return end
-    if not cfg.latencyEnabled or row._merged then
-        HideLatency(row)
+local function StyleZone(row, key, on, texPath, r, g, b, a, backSub, frontSub)
+    local zones = row._zones
+    local z = zones and zones[key]
+    if not on or row._merged then
+        HideZone(z)
         return
     end
-    local _, _, home, world = GetNetStats()
-    local ms = (world and world > 0) and world or home
+    if not z then
+        if not zones then
+            zones = {}
+            row._zones = zones
+        end
+        z = {
+            back  = row._clip:CreateTexture(nil, "ARTWORK", nil, backSub),
+            front = row._bar:CreateTexture(nil, "OVERLAY", nil, frontSub),
+        }
+        z.back:Hide()
+        z.front:Hide()
+        zones[key] = z
+    end
+    z.back:SetTexture(texPath)
+    z.back:SetVertexColor(r, g, b, a)
+    z.front:SetTexture(texPath)
+    z.front:SetVertexColor(r, g, b, a)
+end
+
+local function PlaceZone(row, z, cfg, secs, dur)
+    if not (secs and secs > 0 and dur and dur > 0) then
+        HideZone(z)
+        return
+    end
     local w = row._clip:GetWidth()
     if not (w and w > 0) then w = cfg.width or 220 end
-    if not (ms and ms > 0 and dur and dur > 0) then
-        HideLatency(row)
-        return
-    end
-    local zw = w * math.min(1, ms / 1000 / dur)
+    local zw = w * math.min(1, secs / dur)
     if zw < 1 then zw = 1 end
-    local zone = cfg.depleteFill and front or back
-    local other = cfg.depleteFill and back or front
+    local zone = cfg.depleteFill and z.front or z.back
+    local other = cfg.depleteFill and z.back or z.front
     other:Hide()
     zone:ClearAllPoints()
     if cfg.depleteFill then
@@ -398,6 +420,41 @@ local function UpdateLatency(row, cfg, dur)
     end
     zone:SetWidth(zw)
     zone:Show()
+end
+
+-- The aim zone belongs to the Ranged row of a wand or Auto Shot class.
+local function AimRow(row, cfg)
+    return cfg.aimWindow and S.aimClass and row._def.type == SWING.Ranged
+end
+
+local function StyleZones(row, cfg, texPath)
+    StyleZone(row, "lat", cfg.latencyEnabled, texPath,
+        cfg.latencyR or 0.835, cfg.latencyG or 0.290, cfg.latencyB or 0.290, cfg.latencyA or 1, 7, 0)
+    local c = AIM_COLOR
+    StyleZone(row, "aim", AimRow(row, cfg), texPath,
+        cfg.aimR or c.r, cfg.aimG or c.g, cfg.aimB or c.b, cfg.aimA or 0.5, 6, -1)
+end
+
+local function UpdateZones(row, cfg, dur)
+    local zones = row._zones
+    if not zones then return end
+    local lat, aim = zones.lat, zones.aim
+    if lat then
+        if cfg.latencyEnabled and not row._merged then
+            local _, _, home, world = GetNetStats()
+            local ms = (world and world > 0) and world or home
+            PlaceZone(row, lat, cfg, ms and ms / 1000, dur)
+        else
+            HideZone(lat)
+        end
+    end
+    if aim then
+        if AimRow(row, cfg) and not row._merged then
+            PlaceZone(row, aim, cfg, AIM_TIME, dur)
+        else
+            HideZone(aim)
+        end
+    end
 end
 
 -- Defined with the look below; the swing edges above it repaint through it.
@@ -446,7 +503,7 @@ local function IdleRow(row, cfg)
     row._bar:SetTimerDuration(obj, IMMEDIATE, full and DIR.ElapsedTime or DIR.RemainingTime)
     row._bar:SetValue(full and 1 or 0)
     row._time:SetText("")
-    HideLatency(row)
+    HideZones(row)
 end
 
 -- The fill is the engine's: the row's duration object takes this swing and the
@@ -457,6 +514,8 @@ end
 -- after the end edge still smooths against it.
 local function StartRow(row, dur, cfg)
     if type(dur) ~= "number" or dur ~= dur or dur <= 0 or dur == math.huge then return end
+    -- Auto Shot fires AIM_TIME after its reported swing: run the row to the shot.
+    if S.aimAfter and row._def.type == SWING.Ranged then dur = dur + AIM_TIME end
     local now = GetTime()
     local start = now
     local due = row._due
@@ -481,7 +540,7 @@ local function StartRow(row, dur, cfg)
     obj:SetTimeFromStart(start, dur)
     row._bar:SetTimerDuration(obj, IMMEDIATE, cfg.depleteFill and DIR.RemainingTime or DIR.ElapsedTime)
     row._time:SetFormattedText("%.1f", dur)
-    UpdateLatency(row, cfg, dur)
+    UpdateZones(row, cfg, dur)
     ns.STTick.Start()
     if cfg.hideWhenIdle and S.live == 1 and ns.ST_UpdateVisibility then ns.ST_UpdateVisibility() end
 end
@@ -503,7 +562,7 @@ local function EnterWaiting(row, cfg)
     row._bar:SetTimerDuration(obj, IMMEDIATE, DIR.ElapsedTime)
     row._bar:SetValue(1)
     row._time:SetText("")
-    HideLatency(row)
+    HideZones(row)
     UpdateSpark(row, cfg)
     ApplyRowFill(row, cfg)
 end
@@ -737,7 +796,7 @@ local function ApplyRowLook(row, cfg, w, h)
     bar:SetReverseFill(false)
     row._bg:SetTexture(nil)
     row._bg:SetColorTexture(cfg.bgR or 0, cfg.bgG or 0, cfg.bgB or 0, cfg.bgA or 0.7)
-    StyleLatency(row, cfg, texPath)
+    StyleZones(row, cfg, texPath)
 
     ApplyRowFill(row, cfg)
 
@@ -987,8 +1046,10 @@ local function EnsureBuilt()
         S.rows[i] = row
         S.byType[ROWS[i].type] = row
     end
-    -- On-next-swing spell names, once per session, for a class that has one.
     local _, classFile = UnitClass("player")
+    S.aimClass = AIM_CLASS[classFile]
+    S.aimAfter = AIM_AFTER[classFile]
+    -- On-next-swing spell names, once per session, for a class that has one.
     local ids = EllesmereUI.FOREVER_NEXT_SWING and EllesmereUI.FOREVER_NEXT_SWING[classFile]
     if ids and C_Spell and C_Spell.GetSpellName then
         for i = 1, #ids do
@@ -1104,11 +1165,11 @@ function ns.ST_Apply()
             row._bar:SetTimerDuration(obj, IMMEDIATE, oh and DIR.RemainingTime or DIR.ElapsedTime)
             row._bar:SetValue(oh and 0 or 1)
             row._time:SetText("1.2")
-            UpdateLatency(row, cfg, row._dur or 2)
+            UpdateZones(row, cfg, row._dur or 2)
         elseif row._live and not row._waiting and row._dur then
             obj:SetTimeFromStart(row._end - row._dur, row._dur)
             row._bar:SetTimerDuration(obj, IMMEDIATE, cfg.depleteFill and DIR.RemainingTime or DIR.ElapsedTime)
-            UpdateLatency(row, cfg, row._dur)
+            UpdateZones(row, cfg, row._dur)
         elseif ShouldWait(row, cfg) then
             EnterWaiting(row, cfg)
         else

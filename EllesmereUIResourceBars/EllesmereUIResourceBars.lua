@@ -1524,6 +1524,8 @@ local DEFAULTS = {
             pendingEnabled = false,  -- a row whose attack is on with no swing running fills with the pending colour
             pendingR = 0.659, pendingG = 0.502, pendingB = 0.949, pendingA = 1,   -- violet #A880F2
             smoothTiming = false,    -- start each swing from the expected rhythm, nudged by each arrival, not at the event's arrival
+            aimWindow = false,       -- shade the last 0.5s of each Ranged swing (wand Shoot / Auto Shot: stand still from here)
+            aimR = 1, aimG = 0.82, aimB = 0.25, aimA = 0.5,   -- amber, translucent so the fill shows through
             borderSize    = 1,
             borderR       = 0, borderG = 0, borderB = 0, borderA = 1,
             borderTexture = "solid",

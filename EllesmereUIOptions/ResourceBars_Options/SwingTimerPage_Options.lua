@@ -646,5 +646,20 @@ function ns.ERB_BuildSwingTimerPage(pageName, parent, yOffset)
             "pendingEnabled", "Show Attack Pending", "Attack Pending Color")
     end
 
+    -- Row: Show Aim Window (+ aim color swatch) | (blank: last row of the section)
+    local aimRow
+    aimRow, h = W:DualRow(parent, y,
+        { type = "toggle", text = "Show Aim Window",
+          tooltip = "Shades the last half second of each Ranged swing for wand Shoot and Auto Shot. Stand still from there: if you move, the shot waits until you have stood still for half a second.",
+          disabled = stOff, disabledTooltip = ST_TIP,
+          getValue = function() local p = DB(); return p and p.swingTimer.aimWindow == true end,
+          setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.aimWindow = v; RefreshST(); EllesmereUI:RefreshPage() end },
+        EllesmereUI.BlankRowCfg()
+    );  y = y - h
+    if not EllesmereUI._prebuilding then
+        ToggleSwatch(aimRow, aimRow._leftRegion, "aim", { 1, 0.82, 0.25 },
+            "aimWindow", "Show Aim Window", "Aim Window Color")
+    end
+
     return math.abs(y)
 end
