@@ -4330,7 +4330,7 @@ EllesmereUI.RegisterMigration({
 -- The Swing Timer's indicator toggles became two settings: Attack State (Off /
 -- Queued Only / Full) replaces Highlight Queued Attacks, Highlight Active Attack
 -- and Show Shot Pending; Movement Guide (Off / Segments / Wind-Up Bar) replaces
--- Latency Overlay, Smooth Swing Timing and the Aim Window. Only explicit values
+-- Latency Overlay and Smooth Swing Timing. Only explicit values
 -- move (defaults are stripped at logout); the colour keys keep their names.
 -- GLOBAL with per-profile stamps, gated on existing profiles, like the
 -- visibility migration above.
@@ -4358,13 +4358,9 @@ EllesmereUI.RegisterMigration({
                         elseif st.queueHighlight == false then
                             st.attackState = "off"
                         end
-                        if st.aimMode == "windup" then
-                            st.moveGuide = "windup"
-                        elseif st.latencyEnabled or st.aimMode == "zone" then
-                            st.moveGuide = "segments"
-                        end
+                        if st.latencyEnabled then st.moveGuide = "segments" end
                         st.queueHighlight, st.activeHighlight, st.pendingEnabled = nil, nil, nil
-                        st.latencyEnabled, st.smoothTiming, st.aimMode = nil, nil, nil
+                        st.latencyEnabled, st.smoothTiming = nil, nil
                     end
                     stamps[ID] = true
                 end
