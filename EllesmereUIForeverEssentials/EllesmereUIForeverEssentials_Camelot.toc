@@ -22,6 +22,7 @@ EllesmereUIForeverEssentials_MapFade.lua
 EllesmereUIForeverEssentials_ActiveForm.lua
 EllesmereUIForeverEssentials_MapRevealData.lua
 EllesmereUIForeverEssentials_MapReveal.lua
+EllesmereUIForeverEssentials_QuestRewards.lua
 
 # Travel (flight timer)
 EllesmereUIForeverEssentials_FlightTimerData.lua

@@ -303,6 +303,22 @@ _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
     end
 
     ---------------------------------------------------------------------------
+    --  QUEST REWARDS (EllesmereUIForeverEssentials_QuestRewards.lua)
+    ---------------------------------------------------------------------------
+    local QR = EllesmereUI._QuestRewards
+    _, h = W:Spacer(parent, y, 20);  y = y - h
+    _, h = W:SectionHeader(parent, "QUEST REWARDS", y);  y = y - h
+
+    _, h = W:DualRow(parent, y,
+        { type = "toggle", text = "Most Valuable Reward",
+          tooltip = "Among a quest's reward choices, a money bag marks the one that sells for most, its count included.",
+          getValue = function() return QR.Get("enabled") end,
+          setValue = function(v)
+              QR.Cfg().enabled = v
+              QR.Apply()
+          end },
+        BLANK()
+    );  y = y - h
     --  COMPANION PETS (EllesmereUIForeverEssentials_PetSummon.lua)
     ---------------------------------------------------------------------------
     local PS = EllesmereUI._PetSummon
