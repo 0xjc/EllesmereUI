@@ -567,6 +567,18 @@ _G._EUI_BuildForeverGeneralPage = function(pageName, parent, yOffset)
 
     if not junkOff() then
         _, h = W:DualRow(parent, y,
+            { type = "toggle", text = "Only Show When Bag Space Is Low",
+              tooltip = "Shows the window only when free slots in regular bags are below the threshold. Existing visibility conditions still apply.",
+              getValue = function() return JI.Get("onlyLowBagSpace") == true end,
+              setValue = function(v) JunkSet("onlyLowBagSpace", v) end },
+            { type = "slider", text = "Free-Slot Threshold",
+              min = 1, max = 100, step = 1, isPercent = false,
+              tooltip = "Show when fewer than this many regular bag slots are free. A threshold of 5 shows at 0-4 free slots.",
+              getValue = function() return JI.Get("freeSlotThreshold") end,
+              setValue = function(v) JunkSet("freeSlotThreshold", v) end }
+        );  y = y - h
+
+        _, h = W:DualRow(parent, y,
             { type = "slider", text = "Items Shown",
               min = 1, max = 6, step = 1, isPercent = false,
               tooltip = "How many junk stacks the window lists.",
