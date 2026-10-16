@@ -40,6 +40,7 @@ local PRELOADED = {
     "GuildInviteFrame",
     "TabardFrame",
     "GuildRegistrarFrame",
+    "SettingsPanel",          -- the game options (Blizzard_Settings_Shared, loaded at startup)
 }
 
 local ADDON_FRAMES = {
@@ -67,6 +68,7 @@ local ADDON_FRAMES = {
     ["Blizzard_ItemInteractionUI"]                 = { "ItemInteractionFrame" },
     ["Blizzard_ItemSocketingUI"]                   = { "ItemSocketingFrame" },
     ["Blizzard_ItemUpgradeUI"]                     = { "ItemUpgradeFrame" },
+    ["Blizzard_LegacySystem"]                      = { "LegacySystemFrame" },  -- WoW Forever's Legacy window
     ["Blizzard_MacroUI"]                           = { "MacroFrame" },
     ["Blizzard_MajorFactions"]                     = { "MajorFactionRenownFrame" },
     ["Blizzard_PlayerSpells"]                      = { "PlayerSpellsFrame" },
