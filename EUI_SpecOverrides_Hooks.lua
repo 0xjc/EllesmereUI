@@ -47,7 +47,7 @@ end
 local evFrame = CreateFrame("Frame")
 evFrame:RegisterEvent("PLAYER_LOGIN")
 evFrame:RegisterEvent("PLAYER_LOGOUT")
-evFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
+evFrame:RegisterEvent("PLAYER_REGEN_ENABLED") -- guardrails-allow: combat-deferral by JuJuFX-dev: moved unchanged by the file split; multi-event frame (login, logout, combat end)
 evFrame:SetScript("OnEvent", function(_, event)
     if event == "PLAYER_LOGIN" then
         -- De-alias repair for stores that banked live TABLE references, which aliased
