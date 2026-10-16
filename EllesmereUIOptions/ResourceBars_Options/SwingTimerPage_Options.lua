@@ -496,23 +496,57 @@ function ns.ERB_BuildSwingTimerPage(pageName, parent, yOffset)
           setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.showLabel = v; RefreshST() end }
     );  y = y - h
 
-    -- Row: Range Check (+ out-of-range alpha cog) | Highlight Queued Attacks
-    -- (+ inline Heroic Strike / Maul / Raptor Strike and Cleave colour swatches)
-    local queueRow
-    queueRow, h = W:DualRow(parent, y,
+    -- A cog's colour row: store keys prefix .. R/G/B/A, `def` the fallback
+    -- {r, g, b, a}; `off` (optional) greys it out with `offTip`.
+    local function ColorRow(label, prefix, def, tip, off, offTip)
+        return { type = "colorpicker", label = label, tooltip = tip, hasAlpha = true,
+            disabled = off, disabledTooltip = offTip,
+            get = function()
+                local p = DB(); local g = p and p.swingTimer
+                if not g then return def[1], def[2], def[3], def[4] end
+                return g[prefix .. "R"] or def[1], g[prefix .. "G"] or def[2], g[prefix .. "B"] or def[3], g[prefix .. "A"] or def[4]
+            end,
+            set = function(r, gg, b, a)
+                local p = DB(); if not p then return end
+                local g = p.swingTimer
+                g[prefix .. "R"], g[prefix .. "G"], g[prefix .. "B"], g[prefix .. "A"] = r, gg, b, a
+                RefreshST()
+            end }
+    end
+    local stateNotFull = function() local p = DB(); return not p or p.swingTimer.attackState ~= "full" end
+    local stateOff = function() local p = DB(); return not p or p.swingTimer.attackState == "off" end
+    local guideOff = function() local p = DB(); return not p or (p.swingTimer.moveGuide or "off") == "off" end
+
+    -- Row: Range Check (+ out-of-range alpha cog) | Attack State (+ colors cog)
+    local stateRow
+    stateRow, h = W:DualRow(parent, y,
         { type = "toggle", text = "Range Check",
           tooltip = "Dim a row and paint its text red while the current target is out of that weapon's auto attack range.",
           disabled = stOff, disabledTooltip = ST_TIP,
           getValue = function() local p = DB(); return p and p.swingTimer.rangeCheck ~= false end,
           setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.rangeCheck = v; RefreshST() end },
-        { type = "toggle", text = "Highlight Queued Attacks",
-          tooltip = "While an on-next-swing attack is queued, the Main Hand and Off Hand rows take its color and show its name (Heroic Strike, Maul and Raptor Strike share one color, Cleave has its own).",
+        { type = "dropdown", text = "Attack State",
+          tooltip = "How the rows show your attack. Queued Only colors a melee row and names the attack while Heroic Strike, Maul, Raptor Strike or Cleave is queued. Full also colors a row while its attack is on, and fills it violet while the attack is on but nothing is swinging (out of range, held by moving, Shoot queued behind a cast).",
           disabled = stOff, disabledTooltip = ST_TIP,
-          getValue = function() local p = DB(); return p and p.swingTimer.queueHighlight ~= false end,
-          setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.queueHighlight = v; RefreshST(); EllesmereUI:RefreshPage() end }
+          values = { off = "Off", queued = "Queued Only", full = "Full" },
+          order = { "off", "queued", "full" },
+          getValue = function() local p = DB(); return p and p.swingTimer.attackState or "queued" end,
+          setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.attackState = v; RefreshST(); EllesmereUI:RefreshPage() end }
     );  y = y - h
     if not EllesmereUI._prebuilding then
-        EllesmereUI.BuildInlineCog(queueRow._leftRegion, {
+        EllesmereUI.BuildInlineCog(stateRow._rightRegion, {
+            disabled = stOff, disabledTooltip = ST_TIP,
+            title = "Attack State Colors",
+            rows = {
+                ColorRow("On", "active", { 0.047, 0.824, 0.616, 1 }, "While the attack is on and a swing is running.", stateNotFull, "Full"),
+                ColorRow("Waiting", "pending", { 0.659, 0.502, 0.949, 1 }, "While the attack is on but nothing is swinging.", stateNotFull, "Full"),
+                ColorRow("Queued", "queue", { 1, 0.70, 0.20, 1 }, "Heroic Strike, Maul or Raptor Strike queued.", stateOff, "Queued Only"),
+                ColorRow("Cleave", "queueCleave", { 0.95, 0.35, 0.25, 1 }, "Cleave queued.", stateOff, "Queued Only"),
+            },
+        })
+    end
+    if not EllesmereUI._prebuilding then
+        EllesmereUI.BuildInlineCog(stateRow._leftRegion, {
             title = "Range Check",
             rows = {
                 { type = "slider", label = "Out of Range Opacity", min = 0, max = 100, step = 1,
@@ -522,128 +556,33 @@ function ns.ERB_BuildSwingTimerPage(pageName, parent, yOffset)
             },
         })
     end
-    if not EllesmereUI._prebuilding then
-        local rgn = queueRow._rightRegion
-        local ctrl = rgn._control
-        -- Heroic Strike / Maul / Raptor Strike (the "queue" keys) beside the toggle,
-        -- Cleave to its left.
-        local qSwatch, qUpdateSwatch = EllesmereUI.BuildColorSwatch(
-            rgn, queueRow:GetFrameLevel() + 3,
-            function() local p = DB(); return (p and p.swingTimer.queueR or 1), (p and p.swingTimer.queueG or 0.70), (p and p.swingTimer.queueB or 0.20), (p and p.swingTimer.queueA or 1) end,
-            function(r, g, b, a) local p = DB(); if not p then return end; p.swingTimer.queueR, p.swingTimer.queueG, p.swingTimer.queueB, p.swingTimer.queueA = r, g, b, a; RefreshST() end,
-            true, 20)
-        PP.Point(qSwatch, "RIGHT", ctrl, "LEFT", -8, 0)
-        local cSwatch, cUpdateSwatch = EllesmereUI.BuildColorSwatch(
-            rgn, queueRow:GetFrameLevel() + 3,
-            function() local p = DB(); return (p and p.swingTimer.queueCleaveR or 0.95), (p and p.swingTimer.queueCleaveG or 0.35), (p and p.swingTimer.queueCleaveB or 0.25), (p and p.swingTimer.queueCleaveA or 1) end,
-            function(r, g, b, a) local p = DB(); if not p then return end; p.swingTimer.queueCleaveR, p.swingTimer.queueCleaveG, p.swingTimer.queueCleaveB, p.swingTimer.queueCleaveA = r, g, b, a; RefreshST() end,
-            true, 20)
-        PP.Point(cSwatch, "RIGHT", qSwatch, "LEFT", -4, 0)
-        rgn._lastInline = cSwatch
-        -- Hover names the attack a swatch colours, or the requirement while disabled.
-        local function SwatchTip(sw, name)
-            sw:SetMotionScriptsWhileDisabled(true)
-            sw:HookScript("OnEnter", function(self)
-                EllesmereUI.ShowWidgetTooltip(self, self._disabledTooltip and EllesmereUI.DisabledTooltip(self._disabledTooltip) or name)
-            end)
-            sw:HookScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-        end
-        SwatchTip(qSwatch, "Heroic Strike / Maul / Raptor Strike Color")
-        SwatchTip(cSwatch, "Cleave Color")
-        local function UpdateQueueSwatch()
-            local p = DB()
-            local tip
-            if not p or not p.swingTimer.enabled then tip = ST_TIP
-            elseif p.swingTimer.queueHighlight == false then tip = "Highlight Queued Attacks" end
-            if tip then
-                qSwatch:SetAlpha(0.15); qSwatch:Disable(); cSwatch:SetAlpha(0.15); cSwatch:Disable()
-            else
-                qSwatch:SetAlpha(1); qSwatch:Enable(); cSwatch:SetAlpha(1); cSwatch:Enable()
-            end
-            qSwatch._disabledTooltip = tip; cSwatch._disabledTooltip = tip
-            qUpdateSwatch(); cUpdateSwatch()
-        end
-        UpdateQueueSwatch()
-        EllesmereUI.RegisterWidgetRefresh(UpdateQueueSwatch)
-    end
-
-    -- One swatch beside a toggle (store keys prefix .. R/G/B/A, `def` the
-    -- fallback), disabled while the timer or its toggle is off. Built only
-    -- outside the search pre-build.
-    local function ToggleSwatch(row, rgn, prefix, def, flag, flagTip, name)
-        local sw, updateSw = EllesmereUI.BuildColorSwatch(
-            rgn, row:GetFrameLevel() + 3,
-            function()
-                local p = DB(); local g = p and p.swingTimer
-                if not g then return def[1], def[2], def[3], 1 end
-                return g[prefix .. "R"] or def[1], g[prefix .. "G"] or def[2], g[prefix .. "B"] or def[3], g[prefix .. "A"] or 1
-            end,
-            function(r, gg, b, a)
-                local p = DB(); if not p then return end
-                local g = p.swingTimer
-                g[prefix .. "R"], g[prefix .. "G"], g[prefix .. "B"], g[prefix .. "A"] = r, gg, b, a
-                RefreshST()
-            end,
-            true, 20)
-        PP.Point(sw, "RIGHT", rgn._control, "LEFT", -8, 0)
-        rgn._lastInline = sw
-        sw:SetMotionScriptsWhileDisabled(true)
-        sw:HookScript("OnEnter", function(self)
-            EllesmereUI.ShowWidgetTooltip(self, self._disabledTooltip and EllesmereUI.DisabledTooltip(self._disabledTooltip) or name)
-        end)
-        sw:HookScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-        local function UpdateSw()
-            local p = DB()
-            local tip
-            if not p or not p.swingTimer.enabled then tip = ST_TIP
-            elseif not p.swingTimer[flag] then tip = flagTip end
-            if tip then sw:SetAlpha(0.15); sw:Disable() else sw:SetAlpha(1); sw:Enable() end
-            sw._disabledTooltip = tip
-            updateSw()
-        end
-        UpdateSw()
-        EllesmereUI.RegisterWidgetRefresh(UpdateSw)
-    end
-
-    -- Row: Highlight Active Attack (+ active color swatch) | Latency Overlay
-    -- (+ latency color swatch)
-    local activeRow
-    activeRow, h = W:DualRow(parent, y,
-        { type = "toggle", text = "Highlight Active Attack",
-          tooltip = "While your auto attack is on, its rows take this color, and a row with no swing running sits full so you can see the attack is still on: Main Hand and Off Hand while Auto Attack is on, Ranged while Shoot or Auto Shot is on. A queued on-next-swing attack keeps its own color.",
+    -- Row: Movement Guide (+ GO / STILL colors and Text Cue cog) | (blank: last
+    -- row of the section)
+    local guideRow
+    guideRow, h = W:DualRow(parent, y,
+        { type = "dropdown", text = "Movement Guide",
+          tooltip = "Shows when you can move and when you must stand still. GO marks the end of every swing, as long as your latency: anything started there lands after the swing. For wand Shoot and Auto Shot, Segments adds STILL, the half second to stand still before the shot (be still by its edge); Wind-Up Bar shows that half second as its own fill. Also smooths swing timing.",
           disabled = stOff, disabledTooltip = ST_TIP,
-          getValue = function() local p = DB(); return p and p.swingTimer.activeHighlight == true end,
-          setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.activeHighlight = v; RefreshST(); EllesmereUI:RefreshPage() end },
-        { type = "toggle", text = "Latency Overlay",
-          tooltip = "Shows a colored zone at the end of each running swing, sized to your network latency. An action pressed once the swing reaches the zone lands just after that swing.",
-          disabled = stOff, disabledTooltip = ST_TIP,
-          getValue = function() local p = DB(); return p and p.swingTimer.latencyEnabled == true end,
-          setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.latencyEnabled = v; RefreshST(); EllesmereUI:RefreshPage() end }
+          values = { off = "Off", segments = "Segments", windup = "Wind-Up Bar" },
+          order = { "off", "segments", "windup" },
+          getValue = function() local p = DB(); return p and p.swingTimer.moveGuide or "off" end,
+          setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.moveGuide = v; RefreshST(); EllesmereUI:RefreshPage() end },
+        EllesmereUI.BlankRowCfg()
     );  y = y - h
     if not EllesmereUI._prebuilding then
-        ToggleSwatch(activeRow, activeRow._leftRegion, "active", { 0.047, 0.824, 0.616 },
-            "activeHighlight", "Highlight Active Attack", "Active Attack Color")
-        ToggleSwatch(activeRow, activeRow._rightRegion, "latency", { 0.835, 0.290, 0.290 },
-            "latencyEnabled", "Latency Overlay", "Latency Color")
-    end
-
-    -- Row: Show Shot Pending (+ pending color swatch) | Smooth Swing Timing
-    local pendingRow
-    pendingRow, h = W:DualRow(parent, y,
-        { type = "toggle", text = "Show Shot Pending",
-          tooltip = "While a row's attack is on but no swing is running (its timer ran out, or you started attacking out of range or queued a shot behind a cast), the row fills with this color until a swing lands.",
-          disabled = stOff, disabledTooltip = ST_TIP,
-          getValue = function() local p = DB(); return p and p.swingTimer.pendingEnabled == true end,
-          setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.pendingEnabled = v; RefreshST(); EllesmereUI:RefreshPage() end },
-        { type = "toggle", text = "Smooth Swing Timing",
-          tooltip = "Start each swing from the expected rhythm, nudged by each shot's arrival, instead of exactly when the game reports it. Network jitter then moves the bar less, so its end predicts the next swing more closely.",
-          disabled = stOff, disabledTooltip = ST_TIP,
-          getValue = function() local p = DB(); return p and p.swingTimer.smoothTiming == true end,
-          setValue = function(v) local p = DB(); if not p then return end; p.swingTimer.smoothTiming = v; RefreshST() end }
-    );  y = y - h
-    if not EllesmereUI._prebuilding then
-        ToggleSwatch(pendingRow, pendingRow._leftRegion, "pending", { 0.659, 0.502, 0.949 },
-            "pendingEnabled", "Show Shot Pending", "Shot Pending Color")
+        EllesmereUI.BuildInlineCog(guideRow._leftRegion, {
+            disabled = function() return stOff() or guideOff() end,
+            disabledTooltip = function() if stOff() then return ST_TIP end; return "Movement Guide" end,
+            title = "Movement Guide",
+            rows = {
+                ColorRow("Go", "latency", { 0.949, 0.957, 0.969, 0.9 }, "The last stretch of each swing, as long as your latency."),
+                ColorRow("Still", "aim", { 1, 0.82, 0.25, 0.6 }, "The half second to stand still before a wand or Auto Shot fires."),
+                { type = "toggle", label = "Text Cue",
+                  tooltip = "The Ranged row's time reads Move (seconds left to move), then Still, then Go. Needs Show Time.",
+                  get = function() local p = DB(); return p and p.swingTimer.moveCue == true end,
+                  set = function(v) local p = DB(); if not p then return end; p.swingTimer.moveCue = v; RefreshST() end },
+            },
+        })
     end
 
     return math.abs(y)

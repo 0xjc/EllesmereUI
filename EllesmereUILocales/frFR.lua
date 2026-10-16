@@ -5842,3 +5842,8 @@ L["With a fishing pole in hand, a quick double right-click on the world casts yo
 L["When your fishing pole has no lure, a double-click first applies the best lure in your bags; the next one casts."] = "Quand votre canne n'a pas d'appât, un double clic pose d'abord le meilleur appât de vos sacs ; le suivant lance la ligne."
 L["Fishing Sounds"] = "Sons de pêche"
 L["While you fish, lowers music and ambience, raises sound effects so you hear the bobber splash, and keeps sound on when the game is in the background. Your sound settings come back when you move, enter combat or change zone."] = "Pendant que vous pêchez, baisse la musique et l'ambiance, monte les effets sonores pour entendre le bouchon plonger, et garde le son quand le jeu est en arrière-plan. Vos réglages de son reviennent quand vous bougez, entrez en combat ou changez de zone."
+-- Fade Map While Moving (EllesmereUIForeverEssentials_MapFade.lua)
+L["Fade Map While Moving"] = "Estomper la carte en mouvement"
+L["Turns on the game's own map fade: while you move, the world map fades to half so you can see where you go, and comes back once you stop or put the cursor over it."] = "Active l'estompage de carte du jeu : pendant vos déplacements, la carte du monde s'estompe à moitié pour que vous voyiez où vous allez, puis revient dès que vous vous arrêtez ou que vous la survolez."
+L["Lightens the black screen behind the maximized world map so you can see the game around it."] = "Éclaircit l'écran noir derrière la carte du monde agrandie pour voir le jeu autour."
+L["Show the Game Behind the Map"] = "Voir le jeu derrière la carte"

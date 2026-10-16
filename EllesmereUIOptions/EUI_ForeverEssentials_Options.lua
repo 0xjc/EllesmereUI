@@ -68,6 +68,9 @@ initFrame:SetScript("OnEvent", function(self)
                 -- The CVars a session holds stay recorded, so Apply can give them back.
                 local fi = EllesmereUIDB.fishing
                 EllesmereUIDB.fishing = fi and fi.held and { held = fi.held } or nil
+                -- The game's mapFade from before stays, so Apply can give it back.
+                local mf = EllesmereUIDB.worldMapFade
+                EllesmereUIDB.worldMapFade = mf and mf.mapFadeWas ~= nil and { mapFadeWas = mf.mapFadeWas } or nil
                 if EllesmereUIDB.unlockAnchors then
                     EllesmereUIDB.unlockAnchors.EUI_FlightTimer = nil
                     EllesmereUIDB.unlockAnchors.EUI_ThreatMeter = nil
@@ -96,6 +99,7 @@ initFrame:SetScript("OnEvent", function(self)
             if EllesmereUI._SpellUprank then EllesmereUI._SpellUprank.Apply() end
             if EllesmereUI._JunkItems then EllesmereUI._JunkItems.Apply() end
             if EllesmereUI._Fishing then EllesmereUI._Fishing.Apply() end
+            if EllesmereUI._MapFade then EllesmereUI._MapFade.Apply() end
             EllesmereUI:InvalidatePageCache()
         end,
     })
