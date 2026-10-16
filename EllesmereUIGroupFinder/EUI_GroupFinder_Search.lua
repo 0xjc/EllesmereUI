@@ -1989,21 +1989,25 @@ XF.GROUP_MENU = {
     { key = "quickSignup",    label = "One Click Sign Up", core = "_applyQuickSignup",
       tip = "A single click on a group opens its sign-up." },
     { title = "Misc" },
+    { key = "dungeonAbbr",    label = "Dungeon Names",
+      tip = "Each dungeon square shows the dungeon's short name (e.g. KR for King's Rest, AoF for Altar of Fangs).",
+      onToggle = function() if ns.Search_Layout then ns.Search_Layout() end end },
     { key = "iconSize",       label = "Role Icon Size", stepper = { min = 100, max = 160, step = 5 },
       tip = "Size of the role and specialization icons in the group list." },
 }
 XF.MENU_SW_W, XF.MENU_SW_H = 22, 12
 
-function XF.GroupOpt(key)
+function XF.GroupOpt(key, default)
     local v = Cfg()[key]
     if v == nil then v = ns.DEFAULTS and ns.DEFAULTS[key] end
+    if v == nil then v = default end
     return v and true or false
 end
 
 -- A row's value: core rows read EllesmereUIDB, the rest the search settings.
 function XF.ItemOn(spec)
     if spec.core then return EllesmereUIDB and EllesmereUIDB[spec.key] and true or false end
-    return XF.GroupOpt(spec.key)
+    return XF.GroupOpt(spec.key, spec.default)
 end
 
 -- Core rows are greyed out while their apply function is not there.
@@ -2074,11 +2078,11 @@ function XF.SwitchItem(m, y, spec)
             EllesmereUIDB[spec.key] = not XF.ItemOn(spec)
             apply()
         else
-            Cfg()[spec.key] = not XF.GroupOpt(spec.key)
+            Cfg()[spec.key] = not XF.GroupOpt(spec.key, spec.default)
         end
         PlaySound(SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_ON)
         self:Paint()
-        Refilter()
+        if spec.onToggle then spec.onToggle() else Refilter() end
     end)
     item:Paint()
     return item
@@ -2882,6 +2886,58 @@ local function CogFilterButton(btn)
     end)
 end
 
+-- A dungeon's short name: the first letter of each word of its name (the part
+-- before a comma), small words in lower case ("Altar of Fangs" -> AoF, "King's
+-- Rest" -> KR, "Ara-Kara, City of Echoes" -> AK).
+XF.SMALL_WORDS = { of = true, the = true, ["and"] = true, to = true, ["in"] = true, on = true, at = true }
+function XF.Abbr(name)
+    if type(name) ~= "string" then return "" end
+    name = name:match("^([^,:]+)") or name
+    local out = {}
+    for word in name:gmatch("[^%s%-]+") do
+        local w = word:gsub("[^%a]", "")
+        if w ~= "" then
+            local c = w:sub(1, 1)
+            if #out > 0 and XF.SMALL_WORDS[w:lower()] then c = c:lower() else c = c:upper() end
+            out[#out + 1] = c
+        end
+    end
+    return table.concat(out)
+end
+
+-- The short name on a square (Group Settings > Dungeon Names), on a child
+-- frame above the icon.
+function XF.SquareAbbr(sq, d, size)
+    local on = Cfg().dungeonAbbr == true and d ~= nil
+    if on and not sq.abbr then
+        local f = CreateFrame("Frame", nil, sq)
+        f:SetAllPoints(sq)
+        f:SetFrameLevel(sq:GetFrameLevel() + 3)
+        f:EnableMouse(false)
+        sq.abbr = f:CreateFontString(nil, "OVERLAY")
+        -- Across the whole square, centred in it (a point anchor centres on
+        -- the text's own rounded width, which leaves some a pixel off).
+        sq.abbr:SetPoint("LEFT", sq, "LEFT", -4, 0)
+        sq.abbr:SetPoint("RIGHT", sq, "RIGHT", 4, 0)
+        sq.abbr:SetJustifyH("CENTER")
+        sq.abbr:SetJustifyV("MIDDLE")
+        sq.abbr:SetWordWrap(false)
+    end
+    if not sq.abbr then return end
+    if on then
+        -- One size smaller until it fits inside the square's edges.
+        local fs = math.max(8, math.floor(size * 0.36))
+        sq.abbr:SetFont(Font(), fs, "OUTLINE")
+        sq.abbr:SetTextColor(1, 1, 1, 1)
+        sq.abbr:SetText(XF.Abbr(d.name))
+        while fs > 8 and ((sq.abbr.GetUnboundedStringWidth and sq.abbr:GetUnboundedStringWidth()) or 0) > size - 4 do
+            fs = fs - 1
+            sq.abbr:SetFont(Font(), fs, "OUTLINE")
+        end
+    end
+    sq.abbr:SetShown(on)
+end
+
 -- Dungeon squares chained after the reset, one gap apart, at the row's size.
 local function LayoutSquares(size, after, show)
     local list = dungeons or {}
@@ -2896,6 +2952,7 @@ local function LayoutSquares(size, after, show)
             sq:ClearAllPoints()
             sq:SetPoint("LEFT", prev, "RIGHT", SQ_GAP, 0)
             sq.icon:SetTexture(d.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+            XF.SquareAbbr(sq, d, size)
             sq:Show()
             prev = sq
         elseif sq then
