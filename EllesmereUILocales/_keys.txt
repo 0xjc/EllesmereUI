@@ -165,6 +165,7 @@ Already in use. Use the arrows to reorder.
 Already matches the template.
 Already on %s
 Already used by another card for this spec
+Also Show Below
 Always casts your highest rank.
 Anchor
 Anchor to %1$s
@@ -950,6 +951,7 @@ Search Features...
 Search Module Settings...
 Search Spells
 Search...
+Seconds left when the buff shows again (0 = off)
 Seconds left when threshold text starts (0 = off)
 Seconds the active state shows after use
 Section
