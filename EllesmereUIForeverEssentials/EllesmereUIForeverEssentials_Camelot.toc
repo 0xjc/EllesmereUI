@@ -38,3 +38,6 @@ EllesmereUIForeverEssentials_LootFeed.lua
 
 # Macros (macro manager)
 EllesmereUIForeverEssentials_MacroManager.lua
+
+# Fishing (key, double-click, bobber indicator, sounds)
+EllesmereUIForeverEssentials_Fishing.lua
