@@ -1514,18 +1514,20 @@ local DEFAULTS = {
             textSize      = 11,
             rangeCheck    = true,   -- dim rows whose target is out of auto-attack range
             outOfRangeAlpha = 0.4,
-            queueHighlight = true,  -- melee rows take the queue colour + spell name while an on-next-swing attack is queued
-            queueR = 1, queueG = 0.70, queueB = 0.20, queueA = 1,   -- Heroic Strike / Maul
-            queueCleaveR = 0.95, queueCleaveG = 0.35, queueCleaveB = 0.25, queueCleaveA = 1,   -- Cleave
-            activeHighlight = false, -- rows take the active colour while their auto attack is on (melee: Auto Attack; ranged: Shoot / Auto Shot), and sit full while it is on with no swing running
-            activeR = 0.047, activeG = 0.824, activeB = 0.616, activeA = 1,   -- EUI teal #0CD29D
-            latencyEnabled = false,  -- latency zone at the end of each running swing
-            latencyR = 0.835, latencyG = 0.290, latencyB = 0.290, latencyA = 1,   -- cast bar latency default
-            pendingEnabled = false,  -- a row whose attack is on with no swing running fills with the pending colour
-            pendingR = 0.659, pendingG = 0.502, pendingB = 0.949, pendingA = 1,   -- violet #A880F2
-            smoothTiming = false,    -- start each swing from the expected rhythm, nudged by each arrival, not at the event's arrival
-            aimMode = "off",         -- "off" | "zone" (shade the last 0.5s) | "windup" (aim phase) on the Ranged row of wand Shoot / Auto Shot
-            aimR = 1, aimG = 0.82, aimB = 0.25, aimA = 0.5,   -- amber, translucent so the fill shows through
+            -- Attack State: "off" | "queued" (melee rows take the queued attack's colour + name)
+            -- | "full" (also On while the attack is on, Waiting while it is on with nothing swinging)
+            attackState   = "queued",
+            queueR = 1, queueG = 0.70, queueB = 0.20, queueA = 1,   -- Queued: Heroic Strike / Maul / Raptor Strike
+            queueCleaveR = 0.95, queueCleaveG = 0.35, queueCleaveB = 0.25, queueCleaveA = 1,   -- Queued: Cleave
+            activeR = 0.047, activeG = 0.824, activeB = 0.616, activeA = 1,   -- On: EUI teal #0CD29D
+            pendingR = 0.659, pendingG = 0.502, pendingB = 0.949, pendingA = 1,   -- Waiting: violet #A880F2
+            -- Movement Guide: "off" | "segments" | "windup". GO (the last latency of each swing) on
+            -- every row; STILL (the 0.5s a wand / Auto Shot needs the player still, latency earlier)
+            -- on their Ranged row, as a segment or its own fill. Smooths swing timing while on.
+            moveGuide     = "off",
+            moveCue       = false,  -- the Ranged row's time reads Move x.x / Still / Go
+            latencyR = 0.949, latencyG = 0.957, latencyB = 0.969, latencyA = 0.9,   -- GO: white
+            aimR = 1, aimG = 0.82, aimB = 0.25, aimA = 0.6,   -- STILL: amber, translucent so the fill shows through
             borderSize    = 1,
             borderR       = 0, borderG = 0, borderB = 0, borderA = 1,
             borderTexture = "solid",

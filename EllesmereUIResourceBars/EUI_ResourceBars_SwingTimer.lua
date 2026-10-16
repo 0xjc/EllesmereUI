@@ -27,16 +27,16 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 -- no Lua per frame, the way the QoL swing timer ran. A 20 Hz anim ticker runs
 -- only while a swing is in flight and does the two things the engine timer
 -- cannot: the remaining-time text (no engine formatter is proven to render the
--- bar's %.1f) and the end edge (idle fill, Hide When Idle). Range, the
--- queued attack and the active attack are event-driven
+-- bar's %.1f) and the end edge (idle fill, Hide When Idle). Range and the
+-- Attack State (queued, on, waiting) are event-driven
 -- (PLAYER_SWING_RANGE_UPDATE, ACTIONBAR_UPDATE_STATE, the auto attack and
--- auto-repeat edges); the latency zone is sized once per swing. A row whose
--- attack is on with no swing running waits (parked full), entered on the end
--- edge or an attack edge and left on the next swing or an attack-stop edge;
--- Smooth Swing Timing is arithmetic on the swing start. Auto Shot's aim is
--- added to its swing once per swing, and the aim zone is placed with the
--- latency zone. The Wind-Up Bar's aim phase starts on the ticker's aim edge
--- and follows PLAYER_STARTED/STOPPED_MOVING, registered only while a wand or
+-- auto-repeat edges). A row whose attack is on with no swing running waits
+-- (parked full), entered on the end edge or an attack edge and left on the
+-- next swing or an attack-stop edge. Auto Shot's aim is added to its swing
+-- once per swing. The Movement Guide's GO and STILL zones are placed once per
+-- swing, its smoothing is arithmetic on the swing start, and its aim phase
+-- starts on the ticker's Stop by edge or a stop that ends a held shot, with
+-- PLAYER_STARTED/STOPPED_MOVING registered only while a wand or
 -- Auto Shot is on with that mode. An idle row costs nothing: its timer holds
 -- a finished duration, which paints a static state.
 --
@@ -82,7 +82,7 @@ local ROWS = {
 local QUEUE_COLOR  = { key = "queue", r = 1, g = 0.70, b = 0.20 }
 local QUEUE_COLORS = { [845] = { key = "queueCleave", r = 0.95, g = 0.35, b = 0.25 } }  -- Cleave
 
--- Active attack: while a row's auto attack is on, its fill takes the active
+-- Attack State Full, On: while a row's auto attack is on, its fill takes the On
 -- colour (melee rows: Auto Attack; Ranged: the auto-repeat shot, Shoot or
 -- Auto Shot). The on/off edges are events; START_AUTOREPEAT_SPELL fires on the
 -- press, so a shot queued behind a cast already reads as on. AUTO_ATTACK and
@@ -92,12 +92,13 @@ local ACTIVE_COLOR    = { r = 0.047, g = 0.824, b = 0.616 }
 local AUTO_ATTACK     = 6603
 local MAX_ACTION_SLOT = 180
 
--- Attack Pending: the colour of a waiting row (attack on, no swing running: its
--- timer ran out, or the attack started out of range or behind a cast).
+-- Attack State Full, Waiting: the colour of a waiting row (attack on, no swing
+-- running: its timer ran out, the attack started out of range or behind a
+-- cast, or moving holds the shot).
 local PENDING_COLOR = { r = 0.659, g = 0.502, b = 0.949 }
 
--- Smooth Swing Timing: swings land around the bar end with network / server
--- jitter, so each swing starts from the expected rhythm moved SMOOTH_GAIN of
+-- Movement Guide smoothing: swings land around the bar end with network /
+-- server jitter, so each swing starts from the expected rhythm moved SMOOTH_GAIN of
 -- the way toward its arrival, instead of at the arrival. A swing further than
 -- SMOOTH_TOL from the rhythm is a real interruption: start from it as is.
 local SMOOTH_TOL  = 0.25
@@ -108,8 +109,9 @@ local SMOOTH_GAIN = 0.25
 -- of its reported swing; Auto Shot's comes after it (PLAYER_SWING's duration
 -- leaves it out, measured), so a Hunter's Ranged row adds it to run to the
 -- shot. Either way the shot lands at the later of the swing's end and AIM_TIME
--- after the player last stopped moving, never while moving. AIM_CLASS: the
--- classes whose Ranged row is one of the two.
+-- after the player last stopped moving, never while moving, so a stop must be
+-- made AIM_TIME plus one latency before the bar's end (Stop by). AIM_CLASS:
+-- the classes whose Ranged row is one of the two; AIM_COLOR: STILL's fallback.
 local AIM_TIME  = 0.5
 local AIM_CLASS = { PRIEST = true, MAGE = true, WARLOCK = true, HUNTER = true }
 local AIM_AFTER = { HUNTER = true }
@@ -130,8 +132,9 @@ local tickFrame = CreateFrame("Frame")
 -- on, from the edges), seeded (both read since the highlight came on), active
 -- (the state painted), aimClass / aimAfter (this class's AIM_CLASS / AIM_AFTER),
 -- moveEvents / moving (the movement edges registered / the player moving).
--- Per row, a Wind-Up row adds _aimAt (its aim phase's start), _aiming and
--- _aimFrom (the aim phase running, and from when).
+-- Per row, _rtt (the latency read for its swing) and, on a guide row, _aimAt
+-- (its Stop by point), _aiming and _aimFrom (an aim phase running, and from
+-- when).
 local S = { rows = {}, byType = {}, shown = 0, live = 0, rangeOn = {}, queueSpells = {}, queued = false,
             meleeOn = false, repeatOn = false, active = { melee = false, ranged = false } }
 
@@ -356,14 +359,15 @@ local function UpdateSpark(row, cfg)
     row._spark:SetShown(on and true or false)
 end
 
--- Zones mark the last stretch of a running swing at the bar's ending edge: the
--- latency zone (the swing's last world-latency seconds, the cast bar's
--- ShowLatencyOverlay recipe) and the aim zone (the last AIM_TIME: stand still
--- from here). With Deplete Fill the swing ends on the left under the fill, so
--- a zone draws over it there (front); a filling bar ends on the right and
--- sweeps over a zone below it (back). Each is a back/front texture pair built
--- on first enable and placed once per swing; the latency zone draws over the
--- aim zone. None on an idle, waiting or combined off-hand row.
+-- Zones mark the end of a running swing: GO (`lat`: the swing's last world
+-- latency, the cast bar's ShowLatencyOverlay recipe; anything started there
+-- lands after the swing) on every row, and STILL (`aim`: the AIM_TIME a wand or
+-- Auto Shot needs the player still, one latency before GO; be still by its
+-- edge) on a guide row in Segments. With Deplete Fill the swing ends on the
+-- left under the fill, so a zone draws over it there (front); a filling bar
+-- ends on the right and sweeps over a zone below it (back). Each is a
+-- back/front texture pair built on first enable and placed once per swing; GO
+-- draws over STILL. None on an idle, waiting or combined off-hand row.
 local function HideZone(z)
     if z then
         z.back:Hide()
@@ -406,25 +410,32 @@ local function StyleZone(row, key, on, texPath, r, g, b, a, backSub, frontSub)
 end
 
 -- `deplete`: the phase ends on the left (its fill drains), else on the right.
-local function PlaceZone(row, z, cfg, secs, dur, deplete)
+-- `offset`: seconds the zone sits back from that end (STILL, one latency).
+local function PlaceZone(row, z, cfg, secs, dur, deplete, offset)
     if not (secs and secs > 0 and dur and dur > 0) then
         HideZone(z)
         return
     end
     local w = row._clip:GetWidth()
     if not (w and w > 0) then w = cfg.width or 220 end
+    local off = (offset and offset > 0) and w * math.min(1, offset / dur) or 0
+    local room = w - off
+    if room < 1 then
+        HideZone(z)
+        return
+    end
     local zw = w * math.min(1, secs / dur)
-    if zw < 1 then zw = 1 end
+    if zw < 1 then zw = 1 elseif zw > room then zw = room end
     local zone = deplete and z.front or z.back
     local other = deplete and z.back or z.front
     other:Hide()
     zone:ClearAllPoints()
     if deplete then
-        zone:SetPoint("TOPLEFT", row._clip, "TOPLEFT", 0, 0)
-        zone:SetPoint("BOTTOMLEFT", row._clip, "BOTTOMLEFT", 0, 0)
+        zone:SetPoint("TOPLEFT", row._clip, "TOPLEFT", off, 0)
+        zone:SetPoint("BOTTOMLEFT", row._clip, "BOTTOMLEFT", off, 0)
     else
-        zone:SetPoint("TOPRIGHT", row._clip, "TOPRIGHT", 0, 0)
-        zone:SetPoint("BOTTOMRIGHT", row._clip, "BOTTOMRIGHT", 0, 0)
+        zone:SetPoint("TOPRIGHT", row._clip, "TOPRIGHT", -off, 0)
+        zone:SetPoint("BOTTOMRIGHT", row._clip, "BOTTOMRIGHT", -off, 0)
     end
     zone:SetWidth(zw)
     zone:Show()
@@ -437,50 +448,62 @@ local function NetLatency()
     return ms and ms / 1000
 end
 
--- Aim Window modes, both on the Ranged row of a wand or Auto Shot class:
--- Shaded Zone marks the aim in the swing; Wind-Up Bar runs it as its own phase.
-local function AimRow(row, cfg)
-    return cfg.aimMode == "zone" and S.aimClass and row._def.type == SWING.Ranged
+-- Attack State: Queued Only (the default) colours a queued on-next-swing
+-- attack; Full adds On and Waiting. Movement Guide (Segments or Wind-Up Bar):
+-- GO on every row, smoothed swing timing, and on a guide row (the Ranged row of
+-- a wand or Auto Shot class) STILL as a segment or as its own phase.
+local function QueueOn(cfg) return cfg.attackState ~= "off" end
+local function StateFull(cfg) return cfg.attackState == "full" end
+local function GuideOn(cfg) return cfg.moveGuide == "segments" or cfg.moveGuide == "windup" end
+
+local function GuideRow(row, cfg)
+    return GuideOn(cfg) and S.aimClass and row._def.type == SWING.Ranged
 end
 
 local function WindRow(row, cfg)
-    return cfg.aimMode == "windup" and S.aimClass and row._def.type == SWING.Ranged
+    return cfg.moveGuide == "windup" and GuideRow(row, cfg)
+end
+
+local function StillRow(row, cfg)
+    return cfg.moveGuide == "segments" and GuideRow(row, cfg)
 end
 
 local function StyleZones(row, cfg, texPath)
-    StyleZone(row, "lat", cfg.latencyEnabled, texPath,
-        cfg.latencyR or 0.835, cfg.latencyG or 0.290, cfg.latencyB or 0.290, cfg.latencyA or 1, 7, 0)
+    StyleZone(row, "lat", GuideOn(cfg), texPath,
+        cfg.latencyR or 0.949, cfg.latencyG or 0.957, cfg.latencyB or 0.969, cfg.latencyA or 0.9, 7, 0)
     local c = AIM_COLOR
-    StyleZone(row, "aim", AimRow(row, cfg), texPath,
-        cfg.aimR or c.r, cfg.aimG or c.g, cfg.aimB or c.b, cfg.aimA or 0.5, 6, -1)
+    StyleZone(row, "aim", StillRow(row, cfg), texPath,
+        cfg.aimR or c.r, cfg.aimG or c.g, cfg.aimB or c.b, cfg.aimA or 0.6, 6, -1)
 end
 
--- Both zones on a swing. A Wind-Up row's swing ends at its aim, not at the
--- shot, so its latency zone waits for the aim phase (PlaceAimLatency).
+-- Both zones on a swing, from the latency read at its start (_rtt). A Wind-Up
+-- row's swing ends at its aim, not at the shot, so its GO waits for the aim
+-- phase (PlaceAimLatency).
 local function UpdateZones(row, cfg, dur)
     local zones = row._zones
     if not zones then return end
     local lat, aim = zones.lat, zones.aim
+    local rtt = row._rtt or NetLatency() or 0
     if lat then
-        if cfg.latencyEnabled and not row._merged and not WindRow(row, cfg) then
-            PlaceZone(row, lat, cfg, NetLatency(), dur, cfg.depleteFill)
+        if GuideOn(cfg) and not row._merged and not WindRow(row, cfg) then
+            PlaceZone(row, lat, cfg, rtt, dur, cfg.depleteFill)
         else
             HideZone(lat)
         end
     end
     if aim then
-        if AimRow(row, cfg) and not row._merged then
-            PlaceZone(row, aim, cfg, AIM_TIME, dur, cfg.depleteFill)
+        if StillRow(row, cfg) then
+            PlaceZone(row, aim, cfg, AIM_TIME, dur, cfg.depleteFill, rtt)
         else
             HideZone(aim)
         end
     end
 end
 
--- The latency zone at the end of an aim phase, which runs opposite to the swing.
+-- GO at the end of an aim phase, which runs opposite to the swing.
 local function PlaceAimLatency(row, cfg, from, to)
     local lat = row._zones and row._zones.lat
-    if lat and cfg.latencyEnabled and not row._merged then
+    if lat and GuideOn(cfg) and not row._merged then
         PlaceZone(row, lat, cfg, NetLatency(), to - from, not cfg.depleteFill)
     end
 end
@@ -488,10 +511,10 @@ end
 -- Defined with the look below; the swing edges above it repaint through it.
 local ApplyRowFill
 
--- The auto attack and auto-repeat edges are tracked while any feature that
--- reads them is on.
+-- The auto attack and auto-repeat edges are tracked while a feature reads them:
+-- Attack State Full, or the Movement Guide for a wand or Auto Shot class.
 local function TracksAttack(cfg)
-    return cfg.activeHighlight or cfg.pendingEnabled or cfg.aimMode == "windup"
+    return StateFull(cfg) or (GuideOn(cfg) and S.aimClass) or false
 end
 
 -- The row's attack is on right now (melee rows: Auto Attack; Ranged: the
@@ -501,13 +524,13 @@ local function AttackOn(def)
     return S.repeatOn == true
 end
 
--- A row not mid-swing waits (parks full) while its attack is on, under Highlight
--- Active Attack or Attack Pending, or on a Wind-Up row (a held shot). A hidden
--- row (no weapon in the slot) never waits: it would count as live and hold the
--- bar up under Hide When Idle.
+-- A row not mid-swing waits (parks full) while its attack is on, under Attack
+-- State Full or on a guide row (a held shot). A hidden row (no weapon in the
+-- slot) never waits: it would count as live and hold the bar up under Hide
+-- When Idle.
 local function ShouldWait(row, cfg)
     return row:IsShown() and not row._merged and AttackOn(row._def)
-        and (cfg.activeHighlight or cfg.pendingEnabled or WindRow(row, cfg)) and true or false
+        and (StateFull(cfg) or GuideRow(row, cfg)) and true or false
 end
 
 -- Idle render: empty (background) by default, full of the fill colour with
@@ -537,13 +560,35 @@ local function IdleRow(row, cfg)
     HideZones(row)
 end
 
+-- The time text: seconds to the swing, or with the Text Cue on a guide row
+-- what to do now: Move (seconds left to move), Still, Go. Under 0.05s would
+-- print "0.0": blank until the end edge.
+local function TimeText(row, cfg, rem)
+    if cfg.moveCue and GuideRow(row, cfg) then
+        local rtt = row._rtt or 0
+        if rem <= rtt then
+            row._time:SetText("Go")
+        elseif row._aiming or rem <= AIM_TIME + rtt then
+            row._time:SetText("Still")
+        else
+            row._time:SetFormattedText("Move %.1f", rem - AIM_TIME - rtt)
+        end
+    elseif rem >= 0.05 then
+        row._time:SetFormattedText("%.1f", rem)
+    else
+        row._time:SetText("")
+    end
+end
+
 -- The fill is the engine's: the row's duration object takes this swing and the
 -- bar timer animates it every frame with no Lua, draining (Deplete Fill) or
 -- filling exactly as the direction says. The end time stays in Lua only for
 -- the ticker's end edge; the duration object is never read. _due (when the
 -- next swing is expected) outlives the idle render, so a swing that lands just
--- after the end edge still smooths against it. A Wind-Up row's bar is the
--- reload only, up to _aimAt; the ticker starts the aim phase there.
+-- after the end edge still smooths against it (Movement Guide only). _rtt is
+-- the latency read for this swing. A guide row's _aimAt is its Stop by point:
+-- AIM_TIME plus one latency before the shot. A Wind-Up row's bar is the reload
+-- only, up to _aimAt; the ticker starts the aim phase there.
 local function StartRow(row, dur, cfg)
     if type(dur) ~= "number" or dur ~= dur or dur <= 0 or dur == math.huge then return end
     -- Auto Shot fires AIM_TIME after its reported swing: run the row to the shot.
@@ -551,15 +596,16 @@ local function StartRow(row, dur, cfg)
     local now = GetTime()
     local start = now
     local due = row._due
-    if cfg.smoothTiming and due then
+    if GuideOn(cfg) and due then
         local late = now - due
         if late > -SMOOTH_TOL and late < SMOOTH_TOL then start = due + late * SMOOTH_GAIN end
     end
     row._end = start + dur
     row._due = row._end
     row._dur = dur
+    row._rtt = NetLatency() or 0
     local wind = WindRow(row, cfg)
-    row._aimAt = wind and (row._end - AIM_TIME) or nil
+    row._aimAt = GuideRow(row, cfg) and (row._end - AIM_TIME - row._rtt) or nil
     if row._waiting or row._aiming then
         row._waiting, row._aiming = nil, nil
         ApplyRowFill(row, cfg)
@@ -571,19 +617,20 @@ local function StartRow(row, dur, cfg)
         UpdateSpark(row, cfg)
     end
     local obj = row._durObj
-    obj:SetTimeFromStart(start, wind and math.max(dur - AIM_TIME, 0.01) or dur)
+    obj:SetTimeFromStart(start, wind and math.max(row._aimAt - start, 0.01) or dur)
     row._bar:SetTimerDuration(obj, IMMEDIATE, cfg.depleteFill and DIR.RemainingTime or DIR.ElapsedTime)
-    row._time:SetFormattedText("%.1f", dur)
+    TimeText(row, cfg, dur)
     UpdateZones(row, cfg, dur)
     ns.STTick.Start()
     if cfg.hideWhenIdle and S.live == 1 and ns.ST_UpdateVisibility then ns.ST_UpdateVisibility() end
 end
 
--- Waiting (attack on, no swing running): parked full, in the pending colour
--- with Attack Pending, else the active one. Entered from a finished swing or from
--- idle; the row counts as live (Hide When Idle keeps it) but the ticker skips
--- it. The next swing (StartRow) or an attack-stop edge (IdleRow) ends it,
--- never a timer.
+-- Waiting (attack on, no swing running): parked full, in the Waiting colour
+-- under Attack State Full, else the row's own. Entered from a finished swing or
+-- from idle (a guide row also from a shot held by moving); the row counts as
+-- live (Hide When Idle keeps it) but the ticker skips it. The next swing
+-- (StartRow), an attack-stop edge (IdleRow) or a stop that restarts the aim
+-- (EnterAim) ends it, never a timer.
 local function EnterWaiting(row, cfg)
     row._waiting = true
     row._aiming = nil
@@ -596,16 +643,17 @@ local function EnterWaiting(row, cfg)
     obj:SetTimeFromStart(GetTime() - 1, 1)
     row._bar:SetTimerDuration(obj, IMMEDIATE, DIR.ElapsedTime)
     row._bar:SetValue(1)
-    row._time:SetText("")
+    row._time:SetText((cfg.moveCue and GuideRow(row, cfg)) and "Still" or "")
     HideZones(row)
     UpdateSpark(row, cfg)
     ApplyRowFill(row, cfg)
 end
 
--- Aim phase (Wind-Up Bar): the half second a wand or Auto Shot needs the player
--- still, as its own fill from `from` to the predicted shot `to`, in the aim
--- colour. It runs opposite to the swing so the two join (Deplete Fill: the
--- reload drains, the aim fills), with the latency zone at its end.
+-- Aim phase: the half second a wand or Auto Shot needs the player still, plus
+-- one latency, as its own fill from `from` to the predicted shot `to`, in the
+-- Still colour: a Wind-Up row's every swing from Stop by, and any guide row's
+-- restart after a held shot. It runs opposite to the swing so the two join
+-- (Deplete Fill: the reload drains, the aim fills), with GO at its end.
 local function EnterAim(row, cfg, from, to)
     row._waiting = nil
     row._aiming = true
@@ -636,9 +684,10 @@ ns.STTick = EllesmereUI.Tick.NewAnimTicker(tickFrame, function()
     local any = false
     for i = 1, #S.rows do
         local row = S.rows[i]
-        -- Wind-Up reload done: the aim phase, held while moving, none once the
-        -- shot is off (no shot is coming).
-        if row._live and not row._waiting and row._aimAt and not row._aiming and now >= row._aimAt then
+        -- Wind-Up reload done at Stop by: the aim phase, held while moving, none
+        -- once the shot is off (no shot is coming). Segments keeps its bar.
+        if row._live and not row._waiting and row._aimAt and not row._aiming and now >= row._aimAt
+            and WindRow(row, cfg) then
             if not AttackOn(row._def) then
                 IdleRow(row, cfg)
             elseif S.moving then
@@ -652,10 +701,7 @@ ns.STTick = EllesmereUI.Tick.NewAnimTicker(tickFrame, function()
             if rem <= 0 then
                 if ShouldWait(row, cfg) then EnterWaiting(row, cfg) else IdleRow(row, cfg) end
             else
-                if cfg.showTime ~= false and not row._merged then
-                    -- Under 0.05s would print "0.0": blank until the end edge.
-                    if rem >= 0.05 then row._time:SetFormattedText("%.1f", rem) else row._time:SetText("") end
-                end
+                if cfg.showTime ~= false and not row._merged then TimeText(row, cfg, rem) end
                 any = true
             end
         end
@@ -668,12 +714,12 @@ end, 0.05)
 --  Layout + look
 -------------------------------------------------------------------------------
 
--- Fill colour: the row's own (or class) colour; the active colour while its
--- auto attack is on; the queued attack's own colour on a melee row while an
--- on-next-swing attack is queued; the aim colour (opaque) in a Wind-Up aim
--- phase; the pending colour while the row waits with Attack Pending on (each
--- wins over the ones before). A combined off-hand row paints no fill: its bar
--- keeps running under its spark, unseen.
+-- Fill colour: the row's own (or class) colour; the On colour while its auto
+-- attack is on (Attack State Full); the queued attack's own colour on a melee
+-- row while an on-next-swing attack is queued (not with Attack State Off); the
+-- Still colour (opaque) in an aim phase; the Waiting colour while the row waits
+-- under Attack State Full (each wins over the ones before). A combined
+-- off-hand row paints no fill: its bar keeps running under its spark, unseen.
 function ApplyRowFill(row, cfg)
     local fillTex = row._bar:GetStatusBarTexture()
     if row._merged then
@@ -681,7 +727,7 @@ function ApplyRowFill(row, cfg)
         return
     end
     local def = row._def
-    local pend = row._waiting and cfg.pendingEnabled
+    local pend = row._waiting and StateFull(cfg)
     local aim = not pend and row._aiming
     local q = not (pend or aim) and def.melee and S.queued
     local act = not (pend or aim or q) and S.active[def.melee and "melee" or "ranged"]
@@ -736,7 +782,7 @@ end
 local function PaintQueue(cfg)
     cfg = cfg or P()
     if not (cfg and S.built) then return end
-    local queued = cfg.queueHighlight ~= false and QueuedSpell() or false
+    local queued = QueueOn(cfg) and QueuedSpell() or false
     if queued == S.queued then return end
     S.queued = queued
     for i = 1, #S.rows do
@@ -770,7 +816,7 @@ end
 local function PaintActive(cfg)
     cfg = cfg or P()
     if not (cfg and S.built) then return end
-    local on = cfg.activeHighlight == true
+    local on = StateFull(cfg)
     local melee = on and S.meleeOn == true
     local ranged = on and S.repeatOn == true
     local A = S.active
@@ -1002,12 +1048,12 @@ end
 --  Events
 -------------------------------------------------------------------------------
 
--- The movement edges a Wind-Up row holds and restarts its aim on, only while
--- an aim can run: the mode on, a wand or Auto Shot class, and the shot on.
+-- The movement edges a guide row holds and restarts its aim on, only while an
+-- aim can run: the Movement Guide on, a wand or Auto Shot class, and the shot on.
 -- Registering reads where the player is now (GetUnitSpeed, restricted = still).
 local function ApplyMoveEvents(cfg)
     if not S.events then return end
-    if S.aimClass and cfg.aimMode == "windup" and S.repeatOn then
+    if S.aimClass and GuideOn(cfg) and S.repeatOn then
         if not S.moveEvents then
             S.moveEvents = true
             shell:RegisterEvent("PLAYER_STARTED_MOVING")
@@ -1058,11 +1104,12 @@ shell:SetScript("OnEvent", function(self, event, a1, a2, a3)
         local row = S.byType[SWING.Ranged]
         if row and row._aiming then EnterWaiting(row, cfg) end
     elseif event == "PLAYER_STOPPED_MOVING" then
-        -- Standing still again: a held shot fires AIM_TIME from now, plus the
-        -- round trip (the stop reaches the server, the swing comes back).
+        -- Standing still again: a shot held, or stopped for only after Stop by,
+        -- fires AIM_TIME from now plus the round trip (the stop reaches the
+        -- server, the swing comes back). Both guide styles show it as an aim.
         S.moving = false
         local row = S.byType[SWING.Ranged]
-        if row and row._live and WindRow(row, cfg) and AttackOn(row._def) then
+        if row and row._live and GuideRow(row, cfg) and AttackOn(row._def) then
             local now = GetTime()
             if row._waiting or (row._aimAt and not row._aiming and now >= row._aimAt) then
                 local shot = now + AIM_TIME + (NetLatency() or 0)
@@ -1127,15 +1174,15 @@ end
 -- the one chatty event here).
 local function ApplyQueueEvents(cfg)
     if not S.events then return end
-    if cfg.queueHighlight ~= false and #S.queueSpells > 0 then
+    if QueueOn(cfg) and #S.queueSpells > 0 then
         shell:RegisterEvent("ACTIONBAR_UPDATE_STATE")
     else
         shell:UnregisterEvent("ACTIONBAR_UPDATE_STATE")
     end
 end
 
--- The auto attack and auto-repeat edges, only while Highlight Active Attack,
--- Attack Pending or the Wind-Up Bar is on.
+-- The auto attack and auto-repeat edges, only while something reads them
+-- (TracksAttack).
 local function ApplyActiveEvents(cfg)
     if not S.events then return end
     if TracksAttack(cfg) then
@@ -1255,7 +1302,7 @@ function ns.ST_Apply()
     ApplyQueueEvents(cfg)
     ApplyActiveEvents(cfg)
     -- Highlight turned off with an attack queued: the paint below must clear it.
-    if cfg.queueHighlight == false then S.queued = false end
+    if not QueueOn(cfg) then S.queued = false end
     -- Attack state: read once per enable, kept by the edges while on.
     if not TracksAttack(cfg) then
         S.seeded = nil
@@ -1276,8 +1323,8 @@ function ns.ST_Apply()
     -- terminal state and SetValue does not repaint it (the GCD bar's idle
     -- recipe). Unlock movers up: a full bar with a sample time. A row
     -- mid-swing: its running swing (or Wind-Up reload / aim phase) again, in
-    -- the direction now configured (unlock exit, a Deplete Fill or Aim Window
-    -- change). A row whose attack is on: parked
+    -- the direction now configured (unlock exit, a Deplete Fill or Movement
+    -- Guide change). A row whose attack is on: parked
     -- full (waiting), also when the option just came on mid-attack. Otherwise
     -- the idle render, so a Show Fill Color When Idle change shows at once, not
     -- at the next swing's end.
@@ -1294,9 +1341,9 @@ function ns.ST_Apply()
             row._time:SetText("1.2")
             UpdateZones(row, cfg, row._dur or 2)
         elseif row._live and not row._waiting and row._dur then
-            local wind = WindRow(row, cfg)
-            if not wind and (row._aiming or row._aimAt) then
-                -- Wind-Up turned off mid-swing: back to one plain swing.
+            local guide, wind = GuideRow(row, cfg), WindRow(row, cfg)
+            if not guide and (row._aiming or row._aimAt) then
+                -- Movement Guide turned off mid-swing: back to one plain swing.
                 row._aiming, row._aimAt = nil, nil
                 ApplyRowFill(row, cfg)
             end
@@ -1307,8 +1354,8 @@ function ns.ST_Apply()
                 PlaceAimLatency(row, cfg, row._aimFrom, row._end)
             else
                 local start = row._end - row._dur
-                if wind then row._aimAt = row._end - AIM_TIME end
-                obj:SetTimeFromStart(start, wind and math.max(row._dur - AIM_TIME, 0.01) or row._dur)
+                if guide then row._aimAt = row._end - AIM_TIME - (row._rtt or 0) end
+                obj:SetTimeFromStart(start, wind and math.max(row._aimAt - start, 0.01) or row._dur)
                 row._bar:SetTimerDuration(obj, IMMEDIATE, cfg.depleteFill and DIR.RemainingTime or DIR.ElapsedTime)
                 UpdateZones(row, cfg, row._dur)
             end
