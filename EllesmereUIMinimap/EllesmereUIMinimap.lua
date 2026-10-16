@@ -257,6 +257,7 @@ ns._internals = {
     GetFFD = GetFFD, minimapDecorations = minimapDecorations, PP = PP,
     QueueApplyAll = QueueApplyAll, TEMP_DISABLED = TEMP_DISABLED,
     applyAllSetters = { function(v) ApplyAll = v end },
+    applyMinimapSetters = {},
     moEvaluateSetters = {}, flyoutToggleSetters = {}, flyoutPanelSetters = {},
     portalFlyoutSetters = {}, coordFrameSetters = {}, coordTickerSetters = {},
     clockFrameSetters = {}, clockBgSetters = {}, locationFrameSetters = {},
@@ -271,6 +272,7 @@ for setter, listName in pairs({
     SetCoordTicker = "coordTickerSetters", SetClockFrame = "clockFrameSetters",
     SetClockBg = "clockBgSetters", SetLocationFrame = "locationFrameSetters",
     SetLocationBg = "locationBgSetters", SetMMKeyHidden = "mmKeyHiddenSetters",
+    SetApplyMinimap = "applyMinimapSetters",
 }) do
     local list = ns._internals[listName]
     ns._internals[setter] = function(v)

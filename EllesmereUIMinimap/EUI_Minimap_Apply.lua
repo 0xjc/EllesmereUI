@@ -1201,5 +1201,6 @@ local function ApplyMinimap()
     EBS._ApplyAddonCompartment()
 end
 
+I.SetApplyMinimap(ApplyMinimap)
 I.ApplyMinimap = ApplyMinimap
 I.broken = false

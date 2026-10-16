@@ -22,6 +22,10 @@ local flyoutToggle
 I.flyoutToggleSetters[#I.flyoutToggleSetters + 1] = function(v) flyoutToggle = v end
 local flyoutPanel
 I.flyoutPanelSetters[#I.flyoutPanelSetters + 1] = function(v) flyoutPanel = v end
+-- Assigned when EUI_Minimap_Apply.lua loads (see SetApplyMinimap); the free
+-- move release in EnableFreeMove runs it.
+local ApplyMinimap
+I.applyMinimapSetters[#I.applyMinimapSetters + 1] = function(v) ApplyMinimap = v end
 
 -------------------------------------------------------------------------------
 --  Free Move Button System
