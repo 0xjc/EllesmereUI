@@ -1,3 +1,21 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Bags_Footer.lua
+--
+--  Gold tracking and its tooltip, the footer with the tracked currencies
+--  and the reagent bag window.
+--  Reads the earlier Bags files through ns and ns._bagsInternals.
+-------------------------------------------------------------------------------
+local ns = select(2, ...)
+local I = ns._bagsInternals
+-- EllesmereUIBags.lua or an earlier EUI_Bags_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EUI = EllesmereUI
+
+local BP, CurrencyOrder, SetBagFont, FOOTER_H = I.BP, I.CurrencyOrder, I.SetBagFont, I.FOOTER_H
+
 -------------------------------------------------------------------------------
 --  Gold tracking + Footer
 -------------------------------------------------------------------------------
@@ -457,3 +475,8 @@ local function CreateReagentBagUI()
     EUI_BagsReagent.Footer = footer
 end
 
+I.CreateFooter, I.CreateReagentBagUI = CreateFooter, CreateReagentBagUI
+I.GoldLedger, I.OnGoldChanged = GoldLedger, OnGoldChanged
+I.SyncBagFrameToFooter, I.UpdateBagMoneyDisplay = SyncBagFrameToFooter, UpdateBagMoneyDisplay
+I.UpdateCurrencyDisplays = UpdateCurrencyDisplays
+I.broken = false

@@ -29,9 +29,7 @@ EUI_BagsWindow = CreateFrame("Frame", "EUI_BagsWindowFrame", UIParent)
 EUI_BagsWindow:Hide()
 
 local SLOT_SIZE, SPACING = 34, 4
-local GetItemInfo = C_Item.GetItemInfo
 local GetItemInfoInstant = C_Item.GetItemInfoInstant
-local GetItemQualityColor = C_Item.GetItemQualityColor
 local IsEquippableItem = C_Item.IsEquippableItem
 
 -- Red-tint usability test (shared with the bank module via EUI). Tooltip must come from
@@ -274,7 +272,6 @@ local function ApplyBagScale()
     if EUI_BagsWindow then EUI_BagsWindow:SetScale(s) end
 end
 
-local GetUpgradeTrack = EUI.GetUpgradeTrack
 -- Locale-safe gear detection: GetItemInfo type strings are localized ("Armor" only on enUS), so use GetItemInfoInstant's numeric classID.
 local ITEM_CLASS_WEAPON = Enum.ItemClass.Weapon  -- 2
 local ITEM_CLASS_ARMOR  = Enum.ItemClass.Armor   -- 4
@@ -386,3 +383,40 @@ local function AbbrevDungeon(mapID)
     return abbr
 end
 
+-- Main-chunk locals of this file the EUI_Bags_*.lua files re-import by name;
+-- each of them adds what the files behind it need.
+-- categoryIndexSetters and the lists beside it: every file that reads one of
+-- these values keeps its own copy and adds a setter here; each place that
+-- assigns it writes through the Set<Name> function built below, which runs
+-- them all.
+-- broken: true while an EUI_Bags_*.lua file loads; a file that fails leaves
+-- it set, and the files behind it return at their first lines.
+ns._bagsInternals = {
+    _bankRouted = _bankRouted, AbbrevDungeon = AbbrevDungeon, ApplyBagScale = ApplyBagScale,
+    BagsItemUnusable = BagsItemUnusable, BP = BP, CurrencyOrder = CurrencyOrder,
+    GetAccentRGB = GetAccentRGB, GetCatTitleSize = GetCatTitleSize, GetColumns = GetColumns,
+    GetDefaultBagType = GetDefaultBagType, GetFont = GetFont,
+    GetItemLevelAtLocation = GetItemLevelAtLocation, IsGearItem = IsGearItem,
+    IsItemPinned = IsItemPinned, NormalizePinKey = NormalizePinKey, SetBagFont = SetBagFont,
+    SLOT_SIZE = SLOT_SIZE, SPACING = SPACING,
+    categoryIndexSetters = {}, groupNameSetters = {}, gearCatSetSetters = {},
+    anyItemPanelOpenSetters = {}, paintedPanelOpenSetters = {},
+    broken = false,
+}
+-- Set<Name> hands a new value to every copy registered in <name>Setters.
+for setter, listName in pairs({
+    SetSelectedCategoryIndex = "categoryIndexSetters",
+    SetSelectedGroupName = "groupNameSetters", SetGearCatSet = "gearCatSetSetters",
+    SetAnyItemPanelOpen = "anyItemPanelOpenSetters",
+    SetPaintedPanelOpen = "paintedPanelOpenSetters",
+}) do
+    local list = ns._bagsInternals[listName]
+    ns._bagsInternals[setter] = function(v)
+        for i = 1, #list do list[i](v) end
+    end
+end
+-- A re-import of a name this table lacks fails where the part file loads,
+-- not later as a nil upvalue inside one of its functions.
+setmetatable(ns._bagsInternals, { __index = function(_, k)
+    error("ns._bagsInternals has no entry " .. tostring(k), 2)
+end })

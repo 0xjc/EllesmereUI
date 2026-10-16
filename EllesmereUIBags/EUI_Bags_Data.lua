@@ -1,3 +1,27 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Bags_Data.lua
+--
+--  Layout constants, the selection and item-panel state, the visual sort,
+--  the expansion and armory buckets, the slot data pool with saved order
+--  and swap detection, the slot pools and the Pawn arrows.
+--  Reads the earlier Bags files through ns and ns._bagsInternals.
+-------------------------------------------------------------------------------
+local ns = select(2, ...)
+local I = ns._bagsInternals
+-- EllesmereUIBags.lua or an earlier EUI_Bags_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local GetItemInfo = C_Item.GetItemInfo
+local GetItemInfoInstant = C_Item.GetItemInfoInstant
+local EUI = EllesmereUI
+local GetUpgradeTrack = EUI.GetUpgradeTrack
+
+local BP, SetSelectedCategoryIndex = I.BP, I.SetSelectedCategoryIndex
+local SetSelectedGroupName, SetAnyItemPanelOpen = I.SetSelectedGroupName, I.SetAnyItemPanelOpen
+local SetPaintedPanelOpen = I.SetPaintedPanelOpen
+
 -------------------------------------------------------------------------------
 --  Sidebar constants
 -------------------------------------------------------------------------------
@@ -13,6 +37,8 @@ local FOOTER_H            = 28
 -- Runtime state (never persisted; always "All" on load)
 local selectedCategoryIndex = 0  -- 0 = All Items, -1 = OneBag, -2 = MultiBag, >0 = category index
 local selectedGroupName = nil    -- set when a group header is clicked (overrides selectedCategoryIndex)
+I.categoryIndexSetters[#I.categoryIndexSetters + 1] = function(v) selectedCategoryIndex = v end
+I.groupNameSetters[#I.groupNameSetters + 1] = function(v) selectedGroupName = v end
 
 -- Invalidate categories after the equipment-set list changes (event or the
 -- split-mode toggle). Re-resolves the selection by stable key: the rebuild
@@ -32,14 +58,14 @@ function EUI_Bags.InvalidateSetCategories()
         for i, cat in ipairs(mgr:GetCategories()) do
             if cat._defaultName == selKey then found = i; break end
         end
-        selectedCategoryIndex = found
+        SetSelectedCategoryIndex(found)
     end
     if selectedGroupName then
         local alive = false
         for _, cat in ipairs(mgr:GetCategories()) do
             if cat.groupName == selectedGroupName then alive = true; break end
         end
-        if not alive then selectedGroupName = nil; selectedCategoryIndex = 0 end
+        if not alive then SetSelectedGroupName(nil); SetSelectedCategoryIndex(0) end
     end
 end
 
@@ -47,6 +73,7 @@ end
 local _trackRank = EUI._TRACK_RANK
 -- Gear category lookup: built lazily, maps catIdx -> true for gear categories
 local _gearCatSet
+I.gearCatSetSetters[#I.gearCatSetSetters + 1] = function(v) _gearCatSet = v end
 local function IsGearCategory(catIdx)
     if not _gearCatSet then
         _gearCatSet = {}
@@ -68,8 +95,7 @@ end
 -- only hands over the slot behind it (3 merged mails would mail 1), so duplicates stay unmerged while any panel is open. bagMergeDuplicates disables merging outright.
 local _openItemPanels = {}
 local _anyItemPanelOpen = false
--- Unmerge state the CURRENT painted layout was built with; bags OnShow compares against it so a flip while hidden still repaints (closing a mailbox hides both).
-local _paintedPanelOpen = false
+I.anyItemPanelOpenSetters[#I.anyItemPanelOpenSetters + 1] = function(v) _anyItemPanelOpen = v end
 -- Returns true when the aggregate state flipped and the bags' view merges, so
 -- the caller can refresh. A view that does not merge paints the same either
 -- way: its painted state just follows, so neither this nor OnShow repaints.
@@ -77,9 +103,9 @@ local function SetItemPanelOpen(key, open)
     _openItemPanels[key] = open or nil
     local any = next(_openItemPanels) ~= nil
     if any == _anyItemPanelOpen then return false end
-    _anyItemPanelOpen = any
+    SetAnyItemPanelOpen(any)
     local merges = BP().bagMergeDuplicates ~= false
-    if not merges then _paintedPanelOpen = any end
+    if not merges then SetPaintedPanelOpen(any) end
     return merges
 end
 
@@ -413,7 +439,7 @@ end
 local function MergeDuplicates(items)
     -- Record what this paint was built with, so the bags OnShow can tell that
     -- the state changed while they were hidden and repaint (see OnShow).
-    _paintedPanelOpen = _anyItemPanelOpen
+    SetPaintedPanelOpen(_anyItemPanelOpen)
     if _anyItemPanelOpen or BP().bagMergeDuplicates == false then return items end
     -- Session-only unmerge marks (EUI_Bags._unmergedLinks: set by the split
     -- dialog, wiped when the bags close, never persisted): a marked item keeps
@@ -663,6 +689,24 @@ end
 --  Per-category state (for targeted sidebar updates on item count changes)
 -------------------------------------------------------------------------------
 local _slotCategories = {}     -- bag*1000+slot -> categoryIndex from last full refresh
-local _lastCatCounts = {}      -- category counts from last full refresh
-local _lastTotalCount = 0      -- total item count from last full refresh
 
+I._anyItemPanelOpen, I._openItemPanels = _anyItemPanelOpen, _openItemPanels
+I._pendingResortCats, I._pendingResortGroups = _pendingResortCats, _pendingResortGroups
+I._slotCategories, I.AcquireSlotTable = _slotCategories, AcquireSlotTable
+I.ApplySavedOrder, I.ArmorySlotGroupingEnabled = ApplySavedOrder, ArmorySlotGroupingEnabled
+I.bagSlots, I.BuildExpansionBuckets = bagSlots, BuildExpansionBuckets
+I.BuildSlotBuckets, I.ClearGroupOrder = BuildSlotBuckets, ClearGroupOrder
+I.DetectAndApplySwaps, I.FOOTER_H = DetectAndApplySwaps, FOOTER_H
+I.GetArmorySlotBucket, I.HEADER_H = GetArmorySlotBucket, HEADER_H
+I.IsArmoryGearCategory, I.IsGearOnlyGroup = IsArmoryGearCategory, IsGearOnlyGroup
+I.itemSlots, I.MergeDuplicates = itemSlots, MergeDuplicates
+I.PreCacheSortFields, I.reagentSlots = PreCacheSortFields, reagentSlots
+I.RegisterPawnIntegration = RegisterPawnIntegration
+I.ReleaseAllSlotTables, I.ResortAfterGroupChange = ReleaseAllSlotTables, ResortAfterGroupChange
+I.SaveCategoryOrder, I.selectedCategoryIndex = SaveCategoryOrder, selectedCategoryIndex
+I.SetItemPanelOpen, I.SIDEBAR_BTN_H = SetItemPanelOpen, SIDEBAR_BTN_H
+I.SIDEBAR_ICON_SIZE, I.SIDEBAR_INDENT = SIDEBAR_ICON_SIZE, SIDEBAR_INDENT
+I.SIDEBAR_PAD, I.SIDEBAR_W_COLLAPSED = SIDEBAR_PAD, SIDEBAR_W_COLLAPSED
+I.SIDEBAR_W_EXPANDED, I.TakeBagSnapshot = SIDEBAR_W_EXPANDED, TakeBagSnapshot
+I.UpdatePawnArrow, I.VisualSortCompare = UpdatePawnArrow, VisualSortCompare
+I.broken = false

@@ -1,3 +1,37 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Bags_Sidebar.lua
+--
+--  The sidebar: drag-to-reorder, CreateSidebar, the category context
+--  menu and BuildSidebarButtons.
+--  Reads the earlier Bags files through ns and ns._bagsInternals.
+-------------------------------------------------------------------------------
+local ns = select(2, ...)
+local I = ns._bagsInternals
+-- EllesmereUIBags.lua or an earlier EUI_Bags_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local GetItemInfo = C_Item.GetItemInfo
+local EUI = EllesmereUI
+
+local BP, GetAccentRGB, GetDefaultBagType = I.BP, I.GetAccentRGB, I.GetDefaultBagType
+local GetFont, IsItemPinned, NormalizePinKey = I.GetFont, I.IsItemPinned, I.NormalizePinKey
+local SetBagFont, ClearGroupOrder, HEADER_H = I.SetBagFont, I.ClearGroupOrder, I.HEADER_H
+local ResortAfterGroupChange, SIDEBAR_BTN_H = I.ResortAfterGroupChange, I.SIDEBAR_BTN_H
+local SIDEBAR_ICON_SIZE, SIDEBAR_INDENT = I.SIDEBAR_ICON_SIZE, I.SIDEBAR_INDENT
+local SIDEBAR_PAD, SIDEBAR_W_COLLAPSED = I.SIDEBAR_PAD, I.SIDEBAR_W_COLLAPSED
+local SIDEBAR_W_EXPANDED = I.SIDEBAR_W_EXPANDED
+local SetSelectedCategoryIndex = I.SetSelectedCategoryIndex
+local SetSelectedGroupName = I.SetSelectedGroupName
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._bagsInternals, which hands the value to every copy.
+local selectedCategoryIndex = I.selectedCategoryIndex
+I.categoryIndexSetters[#I.categoryIndexSetters + 1] = function(v) selectedCategoryIndex = v end
+local selectedGroupName
+I.groupNameSetters[#I.groupNameSetters + 1] = function(v) selectedGroupName = v end
+
 -------------------------------------------------------------------------------
 --  Sidebar
 -------------------------------------------------------------------------------
@@ -622,10 +656,10 @@ local function StopSidebarDrag()
     -- Restore selection by reference (index may have shifted during reorder)
     if selectedCatRef then
         for i, cat in ipairs(cats) do
-            if cat == selectedCatRef then selectedCategoryIndex = i; break end
+            if cat == selectedCatRef then SetSelectedCategoryIndex(i); break end
         end
     end
-    selectedGroupName = savedGroupName
+    SetSelectedGroupName(savedGroupName)
 
     _dragFromCatIdx = nil
     _dragSourceBtn = nil
@@ -933,7 +967,7 @@ local function ShowCategoryContextMenu(btn, catIdx, isGroupHeader, isGroupMember
                         if newName == "" or newName == myGroup then return end
                         EUI_CategoryManager:RenameGroup(myGroup, newName)
                         EUI_CategoryManager:SetGroupNameCustom(newName, true)
-                        if selectedGroupName == myGroup then selectedGroupName = newName end
+                        if selectedGroupName == myGroup then SetSelectedGroupName(newName) end
                         EUI_Bags:RefreshInventory()
                     end,
                 })
@@ -941,7 +975,7 @@ local function ShowCategoryContextMenu(btn, catIdx, isGroupHeader, isGroupMember
             rootDescription:CreateButton(EllesmereUI.L("Disband Group"), function()
                 ClearGroupOrder(myGroup)
                 EUI_CategoryManager:DisbandGroup(myGroup)
-                if selectedGroupName == myGroup then selectedGroupName = nil; selectedCategoryIndex = 0 end
+                if selectedGroupName == myGroup then SetSelectedGroupName(nil); SetSelectedCategoryIndex(0) end
                 EUI_Bags:RefreshInventory()
             end)
             local groupHidden = hiddenSet[myGroup]
@@ -1255,14 +1289,14 @@ local function BuildSidebarButtons(categoryCounts, totalCount)
                 end
                 if self._didDrag then self._didDrag = false; return end
                 if self._isGroupHeader and self._groupName then
-                    selectedGroupName = self._groupName
-                    selectedCategoryIndex = 0
+                    SetSelectedGroupName(self._groupName)
+                    SetSelectedCategoryIndex(0)
                 elseif self._isGroupMember and self._groupName then
-                    selectedGroupName = nil
-                    selectedCategoryIndex = self._catIdx
+                    SetSelectedGroupName(nil)
+                    SetSelectedCategoryIndex(self._catIdx)
                 else
-                    selectedGroupName = nil
-                    selectedCategoryIndex = self._catIdx
+                    SetSelectedGroupName(nil)
+                    SetSelectedCategoryIndex(self._catIdx)
                 end
                 if EUI_Bags._scrollFrame then EUI_Bags._scrollFrame:SetVerticalScroll(0) end
                 EUI_Bags:RefreshInventory()
@@ -1743,3 +1777,6 @@ local function BuildSidebarButtons(categoryCounts, totalCount)
     if not EllesmereUIDB.bagCategoryTipSeen then ns.ShowCategoryTip() end
 end
 
+I.BuildSidebarButtons, I.CreateSidebar = BuildSidebarButtons, CreateSidebar
+I.GetSidebarWidth = GetSidebarWidth
+I.broken = false

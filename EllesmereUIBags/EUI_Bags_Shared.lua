@@ -1,3 +1,28 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Bags_Shared.lua
+--
+--  The pieces the bank shares through ns (inset border, item button skin,
+--  sidebar header, grid scrollbar), controller support and the stack
+--  splitter.
+--  Reads the earlier Bags files through ns and ns._bagsInternals.
+-------------------------------------------------------------------------------
+local ns = select(2, ...)
+local I = ns._bagsInternals
+-- EllesmereUIBags.lua or an earlier EUI_Bags_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local GetItemInfoInstant = C_Item.GetItemInfoInstant
+local EUI = EllesmereUI
+
+local BP, GetFont, SetBagFont, SLOT_SIZE = I.BP, I.GetFont, I.SetBagFont, I.SLOT_SIZE
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._bagsInternals, which hands the value to every copy.
+local selectedCategoryIndex = I.selectedCategoryIndex
+I.categoryIndexSetters[#I.categoryIndexSetters + 1] = function(v) selectedCategoryIndex = v end
+
 -------------------------------------------------------------------------------
 --  Inset border helper (1 physical pixel inside frame edge)
 -------------------------------------------------------------------------------
@@ -810,3 +835,7 @@ do
     end
 end
 
+I.CreateInsetBorder, I.QUEST_BORDER_COLOR = CreateInsetBorder, QUEST_BORDER_COLOR
+I.SCROLLBAR_HIT_W, I.SetInsetBorderColor = SCROLLBAR_HIT_W, SetInsetBorderColor
+I.SetInsetBorderThickness = SetInsetBorderThickness
+I.broken = false

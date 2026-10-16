@@ -1,3 +1,51 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Bags_Refresh.lua
+--
+--  Category headers, the scroll frame, the resize grip and
+--  RefreshInventory for the bags and the reagent bag.
+--  Reads the earlier Bags files through ns and ns._bagsInternals.
+-------------------------------------------------------------------------------
+local ns = select(2, ...)
+local I = ns._bagsInternals
+-- EllesmereUIBags.lua or an earlier EUI_Bags_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local GetItemInfo = C_Item.GetItemInfo
+local GetItemQualityColor = C_Item.GetItemQualityColor
+local EUI = EllesmereUI
+local GetUpgradeTrack = EUI.GetUpgradeTrack
+
+local AbbrevDungeon, BP, GetColumns = I.AbbrevDungeon, I.BP, I.GetColumns
+local GetItemLevelAtLocation, IsGearItem = I.GetItemLevelAtLocation, I.IsGearItem
+local IsItemPinned, SetBagFont, SLOT_SIZE = I.IsItemPinned, I.SetBagFont, I.SLOT_SIZE
+local SPACING, _pendingResortCats = I.SPACING, I._pendingResortCats
+local _pendingResortGroups, _slotCategories = I._pendingResortGroups, I._slotCategories
+local AcquireSlotTable, bagSlots = I.AcquireSlotTable, I.bagSlots
+local DetectAndApplySwaps, FOOTER_H, HEADER_H = I.DetectAndApplySwaps, I.FOOTER_H, I.HEADER_H
+local PreCacheSortFields, reagentSlots = I.PreCacheSortFields, I.reagentSlots
+local ReleaseAllSlotTables, SaveCategoryOrder = I.ReleaseAllSlotTables, I.SaveCategoryOrder
+local TakeBagSnapshot, UpdatePawnArrow = I.TakeBagSnapshot, I.UpdatePawnArrow
+local VisualSortCompare, UpdateBagMoneyDisplay = I.VisualSortCompare, I.UpdateBagMoneyDisplay
+local UpdateCurrencyDisplays, SCROLLBAR_HIT_W = I.UpdateCurrencyDisplays, I.SCROLLBAR_HIT_W
+local SetInsetBorderColor, GetOrCreateBagSlot = I.SetInsetBorderColor, I.GetOrCreateBagSlot
+local GetOrCreateReagentSlot = I.GetOrCreateReagentSlot
+local BuildSidebarButtons, GetSidebarWidth = I.BuildSidebarButtons, I.GetSidebarWidth
+local SetGearCatSet, SetPaintedPanelOpen = I.SetGearCatSet, I.SetPaintedPanelOpen
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._bagsInternals, which hands the value to every copy.
+local selectedCategoryIndex = I.selectedCategoryIndex
+I.categoryIndexSetters[#I.categoryIndexSetters + 1] = function(v) selectedCategoryIndex = v end
+local selectedGroupName
+I.groupNameSetters[#I.groupNameSetters + 1] = function(v) selectedGroupName = v end
+local _anyItemPanelOpen = I._anyItemPanelOpen
+I.anyItemPanelOpenSetters[#I.anyItemPanelOpenSetters + 1] = function(v) _anyItemPanelOpen = v end
+
+local _lastCatCounts = {}      -- category counts from last full refresh
+local _lastTotalCount = 0      -- total item count from last full refresh
+
 -------------------------------------------------------------------------------
 --  Category header pool (for "All Items" view)
 -------------------------------------------------------------------------------
@@ -179,7 +227,7 @@ end
 do
 -- Art, alphas and the footer text clearance (the lock alone, or the grip with
 -- the lock beside it), plus the handlers this block adds: one table keeps the
--- main chunk under its local limit.
+-- chunk's local count low.
 local GR = {
     RESIZE = "Interface\\AddOns\\EllesmereUI\\media\\icons\\resize_element.png",
     LOCKED = "Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-lock-locked.png",
@@ -480,7 +528,7 @@ function EUI_Bags:RefreshInventory()
 
     -- Category indices shift when the list rebuilds (split-mode set categories
     -- come and go); rebuilt below on first IsGearCategory call, so never stale.
-    _gearCatSet = nil
+    SetGearCatSet(nil)
 
     C_NewItems.ClearAll()
 
@@ -835,7 +883,7 @@ function EUI_Bags:RefreshInventory()
 
     -- Both views below paint with the current panel state, merging or not
     -- (slot views and an unmerged list never reach MergeDuplicates)
-    _paintedPanelOpen = _anyItemPanelOpen
+    SetPaintedPanelOpen(_anyItemPanelOpen)
 
     -- List display (latched per session): rows replace the grid; the column
     -- header bar takes the top of the scroll area
@@ -1013,3 +1061,8 @@ function EUI_BagsWindow:RefreshBags()
     EUI_BagsWindow:SetSize((BAG_COLUMNS * (SLOT_SIZE + SPACING)) + 15, SLOT_SIZE + 20)
 end
 
+I._catHeaders, I._expSubHeaders = _catHeaders, _expSubHeaders
+I.CreateBagScrollFrame, I.GetOrCreateCatHeader = CreateBagScrollFrame, GetOrCreateCatHeader
+I.GetOrCreateExpSubHeader = GetOrCreateExpSubHeader
+I.ShowRecentClearButton = ShowRecentClearButton
+I.broken = false

@@ -1,3 +1,24 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Bags_Select.lua
+--
+--  Pin and Assign selection modes, the Junk Marker and Sell Junk.
+--  Reads the earlier Bags files through ns and ns._bagsInternals.
+-------------------------------------------------------------------------------
+local ns = select(2, ...)
+local I = ns._bagsInternals
+-- EllesmereUIBags.lua or an earlier EUI_Bags_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local GetItemInfo = C_Item.GetItemInfo
+local EUI = EllesmereUI
+
+local BP, GetAccentRGB, GetFont, IsGearItem = I.BP, I.GetAccentRGB, I.GetFont, I.IsGearItem
+local IsItemPinned, NormalizePinKey = I.IsItemPinned, I.NormalizePinKey
+local SetBagFont, SLOT_SIZE, _openItemPanels = I.SetBagFont, I.SLOT_SIZE, I._openItemPanels
+local itemSlots, SetInsetBorderColor = I.itemSlots, I.SetInsetBorderColor
+
 -------------------------------------------------------------------------------
 --  Pin Selection Mode
 -------------------------------------------------------------------------------
@@ -854,3 +875,7 @@ EnterPinSelectMode = function()
     EUI_Bags._pinCatcher:Show()
 end
 
+I.ExitAssignSelectMode, I.ExitPinSelectMode = ExitAssignSelectMode, ExitPinSelectMode
+I.GetOrCreateAssignOverlay = GetOrCreateAssignOverlay
+I.GetOrCreatePinOverlay, I.ResetAssignOverlays = GetOrCreatePinOverlay, ResetAssignOverlays
+I.broken = false

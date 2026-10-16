@@ -1,3 +1,25 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Bags_Slots.lua
+--
+--  Drag-to-drop, the slot factory, the fast font and icon-zoom updates,
+--  bind text, border color and the item overlay icons.
+--  Reads the earlier Bags files through ns and ns._bagsInternals.
+-------------------------------------------------------------------------------
+local ns = select(2, ...)
+local I = ns._bagsInternals
+-- EllesmereUIBags.lua or an earlier EUI_Bags_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local GetItemInfo = C_Item.GetItemInfo
+local EUI = EllesmereUI
+
+local _bankRouted, BP, GetFont, IsGearItem = I._bankRouted, I.BP, I.GetFont, I.IsGearItem
+local NormalizePinKey, SLOT_SIZE, bagSlots = I.NormalizePinKey, I.SLOT_SIZE, I.bagSlots
+local itemSlots, reagentSlots = I.itemSlots, I.reagentSlots
+local CreateInsetBorder, SetInsetBorderColor = I.CreateInsetBorder, I.SetInsetBorderColor
+
 -------------------------------------------------------------------------------
 --  Drag-to-drop: template handles pickup, we handle drop on mouse release
 -------------------------------------------------------------------------------
@@ -74,7 +96,7 @@ local function SlotMiddleClick(self, button)
     local itemLink = C_Container.GetContainerItemLink(bagID, slotID)
     local isGear = IsGearItem(itemLink)
     -- Pin key is the normalized itemID+bonusIDs identity (distinguishes
-    -- upgrade tracks -- see NormalizePinKey above); pinKey == info.itemID
+    -- upgrade tracks -- see NormalizePinKey in EllesmereUIBags.lua); pinKey == info.itemID
     -- when no link is available. A legacy itemID-keyed pin (written before
     -- this fix, conflating every track) is adopted into `cur` once and
     -- then always cleared here, regardless of which specific track was
@@ -478,3 +500,6 @@ function EUI_Bags.RunItemOverlays(btn, data)
     end
 end
 
+I._itemDragFrame, I.GetOrCreateBagSlot = _itemDragFrame, GetOrCreateBagSlot
+I.GetOrCreateReagentSlot = GetOrCreateReagentSlot
+I.broken = false

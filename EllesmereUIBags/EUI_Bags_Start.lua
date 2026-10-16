@@ -1,3 +1,65 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Bags_Start.lua
+--
+--  StartAddon, the loader and what EllesmereUIBags_Grid.lua, _List, _Compact
+--  and _Bank read from ns.
+--  Reads the earlier Bags files through ns and ns._bagsInternals.
+-------------------------------------------------------------------------------
+local ns = select(2, ...)
+local I = ns._bagsInternals
+-- EllesmereUIBags.lua or an earlier EUI_Bags_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EUI = EllesmereUI
+
+local ApplyBagScale, BagsItemUnusable, BP = I.ApplyBagScale, I.BagsItemUnusable, I.BP
+local CurrencyOrder, GetAccentRGB = I.CurrencyOrder, I.GetAccentRGB
+local GetCatTitleSize, GetDefaultBagType = I.GetCatTitleSize, I.GetDefaultBagType
+local GetFont, SetBagFont, SLOT_SIZE, SPACING = I.GetFont, I.SetBagFont, I.SLOT_SIZE, I.SPACING
+local ApplySavedOrder = I.ApplySavedOrder
+local ArmorySlotGroupingEnabled = I.ArmorySlotGroupingEnabled
+local BuildExpansionBuckets, BuildSlotBuckets = I.BuildExpansionBuckets, I.BuildSlotBuckets
+local GetArmorySlotBucket, IsArmoryGearCategory = I.GetArmorySlotBucket, I.IsArmoryGearCategory
+local IsGearOnlyGroup, itemSlots = I.IsGearOnlyGroup, I.itemSlots
+local MergeDuplicates, PreCacheSortFields = I.MergeDuplicates, I.PreCacheSortFields
+local RegisterPawnIntegration, SetItemPanelOpen = I.RegisterPawnIntegration, I.SetItemPanelOpen
+local UpdatePawnArrow, VisualSortCompare = I.UpdatePawnArrow, I.VisualSortCompare
+local CreateHeader, CreateFooter = I.CreateHeader, I.CreateFooter
+local CreateReagentBagUI, GoldLedger = I.CreateReagentBagUI, I.GoldLedger
+local OnGoldChanged, SyncBagFrameToFooter = I.OnGoldChanged, I.SyncBagFrameToFooter
+local CreateInsetBorder, QUEST_BORDER_COLOR = I.CreateInsetBorder, I.QUEST_BORDER_COLOR
+local SetInsetBorderColor = I.SetInsetBorderColor
+local SetInsetBorderThickness, _itemDragFrame = I.SetInsetBorderThickness, I._itemDragFrame
+local ExitAssignSelectMode, ExitPinSelectMode = I.ExitAssignSelectMode, I.ExitPinSelectMode
+local GetOrCreateAssignOverlay = I.GetOrCreateAssignOverlay
+local GetOrCreatePinOverlay = I.GetOrCreatePinOverlay
+local ResetAssignOverlays, CreateSidebar = I.ResetAssignOverlays, I.CreateSidebar
+local _catHeaders, _expSubHeaders = I._catHeaders, I._expSubHeaders
+local CreateBagScrollFrame = I.CreateBagScrollFrame
+local GetOrCreateCatHeader = I.GetOrCreateCatHeader
+local GetOrCreateExpSubHeader = I.GetOrCreateExpSubHeader
+local ShowRecentClearButton = I.ShowRecentClearButton
+local SetSelectedCategoryIndex = I.SetSelectedCategoryIndex
+local SetSelectedGroupName = I.SetSelectedGroupName
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._bagsInternals, which hands the value to every copy.
+local selectedCategoryIndex = I.selectedCategoryIndex
+I.categoryIndexSetters[#I.categoryIndexSetters + 1] = function(v) selectedCategoryIndex = v end
+local selectedGroupName
+I.groupNameSetters[#I.groupNameSetters + 1] = function(v) selectedGroupName = v end
+local _anyItemPanelOpen = I._anyItemPanelOpen
+I.anyItemPanelOpenSetters[#I.anyItemPanelOpenSetters + 1] = function(v) _anyItemPanelOpen = v end
+
+-- Unmerge state the CURRENT painted layout was built with; the bags OnShow
+-- compares against it so a flip while hidden still repaints (closing a
+-- mailbox hides both). Written by the earlier files through
+-- SetPaintedPanelOpen, read here only.
+local _paintedPanelOpen = false
+I.paintedPanelOpenSetters[#I.paintedPanelOpenSetters + 1] = function(v) _paintedPanelOpen = v end
+
 -------------------------------------------------------------------------------
 --  StartAddon
 -------------------------------------------------------------------------------
@@ -7,9 +69,9 @@ local function StartAddon()
     -- Apply default view based on setting (DB now available)
     local _dbt = GetDefaultBagType()
     if _dbt == "onebag" then
-        selectedCategoryIndex = -1
+        SetSelectedCategoryIndex(-1)
     elseif _dbt == "multibag" then
-        selectedCategoryIndex = -2
+        SetSelectedCategoryIndex(-2)
     end
 
     GoldLedger.Register("bags", OnGoldChanged)
@@ -973,7 +1035,7 @@ end)
 --  Shared with EllesmereUIBags_Grid.lua (loads after this file)
 -------------------------------------------------------------------------------
 function ns.GetSelection() return selectedCategoryIndex, selectedGroupName end
-function ns.SetSelection(idx, group) selectedCategoryIndex, selectedGroupName = idx, group end
+function ns.SetSelection(idx, group) SetSelectedCategoryIndex(idx); SetSelectedGroupName(group) end
 ns.SLOT_SIZE, ns.SPACING = SLOT_SIZE, SPACING
 ns.itemSlots = itemSlots
 ns.itemDragFrame = _itemDragFrame
@@ -1011,3 +1073,7 @@ ns.ShowRecentClearButton = ShowRecentClearButton
 ns.GetOrCreatePinOverlay = GetOrCreatePinOverlay
 ns.GetOrCreateAssignOverlay = GetOrCreateAssignOverlay
 ns.ResetAssignOverlays = ResetAssignOverlays
+
+-- The start values the copies were built from: nothing may read them again.
+I._anyItemPanelOpen, I.selectedCategoryIndex = nil, nil
+I.broken = false

@@ -1,3 +1,27 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_Bags_Header.lua
+--
+--  The header bar: title, search, sort and the header buttons.
+--  Reads the earlier Bags files through ns and ns._bagsInternals.
+-------------------------------------------------------------------------------
+local ns = select(2, ...)
+local I = ns._bagsInternals
+-- EllesmereUIBags.lua or an earlier EUI_Bags_*.lua file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EUI = EllesmereUI
+
+local BP, GetFont, SetBagFont, HEADER_H = I.BP, I.GetFont, I.SetBagFont, I.HEADER_H
+local PreCacheSortFields, SaveCategoryOrder = I.PreCacheSortFields, I.SaveCategoryOrder
+local VisualSortCompare = I.VisualSortCompare
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._bagsInternals, which hands the value to every copy.
+local selectedCategoryIndex = I.selectedCategoryIndex
+I.categoryIndexSetters[#I.categoryIndexSetters + 1] = function(v) selectedCategoryIndex = v end
+
 -------------------------------------------------------------------------------
 --  UI Components -- Header
 -------------------------------------------------------------------------------
@@ -602,3 +626,5 @@ local function CreateHeader()
     EUI_Bags._bagsBtn = bagsBtn
 end
 
+I.CreateHeader = CreateHeader
+I.broken = false
