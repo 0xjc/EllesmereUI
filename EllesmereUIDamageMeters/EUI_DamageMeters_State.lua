@@ -1,3 +1,26 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_DamageMeters_State.lua
+--
+--  Header button layout, per-window settings and position, the shared
+--  combat and segment state, unlock registration and the session events.
+--  Reads the earlier Damage Meters files through ns and ns._dmInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._dmInternals
+-- EllesmereUIDamageMeters.lua or an earlier EUI_DamageMeters_*.lua file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EUI = EllesmereUI
+
+local DB, DM_TYPE_ICONS, DM_TYPE_NAMES = I.DB, I.DM_TYPE_ICONS, I.DM_TYPE_NAMES
+local GetHeaderH, HOME_DEFAULTS, MAX_WINDOWS = I.GetHeaderH, I.HOME_DEFAULTS, I.MAX_WINDOWS
+local MIN_H, MIN_W, SetCombatEndTime = I.MIN_H, I.MIN_W, I.SetCombatEndTime
+local SetCurViewFrozenDur, SetInEncounter = I.SetCurViewFrozenDur, I.SetInEncounter
+local SetInCombat, SetNeedsFinalRefresh = I.SetInCombat, I.SetNeedsFinalRefresh
+
 -- Header icon visibility (hide until title bar hovered)
 local function ResetButtonHidden(cfg)
     cfg = cfg or DB()
@@ -189,7 +212,8 @@ end
 -- Shared state
 local _inCombat = false
 local _inEncounter = false       -- true between ENCOUNTER_START and ENCOUNTER_END
-local _playerGUID
+I.inCombatSetters[#I.inCombatSetters + 1] = function(v) _inCombat = v end
+I.inEncounterSetters[#I.inEncounterSetters + 1] = function(v) _inEncounter = v end
 local _windows = {}  -- array of active window tables
 ns._windows = _windows
 -- Windows taken out of use (a closed window, or one past a profile's window
@@ -203,13 +227,6 @@ ns._dmParked = {}
 -- re-show their frames on their own schedule. Options mode and unlock mode still win.
 ns._toggleHidden = false
 
--- Bumped whenever a build of the windows starts or _EDM_Apply() supersedes one. The
--- login build is staggered across frames, so a profile swap arriving while it is still
--- in flight would otherwise let the pending steps assign _windows[i] over the windows
--- the swap had just set up -- abandoning those frames while they stay parented and
--- visible. A staggered step checks this before doing any work and drops out if a newer
--- build has taken over.
-local _buildGen = 0
 ns._DM_TYPE_NAMES = DM_TYPE_NAMES
 ns._DM_TYPE_ICONS = DM_TYPE_ICONS
 
@@ -319,7 +336,7 @@ ns.RegisterDMUnlock = function()
             end,
         })
     end
-    -- Standalone combat timer rides the master toggle (factory defined in the timer section, resolved via ns)
+    -- Standalone combat timer rides the master toggle (factory defined in EUI_DamageMeters_Timer.lua, resolved via ns)
     if DB().standaloneTimer and ns.MakeSATimerUnlockElement then
         elements[#elements + 1] = ns.MakeSATimerUnlockElement(MK)
     end
@@ -354,6 +371,9 @@ end
 local _combatEndTime = 0       -- GetTime() at combat end; control-flow sentinel (ticker teardown / freeze-once)
 local _needsFinalRefresh = false
 local _curViewFrozenDur = 0    -- final Current-session duration, pinned when combat ends
+I.combatEndTimeSetters[#I.combatEndTimeSetters + 1] = function(v) _combatEndTime = v end
+I.needsFinalRefreshSetters[#I.needsFinalRefreshSetters + 1] = function(v) _needsFinalRefresh = v end
+I.curViewFrozenDurSetters[#I.curViewFrozenDurSetters + 1] = function(v) _curViewFrozenDur = v end
 -- Tracks feigned GUIDs since C_DamageMeter can give a feign a valid deathRecapID, which the
 -- deathRecapID > 0 filter would treat as a real death. Cleared at combat/encounter start and on
 -- 0 HP (confirmed real death); UnitIsFeignDeath can remain true through a feign-then-die transition so it can't be used to clear safely.
@@ -429,11 +449,11 @@ end
 -- Stop the live timer AND pin its final value atomically at every combat-end freeze site. The d
 -- >= pin guard keeps the last live value if Current already rolled to a fresh (smaller) session; the pin resets to 0 at every combat START so it can't carry across combats.
 local function FreezeCombat(ts)
-    _combatEndTime = ts or GetTime()
+    SetCombatEndTime(ts or GetTime())
     if C_DamageMeter and C_DamageMeter.GetSessionDurationSeconds then
         local d = C_DamageMeter.GetSessionDurationSeconds(Enum.DamageMeterSessionType.Current)
         if type(d) == "number" and not (issecretvalue and issecretvalue(d)) and d >= (_curViewFrozenDur or 0) then
-            _curViewFrozenDur = d
+            SetCurViewFrozenDur(d)
         end
     end
 end
@@ -487,11 +507,12 @@ local function CleanupFeignCache()
     end
 end
 
-local StopSharedTicker   -- forward declaration (defined in refresh section)
-local StartSharedTicker  -- forward declaration (defined in refresh section)
-local ScheduleStopTicker -- forward declaration (defined in refresh section)
-local _sharedTicker      -- the live refresh ticker (assigned in refresh section)
-local _combatGen = 0     -- monotonic segment token; stale deferred teardowns compare against it
+local StopSharedTicker   -- forward declaration (defined in EUI_DamageMeters_Lifecycle.lua)
+local StartSharedTicker  -- forward declaration (defined in EUI_DamageMeters_Lifecycle.lua)
+local _sharedTicker      -- the live refresh ticker (assigned in EUI_DamageMeters_Lifecycle.lua)
+I.stopSharedTickerSetters[#I.stopSharedTickerSetters + 1] = function(v) StopSharedTicker = v end
+I.startSharedTickerSetters[#I.startSharedTickerSetters + 1] = function(v) StartSharedTicker = v end
+I.sharedTickerSetters[#I.sharedTickerSetters + 1] = function(v) _sharedTicker = v end
 local _targetsCache = {} -- Damage Done targets map (BuildAllPlayerTargets): { key = sessionKey, map = { [playerName] = sorted targets } }
 
 -- Keystone start: wipe data so Overall = this dungeon run
@@ -508,7 +529,7 @@ instanceFrame:SetScript("OnEvent", function(_, event)
         if C_DamageMeter and C_DamageMeter.ResetAllCombatSessions then
             C_DamageMeter.ResetAllCombatSessions()
         end
-        _combatEndTime = 0; _curViewFrozenDur = 0
+        SetCombatEndTime(0); SetCurViewFrozenDur(0)
         -- Auto-swap: Overall -> Current on key start
         for _, w in ipairs(_windows) do
             local wdb2 = WinDB(w.idx)
@@ -581,7 +602,7 @@ instanceFrame:SetScript("OnEvent", function(_, event)
             end
     elseif event == "DAMAGE_METER_RESET" then
         -- Blizzard cleared all session data (auto-reset CVar, manual reset, etc.)
-        _combatEndTime = 0; _curViewFrozenDur = 0
+        SetCombatEndTime(0); SetCurViewFrozenDur(0)
         if _targetsCache then wipe(_targetsCache) end
         for _, w in ipairs(_windows) do
             w._barCacheKey = nil
@@ -593,23 +614,23 @@ instanceFrame:SetScript("OnEvent", function(_, event)
         -- combat state must be re-derived per branch below or the session-derived timer would blank.
         if UnitAffectingCombat("player") then
             -- Still personally in combat after the load (e.g. reload on a target dummy, or zoning into an active fight): restore the live timer.
-            _inCombat = true
-            _combatEndTime = 0
-            _needsFinalRefresh = false
+            SetInCombat(true)
+            SetCombatEndTime(0)
+            SetNeedsFinalRefresh(false)
             if not _sharedTicker then StartSharedTicker() end
         elseif IsGroupInCombat() then
             -- Not personally in combat but the group is (reload while dead/spectating): poll like the
             -- teammate pre-warm rather than asserting _inCombat -- SharedRefreshTick self-terminates the instant the group leaves combat, so a stale flag can't tick forever.
-            _inCombat = false
-            _combatEndTime = 0
-            _needsFinalRefresh = true
+            SetInCombat(false)
+            SetCombatEndTime(0)
+            SetNeedsFinalRefresh(true)
             if not _sharedTicker then StartSharedTicker() end
         else
             -- Out of combat: force-end. Covers hearth/teleport, leaving a BG/arena, abandoning an M+ key, any other zone-out.
             local wasLive = _inCombat or _needsFinalRefresh or _inEncounter
-            _inEncounter = false
-            _inCombat = false
-            _needsFinalRefresh = false
+            SetInEncounter(false)
+            SetInCombat(false)
+            SetNeedsFinalRefresh(false)
             StopSharedTicker()
             -- Freeze (pin) the timer if combat was still live
             if wasLive and _combatEndTime == 0 then FreezeCombat() end
@@ -625,3 +646,11 @@ instanceFrame:SetScript("OnEvent", function(_, event)
     end
 end)
 
+I._combatEndTime, I._deathStamps = _combatEndTime, _deathStamps
+I._feignDeathGUIDs, I._inCombat = _feignDeathGUIDs, _inCombat
+I._needsFinalRefresh, I._targetsCache, I._windows = _needsFinalRefresh, _targetsCache, _windows
+I.ApplyHeaderButtonsHoverVisibility = ApplyHeaderButtonsHoverVisibility
+I.CleanupFeignCache, I.FreezeCombat = CleanupFeignCache, FreezeCombat
+I.GetBookmarks, I.GetCurrentViewDuration = GetBookmarks, GetCurrentViewDuration
+I.IsGroupInCombat, I.LayoutHeaderButtons, I.WinDB = IsGroupInCombat, LayoutHeaderButtons, WinDB
+I.broken = false

@@ -1,3 +1,26 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_DamageMeters_Apply.lua
+--
+--  The ns functions that push a changed setting to every window.
+--  Reads the earlier Damage Meters files through ns and ns._dmInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._dmInternals
+-- EllesmereUIDamageMeters.lua or an earlier EUI_DamageMeters_*.lua file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EUI = EllesmereUI
+local ForeverShortName = EUI.ForeverShortName
+
+local DB, GetHeaderH, ICON_ALPHA, MIN_H = I.DB, I.GetHeaderH, I.ICON_ALPHA, I.MIN_H
+local MIN_W, _windows = I.MIN_W, I._windows
+local ApplyHeaderButtonsHoverVisibility = I.ApplyHeaderButtonsHoverVisibility
+local LayoutHeaderButtons, WinDB, GetAccentRGB = I.LayoutHeaderButtons, I.WinDB, I.GetAccentRGB
+local PhysicalPixels, SetDMFont = I.PhysicalPixels, I.SetDMFont
+
 -- ns exports (loop over all windows)
 ns.RefreshMeter = function()
     for _, w in ipairs(_windows) do w.Refresh() end
@@ -232,3 +255,4 @@ ns.ApplyDMSize = function()
     end
 end
 
+I.broken = false

@@ -1,3 +1,31 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_DamageMeters_Tooltip.lua
+--
+--  The breakdown tooltip shared by all windows: its frame, PopulatePreview,
+--  the anchor and the hover poll.
+--  Reads the earlier Damage Meters files through ns and ns._dmInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._dmInternals
+-- EllesmereUIDamageMeters.lua or an earlier EUI_DamageMeters_*.lua file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EUI = EllesmereUI
+local L = _G.EllesmereUI.L
+
+local BAR_TEX, DB, DM_TYPE_NAMES = I.BAR_TEX, I.DB, I.DM_TYPE_NAMES
+local AbbrevNumber, AggregateEnemyPlayers = I.AbbrevNumber, I.AggregateEnemyPlayers
+local ApplyBarTexture, BuildPlayerTargets = I.ApplyBarTexture, I.BuildPlayerTargets
+local FormatBarValue = I.FormatBarValue
+local GetBreakdownBarTexturePath = I.GetBreakdownBarTexturePath
+local GetBreakdownDuration, IsOwnRow, IsSecret = I.GetBreakdownDuration, I.IsOwnRow, I.IsSecret
+local PhysicalPixels, ResolveGroupGUID = I.PhysicalPixels, I.ResolveGroupGUID
+local SetDMFont, StripRealm, SetTTFrame = I.SetDMFont, I.StripRealm, I.SetTTFrame
+local SetTTLastScale = I.SetTTLastScale
+
 -- Hover tooltip (shared across all windows)
 local TT_DEFAULT_MAX = 8
 local TT_BAR_H = 18
@@ -10,6 +38,8 @@ end
 
 local _ttFrame, _ttBars, _ttVisible = nil, {}, false
 local _activeRow = nil
+I.ttFrameSetters[#I.ttFrameSetters + 1] = function(v) _ttFrame = v end
+I.activeRowSetters[#I.activeRowSetters + 1] = function(v) _activeRow = v end
 
 local TT_HDR_H = 20
 
@@ -62,7 +92,7 @@ local function EnsureTooltipFrame()
         if not _ttFrame._fvRim then ApplyInheritedBlizzardBorder(_ttFrame, "tooltip") end
         return
     end
-    _ttFrame = CreateFrame("Frame", nil, UIParent)
+    SetTTFrame(CreateFrame("Frame", nil, UIParent))
     _ttFrame:SetFrameStrata("TOOLTIP")
     _ttFrame:SetSize(TT_WIDTH, 10)
     _ttFrame:SetClampedToScreen(true)
@@ -507,6 +537,7 @@ local function PopulatePreview(bar, curSession, curSessionID, curDMType)
 end
 
 local _ttLastScale
+I.ttLastScaleSetters[#I.ttLastScaleSetters + 1] = function(v) _ttLastScale = v end
 
 -- Single anchor chokepoint for the breakdown frame. Modes: "row" (above hovered row, default),
 -- "center" (screen center), "left"/"right" (beside the meter window, falls back to "row" if the window frame is missing).
@@ -540,7 +571,7 @@ local function ShowBarTooltip(bar, curSession, curSessionID, curDMType)
     local scale = (cfg.hoverTooltipScale or 100) / 100
     if scale ~= _ttLastScale then
         _ttFrame:SetScale(scale)
-        _ttLastScale = scale
+        SetTTLastScale(scale)
     end
 
     -- Always rebuild from fresh data (no GUID cache); PopulatePreview costs ~0.5ms, fine for a hover action
@@ -562,3 +593,8 @@ _hoverPollFrame:SetScript("OnUpdate", function()
     end
 end)
 
+I._hoverPollFrame, I._ttBars = _hoverPollFrame, _ttBars
+I.ApplyInheritedBlizzardBorder = ApplyInheritedBlizzardBorder
+I.EnsureTooltipFrame, I.HideBarTooltip = EnsureTooltipFrame, HideBarTooltip
+I.HideTTTargets, I.TT_HDR_H, I.TT_WIDTH = HideTTTargets, TT_HDR_H, TT_WIDTH
+I.broken = false

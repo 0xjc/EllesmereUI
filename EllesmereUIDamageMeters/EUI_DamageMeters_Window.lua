@@ -1,3 +1,53 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_DamageMeters_Window.lua
+--
+--  The context menu and CreateDMWindow, the factory of one meter window.
+--  Reads the earlier Damage Meters files through ns and ns._dmInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._dmInternals
+-- EllesmereUIDamageMeters.lua or an earlier EUI_DamageMeters_*.lua file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EUI = EllesmereUI
+local L = _G.EllesmereUI.L
+
+local BAR_POOL_SIZE, BAR_TEX, DB = I.BAR_POOL_SIZE, I.BAR_TEX, I.DB
+local DM_TYPE_ICONS, DM_TYPE_NAMES, GetHeaderH = I.DM_TYPE_ICONS, I.DM_TYPE_NAMES, I.GetHeaderH
+local ICON_ALPHA, ICON_HOVER_ALPHA = I.ICON_ALPHA, I.ICON_HOVER_ALPHA
+local MAX_WINDOWS, MEDIA, MIN_H, MIN_W = I.MAX_WINDOWS, I.MEDIA, I.MIN_H, I.MIN_W
+local PEAK_BUDGET, RANK_STRINGS, RESIZE_ICON = I.PEAK_BUDGET, I.RANK_STRINGS, I.RESIZE_ICON
+local SESSION_TYPE_NAMES, SESSION_TYPES = I.SESSION_TYPE_NAMES, I.SESSION_TYPES
+local _feignDeathGUIDs, _windows = I._feignDeathGUIDs, I._windows
+local ApplyHeaderButtonsHoverVisibility = I.ApplyHeaderButtonsHoverVisibility
+local CleanupFeignCache, GetBookmarks = I.CleanupFeignCache, I.GetBookmarks
+local GetCurrentViewDuration = I.GetCurrentViewDuration
+local LayoutHeaderButtons, WinDB, AbbrevNumber = I.LayoutHeaderButtons, I.WinDB, I.AbbrevNumber
+local AggregateEnemyPlayers, ApplyBarTexture = I.AggregateEnemyPlayers, I.ApplyBarTexture
+local BuildPlayerTargets, FormatBarValue = I.BuildPlayerTargets, I.FormatBarValue
+local FormatTimer, GetAccentRGB = I.FormatTimer, I.GetAccentRGB
+local GetBarTexturePath, GetBreakdownDuration = I.GetBarTexturePath, I.GetBreakdownDuration
+local PhysicalPixels, ResolveIcon, SetDMFont = I.PhysicalPixels, I.ResolveIcon, I.SetDMFont
+local StripRealm, _hoverPollFrame, _ttBars = I.StripRealm, I._hoverPollFrame, I._ttBars
+local ApplyInheritedBlizzardBorder = I.ApplyInheritedBlizzardBorder
+local EnsureTooltipFrame, HideBarTooltip = I.EnsureTooltipFrame, I.HideBarTooltip
+local HideTTTargets, TT_HDR_H, TT_WIDTH = I.HideTTTargets, I.TT_HDR_H, I.TT_WIDTH
+local SetActiveRow, SetCombatEndTime = I.SetActiveRow, I.SetCombatEndTime
+local SetCurViewFrozenDur = I.SetCurViewFrozenDur
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._dmInternals, which hands the value to every copy.
+local _ttFrame
+I.ttFrameSetters[#I.ttFrameSetters + 1] = function(v) _ttFrame = v end
+
+-- The player's GUID: set at login by EUI_DamageMeters_Lifecycle.lua
+-- (SetPlayerGUID), read here only.
+local _playerGUID
+I.playerGUIDSetters[#I.playerGUIDSetters + 1] = function(v) _playerGUID = v end
+
 -- EDM Context Menu (shared)
 local _edmMenu, _edmSub
 local CTX_ITEM_H   = 22
@@ -224,7 +274,8 @@ end
 
 -- Window Factory: creates a fully independent damage meter window with its own frame tree, bar
 -- pool, scroll state, source window, home screen, and refresh cycle. Returns a window table W with all state and a Destroy method.
-local UpdateSATimerText  -- forward declaration (defined in standalone timer section)
+local UpdateSATimerText  -- forward declaration (defined in EUI_DamageMeters_Timer.lua)
+I.updateSATimerTextSetters[#I.updateSATimerTextSetters + 1] = function(v) UpdateSATimerText = v end
 
 local function CreateDMWindow(winIdx)
     -- Function-locals, not upvalues: this function sits at Lua 5.1's
@@ -517,11 +568,11 @@ local function CreateDMWindow(winIdx)
                 _ttFrame:Show()
                 return
             end
-            _activeRow = bar; bar._win = W; _hoverPollFrame:Show()
+            SetActiveRow(bar); bar._win = W; _hoverPollFrame:Show()
         end)
         bar.row:SetScript("OnLeave", function()
             bar._hl:Hide()
-            _activeRow = nil; _hoverPollFrame:Hide(); HideBarTooltip()
+            SetActiveRow(nil); _hoverPollFrame:Hide(); HideBarTooltip()
         end)
         bar._src = nil; bar._srcGUID = nil; bar._class = nil; bar._win = W
         bar.row:Hide()
@@ -967,7 +1018,7 @@ local function CreateDMWindow(winIdx)
     W.resetBtn = MakeHeaderBtn("dm_undo.png", -(btnSize * 3 + btnPad * 4 + 2), "Reset Data", function()
         if C_DamageMeter and C_DamageMeter.ResetAllCombatSessions then
             C_DamageMeter.ResetAllCombatSessions()
-            _combatEndTime = 0; _curViewFrozenDur = 0
+            SetCombatEndTime(0); SetCurViewFrozenDur(0)
             for _, w in ipairs(_windows) do w.Refresh() end
         end
     end, "reset")
@@ -2199,7 +2250,7 @@ local function CreateDMWindow(winIdx)
                 bar.row:SetPoint("TOPRIGHT", W.srcContent, "TOPRIGHT", 0, yOff2)
                 bar.row:SetHeight(barH)
                 local iconOffset = 0
-                -- Same secret-spellID handling as the tooltip breakdown above: a
+                -- Same secret-spellID handling as the tooltip breakdown (PopulatePreview): a
                 -- secret id goes through pcall and its result is tested by type().
                 local spID = spell.spellID
                 local getTex = C_Spell and C_Spell.GetSpellTexture
@@ -2637,7 +2688,7 @@ local function CreateDMWindow(winIdx)
         if homeFrame and homeFrame:IsShown() then W.HideHome() else W.ShowHome() end
     end
 
-    -- (Refresh ticker is shared across all windows -- see file scope below CreateDMWindow)
+    -- (Refresh ticker is shared across all windows -- see EUI_DamageMeters_Lifecycle.lua)
 
     -- Per-window instance rules (Hide in Dungeons / Raids / Delves / PvP / out of
     -- Instances); shared by UpdateVisibility and the mouseover predicate below.
@@ -2897,3 +2948,5 @@ function ns.DMAcquireWindow(idx)
     return CreateDMWindow(idx)
 end
 
+I.CreateDMWindow = CreateDMWindow
+I.broken = false

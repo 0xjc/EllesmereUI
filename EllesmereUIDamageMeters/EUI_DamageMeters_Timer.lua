@@ -1,6 +1,42 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_DamageMeters_Timer.lua
+--
+--  The standalone combat timer, the show/hide hotkey and the timer's
+--  unlock element.
+--  Reads the earlier Damage Meters files through ns and ns._dmInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._dmInternals
+-- EllesmereUIDamageMeters.lua or an earlier EUI_DamageMeters_*.lua file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EUI = EllesmereUI
+
+local DB, MAX_WINDOWS, _windows = I.DB, I.MAX_WINDOWS, I._windows
+local GetCurrentViewDuration, FormatTimer = I.GetCurrentViewDuration, I.FormatTimer
+local FormatTimerDecimal, GetAccentRGB = I.FormatTimerDecimal, I.GetAccentRGB
+local SetDMFont, SetSATimer = I.SetDMFont, I.SetSATimer
+local SetUpdateSATimerText = I.SetUpdateSATimerText
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._dmInternals, which hands the value to every copy.
+local _inCombat = I._inCombat
+I.inCombatSetters[#I.inCombatSetters + 1] = function(v) _inCombat = v end
+local _needsFinalRefresh = I._needsFinalRefresh
+I.needsFinalRefreshSetters[#I.needsFinalRefreshSetters + 1] = function(v) _needsFinalRefresh = v end
+local _ttFrame
+I.ttFrameSetters[#I.ttFrameSetters + 1] = function(v) _ttFrame = v end
+
+-- Assigned below and handed to the earlier files (SetUpdateSATimerText).
+local UpdateSATimerText
+
 -- Standalone Combat Timer
 local _saTimer  -- frame reference
 local _saTimerFS -- fontstring
+I.saTimerSetters[#I.saTimerSetters + 1] = function(v) _saTimer = v end
 local _saTimerBG -- backdrop texture
 local _saTimerBorder -- PP border child frame
 local _saTimerPreview = false
@@ -152,6 +188,7 @@ UpdateSATimerText = function()
         ApplySATimerColor()
     end
 end
+SetUpdateSATimerText(UpdateSATimerText)
 
 local function RepositionSATimer()
     if not _saTimer then return end
@@ -244,7 +281,7 @@ local function CreateSATimer()
     if _saTimer then return end
     local cfg = DB()
 
-    _saTimer = CreateFrame("Frame", "EllesmereUIDMStandaloneTimer", UIParent)
+    SetSATimer(CreateFrame("Frame", "EllesmereUIDMStandaloneTimer", UIParent))
     _saTimer:SetSize(1, 1)
     _saTimer:SetClampedToScreen(true)
     _saTimer:SetFrameStrata("HIGH")
@@ -465,3 +502,6 @@ ns.MakeSATimerUnlockElement = function(MK)
     })
 end
 
+I.CreateSATimer, I.SetupSATimer = CreateSATimer, SetupSATimer
+I.UpdateSATimerText = UpdateSATimerText
+I.broken = false

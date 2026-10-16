@@ -26,7 +26,6 @@ local ICON_ALPHA        = 0.4
 local ICON_HOVER_ALPHA  = 0.9
 local RESIZE_ICON       = "Interface\\AddOns\\EllesmereUI\\media\\icons\\resize_element.png"
 local MAX_WINDOWS       = 5
-local L = _G.EllesmereUI.L
 
 local DM_TYPE_NAMES = {
     [Enum.DamageMeterType.DamageDone]           = "Damage Done",
@@ -221,3 +220,49 @@ local function DB() return ns.EDM.DB() end
 -- band's rail under it (ns.DMFvRail; 0 on every other look).
 local function GetHeaderH() local c = DB(); local h = c.hdrHeight or 22; return h + ns.DMFvRail(h) end
 
+-- Main-chunk locals of this file the EUI_DamageMeters_*.lua files re-import by
+-- name; each of them adds what the files behind it need.
+-- inCombatSetters and the lists beside it: every file that reads one of these
+-- values keeps its own copy and adds a setter here; every assignment goes
+-- through the Set<Name> function built below (except the per-tick pin of
+-- _curViewFrozenDur in GetCurrentViewDuration, State's only copy).
+-- broken: true while a part file loads; a file that fails leaves it set, and
+-- the files behind it return at their first lines.
+ns._dmInternals = {
+    BAR_POOL_SIZE = BAR_POOL_SIZE, BAR_TEX = BAR_TEX, DB = DB, DM_TYPE_ICONS = DM_TYPE_ICONS,
+    DM_TYPE_NAMES = DM_TYPE_NAMES, EnsureDB = EnsureDB, GetHeaderH = GetHeaderH,
+    HOME_DEFAULTS = HOME_DEFAULTS, ICON_ALPHA = ICON_ALPHA, ICON_HOVER_ALPHA = ICON_HOVER_ALPHA,
+    MAX_WINDOWS = MAX_WINDOWS, MEDIA = MEDIA, MIN_H = MIN_H, MIN_W = MIN_W,
+    PEAK_BUDGET = PEAK_BUDGET, RANK_STRINGS = RANK_STRINGS,
+    REFRESH_RATE_FLOOR = REFRESH_RATE_FLOOR, REFRESH_RATE_HARD_FLOOR = REFRESH_RATE_HARD_FLOOR,
+    RESIZE_ICON = RESIZE_ICON, SESSION_TYPE_NAMES = SESSION_TYPE_NAMES,
+    SESSION_TYPES = SESSION_TYPES, TICK_COMBAT = TICK_COMBAT,
+    inCombatSetters = {}, inEncounterSetters = {}, combatEndTimeSetters = {},
+    needsFinalRefreshSetters = {}, curViewFrozenDurSetters = {}, stopSharedTickerSetters = {},
+    startSharedTickerSetters = {}, sharedTickerSetters = {}, ttFrameSetters = {},
+    activeRowSetters = {}, ttLastScaleSetters = {}, playerGUIDSetters = {},
+    updateSATimerTextSetters = {}, saTimerSetters = {},
+    broken = false,
+}
+-- Set<Name> hands a new value to every copy registered in <name>Setters.
+for setter, listName in pairs({
+    SetInCombat = "inCombatSetters", SetInEncounter = "inEncounterSetters",
+    SetCombatEndTime = "combatEndTimeSetters",
+    SetNeedsFinalRefresh = "needsFinalRefreshSetters",
+    SetCurViewFrozenDur = "curViewFrozenDurSetters",
+    SetStopSharedTicker = "stopSharedTickerSetters",
+    SetStartSharedTicker = "startSharedTickerSetters", SetSharedTicker = "sharedTickerSetters",
+    SetTTFrame = "ttFrameSetters", SetActiveRow = "activeRowSetters",
+    SetTTLastScale = "ttLastScaleSetters", SetPlayerGUID = "playerGUIDSetters",
+    SetUpdateSATimerText = "updateSATimerTextSetters", SetSATimer = "saTimerSetters",
+}) do
+    local list = ns._dmInternals[listName]
+    ns._dmInternals[setter] = function(v)
+        for i = 1, #list do list[i](v) end
+    end
+end
+-- A re-import of a name this table lacks fails where the part file loads,
+-- not later as a nil upvalue inside one of its functions.
+setmetatable(ns._dmInternals, { __index = function(_, k)
+    error("ns._dmInternals has no entry " .. tostring(k), 2)
+end })

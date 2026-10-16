@@ -1,3 +1,33 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_DamageMeters_Format.lua
+--
+--  Fonts, bar textures, row metrics, number and name formatting, source
+--  keys, timer text, class icons and the per-target lists.
+--  Reads the earlier Damage Meters files through ns and ns._dmInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._dmInternals
+-- EllesmereUIDamageMeters.lua or an earlier EUI_DamageMeters_*.lua file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EUI = EllesmereUI
+
+local BAR_TEX, DB, _deathStamps = I.BAR_TEX, I.DB, I._deathStamps
+local _targetsCache, CleanupFeignCache = I._targetsCache, I.CleanupFeignCache
+local GetCurrentViewDuration = I.GetCurrentViewDuration
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._dmInternals, which hands the value to every copy.
+local _inCombat = I._inCombat
+I.inCombatSetters[#I.inCombatSetters + 1] = function(v) _inCombat = v end
+local StartSharedTicker
+I.startSharedTickerSetters[#I.startSharedTickerSetters + 1] = function(v) StartSharedTicker = v end
+local _sharedTicker
+I.sharedTickerSetters[#I.sharedTickerSetters + 1] = function(v) _sharedTicker = v end
+
 local function SetDMFont(fs, size, flagsOverride, fontOverride)
     EllesmereUI.ApplyModuleFont(fs, fontOverride, size, "damageMeters", flagsOverride)
 end
@@ -642,3 +672,15 @@ local function BuildPlayerTargets(playerName, session, sessionID, maxTargets)
     return list
 end
 
+I._srcKeyGuid, I.AbbrevNumber = _srcKeyGuid, AbbrevNumber
+I.AggregateEnemyPlayers, I.AppendDMSharedMedia = AggregateEnemyPlayers, AppendDMSharedMedia
+I.ApplyBarTexture, I.BuildPlayerTargets = ApplyBarTexture, BuildPlayerTargets
+I.FormatBarValue, I.FormatTimer = FormatBarValue, FormatTimer
+I.FormatTimerDecimal, I.GetAccentRGB = FormatTimerDecimal, GetAccentRGB
+I.GetBarTexturePath = GetBarTexturePath
+I.GetBreakdownBarTexturePath = GetBreakdownBarTexturePath
+I.GetBreakdownDuration, I.IsOwnRow, I.IsSecret = GetBreakdownDuration, IsOwnRow, IsSecret
+I.PhysicalPixels, I.ResolveGroupGUID = PhysicalPixels, ResolveGroupGUID
+I.ResolveIcon, I.SetDMFont, I.SnapshotSourceKeys = ResolveIcon, SetDMFont, SnapshotSourceKeys
+I.StripRealm = StripRealm
+I.broken = false

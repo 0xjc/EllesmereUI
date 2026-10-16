@@ -1,5 +1,68 @@
--- Shared refresh ticker (one ticker for ALL windows). _sharedTicker is forward-declared near the
--- top (so the session-update handler can revive it after a teardown race); assigned by Start/StopSharedTicker
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_DamageMeters_Lifecycle.lua
+--
+--  The shared refresh ticker, the combat and PvP events, the key binding
+--  buttons and the login build of the windows.
+--  Reads the earlier Damage Meters files through ns and ns._dmInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._dmInternals
+-- EllesmereUIDamageMeters.lua or an earlier EUI_DamageMeters_*.lua file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EUI = EllesmereUI
+
+local DB, EnsureDB, MAX_WINDOWS = I.DB, I.EnsureDB, I.MAX_WINDOWS
+local REFRESH_RATE_FLOOR = I.REFRESH_RATE_FLOOR
+local REFRESH_RATE_HARD_FLOOR, TICK_COMBAT = I.REFRESH_RATE_HARD_FLOOR, I.TICK_COMBAT
+local _deathStamps, _feignDeathGUIDs = I._deathStamps, I._feignDeathGUIDs
+local _targetsCache, _windows, FreezeCombat = I._targetsCache, I._windows, I.FreezeCombat
+local IsGroupInCombat, _srcKeyGuid = I.IsGroupInCombat, I._srcKeyGuid
+local AppendDMSharedMedia, SnapshotSourceKeys = I.AppendDMSharedMedia, I.SnapshotSourceKeys
+local _hoverPollFrame, EnsureTooltipFrame = I._hoverPollFrame, I.EnsureTooltipFrame
+local CreateDMWindow, CreateSATimer = I.CreateDMWindow, I.CreateSATimer
+local SetupSATimer, UpdateSATimerText = I.SetupSATimer, I.UpdateSATimerText
+local SetInCombat, SetNeedsFinalRefresh = I.SetInCombat, I.SetNeedsFinalRefresh
+local SetSharedTicker, SetCombatEndTime = I.SetSharedTicker, I.SetCombatEndTime
+local SetCurViewFrozenDur, SetInEncounter = I.SetCurViewFrozenDur, I.SetInEncounter
+local SetPlayerGUID, SetTTLastScale = I.SetPlayerGUID, I.SetTTLastScale
+local SetActiveRow, SetStartSharedTicker = I.SetActiveRow, I.SetStartSharedTicker
+local SetStopSharedTicker = I.SetStopSharedTicker
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._dmInternals, which hands the value to every copy.
+local _inCombat = I._inCombat
+I.inCombatSetters[#I.inCombatSetters + 1] = function(v) _inCombat = v end
+local _combatEndTime = I._combatEndTime
+I.combatEndTimeSetters[#I.combatEndTimeSetters + 1] = function(v) _combatEndTime = v end
+local _needsFinalRefresh = I._needsFinalRefresh
+I.needsFinalRefreshSetters[#I.needsFinalRefreshSetters + 1] = function(v) _needsFinalRefresh = v end
+local _sharedTicker
+I.sharedTickerSetters[#I.sharedTickerSetters + 1] = function(v) _sharedTicker = v end
+local _ttFrame
+I.ttFrameSetters[#I.ttFrameSetters + 1] = function(v) _ttFrame = v end
+local _saTimer
+I.saTimerSetters[#I.saTimerSetters + 1] = function(v) _saTimer = v end
+
+-- Bumped whenever a build of the windows starts or _EDM_Apply() supersedes one. The
+-- login build is staggered across frames, so a profile swap arriving while it is still
+-- in flight would otherwise let the pending steps assign _windows[i] over the windows
+-- the swap had just set up -- abandoning those frames while they stay parented and
+-- visible. A staggered step checks this before doing any work and drops out if a newer
+-- build has taken over.
+local _buildGen = 0
+local _combatGen = 0     -- monotonic segment token; stale deferred teardowns compare against it
+-- Assigned below. The first two are handed to the earlier files
+-- (SetStopSharedTicker, SetStartSharedTicker).
+local StopSharedTicker
+local StartSharedTicker
+local ScheduleStopTicker
+
+-- Shared refresh ticker (one ticker for ALL windows). _sharedTicker is declared in
+-- EUI_DamageMeters_State.lua (so the session-update handler can revive it after a teardown race); assigned by Start/StopSharedTicker
 
 local _regenTimestamp = 0  -- GetTime() when player left combat
 
@@ -51,13 +114,13 @@ local function SharedRefreshTick()
         if groupDone then
             -- Group combat ended: freeze timer (pin final duration), final refresh, stop
             FreezeCombat(_regenTimestamp > 0 and _regenTimestamp or GetTime())
-            _inCombat = false
-            _needsFinalRefresh = false
+            SetInCombat(false)
+            SetNeedsFinalRefresh(false)
             _regenTimestamp = 0
             for _, w in ipairs(_windows) do
                 if w.curDMType ~= "threat" then w.Refresh() end
             end
-            if _sharedTicker then _sharedTicker:Cancel(); _sharedTicker = nil end
+            if _sharedTicker then _sharedTicker:Cancel(); SetSharedTicker(nil) end
             StopTimerTicker()
             return
         end
@@ -65,7 +128,7 @@ local function SharedRefreshTick()
     end
     if _combatEndTime > 0 or (not _inCombat and not _needsFinalRefresh) then
         -- Combat fully ended or state lost: stop ticking
-        if _sharedTicker then _sharedTicker:Cancel(); _sharedTicker = nil end
+        if _sharedTicker then _sharedTicker:Cancel(); SetSharedTicker(nil) end
         StopTimerTicker()
         return
     end
@@ -86,7 +149,7 @@ end
 -- group-fight poll (_needsFinalRefresh) needs a tick. Gated here rather than at the call
 -- sites, so the session-event revivals cannot bring back a ticker with nothing to paint.
 StartSharedTicker = function()
-    if _sharedTicker then _sharedTicker:Cancel(); _sharedTicker = nil end
+    if _sharedTicker then _sharedTicker:Cancel(); SetSharedTicker(nil) end
     StopTimerTicker()
     local viewers = AnyTickViewer()
     if not viewers and not _needsFinalRefresh then
@@ -102,7 +165,7 @@ StartSharedTicker = function()
     -- applies either way so 0 or negative can never reach the ticker.
     local floor = DB().unsafeRefreshRate and REFRESH_RATE_HARD_FLOOR or REFRESH_RATE_FLOOR
     if rate < floor then rate = floor end
-    _sharedTicker = C_Timer.NewTicker(rate, SharedRefreshTick)
+    SetSharedTicker(C_Timer.NewTicker(rate, SharedRefreshTick))
     -- The poll or a hidden live Deaths view alone (nothing on screen) needs no clock
     if viewers ~= true then return end
     _timerTicker = C_Timer.NewTicker(0.5, TimerTick)
@@ -112,11 +175,13 @@ StartSharedTicker = function()
         _saDecimalTicker = C_Timer.NewTicker(0.1, UpdateSATimerText)
     end
 end
+SetStartSharedTicker(StartSharedTicker)
 
 StopSharedTicker = function()
-    if _sharedTicker then _sharedTicker:Cancel(); _sharedTicker = nil end
+    if _sharedTicker then _sharedTicker:Cancel(); SetSharedTicker(nil) end
     StopTimerTicker()
 end
+SetStopSharedTicker(StopSharedTicker)
 
 -- Something came on screen (a window's OnShow, after its catch-up; a build or profile
 -- swap, whose windows show without an OnShow edge): start the ticks, or add the clock
@@ -202,29 +267,29 @@ combatFrame:SetScript("OnEvent", function(_, event, ...)
         if not unit or not (unit:match("^raid") or unit:match("^party")) then return end
         -- Group member entered combat before us: start polling so bars populate
         if IsGroupInCombat() then
-            _combatEndTime = 0
-            _curViewFrozenDur = 0
+            SetCombatEndTime(0)
+            SetCurViewFrozenDur(0)
             -- Pre-warm: a teammate pulled before us. Mark a final-refresh poll (NOT _inCombat --
             -- the player may never personally enter combat, so nothing would ever clear _inCombat if we set it). SharedRefreshTick refreshes while the group fights and self-terminates when it leaves combat.
-            _needsFinalRefresh = true
+            SetNeedsFinalRefresh(true)
             _combatGen = _combatGen + 1
             StartSharedTicker()
         end
         return
     end
     if event == "ENCOUNTER_START" then
-        _inEncounter = true
+        SetInEncounter(true)
         -- A boss pull is a hard segment boundary even in chain-pull combat, where PLAYER_REGEN_DISABLED
         -- never fires: bump the segment token (pending deferred stops no-op), assert combat, reset
         -- the timer pin. No clock anchored here -- the timer derives from the live "Current" session so it self-resets on the roll; a synchronous read here would race it and show the stale pre-pull duration.
         _combatGen = _combatGen + 1
         if next(_feignDeathGUIDs) then wipe(_feignDeathGUIDs) end -- new segment: stale feign tags would mis-filter real deaths
         if next(_deathStamps) then wipe(_deathStamps) end
-        _inCombat = true
-        _combatEndTime = 0
-        _curViewFrozenDur = 0
+        SetInCombat(true)
+        SetCombatEndTime(0)
+        SetCurViewFrozenDur(0)
         _regenTimestamp = 0
-        _needsFinalRefresh = false
+        SetNeedsFinalRefresh(false)
         if not _sharedTicker then StartSharedTicker() end
         ns.AutoCurrentOnCombat()
         for _, w in ipairs(_windows) do
@@ -235,7 +300,7 @@ combatFrame:SetScript("OnEvent", function(_, event, ...)
         return
     end
     if event == "ENCOUNTER_END" then
-        _inEncounter = false
+        SetInEncounter(false)
         local success = select(5, ...)   -- 1 = kill, 0 = wipe
         -- On a clean kill, end combat promptly (PLAYER_REGEN_ENABLED can lag ENCOUNTER_END by
         -- several seconds). If it was NOT a clean kill and the group is still fighting (wipe with
@@ -247,13 +312,13 @@ combatFrame:SetScript("OnEvent", function(_, event, ...)
                 if gen ~= _combatGen then return end   -- a new segment (chain pull) started
                 if _combatEndTime > 0 then return end  -- already ended elsewhere
                 if success ~= 1 and IsGroupInCombat() then
-                    _needsFinalRefresh = true
+                    SetNeedsFinalRefresh(true)
                     if not _sharedTicker then StartSharedTicker() end
                     return
                 end
                 FreezeCombat()
-                _inCombat = false
-                _needsFinalRefresh = false
+                SetInCombat(false)
+                SetNeedsFinalRefresh(false)
                 for _, w in ipairs(_windows) do w.Refresh() end
                 ScheduleStopTicker(0.5)
             end)
@@ -266,11 +331,11 @@ combatFrame:SetScript("OnEvent", function(_, event, ...)
         _combatGen = _combatGen + 1
         if next(_feignDeathGUIDs) then wipe(_feignDeathGUIDs) end -- new segment: stale feign tags would mis-filter real deaths
         if next(_deathStamps) then wipe(_deathStamps) end
-        _inCombat = true
-        _combatEndTime = 0
-        _curViewFrozenDur = 0
+        SetInCombat(true)
+        SetCombatEndTime(0)
+        SetCurViewFrozenDur(0)
         _regenTimestamp = 0
-        _needsFinalRefresh = false
+        SetNeedsFinalRefresh(false)
         if _targetsCache then wipe(_targetsCache) end
         StartSharedTicker()
         ns.AutoCurrentOnCombat()
@@ -281,15 +346,15 @@ combatFrame:SetScript("OnEvent", function(_, event, ...)
         if _targetsCache then wipe(_targetsCache) end
         -- Check if group is still fighting (player died but boss alive)
         if IsGroupInCombat() then
-            _needsFinalRefresh = true  -- let tick poll until group leaves combat
+            SetNeedsFinalRefresh(true)  -- let tick poll until group leaves combat
             -- The poll needs its tick even when a fully hidden meter let the ticker lapse
             if not _sharedTicker then StartSharedTicker() end
             -- Don't freeze timer -- group is still in combat
         else
             -- Freeze timer: entire group out of combat. Guard against overwriting an earlier freeze (e.g. ENCOUNTER_END already froze at the boss end)
             if _combatEndTime == 0 then FreezeCombat() end
-            _inCombat = false
-            _needsFinalRefresh = false
+            SetInCombat(false)
+            SetNeedsFinalRefresh(false)
             for _, w in ipairs(_windows) do w.Refresh() end
             -- One final tick then stop (guarded so it can't cancel a new segment).
             ScheduleStopTicker(DB().refreshRate or TICK_COMBAT)
@@ -328,8 +393,8 @@ do
                 if _pvpMatchActive then return end
                 if _combatEndTime > 0 then return end
                 FreezeCombat()
-                _inCombat = false
-                _needsFinalRefresh = false
+                SetInCombat(false)
+                SetNeedsFinalRefresh(false)
                 for _, w in ipairs(_windows) do w.Refresh() end
                 ScheduleStopTicker(0.5)
                 -- Block new segments from post-match cleanup damage
@@ -351,7 +416,7 @@ if not _G["EllesmereUIDMResetBindBtn"] then
     btn:SetScript("OnClick", function()
         if C_DamageMeter and C_DamageMeter.ResetAllCombatSessions then
             C_DamageMeter.ResetAllCombatSessions()
-            _combatEndTime = 0; _curViewFrozenDur = 0
+            SetCombatEndTime(0); SetCurViewFrozenDur(0)
             for _, w in ipairs(_windows) do w.Refresh() end
         end
     end)
@@ -387,7 +452,7 @@ initFrame:SetScript("OnEvent", function(self)
     EllesmereUI.SetCVar("damageMeterEnabled", 0, "EllesmereUIDamageMeters")
     AppendDMSharedMedia()
 
-    _playerGUID = UnitGUID("player")
+    SetPlayerGUID(UnitGUID("player"))
 
     -- Restore the reset data and show/hide all windows keybinds
     ns.ApplyDMKeybinds()
@@ -415,7 +480,7 @@ initFrame:SetScript("OnEvent", function(self)
             -- Pre-create tooltip frame so first hover doesn't pay creation cost
             EnsureTooltipFrame()
             local sc = (cfg.hoverTooltipScale or 100) / 100
-            if _ttFrame then _ttFrame:SetScale(sc); _ttLastScale = sc end
+            if _ttFrame then _ttFrame:SetScale(sc); SetTTLastScale(sc) end
             return
         end
         _windows[winIdx] = CreateDMWindow(winIdx)
@@ -433,7 +498,7 @@ initFrame:SetScript("OnEvent", function(self)
         _buildGen = _buildGen + 1
         -- Hide tooltip
         if _ttFrame then _ttFrame:Hide() end
-        _activeRow = nil; _hoverPollFrame:Hide()
+        SetActiveRow(nil); _hoverPollFrame:Hide()
         local c = DB()
         -- Clear the hotkey toggle so a profile swap never lands in a hidden state whose
         -- cause is no longer visible, then re-apply both keybinds from the new profile
@@ -483,3 +548,7 @@ initFrame:SetScript("OnEvent", function(self)
         ns._DMReviveTicks()
     end
 end)
+
+-- The start values the copies were built from: nothing may read them again.
+I._combatEndTime, I._inCombat, I._needsFinalRefresh = nil, nil, nil
+I.broken = false

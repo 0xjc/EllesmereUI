@@ -1,3 +1,22 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_DamageMeters_Style.lua
+--
+--  The stock looks on our own windows and rows: Blizzard Style, Classic WoW
+--  UI and the WoW Forever variant, with the header art of each.
+--  Reads the earlier Damage Meters files through ns and ns._dmInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._dmInternals
+-- EllesmereUIDamageMeters.lua or an earlier EUI_DamageMeters_*.lua file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EUI = EllesmereUI
+
+local DB, DM_TYPE_ICONS, EnsureDB, MEDIA = I.DB, I.DM_TYPE_ICONS, I.EnsureDB, I.MEDIA
+
 -------------------------------------------------------------------------------
 --  Stock styles (Global Settings > Style) on our own windows and rows:
 --  Blizzard Style = the stock meter's atlases; Classic WoW UI = the stock
@@ -738,3 +757,4 @@ function ns.DMFvHdrArtSet()
 end
 if EllesmereUI.IS_FOREVER then ns.DM_HDR_ART.forever = ns.DMFvHdrArtSet() end
 
+I.broken = false
