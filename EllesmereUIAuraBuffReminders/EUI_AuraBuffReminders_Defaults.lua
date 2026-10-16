@@ -1,3 +1,23 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_AuraBuffReminders_Defaults.lua
+--
+--  Glow types, the profile defaults, the middle-click dismiss table and
+--  the appear sounds.
+--  Reads the earlier AuraBuff Reminders files through ns._abrInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._abrInternals
+-- EllesmereUIAuraBuffReminders.lua or an earlier AuraBuff Reminders file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EABR = I.EABR
+
+local db
+I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+
 -------------------------------------------------------------------------------
 --  Glow Types (shared with options)
 -------------------------------------------------------------------------------
@@ -170,8 +190,6 @@ if EABR.FOREVER then
     }
 end
 
-local euiPanelOpen = false
-
 -------------------------------------------------------------------------------
 --  Middle-click dismiss hide a reminder until the next loading screen
 -------------------------------------------------------------------------------
@@ -181,7 +199,7 @@ local _dismissedUntilLoad = {}  -- [dismissKey] = true
 --  Per-section appear-sounds: one sound key per section (raid buffs / auras /
 --  consumables / class specials), played once as a reminder NEWLY appears.
 --  Two swapped sets avoid per-refresh allocation; the first primed pass is
---  skipped so login never replays a burst. Hung on EABR (200-local cap).
+--  skipped so login never replays a burst. Hung on EABR.
 -------------------------------------------------------------------------------
 -- Class-special keys (poisons/rites/imbues/shields) share one sound; built once.
 function EABR.IsSpecialKey(key)
@@ -241,3 +259,6 @@ function EABR.HandleAppearSounds(missing)
     EABR._soundPrev, EABR._soundCur, EABR._soundPrimed = cur, prev, true
 end
 
+I._dismissedUntilLoad, I.defaults, I.GLOW_VIEW = _dismissedUntilLoad, defaults, GLOW_VIEW
+I.StopAllGlows = StopAllGlows
+I.broken = false

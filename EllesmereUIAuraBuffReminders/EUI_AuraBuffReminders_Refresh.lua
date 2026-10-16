@@ -1,4 +1,53 @@
--- Reusable tables wiped each Refresh() call to avoid per-call allocation (wrapped to save file-scope local slots, 200 limit).
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_AuraBuffReminders_Refresh.lua
+--
+--  The WoW Forever collectors, Refresh and its throttle, the Forever group
+--  watch and the duration ticker.
+--  Reads the earlier AuraBuff Reminders files through ns._abrInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._abrInternals
+-- EllesmereUIAuraBuffReminders.lua or an earlier AuraBuff Reminders file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local floor = math.floor
+
+local CacheInstanceInfo, EABR, GetPlayerClass = I.CacheInstanceInfo, I.EABR, I.GetPlayerClass
+local GetSpecID, InCombat, InMythicPlusKey = I.GetSpecID, I.InCombat, I.InMythicPlusKey
+local InPvPInstance, InRealInstancedContent = I.InPvPInstance, I.InRealInstancedContent
+local isSecret, Known, ShortLabel, SpellName = I.isSecret, I.Known, I.ShortLabel, I.SpellName
+local Tex, _unitInRange, _unitOk = I.Tex, I._unitInRange, I._unitOk
+local BuildPlayerAuraCache, PlayerHasAuraByID = I.BuildPlayerAuraCache, I.PlayerHasAuraByID
+local PET_CLASSES, RAID_BUFFS, WARLOCK_PETS = I.PET_CLASSES, I.RAID_BUFFS, I.WARLOCK_PETS
+local _dismissedUntilLoad, AcquireEntry = I._dismissedUntilLoad, I.AcquireEntry
+local ApplyGlow, combatActiveIcons = I.ApplyGlow, I.combatActiveIcons
+local cursorActiveIcons, FadeOutSecureIcons = I.cursorActiveIcons, I.FadeOutSecureIcons
+local HideCombatIcons, HideCursorIcons = I.HideCombatIcons, I.HideCursorIcons
+local ICON_SIZE, IsImportantBuff = I.ICON_SIZE, I.IsImportantBuff
+local LayoutCombatIcons, LayoutCursorIcons = I.LayoutCombatIcons, I.LayoutCursorIcons
+local ResetEntryPool, ShowCombatIcon = I.ResetEntryPool, I.ShowCombatIcon
+local ShowCursorIcon, CollectAuras = I.ShowCursorIcon, I.CollectAuras
+local CollectConsumables, CollectRaidBuffs = I.CollectConsumables, I.CollectRaidBuffs
+local HideAllIcons, LayoutIcons, ShowIcon = I.HideAllIcons, I.LayoutIcons, I.ShowIcon
+local SetCachedOutline = I.SetCachedOutline
+
+local db
+I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+local euiPanelOpen = false
+I.panelOpenSetters[#I.panelOpenSetters + 1] = function(v) euiPanelOpen = v end
+local iconAnchor
+I.iconAnchorSetters[#I.iconAnchorSetters + 1] = function(v) iconAnchor = v end
+local combatAnchor
+I.combatAnchorSetters[#I.combatAnchorSetters + 1] = function(v) combatAnchor = v end
+local cursorAnchor
+I.cursorAnchorSetters[#I.cursorAnchorSetters + 1] = function(v) cursorAnchor = v end
+
+local refreshQueued = false
+
+-- Reusable tables wiped each Refresh() call to avoid per-call allocation.
 local _refreshMissing = {}
 local UpdateDurationTicker  -- forward-declare; defined after RequestRefresh
 
@@ -372,7 +421,7 @@ function EABR.CollectForeverRaidBuffs(missing, playerClass, inInstance)
 end
 
 local function Refresh()
-    _cachedOutline = nil
+    SetCachedOutline(nil)
     EABR._nextDurationRefreshTime = nil
     if not db then return end
     -- Pooled reminder buttons are children of iconAnchor, built in OnEnable (PLAYER_LOGIN). File-scope events (SPELLS_CHANGED, PLAYER_TALENT_UPDATE,
@@ -893,4 +942,5 @@ function EABR.ArmSoulstoneCooldownRefresh(remaining)
     end)
 end
 
-
+I.RequestRefresh = RequestRefresh
+I.broken = false

@@ -1,8 +1,58 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_AuraBuffReminders_Collect.lua
+--
+--  Layout and ShowIcon, and the collectors of the Raid Buffs, Auras and
+--  Consumables sections.
+--  Reads the earlier AuraBuff Reminders files through ns._abrInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._abrInternals
+-- EllesmereUIAuraBuffReminders.lua or an earlier AuraBuff Reminders file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local floor, min, abs = math.floor, math.min, math.abs
+
+local _B, DEFAULT_TEXT_COLOR, EABR = I._B, I.DEFAULT_TEXT_COLOR, I.EABR
+local GetPlayerClass, GetTextAnchorPoints = I.GetPlayerClass, I.GetTextAnchorPoints
+local InCombat, InPvPInstance, isSecret = I.InCombat, I.InPvPInstance, I.isSecret
+local Known, NON_SECRET_SPELL_IDS = I.Known, I.NON_SECRET_SPELL_IDS
+local ResolveFontPath, SetABRFont, ShortLabel = I.ResolveFontPath, I.SetABRFont, I.ShortLabel
+local Tex, _preCombatOwnOnRaidCache = I.Tex, I._preCombatOwnOnRaidCache
+local BuffExistsOnAnyGroupMember = I.BuffExistsOnAnyGroupMember
+local CountGroupBuffCoverage, GetStanceState = I.CountGroupBuffCoverage, I.GetStanceState
+local IsAnyShapeshiftFormActive = I.IsAnyShapeshiftFormActive
+local IsUnderDuration, PlayerHasAuraByID = I.IsUnderDuration, I.PlayerHasAuraByID
+local PlayerHasSelfCastAuraByID = I.PlayerHasSelfCastAuraByID
+local PlayerOwnBuffOnAnyGroupMember = I.PlayerOwnBuffOnAnyGroupMember
+local _IMBUE_EXCLUDE_SPELLS, AURAS = I._IMBUE_EXCLUDE_SPELLS, I.AURAS
+local CachedGetItemCount, DTB_SPELL_ID = I.CachedGetItemCount, I.DTB_SPELL_ID
+local INKY_BLACK_ITEM, PALADIN_RITES = I.INKY_BLACK_ITEM, I.PALADIN_RITES
+local PARTNERED_TRINKET, PlayerHasBuffByName = I.PARTNERED_TRINKET, I.PlayerHasBuffByName
+local PlayerHasFlaskBuff = I.PlayerHasFlaskBuff
+local PlayerHasInkyBlackness, PlayerHasWellFed = I.PlayerHasInkyBlackness, I.PlayerHasWellFed
+local RAID_BUFFS, ROGUE_POISONS, RUNE_BUFF_IDS = I.RAID_BUFFS, I.ROGUE_POISONS, I.RUNE_BUFF_IDS
+local SHAMAN_IMBUES, SHAMAN_SHIELDS = I.SHAMAN_IMBUES, I.SHAMAN_SHIELDS
+local AcquireEntry, activeIcons, ApplyGlow = I.AcquireEntry, I.activeIcons, I.ApplyGlow
+local ApplySetup, GetOrCreateIcon, ICON_SIZE = I.ApplySetup, I.GetOrCreateIcon, I.ICON_SIZE
+local iconPool, RemoveGlow = I.iconPool, I.RemoveGlow
+
+local db
+I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+-- Hunter's Mark combat state: true on REGEN_DISABLED, cleared on cast/combat
+-- end; OOC falls back to target debuff check.
+local _huntersMarkNeeded = false
+I.huntersMarkSetters[#I.huntersMarkSetters + 1] = function(v) _huntersMarkNeeded = v end
+local iconAnchor
+I.iconAnchorSetters[#I.iconAnchorSetters + 1] = function(v) iconAnchor = v end
+local cursorAnchor
+I.cursorAnchorSetters[#I.cursorAnchorSetters + 1] = function(v) cursorAnchor = v end
+
 -------------------------------------------------------------------------------
 --  Core Refresh Logic
 -------------------------------------------------------------------------------
-local refreshQueued = false
-local pendingOOCRefresh = false
 
 local function HideAllIcons()
     if InCombatLockdown() then return end  -- cannot hide SecureActionButtons after lockdown begins
@@ -366,8 +416,7 @@ end
 end
 
 -- Weapon-enchant reminders shared by the OOC and restricted (M+/combat)
--- passes -- the enchant summary API is combat-safe. Hung on EABR (200-local
--- cap).
+-- passes -- the enchant summary API is combat-safe. Hung on EABR.
 function EABR.EmitWeaponEnchantReminders(missing, co)
     local hasMH, mhExpire, _, _, hasOH, ohExpire = EABR.WeaponEnchants()
     for i = 1, 2 do
@@ -752,7 +801,7 @@ local specialsActive = EABR.SectionShows(co.specialsWhereToShow, inInstance)
     do
         local co2 = db.profile.consumables
         if co2 and co2.enabled and co2.enabled.coaches_whistle ~= false
-           and EABR.ConsumableShows(co2, "coaches_whistle", inInstance) and _cachedDiffID ~= 208
+           and EABR.ConsumableShows(co2, "coaches_whistle", inInstance) and EABR._cachedDiffID ~= 208
            and (IsInGroup() or IsInRaid())
            and (GetInventoryItemID("player", 13) == 193718 or GetInventoryItemID("player", 14) == 193718) then
             local hasBuff = PlayerHasAuraByID(PARTNERED_TRINKET.buffIDs)
@@ -798,3 +847,7 @@ end
 
 -- CollectTalentReminders moved to EllesmereUIABR_TalentReminders.lua
 
+I.CollectAuras, I.CollectConsumables = CollectAuras, CollectConsumables
+I.CollectRaidBuffs, I.HideAllIcons, I.LayoutIcons = CollectRaidBuffs, HideAllIcons, LayoutIcons
+I.ResizeAnchorCentered, I.ShowIcon = ResizeAnchorCentered, ShowIcon
+I.broken = false

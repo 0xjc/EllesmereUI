@@ -1,3 +1,35 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_AuraBuffReminders_Beacon.lua
+--
+--  Last-used item tracking and the standalone Beacon reminders.
+--  Reads the earlier AuraBuff Reminders files through ns._abrInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._abrInternals
+-- EllesmereUIAuraBuffReminders.lua or an earlier AuraBuff Reminders file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local floor = math.floor
+
+local _B, DEFAULT_TEXT_COLOR, EABR = I._B, I.DEFAULT_TEXT_COLOR, I.EABR
+local GetTextAnchorPoints, Known = I.GetTextAnchorPoints, I.Known
+local ResolveFontPath, SetABRFont, ShortLabel = I.ResolveFontPath, I.SetABRFont, I.ShortLabel
+local Tex, texCache, FLASK_ITEMS, FOOD_ITEMS = I.Tex, I.texCache, I.FLASK_ITEMS, I.FOOD_ITEMS
+local WEAPON_ENCHANT_ITEMS, ApplyGlow = I.WEAPON_ENCHANT_ITEMS, I.ApplyGlow
+local ICON_SIZE, RemoveGlow, LayoutIcons = I.ICON_SIZE, I.RemoveGlow, I.LayoutIcons
+
+local db
+I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+local euiPanelOpen = false
+I.panelOpenSetters[#I.panelOpenSetters + 1] = function(v) euiPanelOpen = v end
+local combatAnchor
+I.combatAnchorSetters[#I.combatAnchorSetters + 1] = function(v) combatAnchor = v end
+local cursorAnchor
+I.cursorAnchorSetters[#I.cursorAnchorSetters + 1] = function(v) cursorAnchor = v end
+
 -------------------------------------------------------------------------------
 --  Last-Used Item Tracking (per-character)
 -------------------------------------------------------------------------------
@@ -310,3 +342,5 @@ _B.frame:SetScript("OnEvent", function(_, e, id)
     BeaconRefresh()
 end)
 
+I.BeaconInit, I.BeaconRefresh, I.TrackItemUse = BeaconInit, BeaconRefresh, TrackItemUse
+I.broken = false

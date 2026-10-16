@@ -1,3 +1,26 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_AuraBuffReminders_Auras.lua
+--
+--  The pre-combat aura snapshot, the per-refresh aura helpers, the tracker
+--  of the player's own auras on group members, weapon types and the raid
+--  buff beneficiaries.
+--  Reads the earlier AuraBuff Reminders files through ns._abrInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._abrInternals
+-- EllesmereUIAuraBuffReminders.lua or an earlier AuraBuff Reminders file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local AURA_SCAN_LIMIT, EABR, GetSpecID = I.AURA_SCAN_LIMIT, I.EABR, I.GetSpecID
+local InCombat, isSecret, NON_SECRET_SPELL_IDS = I.InCombat, I.isSecret, I.NON_SECRET_SPELL_IDS
+local SpellName = I.SpellName
+
+local db
+I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+
 -------------------------------------------------------------------------------
 --  Pre-combat aura snapshot
 -------------------------------------------------------------------------------
@@ -156,7 +179,7 @@ local function IsAnyShapeshiftFormActive(spellIDs)
 end
 
 -- 12.1: aura restrictions apply in M+/raids even OOC, and index scans HARD-ERROR there (not just secret results). Every
--- OOC-only scan checks AuraKit.AurasRestricted() inline (no helper local -- this chunk sits at the Lua 5.1 200-local cap).
+-- OOC-only scan checks AuraKit.AurasRestricted() inline (no helper local).
 
 -- Shared helpers for group aura scanning (hoisted to avoid per-call closure allocation)
 local function _unitOk(u) return UnitExists(u) and UnitIsConnected(u) and not UnitIsDeadOrGhost(u) end
@@ -732,8 +755,8 @@ local function GetWeaponCategory(slotID)
 end
 
 -- Off-hand slot holds a shield. Gates the shield-only imbue reminders
--- (requireShield rows); on EABR, not a local, since this file sits at the
--- 200-local cap. UNIT_INVENTORY_CHANGED already refreshes, so no new event.
+-- (requireShield rows); on EABR, not a local.
+-- UNIT_INVENTORY_CHANGED already refreshes, so no new event.
 function EABR.HasShieldEquipped()
     local itemID = GetInventoryItemID("player", 17)
     if not itemID then return false end
@@ -776,7 +799,7 @@ end
 -- excluding the local player. Built on demand for the receiver view ("I am
 -- missing others' buffs") so a buff is only flagged when someone who can
 -- cast it is actually nearby. Secret class tokens are skipped (identity
--- restriction edges). Hung on EABR (200-local cap).
+-- restriction edges). Hung on EABR.
 EABR._groupClassSet = EABR._groupClassSet or {}
 function EABR.BuildGroupClassSet()
     local set = wipe(EABR._groupClassSet)
@@ -910,3 +933,13 @@ function EABR.PlayerBenefitsFromBuff(buff)
     return EABR.UnitBenefits("player", buff.benefit) and true or false
 end
 
+I._AC, I._ownOnRaidIDs = _AC, _ownOnRaidIDs
+I._preCombatOwnOnRaidCache, I._unitInRange = _preCombatOwnOnRaidCache, _unitInRange
+I._unitOk, I.BuffExistsOnAnyGroupMember = _unitOk, BuffExistsOnAnyGroupMember
+I.BuildPlayerAuraCache, I.CountGroupBuffCoverage = BuildPlayerAuraCache, CountGroupBuffCoverage
+I.GetStanceState, I.GetWeaponCategory = GetStanceState, GetWeaponCategory
+I.IsAnyShapeshiftFormActive, I.IsUnderDuration = IsAnyShapeshiftFormActive, IsUnderDuration
+I.PlayerHasAuraByID, I.PlayerHasSelfCastAuraByID = PlayerHasAuraByID, PlayerHasSelfCastAuraByID
+I.PlayerOwnBuffOnAnyGroupMember = PlayerOwnBuffOnAnyGroupMember
+I.SnapshotOwnOnRaidBuffs, I.SnapshotPlayerAuras = SnapshotOwnOnRaidBuffs, SnapshotPlayerAuras
+I.broken = false

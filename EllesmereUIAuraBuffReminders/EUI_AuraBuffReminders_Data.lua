@@ -1,3 +1,26 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_AuraBuffReminders_Data.lua
+--
+--  The spell and item tables of the reminders, the Well Fed, flask and
+--  eating checks, the bag item counts and the resolved consumable items.
+--  Reads the earlier AuraBuff Reminders files through ns._abrInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._abrInternals
+-- EllesmereUIAuraBuffReminders.lua or an earlier AuraBuff Reminders file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local AURA_SCAN_LIMIT, EABR, InCombat = I.AURA_SCAN_LIMIT, I.EABR, I.InCombat
+local InMythicPlusKey, InPvPInstance, isSecret = I.InMythicPlusKey, I.InPvPInstance, I.isSecret
+local SpellName, Tex, _AC, GetWeaponCategory = I.SpellName, I.Tex, I._AC, I.GetWeaponCategory
+local IsUnderDuration = I.IsUnderDuration
+
+local db
+I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+
 -------------------------------------------------------------------------------
 --  SPELL DATA Raid Buffs (all non-secret in 12.0, work in combat)
 -------------------------------------------------------------------------------
@@ -8,7 +31,7 @@ _G._EABR_SpellName = function(spellID, fallback)
 end
 
 -- Returns the legacy GetWeaponEnchantInfo tuple shape (hasMH, mhExpireMs, mhCharges, mhEnchantID, hasOH,
--- ohExpireMs, ohCharges, ohEnchantID). Prefers C_PaperDollInfo.GetTemporaryEnchantmentInfo (12.1: GetWeaponEnchantInfo is a deprecation-CVar shim there); remainingTimeMs maps 1:1 to legacy ms values. On EABR -- 200-local cap.
+-- ohExpireMs, ohCharges, ohEnchantID). Prefers C_PaperDollInfo.GetTemporaryEnchantmentInfo (12.1: GetWeaponEnchantInfo is a deprecation-CVar shim there); remainingTimeMs maps 1:1 to legacy ms values. On EABR.
 EABR.WeaponEnchants = function()
     if C_PaperDollInfo and C_PaperDollInfo.GetTemporaryEnchantmentInfo then
         local mh = C_PaperDollInfo.GetTemporaryEnchantmentInfo(INVSLOT_MAINHAND)
@@ -202,7 +225,7 @@ local WARLOCK_PETS = {
 -- Points an entry at whichever pet the shared cycle index currently selects
 -- from `pets` (Missing Pet and Wrong Demon share one index, so cycling on
 -- either reminder advances the same pointer). On EABR, not a top-level
--- local -- this file is at Lua's 200-local ceiling.
+-- local.
 EABR.SetWarlockPetSpell = function(e, pets, fallbackTexture, labelOverride)
     local n = #pets
     local idx = EABR._petCycleIndex or 1
@@ -568,7 +591,7 @@ local _bagCounts = {}
 local _itemCountDirty = true
 
 -- Resolved consumable cache: WHICH item to show per bag/equip-derived category, rebuilt only when bags/weapon/
--- preferred-item settings change (EABR.ResolveConsumables). Hung on EABR, not a local (200-local cap). Caches only
+-- preferred-item settings change (EABR.ResolveConsumables). Hung on EABR, not a local. Caches only
 -- SELECTION state (itemID/cat/hasBags/availability); icon is derived at each emit site to stay byte-identical to per-refresh GetItemIcon calls. Defaults nil/false; dirty starts true so the first OOC CollectConsumables fully populates it.
 EABR._resolved = {
     dirty = true,                   -- rebuild pending
@@ -817,3 +840,15 @@ function EABR.ResolveConsumables()
     R.healthstone.hasStone = hasStone
 end
 
+I._bagCounts, I._IMBUE_EXCLUDE_SPELLS, I.AURAS = _bagCounts, _IMBUE_EXCLUDE_SPELLS, AURAS
+I.CachedGetItemCount, I.DTB_SPELL_ID = CachedGetItemCount, DTB_SPELL_ID
+I.FLASK_ITEMS, I.FOOD_ITEMS, I.INKY_BLACK_ITEM = FLASK_ITEMS, FOOD_ITEMS, INKY_BLACK_ITEM
+I.InvalidateItemCountCache, I.PALADIN_RITES = InvalidateItemCountCache, PALADIN_RITES
+I.PARTNERED_TRINKET, I.PET_CLASSES = PARTNERED_TRINKET, PET_CLASSES
+I.PlayerHasBuffByName, I.PlayerHasFlaskBuff = PlayerHasBuffByName, PlayerHasFlaskBuff
+I.PlayerHasInkyBlackness, I.PlayerHasWellFed = PlayerHasInkyBlackness, PlayerHasWellFed
+I.RAID_BUFFS, I.RebuildBagCounts, I.ROGUE_POISONS = RAID_BUFFS, RebuildBagCounts, ROGUE_POISONS
+I.RUNE_BUFF_IDS, I.SHAMAN_IMBUES = RUNE_BUFF_IDS, SHAMAN_IMBUES
+I.SHAMAN_SHIELDS, I.WARLOCK_PETS = SHAMAN_SHIELDS, WARLOCK_PETS
+I.WEAPON_ENCHANT_CHOICES, I.WEAPON_ENCHANT_ITEMS = WEAPON_ENCHANT_CHOICES, WEAPON_ENCHANT_ITEMS
+I.broken = false

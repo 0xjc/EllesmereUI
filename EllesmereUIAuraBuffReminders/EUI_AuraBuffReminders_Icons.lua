@@ -1,8 +1,37 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_AuraBuffReminders_Icons.lua
+--
+--  The icon pools (secure, combat, cursor), the provider cast button, the
+--  glows, the shared icon decorations, the icon factory and the entry
+--  setup.
+--  Reads the earlier AuraBuff Reminders files through ns._abrInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._abrInternals
+-- EllesmereUIAuraBuffReminders.lua or an earlier AuraBuff Reminders file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local floor, max = math.floor, math.max
+
+local _B, DEFAULT_TEXT_COLOR, EABR = I._B, I.DEFAULT_TEXT_COLOR, I.EABR
+local GetPlayerClass, GetTextAnchorPoints = I.GetPlayerClass, I.GetTextAnchorPoints
+local InCombat, Known, ResolveFontPath = I.InCombat, I.Known, I.ResolveFontPath
+local ResolveGlowTint, SetABRFont, Tex = I.ResolveGlowTint, I.SetABRFont, I.Tex
+local RAID_BUFFS, _dismissedUntilLoad = I.RAID_BUFFS, I._dismissedUntilLoad
+local GLOW_VIEW, StopAllGlows = I.GLOW_VIEW, I.StopAllGlows
+
+local db
+I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+
 -------------------------------------------------------------------------------
 --  Icon Pool SecureActionButton based for click-to-cast
 -------------------------------------------------------------------------------
 local ICON_SIZE = 40
 local iconAnchor
+I.iconAnchorSetters[#I.iconAnchorSetters + 1] = function(v) iconAnchor = v end
 local iconPool = {}     -- all created icon buttons
 local activeIcons = {}  -- currently visible icons
 
@@ -12,6 +41,7 @@ local activeIcons = {}  -- currently visible icons
 --  Combat Icon Pool -- non-secure frames for visual-only display during combat.
 -------------------------------------------------------------------------------
 local combatAnchor      -- created in OnEnable, follows iconAnchor position
+I.combatAnchorSetters[#I.combatAnchorSetters + 1] = function(v) combatAnchor = v end
 local combatIconPool = {}
 local combatActiveIcons = {}
 
@@ -27,6 +57,7 @@ local CURSOR_IMPORTANT = {
     -- are the player's own casts, so their cursor treatment already fits.
 }
 local cursorAnchor
+I.cursorAnchorSetters[#I.cursorAnchorSetters + 1] = function(v) cursorAnchor = v end
 local cursorIconPool = {}
 local cursorActiveIcons = {}
 
@@ -549,7 +580,7 @@ end
 --  Shared icon decorations (all pools): hover highlight, tooltips, combat
 --  click hint, bag-count / coverage / crafted-quality badges, and the eating
 --  countdown. All frames here are OURS (field writes are safe). Every helper
---  hangs on EABR (200-local cap).
+--  hangs on EABR.
 -------------------------------------------------------------------------------
 function EABR.AttachIconHover(f)
     if f._eabrHoverAttached then return end
@@ -1025,3 +1056,13 @@ do
     end
 end
 
+I.AcquireEntry, I.activeIcons, I.ApplyGlow = AcquireEntry, activeIcons, ApplyGlow
+I.ApplySetup, I.combatActiveIcons = ApplySetup, combatActiveIcons
+I.combatIconPool, I.cursorActiveIcons = combatIconPool, cursorActiveIcons
+I.FadeOutSecureIcons, I.GetOrCreateIcon = FadeOutSecureIcons, GetOrCreateIcon
+I.GetStrata, I.HideCombatIcons, I.HideCursorIcons = GetStrata, HideCombatIcons, HideCursorIcons
+I.ICON_SIZE, I.iconPool, I.IsImportantBuff = ICON_SIZE, iconPool, IsImportantBuff
+I.LayoutCombatIcons, I.LayoutCursorIcons = LayoutCombatIcons, LayoutCursorIcons
+I.RemoveGlow, I.ResetEntryPool, I.ShowCombatIcon = RemoveGlow, ResetEntryPool, ShowCombatIcon
+I.ShowCursorIcon = ShowCursorIcon
+I.broken = false

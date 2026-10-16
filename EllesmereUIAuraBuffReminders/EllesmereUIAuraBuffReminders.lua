@@ -29,13 +29,7 @@ EABR.FOOD_BUFFS = { 18192, 18194, 22730, 25661, 18125, 18141 }
 local _B = {}  -- beacon state table, populated later
 local Known = function(id) return id and (IsPlayerSpell(id) or IsSpellKnown(id)) end
 local _eabrInCombat = false
-local _encounterSnapshotTime = nil
-local _needGroupAura = false
-local _isEvokerOwnOnRaid = false
-local _groupAuraBroadActive = false
-local _groupAuraDirty = false
 local InCombat = function() return _eabrInCombat or (InCombatLockdown and InCombatLockdown()) end
-local floor, max, min, abs = math.floor, math.max, math.min, math.abs
 local isSecret = issecretvalue or function() return false end
 local AURA_SCAN_LIMIT = 255  -- Midnight supports more than the legacy 40 buff limit
 local DEFAULT_GLOW_COLOR = {r=1, g=0.776, b=0.376}
@@ -43,7 +37,7 @@ local DEFAULT_TEXT_COLOR = {r=1, g=1, b=1}
 
 -- Per-profile fixups; runs at the read path since profile swaps skip OnInitialize. (1) Scale outside
 -- [0.5, 3.0] (UI range) is corruption -> reset to 1.0, every call. (2) glowColorMode: one-time migration
--- per profile, never alters the stored color. (Kept here, not a new local -- file is near the Lua 200-local cap.)
+-- per profile, never alters the stored color.
 local function EnsureGlowModeMigrated(p)
     if not p then return end
     local s = p.scale
@@ -86,9 +80,6 @@ local function GetTextAnchorPoints(p)
     return m[1], m[2]
 end
 
-
--- Hunter's Mark combat state: true on REGEN_DISABLED, cleared on cast/combat end; OOC falls back to target debuff check.
-local _huntersMarkNeeded = false
 
 local db  -- set in EABR:OnInitialize()
 -- Flask state snapshotted before PvP restriction activates (aura API locked in PvP).
@@ -192,6 +183,7 @@ local function CacheInstanceInfo()
     local _, iType, diffID, _, _, _, _, _, _, _, hasWorldTier = GetInstanceInfo()
     _cachedIType = iType
     _cachedDiffID = tonumber(diffID) or 0
+    EABR._cachedDiffID = _cachedDiffID
     EABR._cachedWorldTier = hasWorldTier == true
     if EABR.FOREVER then return end  -- the map lookup only serves the pre-key threshold window
     local mapID = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player") or nil
@@ -240,7 +232,7 @@ local function IsMythicRaidDiff(d)
 end
 
 -- Mythic 0 dungeon (difficulty 23). A keyed M+ run is not M0.
--- Hung on EABR (this chunk sits at the Lua 5.1 200-local cap).
+-- Hung on EABR.
 function EABR.InMythicZeroDungeon()
     if InMythicPlusKey() then return false end
     return _cachedIType == "party" and _cachedDiffID == 23
@@ -262,7 +254,7 @@ end
 -------------------------------------------------------------------------------
 --  Per-section "Where to Show" visibility model. The stored table keeps only
 --  unchecked buckets (value false); an absent/empty table shows everywhere.
---  All helpers hang on EABR (200-local cap).
+--  All helpers hang on EABR.
 -------------------------------------------------------------------------------
 -- Fine-grained instanced difficulty category, or nil outside mapped content.
 function EABR.CurrentDifficultyCat()
@@ -417,3 +409,48 @@ local NON_SECRET_SPELL_IDS = {
     [383798]=true, [389581]=true,
 }
 
+-- Main-chunk locals the EUI_AuraBuffReminders_*.lua files re-import by name.
+-- dbSetters and the lists beside it: every file that reads one of these
+-- keeps its own copy and adds a setter here; each place that assigns it
+-- writes through the Set<Name> function built below, which runs them all.
+-- broken: true while an EUI_AuraBuffReminders_*.lua file loads; a file that
+-- fails leaves it set, and the files behind it return at their first lines.
+local ns = select(2, ...)
+ns._abrInternals = {
+    _B = _B, AURA_SCAN_LIMIT = AURA_SCAN_LIMIT, CacheInstanceInfo = CacheInstanceInfo,
+    DEFAULT_TEXT_COLOR = DEFAULT_TEXT_COLOR, EABR = EABR,
+    EnsureGlowModeMigrated = EnsureGlowModeMigrated, GetPlayerClass = GetPlayerClass,
+    GetSpecID = GetSpecID, GetTextAnchorPoints = GetTextAnchorPoints, InCombat = InCombat,
+    InMythicPlusKey = InMythicPlusKey, InPvPInstance = InPvPInstance,
+    InRealInstancedContent = InRealInstancedContent, isSecret = isSecret, Known = Known,
+    MarkDungeonPullStarted = MarkDungeonPullStarted,
+    NON_SECRET_SPELL_IDS = NON_SECRET_SPELL_IDS, ResolveFontPath = ResolveFontPath,
+    ResolveGlowTint = ResolveGlowTint, SetABRFont = SetABRFont, ShortLabel = ShortLabel,
+    SpellName = SpellName, Tex = Tex, texCache = texCache,
+    dbSetters = { function(v) db = v end },
+    inCombatSetters = { function(v) _eabrInCombat = v end },
+    outlineSetters = { function(v) _cachedOutline = v end },
+    huntersMarkSetters = {},
+    panelOpenSetters = {},
+    iconAnchorSetters = {},
+    combatAnchorSetters = {},
+    cursorAnchorSetters = {},
+    broken = false,
+}
+-- Set<Name> hands a new value to every copy registered in <name>Setters.
+for setter, listName in pairs({
+    SetDB = "dbSetters", SetInCombat = "inCombatSetters", SetCachedOutline = "outlineSetters",
+    SetHuntersMarkNeeded = "huntersMarkSetters", SetPanelOpen = "panelOpenSetters",
+    SetIconAnchor = "iconAnchorSetters", SetCombatAnchor = "combatAnchorSetters",
+    SetCursorAnchor = "cursorAnchorSetters",
+}) do
+    local list = ns._abrInternals[listName]
+    ns._abrInternals[setter] = function(v)
+        for i = 1, #list do list[i](v) end
+    end
+end
+-- A re-import of a name this table lacks fails where the part file loads,
+-- not later as a nil upvalue inside one of its functions.
+setmetatable(ns._abrInternals, { __index = function(_, k)
+    error("ns._abrInternals has no entry " .. tostring(k), 2)
+end })

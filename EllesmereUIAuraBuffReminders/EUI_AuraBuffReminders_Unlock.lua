@@ -1,3 +1,29 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_AuraBuffReminders_Unlock.lua
+--
+--  Unlock Mode: positions, grow direction and the element registration.
+--  Reads the earlier AuraBuff Reminders files through ns._abrInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._abrInternals
+-- EllesmereUIAuraBuffReminders.lua or an earlier AuraBuff Reminders file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local floor, abs = math.floor, math.abs
+
+local _B, EABR, activeIcons, ICON_SIZE = I._B, I.EABR, I.activeIcons, I.ICON_SIZE
+local LayoutIcons, ResizeAnchorCentered = I.LayoutIcons, I.ResizeAnchorCentered
+
+local db
+I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+local iconAnchor
+I.iconAnchorSetters[#I.iconAnchorSetters + 1] = function(v) iconAnchor = v end
+local cursorAnchor
+I.cursorAnchorSetters[#I.cursorAnchorSetters + 1] = function(v) cursorAnchor = v end
+
 -------------------------------------------------------------------------------
 --  Unlock Mode
 -------------------------------------------------------------------------------
@@ -178,3 +204,5 @@ local function RegisterUnlockElements()
     })
 end
 
+I.ApplyUnlockPos, I.RegisterUnlockElements = ApplyUnlockPos, RegisterUnlockElements
+I.broken = false

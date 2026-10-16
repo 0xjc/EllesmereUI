@@ -1,10 +1,29 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_AuraBuffReminders_ReadyCheck.lua
+--
+--  The Ready Check mana warning.
+--  Reads the earlier AuraBuff Reminders files through ns._abrInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._abrInternals
+-- EllesmereUIAuraBuffReminders.lua or an earlier AuraBuff Reminders file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local EABR, ResolveFontPath = I.EABR, I.ResolveFontPath
+
+local db
+I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+
 -------------------------------------------------------------------------------
 --  Ready Check Mana Warning: centered text warning for ~10s when a ready check fires in a raid and the player is a healer under 80% mana. Out-of-combat only.
 -------------------------------------------------------------------------------
 local SetupReadyCheckManaWarning = function()
     local warnFrame, warnFS, warnTimer, warnCurve
 
-    -- Helpers hang on EABR, not block locals (file's main chunk sits at Lua 5.1's 200-local cap); settings slice (db.profile.consumables, options "Ready Check Mana Warning" row) is fetched inline per helper for the same reason.
+    -- Helpers hang on EABR, not block locals; settings slice (db.profile.consumables, options "Ready Check Mana Warning" row) is fetched inline per helper.
 
     -- Default ON: the warning predates its toggle, so a missing key = enabled.
     function EABR.RCWEnabled()
@@ -166,3 +185,4 @@ end
 -- The warning reads retail spec roles and lives in the consumables options; WoW Forever skips it.
 if not EABR.FOREVER then SetupReadyCheckManaWarning() end
 
+I.broken = false

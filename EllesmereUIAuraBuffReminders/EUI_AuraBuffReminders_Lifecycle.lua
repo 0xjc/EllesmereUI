@@ -1,3 +1,62 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_AuraBuffReminders_Lifecycle.lua
+--
+--  The main event frame, OnInitialize, OnEnable, the event handler, the
+--  item-use detection and the event registration.
+--  Reads the earlier AuraBuff Reminders files through ns._abrInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._abrInternals
+-- EllesmereUIAuraBuffReminders.lua or an earlier AuraBuff Reminders file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local floor = math.floor
+
+local CacheInstanceInfo, EABR = I.CacheInstanceInfo, I.EABR
+local EnsureGlowModeMigrated, GetPlayerClass = I.EnsureGlowModeMigrated, I.GetPlayerClass
+local GetSpecID, InCombat = I.GetSpecID, I.InCombat
+local InRealInstancedContent, Known = I.InRealInstancedContent, I.Known
+local MarkDungeonPullStarted, Tex = I.MarkDungeonPullStarted, I.Tex
+local _ownOnRaidIDs, _preCombatOwnOnRaidCache = I._ownOnRaidIDs, I._preCombatOwnOnRaidCache
+local _unitInRange, GetWeaponCategory = I._unitInRange, I.GetWeaponCategory
+local SnapshotOwnOnRaidBuffs = I.SnapshotOwnOnRaidBuffs
+local SnapshotPlayerAuras, _bagCounts, AURAS = I.SnapshotPlayerAuras, I._bagCounts, I.AURAS
+local FLASK_ITEMS, FOOD_ITEMS = I.FLASK_ITEMS, I.FOOD_ITEMS
+local InvalidateItemCountCache, PALADIN_RITES = I.InvalidateItemCountCache, I.PALADIN_RITES
+local RAID_BUFFS, RebuildBagCounts = I.RAID_BUFFS, I.RebuildBagCounts
+local ROGUE_POISONS, SHAMAN_IMBUES = I.ROGUE_POISONS, I.SHAMAN_IMBUES
+local SHAMAN_SHIELDS, WARLOCK_PETS = I.SHAMAN_SHIELDS, I.WARLOCK_PETS
+local WEAPON_ENCHANT_CHOICES = I.WEAPON_ENCHANT_CHOICES
+local WEAPON_ENCHANT_ITEMS, _dismissedUntilLoad = I.WEAPON_ENCHANT_ITEMS, I._dismissedUntilLoad
+local defaults, GLOW_VIEW, combatIconPool = I.defaults, I.GLOW_VIEW, I.combatIconPool
+local GetStrata, HideCombatIcons = I.GetStrata, I.HideCombatIcons
+local HideCursorIcons, ICON_SIZE, iconPool = I.HideCursorIcons, I.ICON_SIZE, I.iconPool
+local HideAllIcons, RequestRefresh = I.HideAllIcons, I.RequestRefresh
+local ApplyUnlockPos, RegisterUnlockElements = I.ApplyUnlockPos, I.RegisterUnlockElements
+local BeaconInit, BeaconRefresh, TrackItemUse = I.BeaconInit, I.BeaconRefresh, I.TrackItemUse
+local SetDB, SetIconAnchor, SetCombatAnchor = I.SetDB, I.SetIconAnchor, I.SetCombatAnchor
+local SetCursorAnchor, SetPanelOpen = I.SetCursorAnchor, I.SetPanelOpen
+local SetInCombat, SetHuntersMarkNeeded = I.SetInCombat, I.SetHuntersMarkNeeded
+
+local db
+I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+local iconAnchor
+I.iconAnchorSetters[#I.iconAnchorSetters + 1] = function(v) iconAnchor = v end
+local combatAnchor
+I.combatAnchorSetters[#I.combatAnchorSetters + 1] = function(v) combatAnchor = v end
+local cursorAnchor
+I.cursorAnchorSetters[#I.cursorAnchorSetters + 1] = function(v) cursorAnchor = v end
+
+local _encounterSnapshotTime = nil
+local _needGroupAura = false
+local _isEvokerOwnOnRaid = false
+local _groupAuraBroadActive = false
+local _groupAuraDirty = false
+local pendingOOCRefresh = false
+
 -------------------------------------------------------------------------------
 --  MAIN EVENT FRAME (forward-declared so OnEnable can reference it)
 -------------------------------------------------------------------------------
@@ -30,7 +89,7 @@ end
 --  Lifecycle: OnInitialize (fires at ADDON_LOADED time). Creates the DB early so EABR is in _dbRegistry before PreSeedSpecProfile.
 -------------------------------------------------------------------------------
 function EABR:OnInitialize()
-    db = EllesmereUI.Lite.NewDB("EllesmereUIAuraBuffRemindersDB", defaults, true)
+    SetDB(EllesmereUI.Lite.NewDB("EllesmereUIAuraBuffRemindersDB", defaults, true))
 
     ---------------------------------------------------------------------------
     --  Legacy visibility-model migration. Keyed off LEGACY field presence
@@ -142,14 +201,14 @@ function EABR:OnEnable()
     _G._EABR_STRATA_VALUES = STRATA_VALUES
     _G._EABR_STRATA_ORDER = STRATA_ORDER
 
-    iconAnchor = CreateFrame("Frame", "EABR_Anchor", UIParent)
+    SetIconAnchor(CreateFrame("Frame", "EABR_Anchor", UIParent))
     iconAnchor:SetSize(1, 1)
     iconAnchor:SetFrameStrata(GetStrata())
     iconAnchor:EnableMouse(false)
     ApplyUnlockPos()
 
     -- Combat anchor: non-secure, follows iconAnchor position; parented to UIParent so Show/Hide is never blocked by combat lockdown.
-    combatAnchor = CreateFrame("Frame", "EABR_CombatAnchor", UIParent)
+    SetCombatAnchor(CreateFrame("Frame", "EABR_CombatAnchor", UIParent))
     combatAnchor:SetSize(1, 1)
     combatAnchor:SetFrameStrata(GetStrata())
     combatAnchor:SetFrameLevel(110)
@@ -159,7 +218,7 @@ function EABR:OnEnable()
     EllesmereUI.SetElementVisibility(combatAnchor, false)
 
     -- Cursor anchor: tracks cursor position via OnUpdate (same as CDM).
-    cursorAnchor = CreateFrame("Frame", "EABR_CursorAnchor", UIParent)
+    SetCursorAnchor(CreateFrame("Frame", "EABR_CursorAnchor", UIParent))
     cursorAnchor:SetSize(1, 1)
     cursorAnchor:SetFrameStrata("TOOLTIP")
     cursorAnchor:SetFrameLevel(9980)
@@ -212,10 +271,10 @@ function EABR:OnEnable()
     -- Hook EUI panel show/hide
     if EllesmereUI then
         EllesmereUI:RegisterOnShow(function()
-            euiPanelOpen = true; HideAllIcons(); BeaconRefresh()
+            SetPanelOpen(true); HideAllIcons(); BeaconRefresh()
         end)
         EllesmereUI:RegisterOnHide(function()
-            euiPanelOpen = false; RequestRefresh(); BeaconRefresh()
+            SetPanelOpen(false); RequestRefresh(); BeaconRefresh()
         end)
     end
 
@@ -457,7 +516,7 @@ mainFrame:SetScript("OnEvent", function(_, e, arg1, arg2, arg3)
         if _isEvokerOwnOnRaid then SnapshotOwnOnRaidBuffs() end
         _encounterSnapshotTime = GetTime()
         -- Marks combat immediately: ENCOUNTER_START fires before InCombatLockdown() returns true but aura APIs are already restricted; without this, non-whitelisted buffs flash "missing" for ~1s.
-        _eabrInCombat = true
+        SetInCombat(true)
         RequestRefresh()
         return
     end
@@ -473,10 +532,10 @@ mainFrame:SetScript("OnEvent", function(_, e, arg1, arg2, arg3)
         -- Drops broad UNIT_AURA in combat unless a group reader needs it (EABR.KeepGroupAuraInCombat).
         if _needGroupAura and not EABR.KeepGroupAuraInCombat() then _setBroad(false) end
         -- Only flag Hunter's Mark needed if the target doesn't already have it
-        _huntersMarkNeeded = true
+        SetHuntersMarkNeeded(true)
         if C_UnitAuras and C_UnitAuras.GetUnitAuraBySpellID
             and UnitExists("target") and C_UnitAuras.GetUnitAuraBySpellID("target", 257284) then
-            _huntersMarkNeeded = false
+            SetHuntersMarkNeeded(false)
         end
         end -- not FOREVER
         -- Hide secure buttons before lockdown. ENCOUNTER_START may already have
@@ -489,7 +548,7 @@ mainFrame:SetScript("OnEvent", function(_, e, arg1, arg2, arg3)
             SnapshotPlayerAuras()
             if _isEvokerOwnOnRaid then SnapshotOwnOnRaidBuffs() end
         end
-        _eabrInCombat = true
+        SetInCombat(true)
         _encounterSnapshotTime = nil
         RequestRefresh()
         return
@@ -498,11 +557,11 @@ mainFrame:SetScript("OnEvent", function(_, e, arg1, arg2, arg3)
     -- A fast encounter reset can end without a player combat transition, so
     -- clear ENCOUNTER_START's synthetic flag when lockdown is already gone.
     if e == "PLAYER_REGEN_ENABLED" or (e == "ENCOUNTER_END" and not InCombatLockdown()) then
-        _eabrInCombat = false
+        SetInCombat(false)
         -- Restore broad UNIT_AURA for OOC group buff tracking
         if _needGroupAura then _setBroad(true) end
         -- Leaving combat: clean up combat icons, do full OOC refresh with secure buttons
-        _huntersMarkNeeded = false
+        SetHuntersMarkNeeded(false)
         HideCombatIcons()
         HideCursorIcons()
         pendingOOCRefresh = false
@@ -514,7 +573,7 @@ mainFrame:SetScript("OnEvent", function(_, e, arg1, arg2, arg3)
     if e == "UNIT_SPELLCAST_SUCCEEDED" then
         -- arg1 = unit ("player"), arg2 = castGUID, arg3 = spellID
         if arg3 == 257284 then
-            _huntersMarkNeeded = false
+            SetHuntersMarkNeeded(false)
             RequestRefresh()
         elseif arg3 == 369459 and EABR._trackOwnOtherAuraID == 369459 then
             -- Cast success is an immediate fallback; UNIT_AURA will subsequently
@@ -555,7 +614,7 @@ mainFrame:SetScript("OnEvent", function(_, e, arg1, arg2, arg3)
         -- arg1 = unit token. Player aura changes always refresh; group member changes only matter for Evoker ownOnRaid cache updates and OOC raid buff checks (broad UNIT_AURA is only registered for classes needing group tracking).
         if arg1 == "player" then
             if not EABR.FOREVER then EABR.UpdateEatingState(arg2) end  -- eating channel feeds the retail food reminder only
-            local isEvoker = _cachedPlayerClass == "EVOKER"
+            local isEvoker = GetPlayerClass() == "EVOKER"
             if isEvoker and InCombat() and IsInGroup() then
                 for _, id in ipairs(_ownOnRaidIDs) do
                     if EABR._OwnCastOn("player", id) then
@@ -730,3 +789,4 @@ mainFrame:RegisterUnitEvent("UNIT_PET", "player")
 mainFrame:RegisterEvent("PET_BAR_UPDATE")
 end
 
+I.broken = false
