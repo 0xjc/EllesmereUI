@@ -626,7 +626,7 @@ local function BuildDropdownMenu(ddBtn, menuW, order, values, getValue, setValue
                         flyoutTimer = nil
                     end)
                 end
-                local fH = 4
+                local fH, fW = 4, menuW
                 -- This populate's rows (the flyout also keeps idle rows an earlier populate parked).
                 local flyRows = {}
                 item._flyoutRows = flyRows
@@ -644,6 +644,7 @@ local function BuildDropdownMenu(ddBtn, menuW, order, values, getValue, setValue
                         cLbl:SetPoint('LEFT', ci, 'LEFT', 10, 0)
                         cLbl:SetText(TR(childText))
                         cLbl:SetJustifyH('LEFT')
+                        local rowW = cLbl:GetStringWidth() + 22
                         if sn.icon then
                             local iconPath, l, r, t, b = sn.icon(childKey)
                             if iconPath then
@@ -653,8 +654,10 @@ local function BuildDropdownMenu(ddBtn, menuW, order, values, getValue, setValue
                                 ico:SetTexture(iconPath)
                                 if l then ico:SetTexCoord(l, r, t, b) end
                                 cLbl:SetPoint('RIGHT', ico, 'LEFT', -4, 0)
+                                rowW = rowW + icoSz + 4
                             end
                         end
+                        if rowW > fW then fW = rowW end
                         local cHl = SolidTex(ci, 'ARTWORK', 1, 1, 1, 1); cHl:SetAlpha(0)
                         cHl:SetAllPoints()
                         ci._key = childKey
@@ -696,13 +699,17 @@ local function BuildDropdownMenu(ddBtn, menuW, order, values, getValue, setValue
                         fH = fH + (sn.itemHeight or 26)
                     end
                 end
-                flyout:SetHeight(fH + 4)
+                flyout:SetSize(fW, fH + 4)
 
                 item:SetScript('OnEnter', function()
                     iLbl:SetTextColor(1, 1, 1, 1)
                     arrowTex:SetAlpha(1)
                     iHl:SetAlpha(DD_ITEM_HL_A)
                     if flyoutTimer then flyoutTimer:Cancel(); flyoutTimer = nil end
+                    -- Close the previous flyout now; its delayed close would leave it under this one.
+                    for _, fo in ipairs(menu._flyouts) do
+                        if fo ~= flyout then fo:Hide() end
+                    end
                     flyout:ClearAllPoints()
                     flyout:SetPoint('TOPLEFT', item, 'TOPRIGHT', 2, 0)
                     flyout:Show()
