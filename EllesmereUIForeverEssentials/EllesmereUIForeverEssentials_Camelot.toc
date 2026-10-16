@@ -12,10 +12,14 @@
 # Main Lua
 EllesmereUIForeverEssentials.lua
 
-# General (spell uprank, junk items, simplified stats, map reveal)
+# General (spell uprank, classic spellbook and talents, junk items, simplified stats, map reveal)
 EllesmereUIForeverEssentials_Uprank.lua
+EllesmereUIForeverEssentials_ClassicSpellbook.lua
+EllesmereUIForeverEssentials_ClassicTalents.lua
 EllesmereUIForeverEssentials_JunkItems.lua
 EllesmereUIForeverEssentials_SimplifiedStats.lua
+EllesmereUIForeverEssentials_MapFade.lua
+EllesmereUIForeverEssentials_ActiveForm.lua
 EllesmereUIForeverEssentials_MapRevealData.lua
 EllesmereUIForeverEssentials_MapReveal.lua
 
