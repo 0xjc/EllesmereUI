@@ -2126,7 +2126,7 @@ do
         "inspectShowItemLevel", "inspectShowUpgradeTrack",
         -- LFG / Merchant cards
         "lfgRememberRoles",
-        "merchantShowAsList", "merchantListRowHeight", "merchantShowItemLevel",
+        "merchantShowAsList", "merchantListRowHeight", "merchantShowItemLevel", "merchantBulkBuy",
         -- Friends List card (WoW Forever: the friend tiles and auto-accept)
         "friendsListCard",
     })
