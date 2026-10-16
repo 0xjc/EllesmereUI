@@ -234,7 +234,7 @@ local function UpdatePrimaryBar()
     end
     local pp = pc.pp
 
-    SetCachedPrimary(pc.primary)
+    if cachedPrimary ~= pc.primary then SetCachedPrimary(pc.primary) end
     if not cachedPrimary then return end
     -- Park the engine-slot overlay when the primary is no longer Ebon Might.
     if ns.EMB121_Gate then ns.EMB121_Gate(cachedPrimary == "EBON_MIGHT") end
