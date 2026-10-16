@@ -191,7 +191,7 @@ local SHAMAN_IMBUES = {
 -- Shaman Shields, gated on Elemental Orbit (383010). With Orbit: Earth Shield self-buff (383648) + Lightning/Water Shield both required; without, any of the three shields. Cast spell by spec: Resto (264) -> Water Shield (52127), else Lightning Shield (192106).
 local function ShamanShieldCastSpell()
     local specIdx = GetSpecialization and GetSpecialization() or 0
-    local specID = specIdx and specIdx > 0 and GetSpecializationInfo(specIdx) or 0
+    local specID = specIdx and specIdx > 0 and GetSpecializationInfo(specIdx) or 0 -- guardrails-allow: deprecated-global by JuJuFX-dev: moved verbatim by the split; never reached on Forever
     return (specID == 264) and 52127 or 192106
 end
 
