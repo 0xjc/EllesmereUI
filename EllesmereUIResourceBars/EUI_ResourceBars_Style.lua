@@ -1,3 +1,32 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ResourceBars_Style.lua
+--
+--  The bar texture tables and the chrome of the Blizzard Style and Classic
+--  WoW UI looks: frames, separators and layers.
+--  Reads the earlier Resource Bars files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIResourceBars.lua or an earlier Resource Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local PP = EllesmereUI.PP
+local floor, min, max = math.floor, math.min, math.max
+
+local ERB, ResolveBandConfig = I.ERB, I.ResolveBandConfig
+local ResolveThresholdSpecEntry, DEFAULTS = I.ResolveThresholdSpecEntry, I.DEFAULTS
+
+local healthBar
+I.healthBarSetters[#I.healthBarSetters + 1] = function(v) healthBar = v end
+local primaryBar
+I.primaryBarSetters[#I.primaryBarSetters + 1] = function(v) primaryBar = v end
+local secondaryFrame
+I.secondaryFrameSetters[#I.secondaryFrameSetters + 1] = function(v) secondaryFrame = v end
+local cachedSecondary
+I.cachedSecondarySetters[#I.cachedSecondarySetters + 1] = function(v) cachedSecondary = v end
+
 -------------------------------------------------------------------------------
 
 -- Bar Textures (shared with options)
@@ -48,7 +77,7 @@ ns.SPARK_TEX = SPARK_TEX
 --  hints) keeps working; only the art changes. Atlas names are validated once
 --  per session (GetAtlasInfo) with a legacy spelling as fallback, so a missing
 --  atlas degrades to the EUI look for that piece instead of a blank texture.
---  On ns: the file is at the 200-local cap.
+--  On ns.
 -------------------------------------------------------------------------------
 ns.ERB_CAST_BLIZZ = {
     bg          = { "ui-castingbar-background",       "UI-CastingBar-Background" },
@@ -739,3 +768,7 @@ function ns.ERB_ApplyBlizzBarChrome(host, rect, fw, fh, vertical, k)
         ns.ERB_BlizzBarShadow(rect, host._blizzBarMask, fw, fh)
     end
 end
+
+I.AppendSharedMediaTextures, I.CAST_BAR_TEXTURES = AppendSharedMediaTextures, CAST_BAR_TEXTURES
+I.SPARK_TEX = SPARK_TEX
+I.broken = false

@@ -1,8 +1,29 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ResourceBars_Thresholds.lua
+--
+--  The Class Resource Color fill resolver, the bar-type spec map, the
+--  per-spec threshold entries and the threshold and band color curves.
+--  Reads the earlier Resource Bars files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIResourceBars.lua or an earlier Resource Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local format = string.format
+local UnitClass, GetShapeshiftFormID = UnitClass, GetShapeshiftFormID
+local IsPlayerSpell = IsPlayerSpell
+
+local ERB, GetPrimaryPowerType = I.ERB, I.GetPrimaryPowerType
+local GetSpecialization, PT = I.GetSpecialization, I.PT
+
 -------------------------------------------------------------------------------
 --  "Class Resource Color" fill resolver: discrete resources -> Class Resource
 --  Colors; power-type bar secondaries -> Power Colors. Returns nil for resources
 --  with no dedicated color (DK runes, Ironfur, Ignore Pain, Stagger), so callers
---  fall back to class color. On ERB (200-local cap) + a global alias for preview.
+--  fall back to class color. On ERB + a global alias for preview.
 -------------------------------------------------------------------------------
 do
     local RKEY = {
@@ -82,7 +103,7 @@ end
 -- "form specific" mode (thresholdFormMode, entries keyed by the form's power
 -- type via entry.formKey) takes the form's entry in that form and the scan
 -- above in any form without one. Wrapped in a do-block
--- so cache state/helpers free main-chunk local slots (200-local cap); only
+-- so cache state/helpers free main-chunk local slots; only
 -- ResolveThresholdSpecEntry stays a main-chunk local, others reached via
 -- ns.InvalidateThresholdCaches / _G._ERB_ResolveSpecIDCached.
 local ResolveThresholdSpecEntry
@@ -279,7 +300,7 @@ local function GetBarThresholdCurve(baseR, baseG, baseB, threshR, threshG, thres
     -- per power event (~30/sec while casting), so hashing would allocate a string
     -- and do seven float conversions per call, cache hits included -- costlier than
     -- the curve build it guards. _barColorCurveHash holds prior inputs in a reused
-    -- table (no new file-scope local: 200-local cap).
+    -- table (no new file-scope local).
     local h = _barColorCurveHash
     if h and h[1] == baseR and h[2] == baseG and h[3] == baseB
        and h[4] == threshR and h[5] == threshG and h[6] == threshB
@@ -459,3 +480,7 @@ local function GetBarBandCurve(cacheKey, bands, mode, maxVal, baseR, baseG, base
     return curve
 end
 
+I.BuildBarTypeSpecMap, I.FindCountBand = BuildBarTypeSpecMap, FindCountBand
+I.GetBarBandCurve, I.GetBarThresholdCurve = GetBarBandCurve, GetBarThresholdCurve
+I.ResolveBandConfig, I.ResolveThresholdSpecEntry = ResolveBandConfig, ResolveThresholdSpecEntry
+I.broken = false

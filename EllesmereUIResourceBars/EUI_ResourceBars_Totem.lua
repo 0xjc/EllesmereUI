@@ -1,3 +1,28 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ResourceBars_Totem.lua
+--
+--  The totem bar.
+--  Reads the earlier Resource Bars files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIResourceBars.lua or an earlier Resource Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local UnitClass, InCombatLockdown = UnitClass, InCombatLockdown
+
+local ERB, GetRBFont, _totemBorderOverlays = I.ERB, I.GetRBFont, I._totemBorderOverlays
+local SetTotemBarFrame = I.SetTotemBarFrame
+
+local totemBarFrame
+I.totemBarFrameSetters[#I.totemBarFrameSetters + 1] = function(v) totemBarFrame = v end
+
+local _totemHooked = false
+local _totemOrigParent
+local _totemOrigStrata
+
 -- Totem Bar: reparents Blizzard TotemFrame, repositions buttons in a clean
 -- row, adds overlay border frames (our own frames, never written to Blizzard).
 local function GetTotemSettings()
@@ -264,7 +289,7 @@ local function BuildTotemBar()
     end
 
     if not totemBarFrame then
-        totemBarFrame = CreateFrame("Frame", "ERB_TotemBarFrame", UIParent)
+        SetTotemBarFrame(CreateFrame("Frame", "ERB_TotemBarFrame", UIParent))
         local tb = ERB.db and ERB.db.profile and ERB.db.profile.totemBar
         totemBarFrame:SetFrameStrata(tb and tb.frameStrata or "MEDIUM")
         totemBarFrame:SetFrameLevel(15)
@@ -343,3 +368,5 @@ local function BuildTotemBar()
     LayoutTotemBar()
 end
 
+I.BuildTotemBar = BuildTotemBar
+I.broken = false

@@ -1,3 +1,67 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ResourceBars_Events.lua
+--
+--  ApplySmoothing and ApplyAll, the roster and spec resolve timers, the
+--  event handler, OnInitialize and OnEnable, the slash command and the
+--  Party Mode spin.
+--  Reads the earlier Resource Bars files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIResourceBars.lua or an earlier Resource Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local format = string.format
+local UnitHealthMax, UnitClass, InCombatLockdown = UnitHealthMax, UnitClass, InCombatLockdown
+
+local ERB, GetPrimaryPowerType = I.ERB, I.GetPrimaryPowerType
+local GetSecondaryResource, GetSpecialization = I.GetSecondaryResource, I.GetSpecialization
+local IP, IronfurBaseDuration, ironfurTicks = I.IP, I.IronfurBaseDuration, I.ironfurTicks
+local POWER_COLORS, POWER_ENUM_TO_KEY = I.POWER_COLORS, I.POWER_ENUM_TO_KEY
+local BuildBarTypeSpecMap, DEFAULTS = I.BuildBarTypeSpecMap, I.DEFAULTS
+local _erbEventFrame, BuildMainFrame = I._erbEventFrame, I.BuildMainFrame
+local CalcPipGeometry, IsPowerBarHidden = I.CalcPipGeometry, I.IsPowerBarHidden
+local IsSpecDisabled, pips, runeFrames = I.IsSpecDisabled, I.pips, I.runeFrames
+local secondaryPipTicks, RegisterUnlockElements = I.secondaryPipTicks, I.RegisterUnlockElements
+local BuildBars, HandleIronfurCast = I.BuildBars, I.HandleIronfurCast
+local UpdateHealthBar, UpdatePrimaryBar = I.UpdateHealthBar, I.UpdatePrimaryBar
+local UpdateSecondaryResource, UpdateVisibility = I.UpdateSecondaryResource, I.UpdateVisibility
+local AppendSharedMediaTextures, BuildCastBar = I.AppendSharedMediaTextures, I.BuildCastBar
+local OnCastComplete, OnCastFailed = I.OnCastComplete, I.OnCastFailed
+local OnCastStart, OnChannelStart = I.OnCastStart, I.OnChannelStart
+local OnChannelStop, OnChannelUpdate = I.OnChannelStop, I.OnChannelUpdate
+local OnEmpowerStart, OnEmpowerStop = I.OnEmpowerStart, I.OnEmpowerStop
+local OnEmpowerUpdate, BuildGCDBar = I.OnEmpowerUpdate, I.BuildGCDBar
+local BuildTotemBar, SetIronfurBaseDur = I.BuildTotemBar, I.SetIronfurBaseDur
+local SetIronfurGoEUntil, SetInCombat = I.SetIronfurGoEUntil, I.SetInCombat
+local SetCachedClass, SetCachedPrimary = I.SetCachedClass, I.SetCachedPrimary
+local SetCachedSecondary, SetEbonMightExpiry = I.SetCachedSecondary, I.SetEbonMightExpiry
+local SetEssenceNextTick, SetEssenceLastCount = I.SetEssenceNextTick, I.SetEssenceLastCount
+local SetEssenceTickDur = I.SetEssenceTickDur
+
+local mainFrame
+I.mainFrameSetters[#I.mainFrameSetters + 1] = function(v) mainFrame = v end
+local healthBar
+I.healthBarSetters[#I.healthBarSetters + 1] = function(v) healthBar = v end
+local primaryBar
+I.primaryBarSetters[#I.primaryBarSetters + 1] = function(v) primaryBar = v end
+local secondaryFrame
+I.secondaryFrameSetters[#I.secondaryFrameSetters + 1] = function(v) secondaryFrame = v end
+local secondaryBar
+I.secondaryBarSetters[#I.secondaryBarSetters + 1] = function(v) secondaryBar = v end
+local castBarFrame
+I.castBarFrameSetters[#I.castBarFrameSetters + 1] = function(v) castBarFrame = v end
+local gcdBarFrame
+I.gcdBarFrameSetters[#I.gcdBarFrameSetters + 1] = function(v) gcdBarFrame = v end
+local totemBarFrame
+I.totemBarFrameSetters[#I.totemBarFrameSetters + 1] = function(v) totemBarFrame = v end
+local cachedPrimary
+I.cachedPrimarySetters[#I.cachedPrimarySetters + 1] = function(v) cachedPrimary = v end
+local cachedSecondary
+I.cachedSecondarySetters[#I.cachedSecondarySetters + 1] = function(v) cachedSecondary = v end
+
 -- Master Apply Native StatusBar fill smoothing (opt-in per bar; default off): store the
 -- interpolation mode on the bar and let the CreateStatusBar SetValue wrapper
 -- pass it to Blizzard's C-side interpolation. nil = no interpolation = zero
@@ -26,7 +90,7 @@ end
 -- position as a normal free position (unlockPos), clear anchorTo, and rebuild
 -- -- the bar stays visually in place and gets its mover back. Geometry-dependent,
 -- so it runs from ApplyAll on the active profile rather than the data-migration
--- registry. do-block + ns exposure: this file is at Lua's 200-local cap.
+-- registry. do-block + ns exposure.
 do
     local pending
     local function LegacyAnchored()
@@ -133,12 +197,12 @@ function ERB:ApplyAll()
     -- routes through here, so bumping the generation in one place is enough.
     ns.CfgGen = (ns.CfgGen or 0) + 1
     local _, classFile = UnitClass("player")
-    cachedClass = classFile
-    cachedPrimary = GetPrimaryPowerType()
-    cachedSecondary = GetSecondaryResource()
+    SetCachedClass(classFile)
+    SetCachedPrimary(GetPrimaryPowerType())
+    SetCachedSecondary(GetSecondaryResource())
     -- Seed combat state so a /reload mid-combat doesn't apply the OOC fade
     -- during the fight (isInCombat otherwise only flips on PLAYER_REGEN).
-    isInCombat = InCombatLockdown()
+    SetInCombat(InCombatLockdown())
 
     BuildMainFrame()
     BuildBars()
@@ -223,7 +287,7 @@ end
 -- Talent/loadout changes fire TRAIT_CONFIG_UPDATED/PLAYER_TALENT_UPDATE in a burst (a
 -- loadout swap applies many nodes at once); coalesce into a single out-of-combat
 -- rebuild instead of running the heavy BuildBars() per event. do-block + ns exposure so
--- the pending flag/function use no main-chunk local slots (200-local cap).
+-- the pending flag/function use no main-chunk local slots.
 do
     local pending
     function ns.ScheduleTalentApply()
@@ -232,9 +296,9 @@ do
         C_Timer.After(0.1, function()
             pending = false
             if InCombatLockdown() then return end
-            ironfurBaseDur = IronfurBaseDuration()
-            cachedPrimary = GetPrimaryPowerType()
-            cachedSecondary = GetSecondaryResource()
+            SetIronfurBaseDur(IronfurBaseDuration())
+            SetCachedPrimary(GetPrimaryPowerType())
+            SetCachedSecondary(GetSecondaryResource())
             BuildBars()
             UpdatePrimaryBar()
             UpdateSecondaryResource()
@@ -273,8 +337,8 @@ ScheduleSpecResolve = function()
         end
         _specResolveTries = 0
         ns.InvalidateThresholdCaches()
-        cachedPrimary = GetPrimaryPowerType()
-        cachedSecondary = GetSecondaryResource()
+        SetCachedPrimary(GetPrimaryPowerType())
+        SetCachedSecondary(GetSecondaryResource())
         BuildBars()
         UpdatePrimaryBar()
         UpdateSecondaryResource()
@@ -351,7 +415,7 @@ local function OnEvent(self, event, ...)
         local oldMax = cachedSecondary and cachedSecondary.max
         local newMax = newSec and newSec.max
         if oldMax ~= newMax then
-            cachedSecondary = newSec
+            SetCachedSecondary(newSec)
             BuildBars()
             -- BuildBars re-shows the frames; re-apply conditional hides.
             UpdateVisibility()
@@ -366,10 +430,10 @@ local function OnEvent(self, event, ...)
         if ns.SecSt then ns.SecSt.gen = nil end
         UpdateSecondaryResource()
     elseif event == "PLAYER_REGEN_DISABLED" then
-        isInCombat = true
+        SetInCombat(true)
         UpdateVisibility()
     elseif event == "PLAYER_REGEN_ENABLED" then
-        isInCombat = false
+        SetInCombat(false)
         UpdateVisibility()
     elseif event == "PLAYER_TARGET_CHANGED" or event == "COMBO_TARGET_CHANGED" then
         if event == "PLAYER_TARGET_CHANGED" then UpdateVisibility() end
@@ -392,7 +456,7 @@ local function OnEvent(self, event, ...)
         local oldMax = cachedSecondary and cachedSecondary.max
         local newMax = newSec and newSec.max
         if oldMax ~= newMax then
-            cachedSecondary = newSec
+            SetCachedSecondary(newSec)
             BuildBars()
             -- Repaint both bars on the rebuilt frames, as UNIT_MAXPOWER does.
             UpdatePrimaryBar()
@@ -403,17 +467,17 @@ local function OnEvent(self, event, ...)
         UpdateVisibility()
         ScheduleRosterApply()
     elseif event == "ACTIVE_TALENT_GROUP_CHANGED" or event == "PLAYER_SPECIALIZATION_CHANGED" then
-        _essenceNextTick = nil
-        _essenceLastCount = nil
-        _essenceTickDur = 0
-        _ebonMightExpiry = 0
+        SetEssenceNextTick(nil)
+        SetEssenceLastCount(nil)
+        SetEssenceTickDur(0)
+        SetEbonMightExpiry(0)
         wipe(ironfurTicks)
-        ironfurGoEUntil = 0
-        ironfurBaseDur = IronfurBaseDuration()
+        SetIronfurGoEUntil(0)
+        SetIronfurBaseDur(IronfurBaseDuration())
         IP.hashEndTime = 0
         ns.InvalidateThresholdCaches()
-        cachedPrimary = GetPrimaryPowerType()
-        cachedSecondary = GetSecondaryResource()
+        SetCachedPrimary(GetPrimaryPowerType())
+        SetCachedSecondary(GetSecondaryResource())
         BuildBars()
         BuildCastBar()
         UpdatePrimaryBar()
@@ -427,13 +491,13 @@ local function OnEvent(self, event, ...)
         ns.InvalidateThresholdCaches()
         ns.ScheduleTalentApply()
     elseif event == "UPDATE_SHAPESHIFT_FORM" then
-        cachedPrimary = GetPrimaryPowerType()
-        cachedSecondary = GetSecondaryResource()
+        SetCachedPrimary(GetPrimaryPowerType())
+        SetCachedSecondary(GetSecondaryResource())
         -- Leaving Bear form drops all Ironfur in-game, so clear tracker
         -- Otherwise shifting out and rapidly back in shows the stale stacks.
         if not (cachedSecondary and cachedSecondary.power == "IRONFUR_BAR") then
             wipe(ironfurTicks)
-            ironfurGoEUntil = 0
+            SetIronfurGoEUntil(0)
         end
         BuildBars()
         UpdateHealthBar()  -- re-evaluate per-form text visibility
@@ -466,7 +530,7 @@ local function OnEvent(self, event, ...)
     elseif event == "PLAYER_DEAD" or event == "PLAYER_ALIVE" then
         -- Reset manual trackers on death/resurrect
         wipe(ironfurTicks)
-        ironfurGoEUntil = 0
+        SetIronfurGoEUntil(0)
         IP.hashEndTime = 0
     elseif event == "PLAYER_ENTERING_WORLD" then
         C_Timer.After(0.5, function()
@@ -667,7 +731,7 @@ end
 
 function ERB:OnEnable()
     -- The event frame was created at file scope so its handler work bills
-    -- this addon (see the note at its declaration); here we only register
+    -- this addon (see the note in EUI_ResourceBars_Frames.lua); here we only register
     -- events and attach the handler.
     local eventFrame = _erbEventFrame
     eventFrame:RegisterUnitEvent("UNIT_HEALTH", "player")
@@ -868,7 +932,7 @@ end
 --  Resource Bars: pips / runes orbit the class resource bar's centre.
 --  Power Bars: the health and primary power bars orbit the screen centre.
 -------------------------------------------------------------------------------
--- Wrapped in a function: this main chunk sits at Lua 5.1's 200-local cap.
+-- Wrapped in a function to keep its locals out of the main chunk.
 ;(function()
 -- Party Mode visibility axis: no game event; the core fires its own edge.
 if EllesmereUI.RegisterVisEdge then
@@ -948,3 +1012,5 @@ do
     })
 end
 end)()
+
+I.broken = false

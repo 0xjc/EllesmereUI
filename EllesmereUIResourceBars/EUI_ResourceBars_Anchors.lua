@@ -1,3 +1,45 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ResourceBars_Anchors.lua
+--
+--  The player resource stack rects, the Unlock Mode registration and the
+--  anchor system: anchor frames, bar anchoring and free positions.
+--  Reads the earlier Resource Bars files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIResourceBars.lua or an earlier Resource Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local PP = EllesmereUI.PP
+local floor = math.floor
+
+local ERB, SnapXY, IsPowerBarHidden = I.ERB, I.SnapXY, I.IsPowerBarHidden
+local IsSpecDisabled, IsVerticalOrientation = I.IsSpecDisabled, I.IsVerticalOrientation
+local OrientedSize = I.OrientedSize
+
+local mainFrame
+I.mainFrameSetters[#I.mainFrameSetters + 1] = function(v) mainFrame = v end
+local healthBar
+I.healthBarSetters[#I.healthBarSetters + 1] = function(v) healthBar = v end
+local primaryBar
+I.primaryBarSetters[#I.primaryBarSetters + 1] = function(v) primaryBar = v end
+local secondaryFrame
+I.secondaryFrameSetters[#I.secondaryFrameSetters + 1] = function(v) secondaryFrame = v end
+local secondaryBar
+I.secondaryBarSetters[#I.secondaryBarSetters + 1] = function(v) secondaryBar = v end
+local castBarFrame
+I.castBarFrameSetters[#I.castBarFrameSetters + 1] = function(v) castBarFrame = v end
+local gcdBarFrame
+I.gcdBarFrameSetters[#I.gcdBarFrameSetters + 1] = function(v) gcdBarFrame = v end
+local totemBarFrame
+I.totemBarFrameSetters[#I.totemBarFrameSetters + 1] = function(v) totemBarFrame = v end
+local cachedSecondary
+I.cachedSecondarySetters[#I.cachedSecondarySetters + 1] = function(v) cachedSecondary = v end
+
+local RefreshAnchoredBarsForUnlockTarget
+
 -- Per-bar rects of the player's resource stack for the current spec and form, in
 -- physical pixels: one { l, r, t, b } entry per bar in the layout, or nil when there
 -- is none. A bar counts by its layout predicate (Power: not IsPowerBarHidden; Class
@@ -785,3 +827,8 @@ RefreshAnchoredBarsForUnlockTarget = function(unlockKey)
     end
 end
 
+I.ApplyBarAnchor, I.ApplyFreeBarPosition = ApplyBarAnchor, ApplyFreeBarPosition
+I.GetAnchorOffsets, I.NormalizeAnchorKey = GetAnchorOffsets, NormalizeAnchorKey
+I.ReapplyInternalBarAnchors = ReapplyInternalBarAnchors
+I.RegisterUnlockElements, I.ResolveExpandDirSign = RegisterUnlockElements, ResolveExpandDirSign
+I.broken = false

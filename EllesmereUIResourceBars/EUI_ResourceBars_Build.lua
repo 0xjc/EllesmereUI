@@ -1,3 +1,56 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ResourceBars_Build.lua
+--
+--  Tick marks, hash lines, the Ironfur overlay and BuildBars.
+--  Reads the earlier Resource Bars files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIResourceBars.lua or an earlier Resource Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local PP = EllesmereUI.PP
+local UnitHealthMax, UnitPowerMax = UnitHealthMax, UnitPowerMax
+
+local CLASS_COLORS, DARK_BG_A, DARK_FILL_A = I.CLASS_COLORS, I.DARK_BG_A, I.DARK_FILL_A
+local ERB, GetPrimaryPowerType, GetRBFont = I.ERB, I.GetPrimaryPowerType, I.GetRBFont
+local GetSecondaryResource, IP, POWER_COLORS = I.GetSecondaryResource, I.IP, I.POWER_COLORS
+local SetRBFont, SnapXY = I.SetRBFont, I.SnapXY
+local ResolveThresholdSpecEntry, DEFAULTS = I.ResolveThresholdSpecEntry, I.DEFAULTS
+local ApplyBarFlat, ApplyBarGradient = I.ApplyBarFlat, I.ApplyBarGradient
+local ApplyBarOrientation, ApplyBarTexture = I.ApplyBarOrientation, I.ApplyBarTexture
+local BuildMainFrame, CalcPipGeometry = I.BuildMainFrame, I.CalcPipGeometry
+local CreatePip, CreateStatusBar = I.CreatePip, I.CreateStatusBar
+local IsPowerBarHidden, IsSpecDisabled = I.IsPowerBarHidden, I.IsSpecDisabled
+local MakePixelBorder, OrientedSize, pips = I.MakePixelBorder, I.OrientedSize, I.pips
+local runeFrames, secondaryBarTicks = I.runeFrames, I.secondaryBarTicks
+local secondaryPipTicks, SmoothBarAnimate = I.secondaryPipTicks, I.SmoothBarAnimate
+local ApplyBarAnchor, ApplyFreeBarPosition = I.ApplyBarAnchor, I.ApplyFreeBarPosition
+local GetAnchorOffsets, NormalizeAnchorKey = I.GetAnchorOffsets, I.NormalizeAnchorKey
+local ReapplyInternalBarAnchors = I.ReapplyInternalBarAnchors
+local ResolveExpandDirSign = I.ResolveExpandDirSign
+
+local mainFrame
+I.mainFrameSetters[#I.mainFrameSetters + 1] = function(v) mainFrame = v end
+local healthBar
+I.healthBarSetters[#I.healthBarSetters + 1] = function(v) healthBar = v end
+local primaryBar
+I.primaryBarSetters[#I.primaryBarSetters + 1] = function(v) primaryBar = v end
+local secondaryFrame
+I.secondaryFrameSetters[#I.secondaryFrameSetters + 1] = function(v) secondaryFrame = v end
+local secondaryBar  -- bar-style secondary (e.g. Devourer soul fragments, Elemental maelstrom)
+I.secondaryBarSetters[#I.secondaryBarSetters + 1] = function(v) secondaryBar = v end
+local castBarFrame
+I.castBarFrameSetters[#I.castBarFrameSetters + 1] = function(v) castBarFrame = v end
+local cachedClass
+I.cachedClassSetters[#I.cachedClassSetters + 1] = function(v) cachedClass = v end
+local cachedPrimary
+I.cachedPrimarySetters[#I.cachedPrimarySetters + 1] = function(v) cachedPrimary = v end
+local cachedSecondary
+I.cachedSecondarySetters[#I.cachedSecondarySetters + 1] = function(v) cachedSecondary = v end
+
 -- Resource bar tick marks (bar-type secondary only)
 
 -- Parse comma-separated tick values string into a table of numbers.
@@ -320,8 +373,8 @@ local function BuildBars()
     do
         local hpOri = hp.orientation or g.orientation or "HORIZONTAL"
         if not healthBar then
-            healthBar = CreateStatusBar(mainFrame, "ERB_HealthBar", hpWidth, hpHeight,
-                hp.borderSize, hp.borderR, hp.borderG, hp.borderB, hp.borderA)
+            I.SetHealthBar(CreateStatusBar(mainFrame, "ERB_HealthBar", hpWidth, hpHeight,
+                hp.borderSize, hp.borderR, hp.borderG, hp.borderB, hp.borderA))
             healthBar:SetFrameStrata(hp.frameStrata or g.frameStrata or "MEDIUM")
             healthBar:SetFrameLevel(10)
         end
@@ -465,7 +518,7 @@ local function BuildBars()
     end
 
     -- Power bar (primary resource)
-    cachedPrimary = GetPrimaryPowerType()
+    I.SetCachedPrimary(GetPrimaryPowerType())
     local pp = _G._ERB_ResolvePowerCfg(p) or FALLBACK.primary
     -- Expand height when the spec has no class resource and the option is on.
     -- Suppressed in unlock mode or with the options panel open, so the
@@ -506,8 +559,8 @@ local function BuildBars()
     -- bar) have a valid target; with no primary power for the spec it stays at
     -- zero alpha but keeps its position.
     if not primaryBar then
-        primaryBar = CreateStatusBar(mainFrame, "ERB_PrimaryBar", ppWidth, ppHeight,
-            pp.borderSize, pp.borderR, pp.borderG, pp.borderB, pp.borderA)
+        I.SetPrimaryBar(CreateStatusBar(mainFrame, "ERB_PrimaryBar", ppWidth, ppHeight,
+            pp.borderSize, pp.borderR, pp.borderG, pp.borderB, pp.borderA))
         primaryBar:SetFrameStrata(pp.frameStrata or g.frameStrata or "MEDIUM")
         primaryBar:SetFrameLevel(10)
     end
@@ -680,14 +733,14 @@ local function BuildBars()
 
 
     -- Class resource (secondary: pips / runes)
-    cachedSecondary = GetSecondaryResource()
+    I.SetCachedSecondary(GetSecondaryResource())
     local sp = _G._ERB_ResolveSecondaryCfg(p) or FALLBACK.secondary
     -- Create the frame UNCONDITIONALLY (mirrors the power bar) so anchored elements
     -- always have a target and "Shift Elements if No Resource" works whether the bar
     -- is spec-hidden OR toggled off. When off, the branch below keeps it sized and
     -- zero-alpha.
     if not secondaryFrame then
-        secondaryFrame = CreateFrame("Frame", "ERB_SecondaryFrame", mainFrame)
+        I.SetSecondaryFrame(CreateFrame("Frame", "ERB_SecondaryFrame", mainFrame))
         secondaryFrame:SetFrameStrata(g.frameStrata or "MEDIUM")
         secondaryFrame:SetFrameLevel(10)
     end
@@ -819,8 +872,8 @@ local function BuildBars()
             ns.ERB_ClassSeps(sp)  -- Separators: the bottom-edge line only (no gaps)
 
             if not secondaryBar then
-                secondaryBar = CreateStatusBar(secondaryFrame, "ERB_SecondaryBar", totalW, pipH,
-                    0, 0, 0, 0, 0)
+                I.SetSecondaryBar(CreateStatusBar(secondaryFrame, "ERB_SecondaryBar", totalW, pipH,
+                    0, 0, 0, 0, 0))
                 secondaryBar:SetMinMaxValues(0, maxPts)
                 secondaryBar:SetValue(0)
                 -- Apply the Smooth Bars setting to the freshly created bar.
@@ -1400,4 +1453,6 @@ local function BuildBars()
     if EllesmereUI.UF_RequestResourceReanchor then EllesmereUI.UF_RequestResourceReanchor() end
 end
 
-
+I.ApplyResourceBarTicks, I.BuildBars = ApplyResourceBarTicks, BuildBars
+I.EnsureIronfurOverlay, I.ironfurTickTex = EnsureIronfurOverlay, ironfurTickTex
+I.broken = false

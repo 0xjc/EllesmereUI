@@ -1,3 +1,35 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ResourceBars_Groups.lua
+--
+--  Border Around All groups, the Blizzard Style bar backing, shadow and
+--  mask, and the chrome of the stock cast bar.
+--  Reads the earlier Resource Bars files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIResourceBars.lua or an earlier Resource Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local PP = EllesmereUI.PP
+
+local ERB, GetPrimaryPowerType = I.ERB, I.GetPrimaryPowerType
+local GetSecondaryResource, DEFAULTS = I.GetSecondaryResource, I.DEFAULTS
+local IsVerticalOrientation, NormalizeAnchorKey = I.IsVerticalOrientation, I.NormalizeAnchorKey
+local ShouldShowBar, ShouldShowSecondary = I.ShouldShowBar, I.ShouldShowSecondary
+
+local mainFrame
+I.mainFrameSetters[#I.mainFrameSetters + 1] = function(v) mainFrame = v end
+local healthBar
+I.healthBarSetters[#I.healthBarSetters + 1] = function(v) healthBar = v end
+local primaryBar
+I.primaryBarSetters[#I.primaryBarSetters + 1] = function(v) primaryBar = v end
+local secondaryFrame
+I.secondaryFrameSetters[#I.secondaryFrameSetters + 1] = function(v) secondaryFrame = v end
+local castBarFrame
+I.castBarFrameSetters[#I.castBarFrameSetters + 1] = function(v) castBarFrame = v end
+
 -------------------------------------------------------------------------------
 --  "Border Around All" (general.classicBorderAll, off by default; one key
 --  for both stock styles, each style keeping its own value through the Style
@@ -16,8 +48,7 @@
 --  visibility pass (which follows every rebuild and every visibility edge)
 --  and on unlock moves, coalesced to one pass per frame. All three bars wear
 --  the lead bar's Border Size while the setting is on, so a fallback's
---  per-bar frames and the size-match pads agree with the group frame. On ns:
---  the file sits at the local cap.
+--  per-bar frames and the size-match pads agree with the group frame. On ns.
 -------------------------------------------------------------------------------
 ns._erbGrpMatchKeys = { "ERB_Health", "ERB_Power", "ERB_ClassResource" }
 ns._erbGrpMembers, ns._erbGrpLo, ns._erbGrpHi = {}, {}, {}
@@ -330,7 +361,6 @@ end
 -- counter-clockwise, as a vertical bar's panel does (3 left, 6 above, 7
 -- right, 2 below). Under every member, as a bar's panel sits under its fill;
 -- `sepLevel` seats the separators' art frame above every member.
--- (ns fields: this file sits at the local cap.)
 ns._erbGrpU = { 0, 2 / 132, 126 / 132, 1 }        -- art columns: left cap, fill, right cap
 ns._erbGrpV = { 0, 3 / 19, 12 / 19, 1 }           -- art rows: top cap, fill, bottom cap
 -- Screen edges per orientation: { anchor side, offset } for the 4 x edges
@@ -750,3 +780,4 @@ function ns.ERB_ApplyBlizzCastChrome(cb, barW)
     end
 end
 
+I.broken = false

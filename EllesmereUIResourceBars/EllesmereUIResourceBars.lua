@@ -61,7 +61,7 @@ ns.SetRBFont = SetRBFont
 -- Cast-bar text side anchoring (mirrors nameplate/unit-frame cast text). Spell text
 -- and duration share one line; duration reserves a slot on its side and pushes spell
 -- text inward when they share a side; center is never pushed. On ns not a file
--- local (200-local cap). side "left"|"right"|"center"; pushed = duration shares
+-- local. side "left"|"right"|"center"; pushed = duration shares
 -- this side; reserve = duration's reserved width (used only when pushed).
 -- Returns: point (anchor), xOff (base, before user X offset), justify
 function ns.GetCastTextAnchor(side, pushed, reserve)
@@ -277,8 +277,7 @@ end
 
 -- Blizzard player-frame power-bar atlas per power token, validated at runtime via
 -- GetAtlasInfo: unknown tokens (Stagger/Ironfur) or missing atlases fall back to
--- the regular bar texture, so an atlas rename never renders broken art. On ns
--- (200-local cap).
+-- the regular bar texture, so an atlas rename never renders broken art. On ns.
 ns._crAtlasSuffix = {
     MANA = "Mana", RAGE = "Rage", FOCUS = "Focus", ENERGY = "Energy",
     RUNIC_POWER = "RunicPower", LUNAR_POWER = "AstralPower",
@@ -431,7 +430,7 @@ local ICICLES_SPELL_ID = 205473
 -- is the only stack source. IP caps at 30% max health (CAP), so stacks and absorbs-vs-
 -- cap are the same 0-100% fullness -- see UpdateSecondaryResource. DURATION drives the
 -- moving hash line, reset on cast since aura expiry is secret (same approach as Ironfur
--- ticks). One namespace table for the feature (200-local cap).
+-- ticks). One namespace table for the feature.
 local IP = {
     SPELL = 190456,
     -- Violent Outburst consumption: Shield Slam with the proc up refreshes Ignore
@@ -449,7 +448,7 @@ local IP = {
 
 -- Pooled scratch for the Ignore Pain overlay layer list (rebuilt every absorb tick):
 -- reuse one array + sub-tables. UpdateSecondaryResource is not re-entrant, so a
--- shared counter is safe. On IP, not new locals (200-local cap).
+-- shared counter is safe. On IP, not new locals.
 IP.layers = {}
 IP.layerN = 0
 function IP.push(step, r, g, b, a)
@@ -506,8 +505,6 @@ local FRENZIED_REGEN      = 22842
 local IRONFUR_GOE_BONUS   = 3
 local IRONFUR_GOE_WINDOW  = 15
 local ironfurTicks        = {}   -- array of { endTime=, duration= }
-local ironfurBaseDur      = 7
-local ironfurGoEUntil     = 0
 
 local function IronfurBaseDuration()
     if C_SpellBook and C_SpellBook.IsSpellKnown and C_SpellBook.IsSpellKnown(URSOCS_ENDURANCE) then
@@ -539,7 +536,7 @@ local function GetSecondaryResource()
         -- Guardian Ironfur duration bar, Bear Form only; other forms fall through
         -- to their default (combo points in Cat, nothing in caster/moonkin/travel).
         -- max is a normalized fraction (0..1).
-        ironfurBaseDur = IronfurBaseDuration()
+        ns._internals.SetIronfurBaseDur(IronfurBaseDuration())
         return { power = "IRONFUR_BAR", max = 1, type = "bar" }
     elseif classFile == "DRUID" and form == 1 then
         local mx = UnitPowerMax("player", PT.COMBO)
@@ -648,3 +645,55 @@ local function GetSecondaryResource()
     return nil
 end
 
+-- Main-chunk locals the EUI_ResourceBars_*.lua files re-import by name.
+-- mainFrameSetters and the lists beside it: every file that reads one of
+-- these keeps its own copy and adds a setter here; a place that assigns it
+-- writes through the Set<Name> function built below, which runs them all
+-- (a file that holds the only copy of a name assigns its local directly).
+-- broken: true while an EUI_ResourceBars_*.lua file loads; a file that
+-- fails leaves it set, and the files behind it return at their first lines.
+ns._internals = {
+    CHANNEL_TICK_DATA = CHANNEL_TICK_DATA, CLASS_COLORS = CLASS_COLORS, DARK_BG_A = DARK_BG_A,
+    DARK_FILL_A = DARK_FILL_A, EBON_MIGHT_DURATION = EBON_MIGHT_DURATION,
+    EBON_MIGHT_SPELL_ID = EBON_MIGHT_SPELL_ID, ERB = ERB, FRENZIED_REGEN = FRENZIED_REGEN,
+    GetIcicleCount = GetIcicleCount, GetPrimaryPowerType = GetPrimaryPowerType,
+    GetRBFont = GetRBFont, GetSecondaryResource = GetSecondaryResource,
+    GetSpecialization = GetSpecialization, GUARDIAN_OF_ELUNE = GUARDIAN_OF_ELUNE, IP = IP,
+    IRONFUR_GOE_BONUS = IRONFUR_GOE_BONUS, IRONFUR_GOE_WINDOW = IRONFUR_GOE_WINDOW,
+    IRONFUR_SPELL = IRONFUR_SPELL, IronfurBaseDuration = IronfurBaseDuration,
+    ironfurTicks = ironfurTicks, MANGLE_SPELL = MANGLE_SPELL, POWER_COLORS = POWER_COLORS,
+    POWER_ENUM_TO_KEY = POWER_ENUM_TO_KEY, PT = PT, SetRBFont = SetRBFont, SnapXY = SnapXY,
+    ironfurBaseDurSetters = {}, ironfurGoEUntilSetters = {}, mainFrameSetters = {},
+    healthBarSetters = {}, primaryBarSetters = {}, secondaryFrameSetters = {},
+    secondaryBarSetters = {}, castBarFrameSetters = {}, gcdBarFrameSetters = {},
+    totemBarFrameSetters = {}, isInCombatSetters = {}, cachedClassSetters = {},
+    cachedPrimarySetters = {}, cachedSecondarySetters = {}, ebonMightExpirySetters = {},
+    UpdateCastBarSetters = {}, UpdateGCDBarSetters = {}, stageThresholdsSetters = {},
+    essenceNextTickSetters = {}, essenceLastCountSetters = {}, essenceTickDurSetters = {},
+    broken = false,
+}
+-- Set<Name> hands a new value to every copy registered in <name>Setters.
+for setter, listName in pairs({
+    SetIronfurBaseDur = "ironfurBaseDurSetters", SetIronfurGoEUntil = "ironfurGoEUntilSetters",
+    SetMainFrame = "mainFrameSetters", SetHealthBar = "healthBarSetters",
+    SetPrimaryBar = "primaryBarSetters", SetSecondaryFrame = "secondaryFrameSetters",
+    SetSecondaryBar = "secondaryBarSetters", SetCastBarFrame = "castBarFrameSetters",
+    SetGCDBarFrame = "gcdBarFrameSetters", SetTotemBarFrame = "totemBarFrameSetters",
+    SetInCombat = "isInCombatSetters", SetCachedClass = "cachedClassSetters",
+    SetCachedPrimary = "cachedPrimarySetters", SetCachedSecondary = "cachedSecondarySetters",
+    SetEbonMightExpiry = "ebonMightExpirySetters", SetUpdateCastBar = "UpdateCastBarSetters",
+    SetUpdateGCDBar = "UpdateGCDBarSetters", SetStageThresholds = "stageThresholdsSetters",
+    SetEssenceNextTick = "essenceNextTickSetters",
+    SetEssenceLastCount = "essenceLastCountSetters",
+    SetEssenceTickDur = "essenceTickDurSetters",
+}) do
+    local list = ns._internals[listName]
+    ns._internals[setter] = function(v)
+        for i = 1, #list do list[i](v) end
+    end
+end
+-- A re-import of a name this table lacks fails where the part file loads,
+-- not later as a nil upvalue inside one of its functions.
+setmetatable(ns._internals, { __index = function(_, k)
+    error("ns._internals has no entry " .. tostring(k), 2)
+end })

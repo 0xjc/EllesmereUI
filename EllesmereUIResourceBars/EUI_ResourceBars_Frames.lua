@@ -1,20 +1,33 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ResourceBars_Frames.lua
+--
+--  Shared state and the bar helpers: orientation, gradient and flat fills,
+--  fill opacity, empower stage colors, pip geometry, pixel borders,
+--  CreateStatusBar, CreatePip, the main frame, the spec and power-bar checks.
+--  Reads the earlier Resource Bars files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIResourceBars.lua or an earlier Resource Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local PP = EllesmereUI.PP
+
+local CLASS_COLORS, DARK_BG_A, ERB = I.CLASS_COLORS, I.DARK_BG_A, I.ERB
+local GetPrimaryPowerType, GetRBFont = I.GetPrimaryPowerType, I.GetRBFont
+local GetSecondaryResource, SetRBFont, SnapXY = I.GetSecondaryResource, I.SetRBFont, I.SnapXY
+local DEFAULTS, SetMainFrame = I.DEFAULTS, I.SetMainFrame
+
 -------------------------------------------------------------------------------
 --  State
 -------------------------------------------------------------------------------
 local mainFrame
-local healthBar
-local primaryBar
-local secondaryFrame
-local secondaryBar  -- bar-style secondary (e.g. Devourer soul fragments, Elemental maelstrom)
+I.mainFrameSetters[#I.mainFrameSetters + 1] = function(v) mainFrame = v end
 local secondaryBarTicks = {}  -- tick mark texture cache for bar-type secondary
 local secondaryPipTicks = {}  -- tick mark texture cache for pip-type secondary hash lines
-local castBarFrame
-local gcdBarFrame
-local totemBarFrame
 local _totemBorderOverlays = setmetatable({}, { __mode = "k" })
-local _totemHooked = false
-local _totemOrigParent
-local _totemOrigStrata
 -- Engine-entry frames are created at FILE SCOPE on purpose: CPU bills a handler's
 -- whole call tree to the addon whose execution context CREATED the entry frame
 -- (inherited taint-style from the entry point, not the file the code lives in).
@@ -41,6 +54,7 @@ do
 end
 ns.CombatQueue = EllesmereUI.NewCombatQueue(ns.TakeShell())
 local isInCombat = false
+I.isInCombatSetters[#I.isInCombatSetters + 1] = function(v) isInCombat = v end
 local currentAlpha = 1
 local targetAlpha = 1
 
@@ -53,26 +67,13 @@ ns.GCDShell = CreateFrame("Frame", "ERB_GCDBarFrame", UIParent)
 -- Effective bar alpha: oocAlpha when "Fade Out of Combat" is on and out of combat, else
 -- normal opacity (off by default). EVERY SetAlpha site routes through this -- some
 -- events (UNIT_MAXHEALTH/UNIT_MAXPOWER) rebuild with no following UpdateVisibility, so
--- folding the fade in here keeps a rebuild from clobbering it. On ns (200-local cap).
+-- folding the fade in here keeps a rebuild from clobbering it. On ns.
 function ns.ResolveBarAlpha(cfg)
     if cfg and cfg.oocFadeEnabled and not isInCombat then
         return cfg.oocAlpha or 0.5
     end
     return (cfg and cfg.barAlpha) or 1
 end
-local cachedClass
-local cachedPrimary
-local cachedSecondary
-local _ebonMightExpiry = 0
-local RefreshAnchoredBarsForUnlockTarget
-
--- Forward declarations
-local UpdateCastBar
-local BuildCastBar
-local UpdateGCDBar
-local BuildGCDBar
-local OnCastStart, OnChannelStart, OnChannelUpdate, OnCastStop, OnEmpowerStart, OnEmpowerUpdate
-local ShowChannelTicks, HideChannelTicks
 
 -------------------------------------------------------------------------------
 --  Helpers
@@ -113,6 +114,7 @@ end
 
 -- Cached empower stage thresholds (set once at empower start, avoids per-frame API call)
 local cachedStageThresholds
+I.stageThresholdsSetters[#I.stageThresholdsSetters + 1] = function(v) cachedStageThresholds = v end
 -- Reusable CreateColor objects for gradient (avoids per-frame allocation)
 local empowerColorA = CreateColor(1, 0, 0, 1)
 local empowerColorB = CreateColor(1, 0, 0, 1)
@@ -175,8 +177,8 @@ ns.CLASS_COLORS = CLASS_COLORS
 -- bg re-anchors to cover ONLY the empty portion, so the world shows through the
 -- fill instead of the background. Fully inert at 100 (untouched unless previously
 -- applied, _fillOpApplied). Value-blind by design (region alpha + relational
--- anchors only), so it renders identically when values are secret. On ns
--- (200-local cap). AnchorBgToFillEdge: empty side depends on fill direction --
+-- anchors only), so it renders identically when values are secret. On ns.
+-- AnchorBgToFillEdge: empty side depends on fill direction --
 -- VERTICAL_UP bottom-up (empty top), VERTICAL_DOWN top-down (empty bottom),
 -- horizontal left-to-right (empty right); anchor is relational to the fill
 -- texture's moving edge, so it tracks value changes with no per-frame work.
@@ -627,7 +629,7 @@ end
 -- gaps keep showing the full-bar background; enabled places one texture per
 -- inter-pip gap so spacing colors independently of the bar background. Only
 -- READS the already-computed pip slot positions, never changes pip sizing or
--- spacing geometry. On ERB (200-local cap).
+-- spacing geometry. On ERB.
 
 -- Per-pip empty-slot backdrop color. At Fill Opacity 100 it's just the Empty Bar
 -- Overlay tint (bgR/G/B/A, dark theme override). Below 100 the full-bar backdrop
@@ -765,7 +767,7 @@ local function BuildMainFrame()
 
     local g = ERB.db.profile.general or DEFAULTS.profile.general
 
-    mainFrame = CreateFrame("Frame", "EllesmereUIResourceBarsFrame", UIParent)
+    SetMainFrame(CreateFrame("Frame", "EllesmereUIResourceBarsFrame", UIParent))
     mainFrame:SetPoint("CENTER", UIParent, "CENTER", g.anchorX or 0, g.anchorY or -100)
     mainFrame:SetSize(1, 1)  -- invisible anchor point
     mainFrame:SetFrameStrata(g.frameStrata or "MEDIUM")
@@ -800,3 +802,15 @@ local function IsPowerBarHidden()
     return false
 end
 
+I._erbEventFrame, I._totemBorderOverlays = _erbEventFrame, _totemBorderOverlays
+I.ApplyBarFlat, I.ApplyBarGradient = ApplyBarFlat, ApplyBarGradient
+I.ApplyBarOrientation, I.ApplyBarTexture = ApplyBarOrientation, ApplyBarTexture
+I.BuildMainFrame, I.CalcPipGeometry, I.CreatePip = BuildMainFrame, CalcPipGeometry, CreatePip
+I.CreateStatusBar, I.empowerColorA = CreateStatusBar, empowerColorA
+I.empowerColorB, I.GetCurrentEmpowerStage = empowerColorB, GetCurrentEmpowerStage
+I.GetEmpowerStageColor, I.IsPowerBarHidden = GetEmpowerStageColor, IsPowerBarHidden
+I.IsSpecDisabled, I.IsVerticalOrientation = IsSpecDisabled, IsVerticalOrientation
+I.MakePixelBorder, I.OrientedSize, I.pips = MakePixelBorder, OrientedSize, pips
+I.runeFrames, I.secondaryBarTicks = runeFrames, secondaryBarTicks
+I.secondaryPipTicks, I.SmoothBarAnimate = secondaryPipTicks, SmoothBarAnimate
+I.broken = false

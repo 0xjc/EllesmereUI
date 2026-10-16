@@ -1,3 +1,32 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ResourceBars_GCD.lua
+--
+--  The GCD bar.
+--  Reads the earlier Resource Bars files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIResourceBars.lua or an earlier Resource Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local PP = EllesmereUI.PP
+
+local CLASS_COLORS, ERB, SnapXY, ApplyBarFlat = I.CLASS_COLORS, I.ERB, I.SnapXY, I.ApplyBarFlat
+local ApplyBarGradient, ApplyBarOrientation = I.ApplyBarGradient, I.ApplyBarOrientation
+local OrientedSize, SPARK_TEX, SetGCDBarFrame = I.OrientedSize, I.SPARK_TEX, I.SetGCDBarFrame
+local SetUpdateGCDBar = I.SetUpdateGCDBar
+
+local gcdBarFrame
+I.gcdBarFrameSetters[#I.gcdBarFrameSetters + 1] = function(v) gcdBarFrame = v end
+local cachedClass
+I.cachedClassSetters[#I.cachedClassSetters + 1] = function(v) cachedClass = v end
+local UpdateGCDBar
+I.UpdateGCDBarSetters[#I.UpdateGCDBarSetters + 1] = function(v) UpdateGCDBar = v end
+
+local BuildGCDBar
+
 -------------------------------------------------------------------------------
 --  GCD Bar
 --  Uses the same detection logic as the cursor GCD Circle
@@ -56,8 +85,8 @@ BuildGCDBar = function()
     end
 
     if not gcdBarFrame then
-        -- Adopt the file-scope shell (attribution; see note near the top).
-        gcdBarFrame = ns.GCDShell
+        -- Adopt the file-scope shell (attribution; see the note in EUI_ResourceBars_Frames.lua).
+        SetGCDBarFrame(ns.GCDShell)
         gcdBarFrame:SetFrameStrata(g.frameStrata or "MEDIUM")
         gcdBarFrame:SetFrameLevel(15)
 
@@ -479,7 +508,7 @@ BuildGCDBar = function()
     end
 end
 
-UpdateGCDBar = function(_dt)
+SetUpdateGCDBar(function(_dt)
     if not gcdBarFrame or not gcdBarFrame:IsShown() then return end
     local g = ERB.db.profile.gcdBar
     if not g or not g.enabled then return end
@@ -559,5 +588,7 @@ UpdateGCDBar = function(_dt)
         bar:SetValue(value)
         gcdBarFrame._barActive = true
     end
-end
+end)
 
+I.BuildGCDBar = BuildGCDBar
+I.broken = false

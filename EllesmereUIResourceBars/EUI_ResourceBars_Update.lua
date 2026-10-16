@@ -1,7 +1,77 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ResourceBars_Update.lua
+--
+--  The update functions of the health, power and class resource bars, the
+--  spender tracking, the Ironfur and Ignore Pain bars, visibility and the
+--  tickers.
+--  Reads the earlier Resource Bars files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIResourceBars.lua or an earlier Resource Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local ceil, min, max = math.ceil, math.min, math.max
+local format = string.format
+local UnitHealth, UnitHealthMax, UnitPower = UnitHealth, UnitHealthMax, UnitPower
+local UnitPowerMax, UnitClass = UnitPowerMax, UnitClass
+
+local CLASS_COLORS, EBON_MIGHT_DURATION = I.CLASS_COLORS, I.EBON_MIGHT_DURATION
+local EBON_MIGHT_SPELL_ID, ERB, FRENZIED_REGEN = I.EBON_MIGHT_SPELL_ID, I.ERB, I.FRENZIED_REGEN
+local GetIcicleCount, GetPrimaryPowerType = I.GetIcicleCount, I.GetPrimaryPowerType
+local GetSpecialization, GUARDIAN_OF_ELUNE, IP = I.GetSpecialization, I.GUARDIAN_OF_ELUNE, I.IP
+local IRONFUR_GOE_BONUS, IRONFUR_GOE_WINDOW = I.IRONFUR_GOE_BONUS, I.IRONFUR_GOE_WINDOW
+local IRONFUR_SPELL, IronfurBaseDuration = I.IRONFUR_SPELL, I.IronfurBaseDuration
+local ironfurTicks, MANGLE_SPELL, POWER_COLORS = I.ironfurTicks, I.MANGLE_SPELL, I.POWER_COLORS
+local PT, FindCountBand, GetBarBandCurve = I.PT, I.FindCountBand, I.GetBarBandCurve
+local GetBarThresholdCurve, ResolveBandConfig = I.GetBarThresholdCurve, I.ResolveBandConfig
+local ResolveThresholdSpecEntry, ApplyBarFlat = I.ResolveThresholdSpecEntry, I.ApplyBarFlat
+local ApplyBarGradient, CalcPipGeometry = I.ApplyBarGradient, I.CalcPipGeometry
+local IsPowerBarHidden, IsSpecDisabled, pips = I.IsPowerBarHidden, I.IsSpecDisabled, I.pips
+local runeFrames, secondaryBarTicks = I.runeFrames, I.secondaryBarTicks
+local ApplyResourceBarTicks = I.ApplyResourceBarTicks
+local EnsureIronfurOverlay, ironfurTickTex = I.EnsureIronfurOverlay, I.ironfurTickTex
+local SetCachedPrimary = I.SetCachedPrimary
+
+local ironfurBaseDur = 7
+I.ironfurBaseDurSetters[#I.ironfurBaseDurSetters + 1] = function(v) ironfurBaseDur = v end
+local ironfurGoEUntil = 0
+I.ironfurGoEUntilSetters[#I.ironfurGoEUntilSetters + 1] = function(v) ironfurGoEUntil = v end
+local mainFrame
+I.mainFrameSetters[#I.mainFrameSetters + 1] = function(v) mainFrame = v end
+local healthBar
+I.healthBarSetters[#I.healthBarSetters + 1] = function(v) healthBar = v end
+local primaryBar
+I.primaryBarSetters[#I.primaryBarSetters + 1] = function(v) primaryBar = v end
+local secondaryFrame
+I.secondaryFrameSetters[#I.secondaryFrameSetters + 1] = function(v) secondaryFrame = v end
+local secondaryBar
+I.secondaryBarSetters[#I.secondaryBarSetters + 1] = function(v) secondaryBar = v end
+local castBarFrame
+I.castBarFrameSetters[#I.castBarFrameSetters + 1] = function(v) castBarFrame = v end
+local gcdBarFrame
+I.gcdBarFrameSetters[#I.gcdBarFrameSetters + 1] = function(v) gcdBarFrame = v end
+local isInCombat = false
+I.isInCombatSetters[#I.isInCombatSetters + 1] = function(v) isInCombat = v end
+local cachedClass
+I.cachedClassSetters[#I.cachedClassSetters + 1] = function(v) cachedClass = v end
+local cachedPrimary
+I.cachedPrimarySetters[#I.cachedPrimarySetters + 1] = function(v) cachedPrimary = v end
+local cachedSecondary
+I.cachedSecondarySetters[#I.cachedSecondarySetters + 1] = function(v) cachedSecondary = v end
+local _ebonMightExpiry = 0
+I.ebonMightExpirySetters[#I.ebonMightExpirySetters + 1] = function(v) _ebonMightExpiry = v end
+local UpdateCastBar
+I.UpdateCastBarSetters[#I.UpdateCastBarSetters + 1] = function(v) UpdateCastBar = v end
+local UpdateGCDBar
+I.UpdateGCDBarSetters[#I.UpdateGCDBarSetters + 1] = function(v) UpdateGCDBar = v end
+
 -- Update functions (event-driven)
 -- WoW Forever: no health/power number under 10,000 abbreviates
--- (EllesmereUI_NumberFormat.lua). On ns, not a local: this chunk is near its
--- 200-local cap; the druid mana bar file reads it too.
+-- (EllesmereUI_NumberFormat.lua). On ns, not a local:
+-- the druid mana bar file reads it too.
 ns.AbbreviateNumbers = (EllesmereUI.IS_FOREVER and EllesmereUI.ForeverAbbreviateNumbers) or AbbreviateNumbers
 local function UpdateHealthBar()
     if not healthBar or not healthBar:IsShown() then return end
@@ -164,7 +234,7 @@ local function UpdatePrimaryBar()
     end
     local pp = pc.pp
 
-    cachedPrimary = pc.primary
+    SetCachedPrimary(pc.primary)
     if not cachedPrimary then return end
     -- Park the engine-slot overlay when the primary is no longer Ebon Might.
     if ns.EMB121_Gate then ns.EMB121_Gate(cachedPrimary == "EBON_MIGHT") end
@@ -450,8 +520,11 @@ local _runeReady = {}       -- [rune index] = true/false
 
 -- Evoker Essence recharge state (timer-based, UnitPower partial doesn't work for Essence)
 local _essenceNextTick = nil   -- GetTime() when the next pip will be ready
+I.essenceNextTickSetters[#I.essenceNextTickSetters + 1] = function(v) _essenceNextTick = v end
 local _essenceLastCount = nil  -- last known whole-pip count
+I.essenceLastCountSetters[#I.essenceLastCountSetters + 1] = function(v) _essenceLastCount = v end
 local _essenceTickDur = 0      -- seconds per pip recharge
+I.essenceTickDurSetters[#I.essenceTickDurSetters + 1] = function(v) _essenceTickDur = v end
 
 -- Cast handler for the Prot Ignore Pain bar's moving hash line: each cast
 -- refreshes the buff, so the line resets to the right edge and slides left.
@@ -2997,3 +3070,8 @@ ns.GCDTick = EllesmereUI.Tick.NewAnimTicker(CreateFrame("Frame"), function()
     return gcdBarFrame and gcdBarFrame._gcdStart ~= nil
 end, 0.05)
 
+I.HandleIronfurCast, I.ShouldShowBar = HandleIronfurCast, ShouldShowBar
+I.ShouldShowSecondary, I.UpdateHealthBar = ShouldShowSecondary, UpdateHealthBar
+I.UpdatePrimaryBar, I.UpdateSecondaryResource = UpdatePrimaryBar, UpdateSecondaryResource
+I.UpdateVisibility = UpdateVisibility
+I.broken = false

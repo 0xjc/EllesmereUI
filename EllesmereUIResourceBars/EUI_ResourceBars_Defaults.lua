@@ -1,3 +1,18 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ResourceBars_Defaults.lua
+--
+--  The druid hide-per-form checks and the DEFAULTS table.
+--  Reads the earlier Resource Bars files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIResourceBars.lua or an earlier Resource Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local UnitClass, GetShapeshiftFormID = UnitClass, GetShapeshiftFormID
+
 -- per-element scale, border, colors, text, alerts
 -------------------------------------------------------------------------------
 local _, playerClassFile = UnitClass("player")
@@ -488,4 +503,5 @@ local DEFAULTS = {
     },
 }
 
-
+I.DEFAULTS = DEFAULTS
+I.broken = false

@@ -1,3 +1,43 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ResourceBars_CastBar.lua
+--
+--  The cast bar: build, channel ticks, timer text, update, latency overlay
+--  and the cast, channel and empower handlers.
+--  Reads the earlier Resource Bars files through ns and ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIResourceBars.lua or an earlier Resource Bars file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local PP = EllesmereUI.PP
+local floor, min, max = math.floor, math.min, math.max
+local format = string.format
+local IsPlayerSpell, GetInventoryItemID = IsPlayerSpell, GetInventoryItemID
+
+local CHANNEL_TICK_DATA, CLASS_COLORS, ERB = I.CHANNEL_TICK_DATA, I.CLASS_COLORS, I.ERB
+local GetRBFont, SetRBFont, SnapXY = I.GetRBFont, I.SetRBFont, I.SnapXY
+local empowerColorA, empowerColorB = I.empowerColorA, I.empowerColorB
+local GetCurrentEmpowerStage = I.GetCurrentEmpowerStage
+local GetEmpowerStageColor, SmoothBarAnimate = I.GetEmpowerStageColor, I.SmoothBarAnimate
+local CAST_BAR_TEXTURES, SPARK_TEX = I.CAST_BAR_TEXTURES, I.SPARK_TEX
+local SetCastBarFrame, SetUpdateCastBar = I.SetCastBarFrame, I.SetUpdateCastBar
+local SetStageThresholds = I.SetStageThresholds
+
+local castBarFrame
+I.castBarFrameSetters[#I.castBarFrameSetters + 1] = function(v) castBarFrame = v end
+local cachedClass
+I.cachedClassSetters[#I.cachedClassSetters + 1] = function(v) cachedClass = v end
+local cachedStageThresholds
+I.stageThresholdsSetters[#I.stageThresholdsSetters + 1] = function(v) cachedStageThresholds = v end
+
+-- Forward declarations
+local BuildCastBar
+local OnCastStart, OnChannelStart, OnChannelUpdate, OnCastStop, OnEmpowerStart, OnEmpowerUpdate
+local ShowChannelTicks, HideChannelTicks
+
 BuildCastBar = function()
     local cb = ERB.db.profile.castBar
     -- blizz = a stock style dictates the geometry (both stock styles);
@@ -18,7 +58,7 @@ BuildCastBar = function()
     end
 
     if not castBarFrame then
-        castBarFrame = CreateFrame("Frame", "ERB_CastBarFrame", UIParent)
+        SetCastBarFrame(CreateFrame("Frame", "ERB_CastBarFrame", UIParent))
         castBarFrame:SetFrameStrata(cb.frameStrata or "MEDIUM")
         castBarFrame:SetFrameLevel(15)
 
@@ -896,7 +936,7 @@ end
 -- Cast/channel timer label. It shows one decimal, changing ~10x/sec while this runs
 -- every frame: unconditional formatting would rebuild an identical string five of every
 -- six frames (format+concat allocations plus SetText). Only touch the FontString when
--- the displayed tenth actually changes. On ns, not a file local (200-local cap).
+-- the displayed tenth actually changes. On ns, not a file local.
 function ns.SetCastTimerText(f, now, totalDurMode, totalSuffix, latSuffix)
     local remaining = f._endTime - now
     if remaining > 0 then
@@ -954,7 +994,7 @@ ns.ApplyCastTimer = function(kind)
     return true
 end
 
-UpdateCastBar = function(dt)
+SetUpdateCastBar(function(dt)
     if not castBarFrame then return end
     -- NEVER gate this on IsShown(): SetElementVisibility fades an idle cast bar to
     -- alpha 0 instead of calling Hide(), so IsShown() is constant-true for the
@@ -1124,7 +1164,7 @@ UpdateCastBar = function(dt)
             castBarFrame._spark:SetPoint("CENTER", target, "RIGHT", 0, 0)
         end
     end
-end
+end)
 
 -- Latency overlay helper. Called once per cast/channel start: measures actual
 -- per-spell latency (button press to server confirmation) and sizes the
@@ -1470,7 +1510,7 @@ end
 
 -- Put the configured fill back after a tint (empower stages, Out of Range
 -- Gray): Blizzard Style white, the gradient re-issued, or the solid colour.
--- On ns to respect the 200-local cap.
+-- On ns.
 ns.ERB_RestoreCastFill = function()
     local cb = ERB.db.profile.castBar
     -- Blizzard Style (build stamp): the fill atlas is its own colour; restore plain white.
@@ -1554,7 +1594,7 @@ local function OnEmpowerStop(eventCastID)
     -- Reset empower stage coloring if it was applied
     ns.ResetEmpowerFillColor()
 
-    cachedStageThresholds = nil
+    SetStageThresholds(nil)
 
     ns.ShowIdleCastBar()
 end
@@ -1581,7 +1621,7 @@ end
 -- Blizzard's bar stays suppressed and the frame keeps its layout. The pad
 -- edges are watched only while the option and the bar are both on. padOn is
 -- the watcher's verdict; ApplyAll and the options page pass nothing and it is
--- read live. On ns: the file is at the 200-local cap.
+-- read live. On ns.
 function ns.RB_ApplyGamepadCastbar(padOn)
     local cb = ERB.db and ERB.db.profile and ERB.db.profile.castBar
     local want = (cb and cb.enabled and cb.gamepadHide == true) and true or false
@@ -1671,14 +1711,14 @@ OnEmpowerStart = function()
     local stages = UnitEmpoweredStagePercentages("player")
     -- Cache cumulative thresholds for per-frame stage color lookup
     if stages then
-        cachedStageThresholds = {}
+        SetStageThresholds({})
         local cum = 0
         for i = 1, #stages do
             cum = cum + stages[i]
             cachedStageThresholds[i] = cum
         end
     else
-        cachedStageThresholds = nil
+        SetStageThresholds(nil)
     end
     if stages then
         -- Stashed so a mid-empower bar rebuild can re-lay this cast's stage
@@ -1696,8 +1736,7 @@ end
 -- BuildCastBar tail (a mid-empower rebuild must re-lay the marks against
 -- the rebuilt bar, exactly like the channel-tick re-show -- without it the
 -- build reset's pip wipe sticks for the rest of that cast; field: Evokers
--- randomly losing all stage ticks for one cast). On ns: the file is at the
--- 200-local cap.
+-- randomly losing all stage ticks for one cast). On ns.
 function ns.ERB_LayoutEmpowerPips(stages)
     if not (castBarFrame and stages) then return end
     local bar = castBarFrame._bar
@@ -1764,3 +1803,8 @@ OnEmpowerUpdate = function()
     ns.ApplyCastTimer("empower")
 end
 
+I.BuildCastBar, I.OnCastComplete, I.OnCastFailed = BuildCastBar, OnCastComplete, OnCastFailed
+I.OnCastStart, I.OnChannelStart, I.OnChannelStop = OnCastStart, OnChannelStart, OnChannelStop
+I.OnChannelUpdate, I.OnEmpowerStart = OnChannelUpdate, OnEmpowerStart
+I.OnEmpowerStop, I.OnEmpowerUpdate = OnEmpowerStop, OnEmpowerUpdate
+I.broken = false
