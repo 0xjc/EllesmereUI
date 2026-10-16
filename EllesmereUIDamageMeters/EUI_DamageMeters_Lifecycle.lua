@@ -269,6 +269,8 @@ combatFrame:SetScript("OnEvent", function(_, event, ...)
         if IsGroupInCombat() then
             SetCombatEndTime(0)
             SetCurViewFrozenDur(0)
+            -- A stale stamp of the last fight would trip the 5s failsafe on the first tick
+            _regenTimestamp = 0
             -- Pre-warm: a teammate pulled before us. Mark a final-refresh poll (NOT _inCombat --
             -- the player may never personally enter combat, so nothing would ever clear _inCombat if we set it). SharedRefreshTick refreshes while the group fights and self-terminates when it leaves combat.
             SetNeedsFinalRefresh(true)

@@ -38,15 +38,6 @@ local DM_TYPE_NAMES = {
     [Enum.DamageMeterType.Deaths]               = "Deaths",
 }
 
-local DM_TYPES = {
-    Enum.DamageMeterType.DamageDone,
-    Enum.DamageMeterType.HealingDone,
-    Enum.DamageMeterType.DamageTaken,
-    Enum.DamageMeterType.Interrupts,
-    Enum.DamageMeterType.Dispels,
-    Enum.DamageMeterType.Deaths,
-}
-
 local DM_TYPE_ICONS = {
     [Enum.DamageMeterType.DamageDone]           = MEDIA .. "dm_home_damage.png",
     [Enum.DamageMeterType.HealingDone]          = MEDIA .. "dm_home_healing.png",
