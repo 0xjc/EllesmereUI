@@ -395,7 +395,7 @@ function EAB:FinishSetup()
     -- Mirror Blizzard's lockActionBars setting onto the controller so the
     -- secure OnDragStart wrapper can tell a real pickup from a dead gesture
     -- (see the wrapper in RegisterButtonWithController). Attribute, not a
-    -- chunk local: this file is at Lua 5.1's 200-local cap, and the snippet
+    -- chunk local: the snippet
     -- can only read attributes anyway.
     ns.EABSyncBarsLocked = function()
         -- No _eabApplyDeferred here, unlike the widget-writing guards: nothing

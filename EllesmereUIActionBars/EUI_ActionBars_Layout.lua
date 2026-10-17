@@ -40,7 +40,7 @@ local function SnapForScale(x, barScale)
 end
 
 -- Grow direction for icon layout + fixed-edge resize. Lives on EAB, not a
--- file-scope local (main chunk is at Lua's 200-local cap). Caveat: in an unlock
+-- file-scope local. Caveat: in an unlock
 -- anchor chain a mid-chain bar can inherit its parent's grow visually while its
 -- own DB still holds the old value.
 function EAB:ResolveGrowDirectionForLayout(key, s, depth)
@@ -52,7 +52,7 @@ end
 -- render unchanged with zero migration. Returns flowFlip (reverse button flow along the
 -- fill axis) plus hAnchor ("LEFT"/"RIGHT") and vAnchor ("TOP"/"BOTTOM") for the corner
 -- modes (both nil in the two legacy modes). do-end + ns so no file-scope local slots
--- are consumed (Lua 5.1 200-local cap).
+-- are consumed.
 do
     local function ResolveIconOrder(s)
         local order = s.iconOrder
@@ -233,7 +233,7 @@ end
 --  measured in screen space, so Blizzard style's per-button SetScale holds;
 --  every button goes back onto its exact layout anchor when it stops.
 --
---  do/end scope: file is at Lua 5.1's 200-local cap, so none of this may take
+--  do/end scope, so none of this takes
 --  a main-chunk slot; the refresh lives on ns for ApplyAll.
 -------------------------------------------------------------------------------
 do

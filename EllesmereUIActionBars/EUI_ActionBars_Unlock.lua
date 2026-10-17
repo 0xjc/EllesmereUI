@@ -21,7 +21,7 @@ local LayoutBar = I.LayoutBar
 --  Position Save/Restore
 -------------------------------------------------------------------------------
 -- Convert CENTER position to edge for non-CENTER-grow bars (same pattern as CDM).
--- Stored on EAB to avoid consuming local slots (200-local Lua 5.1 cap).
+-- Stored on EAB, not in a file local.
 function EAB:ConvertCenterToEdge(barKey, point, x, y)
     if point ~= "CENTER" then return point, x, y end
     local cfg = self.db and self.db.profile and self.db.profile.bars and self.db.profile.bars[barKey]

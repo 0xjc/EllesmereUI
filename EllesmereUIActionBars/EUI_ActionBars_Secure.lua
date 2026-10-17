@@ -459,7 +459,7 @@ local function ReRegisterButtonEvents(btn, listKey)
 end
 
 -- Bar dormancy strips this same list per button (see ns.ApplyBarDormancy;
--- the loop is inlined there -- this chunk is at the 200-local cap).
+-- the loop is inlined there).
 
 -- Get or create an action button for a slot. Action bars (1-8) always create
 -- our own buttons, eliminating the taint surface: Blizzard's protected
@@ -675,7 +675,7 @@ local NUM_AB_PAGES = NUM_ACTIONBAR_PAGES or 6
 -- the buttons for MOUSE clicks on empowered slots.
 
 -- Safe API wrappers (these globals may move to C_ActionBar); stored on
--- EAB_VTABLE to avoid the 200-local Lua 5.1 limit.
+-- EAB_VTABLE, not in file locals.
 do
     local V = EAB_VTABLE
     V.GetOverrideBarIndex = GetOverrideBarIndex or (C_ActionBar and C_ActionBar.GetOverrideBarIndex) or function() return 14 end

@@ -33,7 +33,7 @@ hiddenParent:Hide()
 -- itself. That next pass is not immediate, so this alone does not guarantee
 -- the button reports Hidden right away -- every caller already reparents or
 -- hides the button's bar ancestor first, which is what keeps it invisible
--- in the meantime. On ns: file is at the 200-local ceiling.
+-- in the meantime. On ns, not a file local.
 function ns.QuietlyHideBlizzButton(btn)
     btn:UnregisterAllEvents()
     btn:SetAttributeNoHandler("statehidden", true)
@@ -47,7 +47,7 @@ end
 -- MultiBarBottomLeftButton1 SetShown crash reported from Cooldown Manager
 -- play. Reparenting under hiddenParent needs no protected call and achieves
 -- the same result: the bar stays effectively invisible regardless of its
--- own Shown state. On ns: file is at the 200-local ceiling.
+-- own Shown state. On ns, not a file local.
 function ns.ReassertHiddenOnShow(bar)
     bar:HookScript("OnShow", function(self)
         if not InCombatLockdown() then

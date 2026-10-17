@@ -254,8 +254,8 @@ end
 -- Split out of SetupBar so a bar whose buttons were skipped at load can have
 -- them built later, at the reveal edge: CreateBarFrame always creates a frame,
 -- so re-running SetupBar there would leave a second one behind.
--- On ns rather than a file local: this file is at Lua 5.1's 200-local cap for
--- the main chunk, and a second top-level local here overflows it.
+-- On ns rather than a file local: the lazy bar build in
+-- EUI_ActionBars_VisibilityDrivers.lua calls it too.
 ns.BuildBarButtons = function(info, frame, skipProtected)
     -- Shrink the clickable area to match a custom visual shape so a square
     -- hit rect can't steal clicks from diamond/circle/etc neighbours. Insets
@@ -409,7 +409,7 @@ end
 -- near an edge past it. Display only: the saved position is never rewritten,
 -- so the bar goes back to it once the screen has room. Protected on our secure
 -- bar frames in combat, so the combat /reload build runs this at combat end.
--- On ns: file at the 200-local cap.
+-- On ns, not a file local.
 ns._eabClampAllBars = function()
     for _, f in pairs(barFrames) do
         f:SetClampedToScreen(true)

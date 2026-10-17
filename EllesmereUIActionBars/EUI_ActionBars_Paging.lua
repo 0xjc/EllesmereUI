@@ -23,7 +23,7 @@ local SetPagingFrame = I.SetPagingFrame
 --  class forms/stances. Empty paging config = bars behave exactly as before.
 -------------------------------------------------------------------------------
 
--- Stored on EAB_VTABLE to avoid the 200-local Lua 5.1 limit.
+-- Stored on EAB_VTABLE, not in file locals.
 EAB_VTABLE.BAR_KEY_TO_PAGE = {
     MainBar = 1,  Bar2 = 6,  Bar3 = 5,  Bar4 = 3,
     Bar5 = 4,     Bar6 = 13, Bar7 = 14, Bar8 = 15,
@@ -540,7 +540,7 @@ ns.LayoutPagingFrame = LayoutPagingFrame
 -- changes on a page swap, re-evaluate pressAndHoldAction for empowered /
 -- hold-release spells. IsPressHoldReleaseSpell and GetActionInfo exist in the
 -- restricted environment even though gone from _G (GetActionInfo as a
--- scrubbing wrapper, RestrictedEnvironment.lua). On ns: 200-local chunk cap.
+-- scrubbing wrapper, RestrictedEnvironment.lua). On ns, not a file local.
 --
 -- Writes pressAndHoldAction ONLY (like Blizzard's UpdatePressAndHoldAction),
 -- and only on a POSITIVE identity read: a slot whose identity is unreadable

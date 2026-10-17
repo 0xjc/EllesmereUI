@@ -48,8 +48,8 @@ ns.CombatQueue = EllesmereUI.NewCombatQueue(ns.TakeShell())
 -- value every charge event, but nothing engine-side touches alpha (same as
 -- the CDM twin). Memoized so only real changes write; fails open on SECRET
 -- values (combat) so the count shows rather than risk a tainted compare. Off
--- = one profile read + memo compare, zero machinery. (On ns: main chunk is at
--- the 200-local cap.)
+-- = one profile read + memo compare, zero machinery. (On ns, not a
+-- chunk local.)
 ns._EABZeroCountAlpha = function(fd, fs, v, action)
     local pdb = EAB.db and EAB.db.profile
     if not (pdb and pdb.hideZeroCount) then
@@ -150,7 +150,7 @@ local C_Timer_After = C_Timer.After
 
 -- External weak-keyed lookup for per-frame state (avoids writing custom
 -- properties onto Blizzard-owned frame tables, which causes taint).
--- Stored on ns to avoid consuming file-scope local slots (200 cap).
+-- Stored on ns, not in a file-scope local.
 ns._eabFD = setmetatable({}, { __mode = "k" })
 function ns.EFD(frame)
     local d = ns._eabFD[frame]
@@ -985,7 +985,7 @@ ns.ForceCooldownPaint = ForceCooldownPaint
 -- spellID nil means no suggestion, where RepaintAssistIcons falls the icon back
 -- to the slot's own texture, so the swipe follows it there. isActive is
 -- NeverSecret and the duration object carries the timing: no secret is read.
--- On ns, not a local: this file's main chunk is at the 200-local cap.
+-- On ns, not a local.
 ns.PaintAssistCooldown = function(btn, spellID)
     if not spellID then return ForceCooldownPaint(btn) end
     local cd = btn and btn.cooldown

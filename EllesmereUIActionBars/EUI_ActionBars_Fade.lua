@@ -51,7 +51,7 @@ end
 -- answer "is the hover mechanism wired"; VisWantsMouseover answers "is it gating now".
 -- _savedBarAlpha is load-bearing: ApplyMode parks mouseoverAlpha at 0 and stashes the real
 -- value there while a mouseover selection is stored, so the shown branch would paint 0.
--- On the vtable, not a chunk local (main chunk is at the 200-local cap).
+-- On the vtable, not a chunk local.
 function EAB_VTABLE.Hover.RestingAlpha(barKey, s)
     s = s or EAB_VTABLE.Hover.GetSettings(barKey)
     if not s then return 1, false end
@@ -67,8 +67,8 @@ end
 
 -- Fade ONE bar in, no broadcast. The fadeDir memo makes repeat calls while
 -- already fading/faded O(1) table reads, so a sweep across a bar's 12 buttons
--- costs 12 memo hits and one real fade. On the vtable, not a chunk local
--- (main chunk is at the 200-local cap).
+-- costs 12 memo hits and one real fade. On the vtable,
+-- not a chunk local.
 function EAB_VTABLE.Hover.FadeInOne(barKey, state)
     local s = EAB_VTABLE.Hover.GetSettings(barKey)
     if s and s.mouseoverEnabled and state and state.fadeDir ~= "in" then

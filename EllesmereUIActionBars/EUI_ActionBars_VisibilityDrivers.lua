@@ -39,7 +39,7 @@ I.isApplyingAllSetters[#I.isApplyingAllSetters + 1] = function(v) _isApplyingAll
 -------------------------------------------------------------------------------
 -- Multi-select visibility compiler: thin delegate to the shared secure driver
 -- compiler in EllesmereUI_Visibility.lua (one grammar for Action Bars and
--- Unit Frames). EAB table fields, not locals -- 200-local cap.
+-- Unit Frames). EAB table fields, not locals.
 function EAB.BuildVisModeConjuncts(vm)
     return EllesmereUI.BuildVisModeConjuncts(vm)
 end
@@ -50,7 +50,7 @@ end
 
 -- Edges this addon watches, for the shared Any tail builder: the target/enemy axes may
 -- compile to live macro tokens because the soft-target machinery (PLAYER_SOFT_* events
--- + the 0.1s poll) rebuilds the driver when they drift. EAB field: 200-local cap.
+-- + the 0.1s poll) rebuilds the driver when they drift. EAB field, not a local.
 EAB.VIS_EDGES = { softTarget = true }
 
 local function BuildVisibilityString(info, s, visOverride)
@@ -366,7 +366,7 @@ end
 -- flipped, so a transition test would never fire again and the bar would stay
 -- buttonless until the next reload. Returns true when anything was built. The
 -- CALLER owns the binding rebuild: one caller is UpdateKeybinds itself. On ns:
--- file at the 200-local cap.
+-- not a file local.
 ns._eabBuildSkippedBars = function()
     if not next(ns._eabBarNoButtons) or InCombatLockdown() then return false end
     local built = false
