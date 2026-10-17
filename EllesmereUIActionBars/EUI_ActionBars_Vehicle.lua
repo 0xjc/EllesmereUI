@@ -37,7 +37,7 @@ do
         vehVis:RegisterEvent("UNIT_ENTERED_VEHICLE")
         vehVis:RegisterEvent("UNIT_EXITED_VEHICLE")
         vehVis:RegisterEvent("PLAYER_ENTERING_WORLD")
-        vehVis:RegisterEvent("PLAYER_REGEN_ENABLED")
+        vehVis:RegisterEvent("PLAYER_REGEN_ENABLED") -- guardrails-allow: combat-deferral until 2027-01-31 by JuJu: moved verbatim from EllesmereUIActionBars.lua
         vehVis:SetScript("OnEvent", function(self, event, unit)
             -- Only the UNIT_ events carry a unit; PLAYER_ENTERING_WORLD's first
             -- arg is isInitialLogin, so testing it as a unit skipped the whole
