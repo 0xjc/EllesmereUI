@@ -885,7 +885,7 @@ local function SkinCharacterSheet()
         local modelScene = GetFFD(frame).modelScene or (stock and _G.CharacterModelScene)
         if modelScene and not GetFFD(frame).durabilityModelLabel then
             local durOverlay = CreateFrame("Frame", nil, stock and _G.PaperDollFrame or frame)
-            durOverlay:SetFrameLevel(modelScene:GetFrameLevel() + 10)
+            durOverlay:SetFrameLevel(stock and (modelScene:GetFrameLevel() + 10) or 20)
             durOverlay:EnableMouse(false)
             GetFFD(frame).durabilityOverlay = durOverlay
 
@@ -3663,7 +3663,7 @@ local function SkinCharacterSheet()
         textOverlayFrame = CreateFrame("Frame", "EUI_CharSheet_TextOverlay", frame)
         local insetLevel = CharacterFrameInset and CharacterFrameInset:GetFrameLevel() or 0
         local modelLevel = GetFFD(frame).modelScene and GetFFD(frame).modelScene:GetFrameLevel() or 0
-        textOverlayFrame:SetFrameLevel(math.max(insetLevel, modelLevel) + 10)
+        textOverlayFrame:SetFrameLevel(math.max(insetLevel, modelLevel) + 10) -- Higher than model without hardcoded value
     end
     textOverlayFrame:EnableMouse(false)
     textOverlayFrame:Show()
