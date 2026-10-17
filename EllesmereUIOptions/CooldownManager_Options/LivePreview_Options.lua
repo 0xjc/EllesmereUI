@@ -657,14 +657,6 @@ local function BuildCDMLivePreview(parent, yOff)
                 return
             end
             EllesmereUI.HideWidgetTooltip()
-            -- Override editing sessions: per-spell settings and spell
-            -- placement are never part of the override system -- refuse
-            -- the interaction with an explanatory tooltip.
-            if EllesmereUI.SpecOverrides_EditSessionActive() then
-                EllesmereUI.ShowWidgetTooltip(self,
-                    "Per-spell settings are not part of the override system.")
-                return
-            end
             local bd = SelectedCDMBar()
             if not bd then return end
             local isDefaultBuffs = (bd.key == "buffs")
@@ -1044,12 +1036,6 @@ local function BuildCDMLivePreview(parent, yOff)
 
         slot:SetScript("OnMouseDown", function(self, button)
             if button ~= "LeftButton" then return end
-            -- Override editing sessions: spell placement never overrides.
-            if EllesmereUI.SpecOverrides_EditSessionActive() then
-                EllesmereUI.ShowWidgetTooltip(self,
-                    "Per-spell settings are not part of the override system.")
-                return
-            end
             -- Buff-family drag-reorder: extra/custom buff bars reorder via
             -- assignedSpells (1:1 preview), the default buffs bar via its
             -- dedicated buffDisplayOrder (stable cooldownID-keyed, reconciled
@@ -1903,6 +1889,10 @@ local function BuildCDMLivePreview(parent, yOff)
             self._reorderHintText = rh
         end
         local function ShowReorderHint(text)
+            -- Override editing sessions: the per-icon menu is Remove Spell only.
+            if EllesmereUI.SpecOverrides_EditSessionActive() then
+                text = "Drag to Reorder. Click to remove spells. Per-spell settings are not part of the override system."
+            end
             local rh = self._reorderHintText
             rh:SetText(EllesmereUI.L(text))
             rh:ClearAllPoints()
@@ -1921,7 +1911,7 @@ local function BuildCDMLivePreview(parent, yOff)
             end
             if self._hiddenHeader then self._hiddenHeader:Hide() end
             if self._focusKickInfoText then self._focusKickInfoText:Hide() end
-            ShowReorderHint("Drag to Reorder. Click to override display settings and add custom effects per icon")
+            ShowReorderHint("Drag to Reorder. Click to override display settings and add custom effects per icon.")
         elseif isFocusKick then
             if self._buffInfoText then self._buffInfoText:Hide() end
             if self._buffInfoClick then self._buffInfoClick:Hide() end

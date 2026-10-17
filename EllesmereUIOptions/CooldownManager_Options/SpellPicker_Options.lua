@@ -358,7 +358,8 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
     if removeOnly then
         -- Per-icon settings: CD/utility bars get the full menu; buff-family bars get a
         -- buff-specific subset. custom_buff (Auras) bars excluded here (separate system).
-        if slotIndex and not isCustomBuff then
+        -- Override editing sessions: settings would leak outside the override, so Remove only.
+        if slotIndex and not isCustomBuff and not EllesmereUI.SpecOverrides_EditSessionActive() then
             local sd = ns.GetBarSpellData(barKey)
             -- Buff bars: the preview slot's own _previewSpellID is authoritative. The
             -- default buffs bar's preview maps to a MIXED list (Blizzard buffs +
