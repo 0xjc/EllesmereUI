@@ -70,22 +70,23 @@ ns._PV_DEBUFF_ICONS = { 135813, 136139, 132090, 136197, 135849, 136188 }
 ns._pvActiveAuras = {}
 
 -- What the EUI_RaidFrames_Preview*.lua files share: each file adds the names
--- later files re-import. previewActiveSetters and the lists beside it: every file
+-- later files re-import. previewActiveSetters and the list beside it: every file
 -- that reads one of these keeps its own copy and adds a setter here; each
 -- place that assigns it writes through the Set<Name> function built below,
 -- which runs them all.
 -- broken: true while an EUI_RaidFrames_Preview*.lua file loads; a file that
 -- fails leaves it set, and the files behind it return at their first lines.
 ns._previewInternals = {
-    previewActiveSetters = {}, previewFramesSetters = {}, classTokensSetters = {},
-    previewContainerSetters = {},
+    -- Created here: files that load ahead of CreatePreviewFrame and
+    -- BuildPreviewRoles read them too.
+    previewFrames = {},
+    previewClassTokens = {}, -- [1..20] class token per slot
+    previewActiveSetters = {}, previewContainerSetters = {},
     broken = false,
 }
 -- Set<Name> hands a new value to every copy registered in <name>Setters.
 for setter, listName in pairs({
-    SetPreviewActive = "previewActiveSetters", SetPreviewFrames = "previewFramesSetters",
-    SetPreviewClassTokens = "classTokensSetters",
-    SetPreviewContainer = "previewContainerSetters",
+    SetPreviewActive = "previewActiveSetters", SetPreviewContainer = "previewContainerSetters",
 }) do
     local list = ns._previewInternals[listName]
     ns._previewInternals[setter] = function(v)

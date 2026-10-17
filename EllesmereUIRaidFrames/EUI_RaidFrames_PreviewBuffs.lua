@@ -20,7 +20,8 @@ local C_Timer               = C_Timer
 local RF = ns._internals -- the table of the Raid Frames chain
 local PixelSnap = RF.PixelSnap
 
-local PvActive, PvAuraReanchorFrame, PvFrames = I.PvActive, I.PvAuraReanchorFrame, I.PvFrames
+local previewFrames, PvActive = I.previewFrames, I.PvActive
+local PvAuraReanchorFrame, PvFrames = I.PvAuraReanchorFrame, I.PvFrames
 local PvSettings, StartPvAuraTicker = I.PvSettings, I.StartPvAuraTicker
 local StopPvAuraTicker = I.StopPvAuraTicker
 
@@ -31,8 +32,6 @@ local PP
 RF.PPSetters[#RF.PPSetters + 1] = function(v) PP = v end
 local previewActive = false
 I.previewActiveSetters[#I.previewActiveSetters + 1] = function(v) previewActive = v end
-local previewFrames
-I.previewFramesSetters[#I.previewFramesSetters + 1] = function(v) previewFrames = v end
 
 -------------------------------------------------------------------------------
 --  Preview Buff Ticker (test mode only: cycles configured buffs across frames)

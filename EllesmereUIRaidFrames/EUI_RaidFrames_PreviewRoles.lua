@@ -19,21 +19,17 @@ local UnitClass             = UnitClass
 
 local RF = ns._internals -- the table of the Raid Frames chain
 
-local SetPreviewClassTokens = I.SetPreviewClassTokens
+local previewClassTokens = I.previewClassTokens
 
 -- Shared state: one copy per file. A write goes through the Set<Name>
 -- function of the table that holds its list, which hands the value to
 -- every copy: db, PP and containerFrame are the Raid Frames chain's.
 local db
 RF.dbSetters[#RF.dbSetters + 1] = function(v) db = v end
-local previewClassTokens
-I.classTokensSetters[#I.classTokensSetters + 1] = function(v) previewClassTokens = v end
 
 -- Preview role assignments: 2 tanks, 4 healers, 14 DPS.
 -- Player (slot 1) uses their real role and counts toward the total.
 local previewRoles = {}  -- [1..20] = "TANK"/"HEALER"/"DAMAGER"
-
-SetPreviewClassTokens({})  -- [1..20] class token per slot
 
 local function BuildPreviewRoles()
     -- Clear numeric role assignments but preserve random state (underscore keys)
@@ -267,6 +263,5 @@ local function BuildPreviewRoles()
     end
 end
 
-I.BuildPreviewRoles, I.previewClassTokens = BuildPreviewRoles, previewClassTokens
-I.previewRoles = previewRoles
+I.BuildPreviewRoles, I.previewRoles = BuildPreviewRoles, previewRoles
 I.broken = false

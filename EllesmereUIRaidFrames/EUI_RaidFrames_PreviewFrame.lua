@@ -19,7 +19,7 @@ local RF = ns._internals -- the table of the Raid Frames chain
 local ApplyFont, defaults, IsPowerBarEnabled = RF.ApplyFont, RF.defaults, RF.IsPowerBarEnabled
 local PixelSnap, ResolveHealthTexture = RF.PixelSnap, RF.ResolveHealthTexture
 
-local PvActive, PvFrames, SetPreviewFrames = I.PvActive, I.PvFrames, I.SetPreviewFrames
+local previewFrames, PvActive, PvFrames = I.previewFrames, I.PvActive, I.PvFrames
 
 -- Shared state: one copy per file. A write goes through the Set<Name>
 -- function of the table that holds its list, which hands the value to
@@ -30,13 +30,10 @@ local PP
 RF.PPSetters[#RF.PPSetters + 1] = function(v) PP = v end
 local containerFrame
 RF.containerFrameSetters[#RF.containerFrameSetters + 1] = function(v) containerFrame = v end
-local previewFrames
-I.previewFramesSetters[#I.previewFramesSetters + 1] = function(v) previewFrames = v end
 
 -- Preview frames: standalone frames NOT managed by SecureGroupHeaderTemplate.
 -- Header-managed buttons can't be shown without real units, so we create
 -- our own lightweight frames that look identical for the options preview.
-SetPreviewFrames({})
 local previewGroupLabels = {}  -- [1..4] FontStrings showing group numbers
 local previewContainer = nil   -- standalone anchor frame for preview (doesn't move with containerFrame)
 I.previewContainerSetters[#I.previewContainerSetters + 1] = function(v) previewContainer = v end
@@ -664,5 +661,5 @@ local function GetOrCreatePreviewFrame(index)
 end
 
 I.CreatePreviewFrame, I.GetOrCreatePreviewFrame = CreatePreviewFrame, GetOrCreatePreviewFrame
-I.previewFrames, I.previewGroupLabels = previewFrames, previewGroupLabels
+I.previewGroupLabels = previewGroupLabels
 I.broken = false
