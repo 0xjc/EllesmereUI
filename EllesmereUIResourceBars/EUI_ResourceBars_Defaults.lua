@@ -116,10 +116,9 @@ local DEFAULTS = {
             borderSize  = 1,
             borderR     = 0, borderG = 0, borderB = 0, borderA = 1,
             borderTexture = "solid",
-            -- Extend Top / Extend Bottom (Border Options cog, textured styles
-            -- only): UI units the border reaches past the bar's top / bottom
-            -- edge on screen. 0 = off (ns.ERB_BorderExtents).
-            borderExtendTop = 0, borderExtendBottom = 0,
+            -- Border extensions (textured styles only): UI units past each
+            -- screen edge. 0 = off (ns.ERB_BorderExtents).
+            borderExtendTop = 0, borderExtendBottom = 0, borderExtendLeft = 0, borderExtendRight = 0,
             -- Bottom Separator (Border Options cog, textured styles only): edgeSep
             -- off = None; on = the companion strip along the bottom edge, art
             -- edgeSepArt ("match" = the bar's own style, else a border key),
@@ -215,7 +214,7 @@ local DEFAULTS = {
             borderSize  = 1,
             borderR     = 0, borderG = 0, borderB = 0, borderA = 1,
             borderTexture = "solid",
-            borderExtendTop = 0, borderExtendBottom = 0,  -- full-bar border only, never per-pip
+            borderExtendTop = 0, borderExtendBottom = 0, borderExtendLeft = 0, borderExtendRight = 0,  -- full-bar border only, never per-pip
             -- Separators (Border Options cog): edgeSep = the dropdown's on/off (None
             -- = false), edgeSepH = the bottom-edge line, edgeSepV = one line per gap
             -- between pips and runes; edgeSepArt / edgeSepY as on the power bar.
@@ -323,7 +322,7 @@ local DEFAULTS = {
             borderSize    = 1,
             borderR       = 0, borderG = 0, borderB = 0, borderA = 1,
             borderTexture = "solid",
-            borderExtendTop = 0, borderExtendBottom = 0,  -- border host is bar + icon
+            borderExtendTop = 0, borderExtendBottom = 0, borderExtendLeft = 0, borderExtendRight = 0,  -- border host is bar + icon
             edgeSep = false, edgeSepY = 0, edgeSepArt = "match",  -- Bottom Separator (Border Options cog)
             iconDividerArt = false,  -- Border Art Divider (Spell Icon Settings cog)
             bgR           = 0, bgG = 0, bgB = 0, bgA = 0.7,
@@ -376,7 +375,7 @@ local DEFAULTS = {
             borderSize    = 1,
             borderR       = 0, borderG = 0, borderB = 0, borderA = 1,
             borderTexture = "solid",
-            borderExtendTop = 0, borderExtendBottom = 0,
+            borderExtendTop = 0, borderExtendBottom = 0, borderExtendLeft = 0, borderExtendRight = 0,
             edgeSep = false, edgeSepY = 0, edgeSepArt = "match",  -- Bottom Separator (Border Options cog)
             bgR           = 0, bgG = 0, bgB = 0, bgA = 0.7,
             frameStrata   = "MEDIUM",
