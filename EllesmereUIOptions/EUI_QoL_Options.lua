@@ -543,7 +543,8 @@ initFrame:SetScript("OnEvent", function(self)
         -- AH Current Expansion Only | Hide Talking Head. Not offered on WoW
         -- Forever: the row is not built there and neither runtime block exists.
         if not EllesmereUI.IS_FOREVER then
-        _, h = W:DualRow(parent, y,
+        local talkingHeadRow
+        talkingHeadRow, h = W:DualRow(parent, y,
             { type="toggle", text="AH Current Expansion Only",
               tooltip="Automatically enables the 'Current Expansion Only' filter whenever you open the Auction House.",
               getValue=function()
@@ -561,8 +562,31 @@ initFrame:SetScript("OnEvent", function(self)
               setValue=function(v)
                   if not EllesmereUIDB then EllesmereUIDB = {} end
                   EllesmereUIDB.hideTalkingHead = v
+                  EllesmereUI:RefreshPage()
               end }
         );  y = y - h
+
+        -- Cog on Hide Talking Head (right region)
+        if not EllesmereUI._prebuilding then
+            local function talkingHeadOff()
+                return not (EllesmereUIDB and EllesmereUIDB.hideTalkingHead)
+            end
+
+            EllesmereUI.BuildInlineCog(talkingHeadRow._rightRegion, {
+                title = "Talking Head Settings",
+                rows = {
+                    { type="toggle", label="Mute Talking Head",
+                      get=function()
+                          return EllesmereUIDB and EllesmereUIDB.muteTalkingHead == true
+                      end,
+                      set=function(v)
+                          if not EllesmereUIDB then EllesmereUIDB = {} end
+                          EllesmereUIDB.muteTalkingHead = v
+                      end },
+                },
+                gap = 9, disabled = talkingHeadOff, disabledTooltip = "Hide Talking Head",
+            })
+        end
         end -- not IS_FOREVER
 
         -- Row 5: Show Coordinates on Map (left, with cog) | Suppress Lua Errors
