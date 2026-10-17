@@ -510,7 +510,7 @@ L["Show Health Percent"] = "생명력 퍼센트 표시"
 L["Show Icon"] = "아이콘 표시"
 L["Show in Combat"] = "전투 중 보이기"
 L["Show Item Level"] = "아이템 레벨 표시"
-L["Show Spark"] = "반짝이 표시"
+L["Show Spark"] = "스파크 표시"
 L["Spell ID on Tooltip"] = "툴팁 주문 ID"
 L["Colored Values"] = "값 색상별 표시"
 L["Multicolored"] = "색상별"
@@ -8549,6 +8549,9 @@ L["Shows when you can move and when you must stand still. GO marks the end of ev
 L["Text Cue"] = "텍스트 신호"
 L["The Ranged row's time reads Move (seconds left to move), then Still, then Go. Needs Show Time."] = "원거리 공격 바의 시간 표시에 Move(이동 가능 시간), Still(정지), Go(행동 가능) 텍스트를 순서대로 표시합니다. '시간 표시' 설정이 켜져 있어야 합니다."
 L["Position with Unlock Mode"] = "잠금 해제 모드로 위치 조절"
+L["Spark"] = "스파크"
+L["Overhang"] = "돌출 길이"
+L["How far the spark reaches past the top and bottom of the bar."] = "스파크가 바의 위아래로 돌출되는 길이입니다."
 
 -- 3. WoW 포에버 전용 - 캠프 및 강화 효과 알림 (Camp & Reminders)
 L["Camp"] = "캠프"
