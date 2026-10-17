@@ -536,6 +536,43 @@ function EBS._RingIndicator(btn)
     end
 end
 
+-- WoW Forever's minimap header: its bar art (EBS._ApplyBlizzMinimapChrome)
+-- and its own button arts, each plate and glyph in one atlas.
+EBS.FV_HEADER_ATLAS = "ui-hud-minimap-header-button"
+EBS.FV_HEADER_BUTTONS = {
+    tracking = { "ui-hud-minimap-tracking-button", 23, 23 },
+    calendar = { "ui-hud-minimap-calendar-button", 23, 23 },
+    mail     = { "ui-hud-minimap-mail-icon", 32, 24 },
+}
+-- An indicator (tracking, calendar, mail) in its WoW Forever header art at
+-- the header's scale `s` (map size / 198): the art fills the button in place
+-- of the icon's own (every hover state reads the same atlas, so the swaps go
+-- quiet) and an additive copy lights it on mouseover at Blizzard's 0.1, as
+-- the stock header buttons light. Re-applied per pass: the indicator pass
+-- sizes the button for the EUI row and the day rollover repaints the
+-- calendar's icon before it. Our own buttons only.
+function EBS._FvHeaderIndicator(btn, key, s)
+    local art = btn and EBS.FV_HEADER_BUTTONS[key]
+    if not art then return end
+    local atlas = art[1]
+    btn:SetSize(art[2] * s, art[3] * s)
+    if btn._bg then btn._bg:Hide() end
+    btn._upAtlas, btn._overAtlas, btn._downAtlas = atlas, atlas, atlas
+    local icon = btn._icon
+    icon:ClearAllPoints()
+    icon:SetAllPoints(btn)
+    icon:SetAtlas(atlas)
+    local hl = btn._fvHeaderHL
+    if not hl then
+        hl = btn:CreateTexture(nil, "HIGHLIGHT")
+        hl:SetBlendMode("ADD")
+        hl:SetAllPoints(btn)
+        hl:SetAlpha(0.1)
+        btn._fvHeaderHL = hl
+    end
+    hl:SetAtlas(atlas)
+end
+
 local function LayoutIndicatorFrames(minimap, p, circleMode)
     local flvl = minimap:GetFrameLevel() + 10
     local mapAnchor = GetFFD(minimap).layoutFrame or minimap
@@ -631,13 +668,21 @@ local function LayoutIndicatorFrames(minimap, p, circleMode)
         -- stacks the mail under the tracking button too; Classic WoW UI puts
         -- it at the vanilla spot on the ring's upper right, below the flag,
         -- and dresses the row's indicators as the vanilla round buttons (a
-        -- corner-pinned mail renders bare). Corner mail and every hide toggle
+        -- corner-pinned mail renders bare). WoW Forever's bar takes its own
+        -- header buttons (EBS._FvHeaderIndicator) where its client puts them:
+        -- tracking centred 8.5 past the bar's left end, the calendar
+        -- overlapping its right end by 4, the mail icon under its left end
+        -- (a corner mail keeps that art). Corner mail and every hide toggle
         -- still apply.
         local classic = EBS._MinimapClassic()
         local cs = (p.mapSize or 140) / 140
+        local fvBar = blizzHdr._fvBar
+        local hs = (p.mapSize or 140) / 198
         if ci.tracking and not p.hideTrackingButton then
             if classic then
                 EBS._ClassicRingButton(ci.tracking, nil, ci.tracking._icon)
+            elseif fvBar then
+                EBS._FvHeaderIndicator(ci.tracking, "tracking", hs)
             elseif not ci.tracking._blizzRing then
                 -- The stock tracking button sits on a round plate (our own button, so the
                 -- texture lives on it directly).
@@ -647,7 +692,11 @@ local function LayoutIndicatorFrames(minimap, p, circleMode)
                 ci.tracking._blizzRing = ring
             end
             ci.tracking:ClearAllPoints()
-            ci.tracking:SetPoint("RIGHT", blizzHdr, "LEFT", -2, 0)
+            if fvBar then
+                ci.tracking:SetPoint("CENTER", blizzHdr, "LEFT", -8.5 * hs, 0)
+            else
+                ci.tracking:SetPoint("RIGHT", blizzHdr, "LEFT", -2, 0)
+            end
             ci.tracking:Show()
         elseif ci.tracking then
             ci.tracking:Hide()
@@ -655,10 +704,16 @@ local function LayoutIndicatorFrames(minimap, p, circleMode)
         if ci.calendar and not p.hideGameTime then
             -- Stock: the clock hangs from the bar's top-right corner.
             ci.calendar:ClearAllPoints()
-            ci.calendar:SetPoint("TOPLEFT", blizzHdr, "TOPRIGHT", 1, 0)
+            if fvBar then
+                EBS._FvHeaderIndicator(ci.calendar, "calendar", hs)
+                ci.calendar:SetPoint("TOPLEFT", blizzHdr, "TOPRIGHT", -4 * hs, 0)
+            else
+                ci.calendar:SetPoint("TOPLEFT", blizzHdr, "TOPRIGHT", 1, 0)
+            end
         end
-        local under = (ci.tracking and ci.tracking:IsShown()) and ci.tracking or nil
+        local under = (ci.tracking and ci.tracking:IsShown() and not fvBar) and ci.tracking or nil
         if ci.mail and ci.mail:IsShown() then
+            if fvBar then EBS._FvHeaderIndicator(ci.mail, "mail", hs) end
             if classic then
                 if mailCorner then
                     EBS._ClassicRingUndress(ci.mail, ci.mail._icon)
@@ -679,6 +734,9 @@ local function LayoutIndicatorFrames(minimap, p, circleMode)
                 -- that top-left, 6 lower than the vanilla spot so the difficulty
                 -- flag hanging under the banner's right end clears the ring.
                 ci.mail:SetPoint("TOPLEFT", minimap, "TOPRIGHT", -9 * cs, -43 * cs)
+            elseif fvBar then
+                ci.mail:SetPoint("TOPLEFT", blizzHdr, "BOTTOMLEFT", 0, 0)
+                under = ci.mail
             else
                 if under then
                     ci.mail:SetPoint("TOP", under, "BOTTOM", 0, 0)

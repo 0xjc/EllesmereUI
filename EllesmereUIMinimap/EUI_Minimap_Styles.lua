@@ -62,7 +62,11 @@ function EBS._PositionAddonCompartment(btn)
         if corner == "TOPRIGHT" then
             local cal = _customIndicators.calendar
             local hdr = GetFFD(Minimap).blizzHeader
-            if cal and cal:IsShown() then
+            if cal and cal:IsShown() and hdr and hdr._fvBar then
+                -- WoW Forever's header: centred under the calendar, 1 up.
+                btn:SetPoint("TOP", cal, "BOTTOM", nx, 1 + ny)
+                placed = true
+            elseif cal and cal:IsShown() then
                 btn:SetPoint("TOPLEFT", cal, "BOTTOMLEFT", nx, ny)
                 placed = true
             elseif hdr then
@@ -362,11 +366,11 @@ EBS._ApplyBlizzMinimapChrome = function(minimap, mapSize)
     local compass = _G.MinimapCompassTexture
     -- WoW Forever look only: plain Blizzard Style keeps its own geometry everywhere.
     local fv = EBS._MinimapForever() == true
-    local hw, hh, barY = nil, nil, 24
+    local hw, hh, rh = nil, nil, nil
     if fv then
-        local rw, rh = EBS._ForeverRingSize()
+        local rw
+        rw, rh = EBS._ForeverRingSize()
         hw, hh = rw * s / 2, rh * s / 2
-        barY = rh / 2 - 89
     end
     -- MinimapBackdrop is the Minimap's own child frame carrying the compass ring
     -- (and the landing page button, which this module positions itself).
@@ -406,21 +410,45 @@ EBS._ApplyBlizzMinimapChrome = function(minimap, mapSize)
     end
     -- Top bar: the stock 175x16 kit, bottom edge 24px above the map's top,
     -- centred 5px right of the map centre in the stock cluster; scaled, so
-    -- the offsets stay unscaled. Forever's taller ring grows the stock
-    -- container, which lifts the bar to (ring height / 2 - 89) above the map
-    -- (37.5 for the 253px ring), clear of the north chevron.
+    -- the offsets stay unscaled. WoW Forever's bar is its header button art
+    -- (152x23) over the map's centre: its taller ring grows the stock
+    -- container, which lifts the bar to (ring height / 2 - 92) above the map
+    -- (34.5 for the 253px ring), clear of the north chevron. The zone text
+    -- rides that bar's slot, 8 in from each end (the clock, Blizzard's tenant
+    -- of its right end, stays the module's own element); a client without the
+    -- art keeps the stock kit 3 higher.
     local header = d.blizzHeader
     if not header then
         header = CreateFrame("Frame", nil, minimap)
-        header:SetSize(175, 16)
         header:EnableMouse(false)
-        if NineSliceUtil and NineSliceUtil.ApplyLayoutByName then
-            pcall(NineSliceUtil.ApplyLayoutByName, header, "UniqueCornersLayout", "ui-hud-minimap-button")
+        local bar = fv and C_Texture.GetAtlasInfo(EBS.FV_HEADER_ATLAS)
+        if bar then
+            local tex = header:CreateTexture(nil, "BACKGROUND")
+            tex:SetAllPoints(header)
+            tex:SetAtlas(EBS.FV_HEADER_ATLAS)
+            header:SetSize(bar.width, bar.height)
+            local slot = CreateFrame("Frame", nil, header)
+            slot:EnableMouse(false)
+            slot:SetPoint("TOPLEFT", header, "TOPLEFT", 8, -1)
+            slot:SetPoint("BOTTOMRIGHT", header, "BOTTOMRIGHT", -8, -1)
+            header._zoneSlot = slot
+            header._fvBar = true
+        else
+            header:SetSize(175, 16)
+            if NineSliceUtil and NineSliceUtil.ApplyLayoutByName then
+                pcall(NineSliceUtil.ApplyLayoutByName, header, "UniqueCornersLayout", "ui-hud-minimap-button")
+            end
         end
         d.blizzHeader = header
     end
+    local barY = 24
+    if header._fvBar then
+        barY = rh / 2 - 92
+    elseif fv then
+        barY = rh / 2 - 89
+    end
     header:ClearAllPoints()
-    header:SetPoint("BOTTOM", minimap, "TOP", 5, barY)
+    header:SetPoint("BOTTOM", minimap, "TOP", header._fvBar and 0 or 5, barY)
     header:SetScale(s)
     header:SetFrameLevel(minimap:GetFrameLevel() + 4)
     header:Show()
@@ -581,9 +609,9 @@ EllesmereUI._ModuleNS[ADDON_NAME].MinimapQueueEyeSpot = EBS._QueueEyeSpot
 
 -- WoW Forever look: the day/night orb Blizzard hangs on the ring's upper
 -- right (its own sits in the cluster this module hides). Stock geometry: a
--- 42px bronze rim over a 33px sun or moon disc, centred 53 right of and 89
--- above the 198px map's centre; never drawn below its native size, while the
--- offset still scales with the map. Above the compass so the rotating chevron
+-- 42px bronze rim over a 33px sun or moon disc, centred 55 right of and 86
+-- above the 198px map's centre; always drawn at its native size, while the
+-- offset scales with the map. Above the compass so the rotating chevron
 -- passes under it, below the ping blocker, mouse-transparent like the stock
 -- one; a child of the map, so it hides with it. Built once under the latch;
 -- the disc repaints only on DIEL_CYCLE_CHANGED.
@@ -610,10 +638,8 @@ EBS._ApplyForeverDiel = function(minimap, mapSize)
         d.foreverDiel = orb
     end
     local s = mapSize / 198
-    local k = math.max(1, s)
-    orb:SetScale(k)
     orb:ClearAllPoints()
-    orb:SetPoint("CENTER", minimap, "CENTER", 53 * s / k, 89 * s / k)
+    orb:SetPoint("CENTER", minimap, "CENTER", 55 * s, 86 * s)
     orb:SetFrameLevel(minimap:GetFrameLevel() + 5)
     orb:Show()
 end

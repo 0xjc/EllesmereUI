@@ -832,13 +832,21 @@ local function ApplyMinimap()
         end
         if blizz and GetFFD(minimap).blizzHeader then
             -- Stock styles: the zone text rides the top bar -- the banner's text
-            -- slot under Classic WoW UI (offsets still apply).
+            -- slot under Classic WoW UI, held to the slot by both ends on WoW
+            -- Forever's bar (a longer name is cut short with an ellipsis), as
+            -- that client's own zone text is (offsets still apply).
             local hdr = GetFFD(minimap).blizzHeader
             locationBg:SetBackdropColor(0, 0, 0, 0)
             locationBg:ClearAllPoints()
             locationBg:SetPoint("CENTER", hdr._zoneSlot or hdr, "CENTER", lxOff, lyOff)
             locationFrame:ClearAllPoints()
-            locationFrame:SetPoint("CENTER", locationBg, "CENTER", 0, 0)
+            if hdr._fvBar then
+                locationFrame:SetPoint("LEFT", hdr._zoneSlot, "LEFT", lxOff, lyOff)
+                locationFrame:SetPoint("RIGHT", hdr._zoneSlot, "RIGHT", lxOff, lyOff)
+                locationFrame:SetWordWrap(false)
+            else
+                locationFrame:SetPoint("CENTER", locationBg, "CENTER", 0, 0)
+            end
         elseif EBS._fvSquare and EBS._fvTitleOn then
             -- Either square: the zone text rides the frame's title bar, held
             -- to the bar's band by both ends (a longer name is cut short with
@@ -1199,6 +1207,33 @@ local function ApplyMinimap()
 
     ApplyOmniumFolio()
     EBS._ApplyAddonCompartment()
+    EBS._ApplyExternalEventButton()
+end
+
+-- Blizzard's external event button (a link to an event outside the game,
+-- shown and hidden by Blizzard while one runs; a child of MinimapBackdrop,
+-- WoW Forever only) stays on the map with the backdrop. Blizzard Style and
+-- the WoW Forever look give it the stock spot on the ring (its centre 101.5
+-- left of and 0.5 above the map centre at the stock 198px map, scaled with
+-- the map); the other looks the map's top-left corner at the folio's scale.
+-- Above the ping blocker so it takes the mouse. Method calls on Blizzard's
+-- plain button only, every apply pass (Blizzard anchors it once, at load).
+function EBS._ApplyExternalEventButton()
+    local backdrop = _G.MinimapBackdrop
+    local btn = backdrop and backdrop.ExternalEventURLButton
+    if not (btn and Minimap) then return end
+    btn:ClearAllPoints()
+    if EBS._MinimapBlizz() and not EBS._MinimapClassic() then
+        btn:SetScale(1)
+        local s = (Minimap:GetWidth() or 198) / 198
+        btn:SetPoint("CENTER", Minimap, "CENTER", -101.5 * s, 0.5 * s)
+    else
+        -- Forever Square steps it in past the heavy band, as the texts inside the map.
+        local x, y = EBS._FvInsideXY("top", 2, -2)
+        btn:SetScale(0.75)
+        btn:SetPoint("TOPLEFT", GetFFD(Minimap).layoutFrame or Minimap, "TOPLEFT", x, y)
+    end
+    btn:SetFrameLevel(Minimap:GetFrameLevel() + 11)
 end
 
 I.SetApplyMinimap(ApplyMinimap)
