@@ -61,7 +61,7 @@ ns._ShowSizePreview = function(tier)
         HidePreview()  -- cleans up real-mode preview frames
     end
     if ns._partyPvActive then
-        HidePartyPreview()
+        ns.HidePartyPreview()
     end
     -- Hide real raid + party frames during size preview via alpha so a combat
     -- start can re-show them (Hide/Show are protected and cannot be undone in
