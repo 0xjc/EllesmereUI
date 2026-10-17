@@ -272,16 +272,11 @@ local function HideBlizzardBars()
     --
     -- state-page is the RESOLVED page (7-14 in a form, vehicle, override or
     -- skyriding state), not the manual page, so cycling off it can walk out
-    -- of the 1-6 range. Only trust it inside the manual range; otherwise ask
-    -- Blizzard for the page the cycle actually moves, which is what
-    -- ChangeActionBarPage writes.
+    -- of the 1-6 range. Ask Blizzard for the page the cycle actually moves,
+    -- which is what ChangeActionBarPage writes.
     local function CurrentManualPage()
         local maxPages = NUM_ACTIONBAR_PAGES or 6
-        local mainFrame = barFrames and barFrames["MainBar"]
-        local curPage = mainFrame and tonumber(mainFrame:GetAttribute("state-page"))
-        if not curPage or curPage < 1 or curPage > maxPages then
-            curPage = EAB_VTABLE.GetActionBarPage() or 1
-        end
+        local curPage = EAB_VTABLE.GetActionBarPage() or 1
         return curPage, maxPages
     end
     -- Keep the non-secure legacy functions consistent with the secure wheel
