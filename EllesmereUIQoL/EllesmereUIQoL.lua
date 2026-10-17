@@ -1921,6 +1921,19 @@ qolFrame:SetScript("OnEvent", function(self)
             hooksecurefunc(thf, "PlayCurrent", function(self)
                 if EllesmereUIDB and EllesmereUIDB.hideTalkingHead then
                     self:Hide()
+                    -- Hiding the frame leaves the voice-over playing; PlayCurrent
+                    -- keeps its sound handle in self.voHandle.
+                    if EllesmereUIDB.muteTalkingHead and self.voHandle then
+                        StopSound(self.voHandle)
+                    end
+                end
+            end)
+            -- PlayCurrent is not the only way in: isPlaying stays set while the
+            -- frame is hidden (its close animation never finishes), so every
+            -- later UpdateShownState shows it again. Edit Mode still shows it.
+            thf:HookScript("OnShow", function(self)
+                if EllesmereUIDB and EllesmereUIDB.hideTalkingHead and not self.isInEditMode then
+                    self:Hide()
                 end
             end)
         end
