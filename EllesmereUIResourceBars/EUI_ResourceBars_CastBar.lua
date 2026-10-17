@@ -50,7 +50,7 @@ BuildCastBar = function()
     -- ResourceBars only claims Blizzard's player cast bar while its own
     -- replacement bar is active. The shared helper arbitrates ownership
     -- across EUI modules and releases control cleanly for other addons.
-    EllesmereUI.SetPlayerCastBarSuppressed("ResourceBars", cb.enabled)
+    ns.RB_SyncBlizzCastSuppress()
 
     if not cb.enabled then
         if castBarFrame then EllesmereUI.SetElementVisibility(castBarFrame, false) end
@@ -1614,14 +1614,25 @@ OnCastStop = function()
     ns.ShowIdleCastBar()
 end
 
+-- Blizzard's player cast bar is ours to hide while our cast bar is on, except
+-- while ours stands down for the controller under WoW Forever's Gamepad
+-- interface style: from build 70425 that style draws the cast on Blizzard's
+-- player bar itself.
+function ns.RB_SyncBlizzCastSuppress()
+    local cb = ERB.db and ERB.db.profile and ERB.db.profile.castBar
+    local on = cb and cb.enabled and not (ns._erbCastPadHidden and EllesmereUI.PadGamepadUI())
+    EllesmereUI.SetPlayerCastBarSuppressed("ResourceBars", on and true or false)
+end
+
 -- Hide While Using Gamepad (Global Settings > Gamepad): Blizzard's gamepad UI
 -- draws its own player cast bar, so this one stands down while a controller is
 -- connected. A runtime flag (ns._erbCastPadHidden) gates the cast starts and
 -- the idle pass the way `enabled` does; the saved `enabled` is never written,
--- Blizzard's bar stays suppressed and the frame keeps its layout. The pad
--- edges are watched only while the option and the bar are both on. padOn is
--- the watcher's verdict; ApplyAll and the options page pass nothing and it is
--- read live. On ns.
+-- Blizzard's bar stays suppressed (handed back under WoW Forever's Gamepad
+-- interface style, ns.RB_SyncBlizzCastSuppress) and the frame keeps its
+-- layout. The pad edges are watched only while the option and the bar are
+-- both on. padOn is the watcher's verdict; ApplyAll and the options page pass
+-- nothing and it is read live. On ns.
 function ns.RB_ApplyGamepadCastbar(padOn)
     local cb = ERB.db and ERB.db.profile and ERB.db.profile.castBar
     local want = (cb and cb.enabled and cb.gamepadHide == true) and true or false
@@ -1640,6 +1651,7 @@ function ns.RB_ApplyGamepadCastbar(padOn)
     end
     if hide == (ns._erbCastPadHidden == true) then return end
     ns._erbCastPadHidden = hide
+    ns.RB_SyncBlizzCastSuppress()
     if not castBarFrame then return end
     if hide then
         -- Drop the live cast: the idle pass hides the bar and the cast tick

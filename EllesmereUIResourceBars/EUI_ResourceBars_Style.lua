@@ -328,6 +328,11 @@ end
 -- host hides and leaves the UI-scale re-place. Art, size and offsets are
 -- ns.ERB_SeparatorArt's, the colour the bar's border colour and alpha. Build
 -- paths only: nothing here runs per frame or per power tick.
+do
+-- The options page pool's table (EllesmereUI_PixelPerfect.lua makes it; the
+-- options addon fills it in place), read through this block local and never
+-- through the public slot, so a slot written later cannot reach the live bars.
+local POOL = EllesmereUI._Pool
 function ns.ERB_Separators(bar, c, hOn, level, slots, count, isVertical, isReversed)
     local host = bar._erbSep
     local gaps = (slots and count and count > 1) and (count - 1) or 0
@@ -339,7 +344,9 @@ function ns.ERB_Separators(bar, c, hOn, level, slots, count, isVertical, isRever
         return
     end
     if not host then
-        host = CreateFrame("Frame", nil, bar)
+        -- On an options preview (an options page pool host) the piece is
+        -- pooled with the preview; on a live bar this is CreateFrame.
+        host = POOL.CreateFrame("Frame", nil, bar)
         host:EnableMouse(false)
         bar._erbSep = host
     end
@@ -358,6 +365,7 @@ function ns.ERB_Separators(bar, c, hOn, level, slots, count, isVertical, isRever
     -- (no rebuild) when the pixel grid moves, only while it is.
     EllesmereUI.RegisterPxReapply(host, ns.ERB_SepPlace(host) and ns.ERB_SepPlace or nil)
 end
+end -- POOL block
 -- Places a separator host's pieces from its last build; also the UI-scale
 -- re-place. Returns true while a shown piece is sized from an exact Border Size.
 -- Horizontal line: the strip flipped so its line sits at its bottom, the strip
@@ -653,12 +661,16 @@ end
 -- `vertical` is the caller's target orientation (the rect's own may still be
 -- the previous one on the pass that flips it); nil reads it from the host.
 -- `k` is the frame scale (ERB_ClassicFrameK; nil = full size).
+do
+local POOL = EllesmereUI._Pool  -- read as in ns.ERB_Separators' block
 function ns.ERB_ApplyClassicBarChrome(host, rect, fw, fh, vertical, k)
     if not host then return end
     rect = rect or host
     local af = host._classicArt
     if not af then
-        af = CreateFrame("Frame", nil, host)
+        -- On an options preview (an options page pool host) the art frame is
+        -- pooled with the preview; on a live bar this is CreateFrame.
+        af = POOL.CreateFrame("Frame", nil, host)
         af:EnableMouse(false)
         host._classicArt = af
         local tex = af:CreateTexture(nil, "OVERLAY", nil, 2)
@@ -678,6 +690,7 @@ function ns.ERB_ApplyClassicBarChrome(host, rect, fw, fh, vertical, k)
     if issecretvalue and (issecretvalue(w) or issecretvalue(h)) then return end
     ns.ERB_SeatClassicChrome(af._tex, rect, vertical and w or h, vertical, k)
 end
+end -- POOL block
 -- The frame around a bar: one texture on the host under everything the bar
 -- draws, anchored round `rect` (the fill area; the host itself when nil)
 -- with the personal resource display's overhang for this atlas (2 left, 3

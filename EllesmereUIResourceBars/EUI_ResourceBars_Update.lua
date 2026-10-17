@@ -525,6 +525,16 @@ local _essenceLastCount = nil  -- last known whole-pip count
 I.essenceLastCountSetters[#I.essenceLastCountSetters + 1] = function(v) _essenceLastCount = v end
 local _essenceTickDur = 0      -- seconds per pip recharge
 I.essenceTickDurSetters[#I.essenceTickDurSetters + 1] = function(v) _essenceTickDur = v end
+-- Seconds per Essence pip from the regen rate; the last known duration (5 before
+-- any) while the rate reads secret, as it does in combat. On ns.
+function ns.EssenceTickDuration()
+    if not GetPowerRegenForPowerType then return _essenceTickDur > 0 and _essenceTickDur or 5 end
+    local regen = GetPowerRegenForPowerType(PT.ESSENCE)
+    if not regen or (issecretvalue and issecretvalue(regen)) then
+        return _essenceTickDur > 0 and _essenceTickDur or 5
+    end
+    return regen > 0 and (1 / regen) or 5
+end
 
 -- Cast handler for the Prot Ignore Pain bar's moving hash line: each cast
 -- refreshes the buff, so the line resets to the right edge and slides left.
@@ -597,24 +607,75 @@ local function CachedSpellName(spellID)
     end
     return nm or nil
 end
+-- Every item frame each viewer's pool has handed out, in plain arrays refreshed
+-- only after the pool acquired one (a released item is hidden with its cooldown
+-- data cleared, so a shown frame here is exactly a shown active item). The pools
+-- are Blizzard's secure pools: walking one builds an iterator closure and makes a
+-- secure call per step, too costly for a check that runs on every class-resource update.
+-- One table.
+local BVI = { items = { {}, {} }, seen = { {}, {} }, dirty = { true, true }, hooked = {} }
+function BVI.Items(vi)
+    local vf = _G[_euiBuffViewers[vi]]
+    local pool = vf and vf.itemFramePool
+    if not (pool and pool.EnumerateActive) then return nil end
+    local dirty = BVI.dirty
+    if BVI.hooked[vi] ~= pool then
+        BVI.hooked[vi] = pool
+        dirty[vi] = true
+        hooksecurefunc(pool, "Acquire", function() dirty[vi] = true end)
+    end
+    local list = BVI.items[vi]
+    if dirty[vi] then
+        dirty[vi] = false
+        local seen = BVI.seen[vi]
+        for frame in pool:EnumerateActive() do
+            if not seen[frame] then
+                seen[frame] = true
+                list[#list + 1] = frame
+            end
+        end
+    end
+    return list
+end
+-- True when any ID the viewer scan compares is secret: Blizzard writes secret
+-- values into an item's live cooldownInfo mid-fight (raid encounters), and
+-- comparing one from addon code is a hard error.
+function BVI.Secret(info)
+    if not issecretvalue then return false end
+    if issecretvalue(info.spellID) or issecretvalue(info.overrideSpellID) then return true end
+    local linked = info.linkedSpellIDs
+    if type(linked) == "table" then
+        for i = 1, #linked do
+            if issecretvalue(linked[i]) then return true end
+        end
+    end
+    return false
+end
 local function BuffActiveViaCooldownViewer(spellID, wantName)
     local gci = C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo
     if not gci then return false end
     for vi = 1, #_euiBuffViewers do
-        local vf = _G[_euiBuffViewers[vi]]
-        local pool = vf and vf.itemFramePool
-        if pool and pool.EnumerateActive then
-            for frame in pool:EnumerateActive() do
+        local list = BVI.Items(vi)
+        if list then
+            for li = 1, #list do
+                local frame = list[li]
                 if frame:IsShown() then    -- shown = the buff is currently up
                     -- The item's own cooldownInfo is the data provider's live
                     -- table (Blizzard updates its override and linked IDs in
                     -- place), so reading it allocates nothing; a
                     -- GetCooldownViewerCooldownInfo call builds a fresh copy per
-                    -- item. Only an item without one asks.
+                    -- item. An item without one, or whose live table holds a
+                    -- secret ID, reads that copy instead: its fields are never
+                    -- secret (no secret returns in the API docs), and a copy that
+                    -- somehow is still secret is skipped rather than compared.
                     local info = frame.cooldownInfo
-                    if not info then
+                    if not info or BVI.Secret(info) then
                         local cdID = frame.cooldownID
-                        info = cdID and gci(cdID)
+                        info = nil
+                        if type(cdID) == "number" and not (issecretvalue and issecretvalue(cdID)) then
+                            info = gci(cdID)
+                            if info and BVI.Secret(info) then info = nil end
+                        end
                     end
                     if info then
                         if info.spellID == spellID or info.overrideSpellID == spellID then return true end
@@ -623,8 +684,11 @@ local function BuffActiveViaCooldownViewer(spellID, wantName)
                                 if lid == spellID then return true end
                             end
                         end
-                        if wantName and info.spellID and CachedSpellName(info.spellID) == wantName then
-                            return true
+                        local sid = wantName and info.spellID
+                        if sid then
+                            local nm = _euiSpellNames[sid]
+                            if nm == nil then nm = CachedSpellName(sid) end
+                            if nm == wantName then return true end
                         end
                     end
                 end
@@ -1229,6 +1293,9 @@ local function UpdateSecondaryResource()
     -- shards. Essence is the other fractional resource and can't use this (UnitPower
     -- has no partial for it), hence its timer exemption below; any future fractional
     -- resource belongs HERE.
+    -- The tracked buff this early-out reads is handed to the fill pass below (same
+    -- entry, same call), so a redraw scans the buff viewers once, not twice.
+    local _ebEntry, _ebR, _ebG, _ebB, _ebA
     if cachedSecondary.type == "points" then
         local _evCur
         if cachedSecondary.frac then
@@ -1245,7 +1312,9 @@ local function UpdateSecondaryResource()
             local tb, ts = ns.SecTracks()
             local bw, sw = 0, 0
             if tb then
-                local _, _, _, _, i = ActiveBuffColor(ns.STK.entry)
+                local i
+                _ebEntry = ns.STK.entry
+                _ebR, _ebG, _ebB, _ebA, i = ActiveBuffColor(_ebEntry)
                 bw = i or 0
             end
             if ts then sw = ns.SpenderWinner() end
@@ -1339,7 +1408,12 @@ local function UpdateSecondaryResource()
     -- A tracked buff overrides the fill (buff wins over threshold). With "recolor
     -- text instead" on, the buff colors the count TEXT (done at the end of this
     -- function) and fill/pips stay at their base color.
-    local _bfr, _bfg, _bfb, _bfa = ActiveBuffColor(_buffEntry)
+    local _bfr, _bfg, _bfb, _bfa
+    if _ebEntry ~= nil and _ebEntry == _buffEntry then
+        _bfr, _bfg, _bfb, _bfa = _ebR, _ebG, _ebB, _ebA
+    else
+        _bfr, _bfg, _bfb, _bfa = ActiveBuffColor(_buffEntry)
+    end
     -- No tracked buff active: a castable spender supplies the override color instead.
     if not _bfr then _bfr, _bfg, _bfb, _bfa = ns.ActiveSpenderColor(_buffEntry) end
     local _buffActive = _bfr ~= nil
@@ -2380,21 +2454,11 @@ local function UpdateSecondaryResource()
             local maxE = UnitPowerMax("player", PT.ESSENCE) or maxPts
             if issecretvalue and issecretvalue(maxE) then maxE = maxPts end
 
-            -- Safely query essence regen rate (secret in combat)
-            local function EssenceTickDuration()
-                if not GetPowerRegenForPowerType then return _essenceTickDur > 0 and _essenceTickDur or 5 end
-                local regen = GetPowerRegenForPowerType(PT.ESSENCE)
-                if not regen or (issecretvalue and issecretvalue(regen)) then
-                    return _essenceTickDur > 0 and _essenceTickDur or 5
-                end
-                return regen > 0 and (1 / regen) or 5
-            end
-
             -- Detect pip gain/loss and reset the timer
             if _essenceLastCount == nil then _essenceLastCount = cur end
             if cur ~= _essenceLastCount then
                 if cur < maxE then
-                    _essenceTickDur = EssenceTickDuration()
+                    _essenceTickDur = ns.EssenceTickDuration()
                     _essenceNextTick = now + _essenceTickDur
                 else
                     _essenceNextTick = nil
@@ -2404,7 +2468,7 @@ local function UpdateSecondaryResource()
 
             -- If below max and no timer running, start one
             if cur < maxE and not _essenceNextTick then
-                _essenceTickDur = EssenceTickDuration()
+                _essenceTickDur = ns.EssenceTickDuration()
                 _essenceNextTick = now + _essenceTickDur
             end
 
