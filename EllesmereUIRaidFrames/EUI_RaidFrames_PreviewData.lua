@@ -13,10 +13,11 @@ I.broken = true
 
 local UnitName              = UnitName
 
-local ApplyFont, ApplyRoleIcon, defaults = I.ApplyFont, I.ApplyRoleIcon, I.defaults
-local DISPEL_ICON_ATLAS, GetDispelColor = I.DISPEL_ICON_ATLAS, I.GetDispelColor
-local IsPowerBarEnabled, LayoutTopNameBar = I.IsPowerBarEnabled, I.LayoutTopNameBar
-local PixelSnap, ResolveHealthTexture = I.PixelSnap, I.ResolveHealthTexture
+local RF = ns._internals -- the table of the Raid Frames chain
+local ApplyFont, ApplyRoleIcon, defaults = RF.ApplyFont, RF.ApplyRoleIcon, RF.defaults
+local DISPEL_ICON_ATLAS, GetDispelColor = RF.DISPEL_ICON_ATLAS, RF.GetDispelColor
+local IsPowerBarEnabled, LayoutTopNameBar = RF.IsPowerBarEnabled, RF.LayoutTopNameBar
+local PixelSnap, ResolveHealthTexture = RF.PixelSnap, RF.ResolveHealthTexture
 
 -- Shared state: one copy per file. A write goes through the Set<Name>
 -- function of ns._previewInternals, which hands the value to every copy.

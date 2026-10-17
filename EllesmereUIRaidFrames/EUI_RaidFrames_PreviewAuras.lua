@@ -18,7 +18,8 @@ local wipe         = wipe
 local type         = type
 local C_Timer               = C_Timer
 
-local PixelSnap = I.PixelSnap
+local RF = ns._internals -- the table of the Raid Frames chain
+local PixelSnap = RF.PixelSnap
 
 -- Shared state: one copy per file. A write goes through the Set<Name>
 -- function of ns._previewInternals, which hands the value to every copy.

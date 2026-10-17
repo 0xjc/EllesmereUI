@@ -19,9 +19,12 @@ local tostring     = tostring
 local InCombatLockdown      = InCombatLockdown
 local CreateFrame           = CreateFrame
 
-local ApplyFont, LayoutGroups, MOVER_GROUPS = I.ApplyFont, I.LayoutGroups, I.MOVER_GROUPS
-local PixelSnap, UpdateVisibility, PvFrames = I.PixelSnap, I.UpdateVisibility, I.PvFrames
-local PvSettings, StartPvAuraTicker = I.PvSettings, I.StartPvAuraTicker
+local RF = ns._internals -- the table of the Raid Frames chain
+local ApplyFont, LayoutGroups, MOVER_GROUPS = RF.ApplyFont, RF.LayoutGroups, RF.MOVER_GROUPS
+local PixelSnap = RF.PixelSnap
+local UpdateVisibility = ns.UpdateVisibility
+
+local PvFrames, PvSettings, StartPvAuraTicker = I.PvFrames, I.PvSettings, I.StartPvAuraTicker
 local StopPvAuraTicker, GetOrCreatePreviewFrame = I.StopPvAuraTicker, I.GetOrCreatePreviewFrame
 local previewFrames, previewGroupLabels = I.previewFrames, I.previewGroupLabels
 local BuildPreviewRoles, ApplyPreviewData = I.BuildPreviewRoles, I.ApplyPreviewData

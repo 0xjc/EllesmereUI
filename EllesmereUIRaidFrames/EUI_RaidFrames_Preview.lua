@@ -8,14 +8,9 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 -------------------------------------------------------------------------------
 local _, ns = ...
 
-local PixelSnap, UpdateVisibility = ns.PixelSnap, ns.UpdateVisibility
 local I = ns._internals
 -- EllesmereUIRaidFrames.lua or one of the EUI_RaidFrames_*.lua files failed to load.
 if not I or I.broken then return end
-local ApplyFont, ApplyRoleIcon, DISPEL_ICON_ATLAS = I.ApplyFont, I.ApplyRoleIcon, I.DISPEL_ICON_ATLAS
-local GetDispelColor, IsPowerBarEnabled, LayoutGroups = I.GetDispelColor, I.IsPowerBarEnabled, I.LayoutGroups
-local LayoutTopNameBar, MOVER_GROUPS, ResolveHealthTexture = I.LayoutTopNameBar, I.MOVER_GROUPS, I.ResolveHealthTexture
-local defaults = I.defaults
 
 -- Main-file locals assigned after load; the main file re-binds them on
 -- every write (CreateHeaders, OnInitialize, OnEnable). Each preview file
@@ -80,18 +75,14 @@ ns._PV_DISPEL_DB_ICONS = {
 ns._PV_DEBUFF_ICONS = { 135813, 136139, 132090, 136197, 135849, 136188 }
 ns._pvActiveAuras = {}
 
--- Main-chunk locals the EUI_RaidFrames_Preview*.lua files re-import by name.
--- dbSetters and the lists beside it: every file that reads one of these
--- keeps its own copy and adds a setter here; each place that assigns it
--- writes through the Set<Name> function built below, which runs them all.
+-- What the EUI_RaidFrames_Preview*.lua files share: each file adds the names
+-- later files re-import. dbSetters and the lists beside it: every file
+-- that reads one of these keeps its own copy and adds a setter here; each
+-- place that assigns it writes through the Set<Name> function built below,
+-- which runs them all.
 -- broken: true while an EUI_RaidFrames_Preview*.lua file loads; a file that
 -- fails leaves it set, and the files behind it return at their first lines.
 ns._previewInternals = {
-    ApplyFont = ApplyFont, ApplyRoleIcon = ApplyRoleIcon, defaults = defaults,
-    DISPEL_ICON_ATLAS = DISPEL_ICON_ATLAS, GetDispelColor = GetDispelColor,
-    IsPowerBarEnabled = IsPowerBarEnabled, LayoutGroups = LayoutGroups,
-    LayoutTopNameBar = LayoutTopNameBar, MOVER_GROUPS = MOVER_GROUPS, PixelSnap = PixelSnap,
-    ResolveHealthTexture = ResolveHealthTexture, UpdateVisibility = UpdateVisibility,
     dbSetters = {}, PPSetters = {}, containerFrameSetters = {}, previewActiveSetters = {},
     previewFramesSetters = {}, classTokensSetters = {}, previewRolesSetters = {},
     previewContainerSetters = {}, overlayContainerSetters = {},

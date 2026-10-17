@@ -19,12 +19,14 @@ local UnitClass             = UnitClass
 local InCombatLockdown      = InCombatLockdown
 local CreateFrame           = CreateFrame
 
-local ApplyFont, LayoutGroups, PixelSnap = I.ApplyFont, I.LayoutGroups, I.PixelSnap
-local UpdateVisibility, StopPvAuraTicker = I.UpdateVisibility, I.StopPvAuraTicker
-local CreatePreviewFrame, ApplyPreviewData = I.CreatePreviewFrame, I.ApplyPreviewData
-local previewHealthValues, previewPowerValues = I.previewHealthValues, I.previewPowerValues
-local HidePreview, SetPreviewRoles = I.HidePreview, I.SetPreviewRoles
-local SetPreviewClassTokens = I.SetPreviewClassTokens
+local RF = ns._internals -- the table of the Raid Frames chain
+local ApplyFont, LayoutGroups, PixelSnap = RF.ApplyFont, RF.LayoutGroups, RF.PixelSnap
+local UpdateVisibility = ns.UpdateVisibility
+
+local StopPvAuraTicker, CreatePreviewFrame = I.StopPvAuraTicker, I.CreatePreviewFrame
+local ApplyPreviewData, previewHealthValues = I.ApplyPreviewData, I.previewHealthValues
+local previewPowerValues, HidePreview = I.previewPowerValues, I.HidePreview
+local SetPreviewRoles, SetPreviewClassTokens = I.SetPreviewRoles, I.SetPreviewClassTokens
 
 -- Shared state: one copy per file. A write goes through the Set<Name>
 -- function of ns._previewInternals, which hands the value to every copy.

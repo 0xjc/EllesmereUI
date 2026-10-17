@@ -17,8 +17,11 @@ local ipairs       = ipairs
 local wipe         = wipe
 local C_Timer               = C_Timer
 
-local PixelSnap, PvActive, PvAuraReanchorFrame = I.PixelSnap, I.PvActive, I.PvAuraReanchorFrame
-local PvFrames, PvSettings, StartPvAuraTicker = I.PvFrames, I.PvSettings, I.StartPvAuraTicker
+local RF = ns._internals -- the table of the Raid Frames chain
+local PixelSnap = RF.PixelSnap
+
+local PvActive, PvAuraReanchorFrame, PvFrames = I.PvActive, I.PvAuraReanchorFrame, I.PvFrames
+local PvSettings, StartPvAuraTicker = I.PvSettings, I.StartPvAuraTicker
 local StopPvAuraTicker = I.StopPvAuraTicker
 
 -- Shared state: one copy per file. A write goes through the Set<Name>

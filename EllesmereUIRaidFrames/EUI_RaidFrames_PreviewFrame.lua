@@ -15,8 +15,10 @@ I.broken = true
 local ipairs       = ipairs
 local CreateFrame           = CreateFrame
 
-local ApplyFont, defaults, IsPowerBarEnabled = I.ApplyFont, I.defaults, I.IsPowerBarEnabled
-local PixelSnap, ResolveHealthTexture = I.PixelSnap, I.ResolveHealthTexture
+local RF = ns._internals -- the table of the Raid Frames chain
+local ApplyFont, defaults, IsPowerBarEnabled = RF.ApplyFont, RF.defaults, RF.IsPowerBarEnabled
+local PixelSnap, ResolveHealthTexture = RF.PixelSnap, RF.ResolveHealthTexture
+
 local PvActive, PvFrames, SetPreviewFrames = I.PvActive, I.PvFrames, I.SetPreviewFrames
 
 -- Shared state: one copy per file. A write goes through the Set<Name>

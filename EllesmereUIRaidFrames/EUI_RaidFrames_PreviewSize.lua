@@ -18,7 +18,10 @@ local tostring     = tostring
 local InCombatLockdown      = InCombatLockdown
 local CreateFrame           = CreateFrame
 
-local MOVER_GROUPS, PixelSnap, HidePreview = I.MOVER_GROUPS, I.PixelSnap, I.HidePreview
+local RF = ns._internals -- the table of the Raid Frames chain
+local MOVER_GROUPS, PixelSnap = RF.MOVER_GROUPS, RF.PixelSnap
+
+local HidePreview = I.HidePreview
 
 -- Shared state: one copy per file. A write goes through the Set<Name>
 -- function of ns._previewInternals, which hands the value to every copy.
