@@ -17,12 +17,15 @@ local tinsert      = table.insert
 local UnitName              = UnitName
 local UnitClass             = UnitClass
 
+local RF = ns._internals -- the table of the Raid Frames chain
+
 local SetPreviewClassTokens = I.SetPreviewClassTokens
 
 -- Shared state: one copy per file. A write goes through the Set<Name>
--- function of ns._previewInternals, which hands the value to every copy.
+-- function of the table that holds its list, which hands the value to
+-- every copy: db, PP and containerFrame are the Raid Frames chain's.
 local db
-I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+RF.dbSetters[#RF.dbSetters + 1] = function(v) db = v end
 local previewClassTokens
 I.classTokensSetters[#I.classTokensSetters + 1] = function(v) previewClassTokens = v end
 

@@ -34,11 +34,12 @@ local SetOverlayContainer, SetPreviewActive = I.SetOverlayContainer, I.SetPrevie
 local SetPreviewContainer = I.SetPreviewContainer
 
 -- Shared state: one copy per file. A write goes through the Set<Name>
--- function of ns._previewInternals, which hands the value to every copy.
+-- function of the table that holds its list, which hands the value to
+-- every copy: db, PP and containerFrame are the Raid Frames chain's.
 local db
-I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+RF.dbSetters[#RF.dbSetters + 1] = function(v) db = v end
 local containerFrame
-I.containerFrameSetters[#I.containerFrameSetters + 1] = function(v) containerFrame = v end
+RF.containerFrameSetters[#RF.containerFrameSetters + 1] = function(v) containerFrame = v end
 local previewActive = false
 I.previewActiveSetters[#I.previewActiveSetters + 1] = function(v) previewActive = v end
 local previewRoles = I.previewRoles

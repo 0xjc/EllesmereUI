@@ -22,13 +22,14 @@ local PixelSnap, ResolveHealthTexture = RF.PixelSnap, RF.ResolveHealthTexture
 local PvActive, PvFrames, SetPreviewFrames = I.PvActive, I.PvFrames, I.SetPreviewFrames
 
 -- Shared state: one copy per file. A write goes through the Set<Name>
--- function of ns._previewInternals, which hands the value to every copy.
+-- function of the table that holds its list, which hands the value to
+-- every copy: db, PP and containerFrame are the Raid Frames chain's.
 local db
-I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+RF.dbSetters[#RF.dbSetters + 1] = function(v) db = v end
 local PP
-I.PPSetters[#I.PPSetters + 1] = function(v) PP = v end
+RF.PPSetters[#RF.PPSetters + 1] = function(v) PP = v end
 local containerFrame
-I.containerFrameSetters[#I.containerFrameSetters + 1] = function(v) containerFrame = v end
+RF.containerFrameSetters[#RF.containerFrameSetters + 1] = function(v) containerFrame = v end
 local previewFrames
 I.previewFramesSetters[#I.previewFramesSetters + 1] = function(v) previewFrames = v end
 

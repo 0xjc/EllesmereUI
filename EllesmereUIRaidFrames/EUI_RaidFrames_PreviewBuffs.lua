@@ -25,9 +25,10 @@ local PvSettings, StartPvAuraTicker = I.PvSettings, I.StartPvAuraTicker
 local StopPvAuraTicker = I.StopPvAuraTicker
 
 -- Shared state: one copy per file. A write goes through the Set<Name>
--- function of ns._previewInternals, which hands the value to every copy.
+-- function of the table that holds its list, which hands the value to
+-- every copy: db, PP and containerFrame are the Raid Frames chain's.
 local PP
-I.PPSetters[#I.PPSetters + 1] = function(v) PP = v end
+RF.PPSetters[#RF.PPSetters + 1] = function(v) PP = v end
 local previewActive = false
 I.previewActiveSetters[#I.previewActiveSetters + 1] = function(v) previewActive = v end
 local previewFrames
