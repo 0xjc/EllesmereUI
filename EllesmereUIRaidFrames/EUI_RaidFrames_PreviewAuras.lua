@@ -60,8 +60,8 @@ local function PvSettings()
     return (ns._partyPvActive and ns._scaledPartyProxy)
         or ns._pvOverlayProxy or db.profile
 end
--- Class tokens for icon selection: the async ticker runs outside the synchronous
--- table swap in ApplyPartyPreviewData, so it must resolve party tokens itself.
+-- Class tokens for icon selection: ApplyPartyPreviewData hands the party tokens
+-- to ApplyPreviewData only, so the ticker must resolve them itself.
 local function PvClassTokens()
     return (ns._partyPvActive and ns._partyPvCT) or previewClassTokens
 end

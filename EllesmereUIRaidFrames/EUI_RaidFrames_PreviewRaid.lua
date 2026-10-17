@@ -30,8 +30,8 @@ local previewFrames, previewGroupLabels = I.previewFrames, I.previewGroupLabels
 local BuildPreviewRoles, ApplyPreviewData = I.BuildPreviewRoles, I.ApplyPreviewData
 local InitPreviewHealthValues = I.InitPreviewHealthValues
 local previewHealthValues, previewPowerValues = I.previewHealthValues, I.previewPowerValues
-local SetOverlayContainer, SetPreviewActive = I.SetOverlayContainer, I.SetPreviewActive
-local SetPreviewContainer = I.SetPreviewContainer
+local previewRoles, SetOverlayContainer = I.previewRoles, I.SetOverlayContainer
+local SetPreviewActive, SetPreviewContainer = I.SetPreviewActive, I.SetPreviewContainer
 
 -- Shared state: one copy per file. A write goes through the Set<Name>
 -- function of the table that holds its list, which hands the value to
@@ -42,8 +42,6 @@ local containerFrame
 RF.containerFrameSetters[#RF.containerFrameSetters + 1] = function(v) containerFrame = v end
 local previewActive = false
 I.previewActiveSetters[#I.previewActiveSetters + 1] = function(v) previewActive = v end
-local previewRoles = I.previewRoles
-I.previewRolesSetters[#I.previewRolesSetters + 1] = function(v) previewRoles = v end
 local previewContainer
 I.previewContainerSetters[#I.previewContainerSetters + 1] = function(v) previewContainer = v end
 

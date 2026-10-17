@@ -26,7 +26,6 @@ local UpdateVisibility = ns.UpdateVisibility
 local StopPvAuraTicker, CreatePreviewFrame = I.StopPvAuraTicker, I.CreatePreviewFrame
 local ApplyPreviewData, previewHealthValues = I.ApplyPreviewData, I.previewHealthValues
 local previewPowerValues, HidePreview = I.previewPowerValues, I.HidePreview
-local SetPreviewRoles, SetPreviewClassTokens = I.SetPreviewRoles, I.SetPreviewClassTokens
 
 -- Shared state: one copy per file. A write goes through the Set<Name>
 -- function of the table that holds its list, which hands the value to
@@ -37,10 +36,6 @@ local containerFrame
 RF.containerFrameSetters[#RF.containerFrameSetters + 1] = function(v) containerFrame = v end
 local previewActive = false
 I.previewActiveSetters[#I.previewActiveSetters + 1] = function(v) previewActive = v end
-local previewClassTokens = I.previewClassTokens
-I.classTokensSetters[#I.classTokensSetters + 1] = function(v) previewClassTokens = v end
-local previewRoles = I.previewRoles
-I.previewRolesSetters[#I.previewRolesSetters + 1] = function(v) previewRoles = v end
 local overlayContainer
 I.overlayContainerSetters[#I.overlayContainerSetters + 1] = function(v) overlayContainer = v end
 
@@ -268,8 +263,6 @@ local function ApplyPartyPreviewData(f, index)
     local origHA     = ns.previewHealAbsorbValues
     local origHP     = ns.previewHealPredValues
     local origRMH    = ns.previewReducedMaxHealth
-    local origRoles  = previewRoles
-    local origCT     = previewClassTokens
 
     for i = 1, 5 do
         previewHealthValues[i] = ns._partyPvHV[i]
@@ -279,10 +272,8 @@ local function ApplyPartyPreviewData(f, index)
     ns.previewHealAbsorbValues = ns.partyPvHealAbsorbValues
     ns.previewHealPredValues   = ns.partyPvHealPredValues
     ns.previewReducedMaxHealth = ns.partyPvReducedMaxHealth
-    SetPreviewRoles(ns._partyPvRoles)
-    SetPreviewClassTokens(ns._partyPvCT)
 
-    ApplyPreviewData(f, index)
+    ApplyPreviewData(f, index, ns._partyPvRoles, ns._partyPvCT)
 
     -- Re-apply BM indicators with the party proxy so Auto Resize scales the
     -- preview indicators/auras live. CreatePreviewFrame applies them only once
@@ -304,8 +295,6 @@ local function ApplyPartyPreviewData(f, index)
     ns.previewHealAbsorbValues = origHA
     ns.previewHealPredValues   = origHP
     ns.previewReducedMaxHealth = origRMH
-    SetPreviewRoles(origRoles)
-    SetPreviewClassTokens(origCT)
 
     -- Party Frames kit: bar rects, art, spots and a mock portrait, after the
     -- restore above (nothing here may run inside that swap window).

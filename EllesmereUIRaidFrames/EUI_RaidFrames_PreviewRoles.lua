@@ -32,7 +32,6 @@ I.classTokensSetters[#I.classTokensSetters + 1] = function(v) previewClassTokens
 -- Preview role assignments: 2 tanks, 4 healers, 14 DPS.
 -- Player (slot 1) uses their real role and counts toward the total.
 local previewRoles = {}  -- [1..20] = "TANK"/"HEALER"/"DAMAGER"
-I.previewRolesSetters[#I.previewRolesSetters + 1] = function(v) previewRoles = v end
 
 SetPreviewClassTokens({})  -- [1..20] class token per slot
 

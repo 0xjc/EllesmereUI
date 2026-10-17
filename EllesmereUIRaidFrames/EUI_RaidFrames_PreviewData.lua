@@ -19,6 +19,8 @@ local DISPEL_ICON_ATLAS, GetDispelColor = RF.DISPEL_ICON_ATLAS, RF.GetDispelColo
 local IsPowerBarEnabled, LayoutTopNameBar = RF.IsPowerBarEnabled, RF.LayoutTopNameBar
 local PixelSnap, ResolveHealthTexture = RF.PixelSnap, RF.ResolveHealthTexture
 
+local previewClassTokens, previewRoles = I.previewClassTokens, I.previewRoles
+
 -- Shared state: one copy per file. A write goes through the Set<Name>
 -- function of the table that holds its list, which hands the value to
 -- every copy: db, PP and containerFrame are the Raid Frames chain's.
@@ -26,17 +28,16 @@ local db
 RF.dbSetters[#RF.dbSetters + 1] = function(v) db = v end
 local PP
 RF.PPSetters[#RF.PPSetters + 1] = function(v) PP = v end
-local previewClassTokens = I.previewClassTokens
-I.classTokensSetters[#I.classTokensSetters + 1] = function(v) previewClassTokens = v end
-local previewRoles = I.previewRoles
-I.previewRolesSetters[#I.previewRolesSetters + 1] = function(v) previewRoles = v end
 
 ns.previewAbsorbValues = ns.previewAbsorbValues or {}
 local previewHealthValues = {}
 local previewPowerValues = {}
 ns.previewHealAbsorbValues = {}
 
-local function ApplyPreviewData(f, index)
+-- roles, classTokens: the party preview hands in its own tables for this call.
+local function ApplyPreviewData(f, index, roles, classTokens)
+    local previewRoles = roles or previewRoles
+    local previewClassTokens = classTokens or previewClassTokens
     -- The main raid preview is a base "20 Man" mockup: RefreshPreview lays out from the
     -- base frameWidth and CreatePreviewFrame sizes from it too, so per-button sizing here
     -- must also read the base profile. ns._scaledProfile would return the active raid-size
