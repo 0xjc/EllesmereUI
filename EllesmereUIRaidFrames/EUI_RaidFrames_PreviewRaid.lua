@@ -1,3 +1,48 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_RaidFrames_PreviewRaid.lua
+--
+--  The raid preview: the overlay container, RefreshPreview, the mouse
+--  blockers, ShowPreview, HidePreview and the preview mode.
+--  Reads the earlier preview files through ns and ns._previewInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._previewInternals
+-- EUI_RaidFrames_Preview.lua or an earlier preview file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local max          = math.max
+local abs          = math.abs
+local ipairs       = ipairs
+local tostring     = tostring
+local InCombatLockdown      = InCombatLockdown
+local CreateFrame           = CreateFrame
+
+local ApplyFont, LayoutGroups, MOVER_GROUPS = I.ApplyFont, I.LayoutGroups, I.MOVER_GROUPS
+local PixelSnap, UpdateVisibility, PvFrames = I.PixelSnap, I.UpdateVisibility, I.PvFrames
+local PvSettings, StartPvAuraTicker = I.PvSettings, I.StartPvAuraTicker
+local StopPvAuraTicker, GetOrCreatePreviewFrame = I.StopPvAuraTicker, I.GetOrCreatePreviewFrame
+local previewFrames, previewGroupLabels = I.previewFrames, I.previewGroupLabels
+local BuildPreviewRoles, ApplyPreviewData = I.BuildPreviewRoles, I.ApplyPreviewData
+local InitPreviewHealthValues = I.InitPreviewHealthValues
+local previewHealthValues, previewPowerValues = I.previewHealthValues, I.previewPowerValues
+local SetOverlayContainer, SetPreviewActive = I.SetOverlayContainer, I.SetPreviewActive
+local SetPreviewContainer = I.SetPreviewContainer
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._previewInternals, which hands the value to every copy.
+local db
+I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+local containerFrame
+I.containerFrameSetters[#I.containerFrameSetters + 1] = function(v) containerFrame = v end
+local previewActive = false
+I.previewActiveSetters[#I.previewActiveSetters + 1] = function(v) previewActive = v end
+local previewRoles = I.previewRoles
+I.previewRolesSetters[#I.previewRolesSetters + 1] = function(v) previewRoles = v end
+local previewContainer
+I.previewContainerSetters[#I.previewContainerSetters + 1] = function(v) previewContainer = v end
+
 -------------------------------------------------------------------------------
 --  Overlay preview container
 --  A black-background frame that holds the preview when in overlay mode.
@@ -5,6 +50,7 @@
 --  nothing is saved to the profile.
 -------------------------------------------------------------------------------
 local overlayContainer = nil
+I.overlayContainerSetters[#I.overlayContainerSetters + 1] = function(v) overlayContainer = v end
 
 local function GetOrCreateOverlayContainer()
     if overlayContainer then return overlayContainer end
@@ -28,7 +74,7 @@ local function GetOrCreateOverlayContainer()
     title:SetPoint("TOP", oc, "TOP", 0, -7)
     oc._title = title
 
-    overlayContainer = oc
+    SetOverlayContainer(oc)
     ns._overlayContainer = oc
     return oc
 end
@@ -292,7 +338,7 @@ end
 
 -- Mouse-blocking overlays + alpha-based real-frame hide for the options preview.
 -- Wrapped in a do-block, exposed via ns, so these add NO persistent main-chunk
--- locals (200-local cap); rfMouseBlock/partyMouseBlock survive as closure upvalues.
+-- locals; rfMouseBlock/partyMouseBlock survive as closure upvalues.
 --
 -- The overlays are OUR OWN non-secure frames, so EnableMouse is taint-free and
 -- Hide() is combat-legal (no secure children) -- torn down instantly at combat
@@ -397,11 +443,11 @@ local function ShowPreview()
         return
     end
     if not containerFrame then return end
-    previewActive = true
+    SetPreviewActive(true)
 
     -- Preview container
     if not previewContainer then
-        previewContainer = CreateFrame("Frame", nil, UIParent)
+        SetPreviewContainer(CreateFrame("Frame", nil, UIParent))
         previewContainer:SetFrameStrata("HIGH")
     end
     local pos = db.profile.unlockPos
@@ -436,7 +482,7 @@ end
 local function HidePreview(skipRestore)
     if not previewActive then return end
     ns.RF_PreviewCompact(nil, nil, false)
-    previewActive = false
+    SetPreviewActive(false)
     ns._previewInitialized = false
     previewRoles._randomized = nil  -- re-randomize on next preview open
     previewRoles._hpalPick = nil    -- re-roll the hpal Legends next open
@@ -529,3 +575,5 @@ ns.PvRefresh = function()
     end
 end
 
+I.HidePreview = HidePreview
+I.broken = false

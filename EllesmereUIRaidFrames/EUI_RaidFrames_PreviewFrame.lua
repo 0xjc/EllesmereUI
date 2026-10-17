@@ -1,9 +1,42 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_RaidFrames_PreviewFrame.lua
+--
+--  The standalone preview frames: CreatePreviewFrame and its container
+--  state.
+--  Reads the earlier preview files through ns and ns._previewInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._previewInternals
+-- EUI_RaidFrames_Preview.lua or an earlier preview file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local ipairs       = ipairs
+local CreateFrame           = CreateFrame
+
+local ApplyFont, defaults, IsPowerBarEnabled = I.ApplyFont, I.defaults, I.IsPowerBarEnabled
+local PixelSnap, ResolveHealthTexture = I.PixelSnap, I.ResolveHealthTexture
+local PvActive, PvFrames, SetPreviewFrames = I.PvActive, I.PvFrames, I.SetPreviewFrames
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._previewInternals, which hands the value to every copy.
+local db
+I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+local PP
+I.PPSetters[#I.PPSetters + 1] = function(v) PP = v end
+local containerFrame
+I.containerFrameSetters[#I.containerFrameSetters + 1] = function(v) containerFrame = v end
+local previewFrames
+I.previewFramesSetters[#I.previewFramesSetters + 1] = function(v) previewFrames = v end
+
 -- Preview frames: standalone frames NOT managed by SecureGroupHeaderTemplate.
 -- Header-managed buttons can't be shown without real units, so we create
 -- our own lightweight frames that look identical for the options preview.
-previewFrames = {}
+SetPreviewFrames({})
 local previewGroupLabels = {}  -- [1..4] FontStrings showing group numbers
 local previewContainer = nil   -- standalone anchor frame for preview (doesn't move with containerFrame)
+I.previewContainerSetters[#I.previewContainerSetters + 1] = function(v) previewContainer = v end
 local previewHiddenParent = nil -- hidden frame to reparent containerFrame into during preview
 
 local function CreatePreviewFrame(index, party)
@@ -627,3 +660,6 @@ local function GetOrCreatePreviewFrame(index)
     return previewFrames[index]
 end
 
+I.CreatePreviewFrame, I.GetOrCreatePreviewFrame = CreatePreviewFrame, GetOrCreatePreviewFrame
+I.previewFrames, I.previewGroupLabels = previewFrames, previewGroupLabels
+I.broken = false

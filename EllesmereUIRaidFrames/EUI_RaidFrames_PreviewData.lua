@@ -1,3 +1,34 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_RaidFrames_PreviewData.lua
+--
+--  The sample values and ApplyPreviewData, which paints one preview frame.
+--  Reads the earlier preview files through ns and ns._previewInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._previewInternals
+-- EUI_RaidFrames_Preview.lua or an earlier preview file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local UnitName              = UnitName
+
+local ApplyFont, ApplyRoleIcon, defaults = I.ApplyFont, I.ApplyRoleIcon, I.defaults
+local DISPEL_ICON_ATLAS, GetDispelColor = I.DISPEL_ICON_ATLAS, I.GetDispelColor
+local IsPowerBarEnabled, LayoutTopNameBar = I.IsPowerBarEnabled, I.LayoutTopNameBar
+local PixelSnap, ResolveHealthTexture = I.PixelSnap, I.ResolveHealthTexture
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._previewInternals, which hands the value to every copy.
+local db
+I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+local PP
+I.PPSetters[#I.PPSetters + 1] = function(v) PP = v end
+local previewClassTokens = I.previewClassTokens
+I.classTokensSetters[#I.classTokensSetters + 1] = function(v) previewClassTokens = v end
+local previewRoles = I.previewRoles
+I.previewRolesSetters[#I.previewRolesSetters + 1] = function(v) previewRoles = v end
+
 ns.previewAbsorbValues = ns.previewAbsorbValues or {}
 local previewHealthValues = {}
 local previewPowerValues = {}
@@ -1556,3 +1587,6 @@ local function InitPreviewHealthValues()
     ns.previewReducedMaxHealth[rmhPool[2]] = 0.10 + math.random() * 0.15
 end
 
+I.ApplyPreviewData, I.InitPreviewHealthValues = ApplyPreviewData, InitPreviewHealthValues
+I.previewHealthValues, I.previewPowerValues = previewHealthValues, previewPowerValues
+I.broken = false

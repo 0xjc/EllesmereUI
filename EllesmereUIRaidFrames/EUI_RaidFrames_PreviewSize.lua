@@ -1,3 +1,36 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_RaidFrames_PreviewSize.lua
+--
+--  The size preview: health and power bars at a raid-size tier's
+--  dimensions.
+--  Reads the earlier preview files through ns and ns._previewInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._previewInternals
+-- EUI_RaidFrames_Preview.lua or an earlier preview file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local max          = math.max
+local ipairs       = ipairs
+local tostring     = tostring
+local InCombatLockdown      = InCombatLockdown
+local CreateFrame           = CreateFrame
+
+local MOVER_GROUPS, PixelSnap, HidePreview = I.MOVER_GROUPS, I.PixelSnap, I.HidePreview
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._previewInternals, which hands the value to every copy.
+local db
+I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+local PP
+I.PPSetters[#I.PPSetters + 1] = function(v) PP = v end
+local containerFrame
+I.containerFrameSetters[#I.containerFrameSetters + 1] = function(v) containerFrame = v end
+local previewActive = false
+I.previewActiveSetters[#I.previewActiveSetters + 1] = function(v) previewActive = v end
+
 -------------------------------------------------------------------------------
 --  Size preview (simple: just health + power bars at the tier's dimensions)
 --  Shows the correct number of frames for the tier (10/15/25/30/40).
@@ -292,3 +325,4 @@ ns._HideSizePreview = function()
     if ns._UpdatePartyVisibility then ns._UpdatePartyVisibility() end
 end
 
+I.broken = false

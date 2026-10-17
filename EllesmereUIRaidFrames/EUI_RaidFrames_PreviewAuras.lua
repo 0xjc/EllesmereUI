@@ -1,3 +1,38 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_RaidFrames_PreviewAuras.lua
+--
+--  The preview aura cycling: the active-preview resolvers, the effective-value
+--  overlay, and the ticker that places fake debuffs and defensives.
+--  Reads the earlier preview files through ns and ns._previewInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._previewInternals
+-- EUI_RaidFrames_Preview.lua or an earlier preview file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local pairs        = pairs
+local ipairs       = ipairs
+local wipe         = wipe
+local type         = type
+local C_Timer               = C_Timer
+
+local PixelSnap = I.PixelSnap
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._previewInternals, which hands the value to every copy.
+local db
+I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+local PP
+I.PPSetters[#I.PPSetters + 1] = function(v) PP = v end
+local previewActive = false
+I.previewActiveSetters[#I.previewActiveSetters + 1] = function(v) previewActive = v end
+local previewFrames
+I.previewFramesSetters[#I.previewFramesSetters + 1] = function(v) previewFrames = v end
+local previewClassTokens
+I.classTokensSetters[#I.classTokensSetters + 1] = function(v) previewClassTokens = v end
+
 -------------------------------------------------------------------------------
 --  Preview aura cycling system
 --  Manages fake debuffs/defensives on preview frames with real durations.
@@ -40,7 +75,7 @@ end
 --  (which read live directly) keep showing the view. Rebuilt event-driven at
 --  preview refresh entry points and the module-refresh tail; nil when no view
 --  swap is active (byte-identical reads outside editing views). ZERO writes to
---  live/override stores. (ns fields + do-end locals only: 200-local cap.)
+--  live/override stores.
 -------------------------------------------------------------------------------
 do
     local proxy
@@ -646,3 +681,7 @@ local function StopPvAuraTicker()
     end
 end
 
+I.PvActive, I.PvAuraReanchorFrame, I.PvFrames = PvActive, PvAuraReanchorFrame, PvFrames
+I.PvSettings, I.StartPvAuraTicker = PvSettings, StartPvAuraTicker
+I.StopPvAuraTicker = StopPvAuraTicker
+I.broken = false

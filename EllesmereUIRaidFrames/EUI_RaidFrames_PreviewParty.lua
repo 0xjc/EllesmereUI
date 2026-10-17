@@ -1,3 +1,46 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_RaidFrames_PreviewParty.lua
+--
+--  The party preview, the restore of the real frames and the fade-out for
+--  unlock mode.
+--  Reads the earlier preview files through ns and ns._previewInternals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._previewInternals
+-- EUI_RaidFrames_Preview.lua or an earlier preview file failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local ipairs       = ipairs
+local wipe         = wipe
+local tinsert      = table.insert
+local UnitClass             = UnitClass
+local InCombatLockdown      = InCombatLockdown
+local CreateFrame           = CreateFrame
+
+local ApplyFont, LayoutGroups, PixelSnap = I.ApplyFont, I.LayoutGroups, I.PixelSnap
+local UpdateVisibility, StopPvAuraTicker = I.UpdateVisibility, I.StopPvAuraTicker
+local CreatePreviewFrame, ApplyPreviewData = I.CreatePreviewFrame, I.ApplyPreviewData
+local previewHealthValues, previewPowerValues = I.previewHealthValues, I.previewPowerValues
+local HidePreview, SetPreviewRoles = I.HidePreview, I.SetPreviewRoles
+local SetPreviewClassTokens = I.SetPreviewClassTokens
+
+-- Shared state: one copy per file. A write goes through the Set<Name>
+-- function of ns._previewInternals, which hands the value to every copy.
+local db
+I.dbSetters[#I.dbSetters + 1] = function(v) db = v end
+local containerFrame
+I.containerFrameSetters[#I.containerFrameSetters + 1] = function(v) containerFrame = v end
+local previewActive = false
+I.previewActiveSetters[#I.previewActiveSetters + 1] = function(v) previewActive = v end
+local previewClassTokens = I.previewClassTokens
+I.classTokensSetters[#I.classTokensSetters + 1] = function(v) previewClassTokens = v end
+local previewRoles = I.previewRoles
+I.previewRolesSetters[#I.previewRolesSetters + 1] = function(v) previewRoles = v end
+local overlayContainer
+I.overlayContainerSetters[#I.overlayContainerSetters + 1] = function(v) overlayContainer = v end
+
 -------------------------------------------------------------------------------
 --  Party preview (5-player, 1 group)
 --  Fully separate from raid preview -- shares CreatePreviewFrame and
@@ -233,8 +276,8 @@ local function ApplyPartyPreviewData(f, index)
     ns.previewHealAbsorbValues = ns.partyPvHealAbsorbValues
     ns.previewHealPredValues   = ns.partyPvHealPredValues
     ns.previewReducedMaxHealth = ns.partyPvReducedMaxHealth
-    previewRoles       = ns._partyPvRoles
-    previewClassTokens = ns._partyPvCT
+    SetPreviewRoles(ns._partyPvRoles)
+    SetPreviewClassTokens(ns._partyPvCT)
 
     ApplyPreviewData(f, index)
 
@@ -258,8 +301,8 @@ local function ApplyPartyPreviewData(f, index)
     ns.previewHealAbsorbValues = origHA
     ns.previewHealPredValues   = origHP
     ns.previewReducedMaxHealth = origRMH
-    previewRoles       = origRoles
-    previewClassTokens = origCT
+    SetPreviewRoles(origRoles)
+    SetPreviewClassTokens(origCT)
 
     -- Party Frames kit: bar rects, art, spots and a mock portrait, after the
     -- restore above (nothing here may run inside that swap window).
@@ -650,3 +693,4 @@ do
     end
 end
 
+I.broken = false
