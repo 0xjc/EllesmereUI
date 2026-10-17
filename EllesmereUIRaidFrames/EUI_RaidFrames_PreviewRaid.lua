@@ -566,7 +566,7 @@ ns.PvActiveFrames = PvFrames
 ns.PvHealthValues = function() return (ns._partyPvActive and ns._partyPvHV) or previewHealthValues end
 ns.PvPowerValues  = function() return (ns._partyPvActive and ns._partyPvPV) or previewPowerValues end
 -- Re-render whichever preview is active (mirrors ShowPreview's refresh-if-active).
--- Uses the ns.* exports because ShowPartyPreview is declared later in the file.
+-- Uses the ns.* exports because ShowPartyPreview lives in EUI_RaidFrames_PreviewParty.lua.
 ns.PvRefresh = function()
     if ns._partyPvActive then
         if ns.ShowPartyPreview then ns.ShowPartyPreview() end
