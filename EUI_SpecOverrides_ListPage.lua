@@ -18,10 +18,9 @@ local BlacklistedFKey, CurrentSpecID, DeepCopy = I.BlacklistedFKey, I.CurrentSpe
 local EntryHolderGroup, EntryOwning = I.EntryHolderGroup, I.EntryOwning
 local FKeyLoaded, GetGroups, GetStore, GOLD_B = I.FKeyLoaded, I.GetGroups, I.GetStore, I.GOLD_B
 local GOLD_G, GOLD_R, GroupById = I.GOLD_G, I.GOLD_R, I.GroupById
-local HasRegisteredDefault, L, LIST_PAGE = I.HasRegisteredDefault, I.L, I.LIST_PAGE
-local MatchOwnedFKey, NIL_SENT, ReadLive = I.MatchOwnedFKey, I.NIL_SENT, I.ReadLive
-local RebuildFKeyIndex, RunRefreshers = I.RebuildFKeyIndex, I.RunRefreshers
-local SpecInAnyGroup, SpecName = I.SpecInAnyGroup, I.SpecName
+local HasRegisteredDefault, L, MatchOwnedFKey = I.HasRegisteredDefault, I.L, I.MatchOwnedFKey
+local NIL_SENT, ReadLive, RebuildFKeyIndex = I.NIL_SENT, I.ReadLive, I.RebuildFKeyIndex
+local RunRefreshers, SpecInAnyGroup, SpecName = I.RunRefreshers, I.SpecInAnyGroup, I.SpecName
 local SpecStrandedOnEntry, SplitFKey = I.SpecStrandedOnEntry, I.SplitFKey
 local WriteLive, GetUnlockStore = I.WriteLive, I.GetUnlockStore
 local WriteDefaultValues, GetBmStore = I.WriteDefaultValues, I.GetBmStore
@@ -49,6 +48,9 @@ local function TitleCase(s)
 end
 
 local function BuildListRow(parent, y, entry)
+    -- Options page pool (EllesmereUI_FramePool.lua): on a pool host these rows
+    -- are reset and dressed again by the next build (the list builders below).
+    local CreateFrame = EllesmereUI._Pool.CreateFrame
     local CONTENT_PAD = EllesmereUI.CONTENT_PAD or 40
     local row = CreateFrame("Frame", nil, parent)
     row:SetSize(parent:GetWidth() - CONTENT_PAD * 2, 36)
@@ -165,6 +167,7 @@ end
 -- spec to the shared default. Removal is the only possible action -- no editing
 -- session can reach them.
 local function BuildStrandedRow(parent, y, entry, specID)
+    local CreateFrame = EllesmereUI._Pool.CreateFrame
     local CONTENT_PAD = EllesmereUI.CONTENT_PAD or 40
     local row = CreateFrame("Frame", nil, parent)
     row:SetSize(parent:GetWidth() - CONTENT_PAD * 2, 36)
@@ -344,6 +347,7 @@ local function BuildUnlockLayoutRow(parent, y, g, opts)
         or "Delete the custom unlock mode for '%s'? Its specs return to your default unlock mode layout."
     local removeFn = opts.removeFn or EllesmereUI.SpecOverrides_RemoveUnlockLayout
 
+    local CreateFrame = EllesmereUI._Pool.CreateFrame
     local CONTENT_PAD = EllesmereUI.CONTENT_PAD or 40
     local row = CreateFrame("Frame", nil, parent)
     row:SetSize(parent:GetWidth() - CONTENT_PAD * 2, 36)
@@ -477,6 +481,9 @@ local function PromoteGroupToProfile(g)
         })
         return
     end
+    -- The reload is asked for first in the click (RequestReload); the client
+    -- reloads only once this function has finished, so every step below lands.
+    EllesmereUI.RequestReload()
     -- Bank any open session and leave the Default view so the stores hold the
     -- freshest edits and live holds canonical spec values.
     EllesmereUI.SpecOverrides_CloseEditSessions()
@@ -619,24 +626,20 @@ local function PromoteGroupToProfile(g)
         pcall(EllesmereUI.SpecOverrides_ApplyBm, sid, true)
         pcall(EllesmereUI.SpecOverrides_ApplyDm, sid, true)
     end
-    -- 6) RELOAD. The converge's element writes are DEFERRED (FlushUnlock) and
-    --    reloading inside that window strands them: the logout bank keeps the
-    --    intent in the bucket, but the post-reload login early-outs on the nil
-    --    active pointer and never paints it back into module DBs. Flush
-    --    synchronously first (out of combat by the gate above), then reload --
-    --    every runtime cache, ticker and session structure rebuilds clean.
+    -- 6) FLUSH before the reload asked for at the top. The converge's element
+    --    writes are DEFERRED (FlushUnlock) and reloading inside that window
+    --    strands them: the logout bank keeps the intent in the bucket, but the
+    --    post-reload login early-outs on the nil active pointer and never
+    --    paints it back into module DBs. Flush synchronously (out of combat by
+    --    the gate above); the reload then rebuilds every runtime cache, ticker
+    --    and session structure clean.
     pcall(EllesmereUI.SpecOverrides_FlushUnlock)
-    EllesmereUI.RequestReload()
-    -- On the Forever client the reload waits on its popup: repaint the list
-    -- so the deleted groups leave it (retail is already reloading).
-    if EllesmereUI.IS_FOREVER and EllesmereUI:GetActivePage() == LIST_PAGE then
-        EllesmereUI:RefreshPage(true)
-    end
 end
 
 --- Page builder for the "Spec Overrides" tab (called from the Profiles &
 --- Presets module registration).
 function EllesmereUI.SpecOverrides_BuildListPage(parent, startY)
+    local CreateFrame = EllesmereUI._Pool.CreateFrame
     local W = EllesmereUI.Widgets
     local y = startY
     -- Skip during a hidden search pre-build: the page is only indexed for its
@@ -915,6 +918,7 @@ end
 
 --- Page builder for the "Conditional Overrides" tab (mirror of the spec tab).
 function EllesmereUI.Conditions_BuildListPage(parent, startY)
+    local CreateFrame = EllesmereUI._Pool.CreateFrame
     local W = EllesmereUI.Widgets
     local y = startY
     Cond.PruneEntries()

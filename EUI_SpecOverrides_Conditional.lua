@@ -73,6 +73,7 @@ local EXCLUDED_CONTEXTS = {
     ["EllesmereUIForeverEssentials"] = true,
     ["EllesmereUIQuickdraw"]         = true,
     ["EllesmereUILoadoutManager"]    = true,
+    ["EllesmereUIGroupFinder"]       = true,
     -- CDM: module eligible (bar settings override); these two tabs are
     -- spell/spec-coupled systems with their own per-spec storage.
     ["EllesmereUICooldownManager"] = {

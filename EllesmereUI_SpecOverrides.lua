@@ -205,6 +205,8 @@ local FOLDER_BLACKLIST = {
     -- A per-character store outside the profiles; each assignment picks its
     -- own spec (Assign For) instead.
     EllesmereUILoadoutManager    = true,
+    -- Its settings are look and search filters, not spec choices.
+    EllesmereUIGroupFinder       = true,
     -- Minimap + Chat + CooldownManager ARE override-eligible; their
     -- spell/engine-coupled settings are excluded per-path via
     -- SETTING_BLACKLIST below (CDM spell data itself lives OUTSIDE the profile

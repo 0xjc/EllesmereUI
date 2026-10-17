@@ -650,23 +650,35 @@ end
 --- as the notified pass. In a session it fills ONE reused table: the first write
 --- of a frame wins the next frame's attribution (ProcessNotifiedWrites), so the
 --- writes after it, until that pass ran, take none (their frames are queued).
-function EllesmereUI._SOAttribution(frame)
+--- detached (optional): a table the caller owns, filled instead, in or out of a
+--- session and leaving that one-per-frame rule alone, for a widget that writes
+--- later for the slot it was opened from (the color picker takes one when it
+--- opens and hands it to _NotifySettingWrite with each later write: it names
+--- that slot even after a rebuild dressed the widget again for another one).
+--- Returns detached (marked as a snapshot), or nil when no slot holds frame.
+function EllesmereUI._SOAttribution(frame, detached)
     if type(frame) ~= "table" then return nil end
-    local into
-    if _editGroup or Cond._edit then
-        if _lastAttr.busy then return nil end
-        into = _lastAttr.pend
-    elseif _defaultView then
-        -- read at once by MaybeWarnDefaultEdit, only until its guide was seen
-        local VG = EllesmereUI.VideoGuides
-        if not VG or VG.HasSeen("override_default_edit") then return nil end
-    else
-        return nil
+    local into = detached
+    if into == nil then
+        if _editGroup or Cond._edit then
+            if _lastAttr.busy then return nil end
+            into = _lastAttr.pend
+        elseif _defaultView then
+            -- read at once by MaybeWarnDefaultEdit, only until its guide was seen
+            local VG = EllesmereUI.VideoGuides
+            if not VG or VG.HasSeen("override_default_edit") then return nil end
+        else
+            return nil
+        end
     end
     local n = frame
     while n do
         if n._captureCfg then
-            if into then _lastAttr.busy = true end
+            if detached then
+                detached._soSnap = true
+            elseif into then
+                _lastAttr.busy = true
+            end
             return _lastAttr.Snap(n, into or { _soSnap = true })
         end
         n = n.GetParent and n:GetParent() or nil
@@ -675,13 +687,14 @@ function EllesmereUI._SOAttribution(frame)
 end
 
 --- Called by the widget factory whenever any options widget writes a value.
---- snap: the slot snapshot the factory took before the setter ran (optional).
+--- snap: the slot snapshot the factory took before the setter ran (optional;
+--- a detached one stands alone, with no frame).
 function EllesmereUI._NotifySettingWrite(frame, snap)
     -- Conditional sessions capture through this path too. Without them in the gate they
     -- fall back to watcher/exit-sweep capture only, losing edits whenever a setter's
     -- forced refresh raises the resync absorb before a tick can attribute them.
     if not (_editGroup or Cond._edit) then
-        if _defaultView and type(frame) == "table" then MaybeWarnDefaultEdit(frame, snap) end
+        if _defaultView and (type(frame) == "table" or snap ~= nil) then MaybeWarnDefaultEdit(frame, snap) end
         return
     end
     _pendingWrites = _pendingWrites or {}
