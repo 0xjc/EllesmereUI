@@ -596,6 +596,7 @@ Expand
 Expansion %1$d
 Experience
 Experimental Feature
+Expiring soon
 Export
 Export All Data with Profile
 Export CDM Spells
@@ -873,6 +874,7 @@ Middle Click: never show this item
 Min. Rating
 Mini Patch
 Misc
+Missing
 Missing Buffs?
 Missing Spells?
 Missing Spells? Add as
@@ -938,7 +940,6 @@ No class resources in inventory
 No conditions: the icon always shows.
 No death recap available
 No filters set
-No flask: %d   No food: %d   No rune: %d   No vantus: %d   Missing buffs: %d
 No free macro slot
 No friends online
 No gear set
