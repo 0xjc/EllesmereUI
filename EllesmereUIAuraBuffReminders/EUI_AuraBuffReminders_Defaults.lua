@@ -187,6 +187,7 @@ if EABR.FOREVER then
         wellFed = false,    -- Well Fed reminder; opt-in, matched by aura name (every food has its own spell ID)
         whereToShow = {},   -- section "Where to Show" (an absent bucket = shown)
         customIDs = {},     -- spell IDs the user tracks, in the order added
+        customGroups = {},  -- { name = string, ids = { spell IDs } }: one reminder while none of ids is active
     }
 end
 
