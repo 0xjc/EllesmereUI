@@ -61,8 +61,8 @@ local UNLOCK_KEY = "ERB_SwingTimer"
 local MO_KEY     = "swing"   -- ERB._moEligible slot for the shared mouseover poll
 
 -- Display order, top to bottom. `key` is the colour-key prefix in the store
--- (mhR/mhG/... ohR/... rR/...), `show` the per-row toggle key, `melee` the rows
--- a queued on-next-swing attack lands on.
+-- (mhR/mhG/... ohR/... rR/..., and mhSparkR/... for the spark), `show` the
+-- per-row toggle key, `melee` the rows a queued on-next-swing attack lands on.
 local ROWS = {
     { type = SWING.MainHand, key = "mh", tag = "MH", show = "showMH", melee = true },
     { type = SWING.OffHand,  key = "oh", tag = "OH", show = "showOH", melee = true },
@@ -219,6 +219,16 @@ local function RowColor(cfg, def)
     return cfg[k .. "R"] or 1, cfg[k .. "G"] or 1, cfg[k .. "B"] or 1, cfg[k .. "A"] or 1
 end
 
+-- Spark tint: the row's own spark colour once set, else white. A combined off
+-- hand's spark is its whole display: unset, it takes the row's fill colour.
+local function SparkColor(cfg, def, merged)
+    local k = def.key .. "Spark"
+    local r = cfg[k .. "R"]
+    if r then return r, cfg[k .. "G"] or 1, cfg[k .. "B"] or 1, cfg[k .. "A"] or 1 end
+    if merged then return RowColor(cfg, def) end
+    return 1, 1, 1, 1
+end
+
 -------------------------------------------------------------------------------
 --  Rows
 -------------------------------------------------------------------------------
@@ -258,6 +268,7 @@ local function BuildRow(def)
     spark:SetTexture(ns.SPARK_TEX)
     spark:SetBlendMode("ADD")
     row._spark = spark
+    row._sparkFrame = sparkFrame
 
     -- Text above the fill; the tag on the left, the countdown on the right.
     local textFrame = CreateFrame("Frame", nil, row)
@@ -917,16 +928,31 @@ local function ApplyRowLook(row, cfg, w, h)
 
     -- Leading-edge spark: anchored to the fill texture's moving edge so it
     -- tracks the fill (the GCD bar's horizontal case). On a combined off-hand
-    -- row it is the whole display, tinted the Off Hand colour.
-    local spark = row._spark
-    spark:ClearAllPoints()
-    spark:SetSize(8, h)
-    spark:SetPoint("CENTER", bar:GetStatusBarTexture(), "RIGHT", 0, 0)
-    if row._merged then
-        spark:SetVertexColor(RowColor(cfg, row._def))
+    -- row it is the whole display. An overhang reaches past the bar's top and
+    -- bottom: the spark leaves the bar's clip (and the rounded body) for a clip
+    -- of its own, built on first use, that still cuts it at the bar's ends.
+    local spark, sparkFrame = row._spark, row._sparkFrame
+    local over = cfg.sparkOverhang or 0
+    if over > 0 then
+        local sc = row._sparkClip
+        if not sc then
+            sc = CreateFrame("Frame", nil, row)
+            sc:SetClipsChildren(true)
+            row._sparkClip = sc
+        end
+        sc:ClearAllPoints()
+        sc:SetPoint("TOPLEFT", clip, "TOPLEFT", 0, over)
+        sc:SetPoint("BOTTOMRIGHT", clip, "BOTTOMRIGHT", 0, -over)
+        sc:SetFrameLevel(bar:GetFrameLevel() + 1)
+        sparkFrame:SetParent(sc)
     else
-        spark:SetVertexColor(1, 1, 1, 1)
+        sparkFrame:SetParent(clip)
     end
+    sparkFrame:SetFrameLevel(bar:GetFrameLevel() + 2)
+    spark:ClearAllPoints()
+    spark:SetSize(cfg.sparkWidth or 8, h + 2 * over)
+    spark:SetPoint("CENTER", bar:GetStatusBarTexture(), "RIGHT", 0, 0)
+    spark:SetVertexColor(SparkColor(cfg, row._def, row._merged))
     UpdateSpark(row, cfg)
 
     local size = cfg.textSize or 11
@@ -1281,6 +1307,19 @@ function ns.ST_UpdateVisibility()
     ERB._moEligible = ERB._moEligible or {}
     ERB._moEligible[MO_KEY] = (vis == "mouseover")
     EllesmereUI.SetElementVisibility(shell, vis == true)
+end
+
+-- The colour a row's spark paints (by colour key), for the options swatch.
+function ns.ST_SparkColor(key)
+    local cfg = P()
+    if not cfg then return 1, 1, 1, 1 end
+    for i = 1, #ROWS do
+        if ROWS[i].key == key then
+            local row = S.rows[i]
+            return SparkColor(cfg, ROWS[i], row and row._merged)
+        end
+    end
+    return 1, 1, 1, 1
 end
 
 function ns.ST_Apply()
