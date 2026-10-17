@@ -70,48 +70,58 @@ end
 -- keeps all BackdropTemplate work away from secure action attributes. Secure
 -- owners are never created/restyled under combat lockdown; visual-only combat
 -- and cursor icons can still update immediately.
-function EABR.ApplyIconBorder(f, protectedOwner)
-    if not f or (protectedOwner and InCombatLockdown()) then return end
-    local border = f._eabrBorderFrame
-    if not border then
-        border = CreateFrame("Frame", nil, f)
-        border:SetAllPoints()
-        border:EnableMouse(false)
-        f._eabrBorderFrame = border
+-- The options page frame pool's table (the parent makes it, the options addon
+-- fills it in place when it loads the pool), captured once at load as the
+-- core's paths capture it, so a later write to the public slot never reaches
+-- this path. A block local.
+do
+    local POOL = EllesmereUI._Pool
+    function EABR.ApplyIconBorder(f, protectedOwner)
+        if not f or (protectedOwner and InCombatLockdown()) then return end
+        local border = f._eabrBorderFrame
+        if not border then
+            -- The options preview icons are frames of the options page pool, so
+            -- their border comes from it too; a live reminder icon gets a plain
+            -- new frame.
+            border = POOL.CreateFrame("Frame", nil, f)
+            border:SetAllPoints()
+            border:EnableMouse(false)
+            f._eabrBorderFrame = border
+        end
+
+        local p = db and db.profile and db.profile.display
+        local size = (p and p.borderSize) or 1
+        local texture = (p and p.borderTexture) or "solid"
+        local r, g, b, a = (p and p.borderR) or 0, (p and p.borderG) or 0,
+            (p and p.borderB) or 0, (p and p.borderA) or 1
+        local ox, oy = p and p.borderTextureOffset, p and p.borderTextureOffsetY
+        local sx, sy = p and p.borderTextureShiftX, p and p.borderTextureShiftY
+        local behind = p and p.borderBehind == true
+        -- +2: the strips sit one level up (PP.CreateBorder), below the glow
+        -- wrapper (+4), so a 1px glow is never hidden under a 1px border.
+        local level = behind and max(0, f:GetFrameLevel() - 1) or (f:GetFrameLevel() + 2)
+        -- Exact size companion, memoized raw: it only counts while paired with size + texture.
+        local pxRaw = p and p.borderSizePx
+
+        -- Layout refreshes can be frequent in a raid. Restyle only when an actual
+        -- setting or owner-level change occurred; size changes are handled by the
+        -- border frame's anchors/BackdropTemplate size hook.
+        if border._eabrSize == size and border._eabrTexture == texture and border._eabrPx == pxRaw
+            and border._eabrR == r and border._eabrG == g and border._eabrB == b and border._eabrA == a
+            and border._eabrOX == ox and border._eabrOY == oy and border._eabrSX == sx and border._eabrSY == sy
+            and border._eabrBehind == behind and border._eabrLevel == level then
+            return
+        end
+
+        border:SetFrameLevel(level)
+        EllesmereUI.ApplyBorderStyle(border, size, r, g, b, a, texture,
+            ox, oy, sx, sy, "aurabuffreminders", size, nil,
+            EllesmereUI.BorderPx(pxRaw, size, texture))
+        border._eabrSize, border._eabrTexture, border._eabrPx = size, texture, pxRaw
+        border._eabrR, border._eabrG, border._eabrB, border._eabrA = r, g, b, a
+        border._eabrOX, border._eabrOY, border._eabrSX, border._eabrSY = ox, oy, sx, sy
+        border._eabrBehind, border._eabrLevel = behind, level
     end
-
-    local p = db and db.profile and db.profile.display
-    local size = (p and p.borderSize) or 1
-    local texture = (p and p.borderTexture) or "solid"
-    local r, g, b, a = (p and p.borderR) or 0, (p and p.borderG) or 0,
-        (p and p.borderB) or 0, (p and p.borderA) or 1
-    local ox, oy = p and p.borderTextureOffset, p and p.borderTextureOffsetY
-    local sx, sy = p and p.borderTextureShiftX, p and p.borderTextureShiftY
-    local behind = p and p.borderBehind == true
-    -- +2: the strips sit one level up (PP.CreateBorder), below the glow
-    -- wrapper (+4), so a 1px glow is never hidden under a 1px border.
-    local level = behind and max(0, f:GetFrameLevel() - 1) or (f:GetFrameLevel() + 2)
-    -- Exact size companion, memoized raw: it only counts while paired with size + texture.
-    local pxRaw = p and p.borderSizePx
-
-    -- Layout refreshes can be frequent in a raid. Restyle only when an actual
-    -- setting or owner-level change occurred; size changes are handled by the
-    -- border frame's anchors/BackdropTemplate size hook.
-    if border._eabrSize == size and border._eabrTexture == texture and border._eabrPx == pxRaw
-        and border._eabrR == r and border._eabrG == g and border._eabrB == b and border._eabrA == a
-        and border._eabrOX == ox and border._eabrOY == oy and border._eabrSX == sx and border._eabrSY == sy
-        and border._eabrBehind == behind and border._eabrLevel == level then
-        return
-    end
-
-    border:SetFrameLevel(level)
-    EllesmereUI.ApplyBorderStyle(border, size, r, g, b, a, texture,
-        ox, oy, sx, sy, "aurabuffreminders", size, nil,
-        EllesmereUI.BorderPx(pxRaw, size, texture))
-    border._eabrSize, border._eabrTexture, border._eabrPx = size, texture, pxRaw
-    border._eabrR, border._eabrG, border._eabrB, border._eabrA = r, g, b, a
-    border._eabrOX, border._eabrOY, border._eabrSX, border._eabrSY = ox, oy, sx, sy
-    border._eabrBehind, border._eabrLevel = behind, level
 end
 
 function EABR.ApplyAllIconBorders()

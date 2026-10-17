@@ -271,44 +271,15 @@ function EABR.FvTokens()
     return t
 end
 
--- Whether a raid member is in the player's own party (subgroup), where a
--- party-wide buff reaches. Unreadable reads as not.
-function EABR.FvInMyParty(u)
-    local v = UnitInSubgroup(u)
-    if isSecret(v) then return false end
-    if v then return true end
-    local me = UnitIsUnit(u, "player")
-    return not isSecret(me) and me == true
-end
-
--- Classes in the player's own party (in a raid, their subgroup: party1-4
--- there), online and in range: who a party-wide buff can come from.
-function EABR.FvPartyClassSet()
-    local set = EABR._fvPartyClasses
-    if not set then set = {}; EABR._fvPartyClasses = set end
-    wipe(set)
-    local list = EABR.FvTokens().party
-    for i = 1, GetNumSubgroupMembers() do
-        local u = list[i + 1]
-        if u and _unitOk(u) and UnitIsPlayer(u) and _unitInRange(u) then
-            local _, class = UnitClass(u)
-            if class ~= nil and not isSecret(class) then set[class] = true end
-        end
-    end
-    return set
-end
-
 -- In-range beneficiaries carrying a family vs all of them (the "12/15" badge),
--- plus the first one without it (the click's target); party = a party-wide
--- buff, counted in a raid on the player's own subgroup only. A member whose
--- answer cannot be read counts on neither side. The found aura instances
+-- plus the first one without it (the click's target). A member whose answer
+-- cannot be read counts on neither side. The found aura instances
 -- (EABR._fvInst, kept outside the watch so the pass that first builds it
 -- records them too) feed the group aura probe (EABR.FvAuraRelevant).
-function EABR.FvCoverage(fam, benefit, party)
+function EABR.FvCoverage(fam, benefit)
     local inst = EABR._fvInst
     if not inst then inst = {}; EABR._fvInst = inst end
     local raid = IsInRaid()
-    local subgroup = raid and party
     local tokens = EABR.FvTokens()
     local list = raid and tokens.raid or tokens.party
     local n = raid and GetNumGroupMembers() or (GetNumSubgroupMembers() + 1)
@@ -318,8 +289,7 @@ function EABR.FvCoverage(fam, benefit, party)
         if not u then break end
         local rec = inst[u]
         if rec then wipe(rec) end
-        if _unitOk(u) and UnitIsPlayer(u) and _unitInRange(u) and EABR.UnitBenefits(u, benefit)
-            and (not subgroup or EABR.FvInMyParty(u)) then
+        if _unitOk(u) and UnitIsPlayer(u) and _unitInRange(u) and EABR.UnitBenefits(u, benefit) then
             if not rec then rec = {}; inst[u] = rec end
             local has = EABR.FvUnitHas(u, fam, rec)
             if has ~= nil then
@@ -364,7 +334,6 @@ function EABR.CollectForeverRaidBuffs(missing, playerClass, inInstance)
         local iAmMissing = sw and sw.iAmMissing == true
         local grouped = IsInGroup()
         local groupClasses = iAmMissing and grouped and EABR.BuildGroupClassSet() or nil
-        local partyClasses -- a party-wide buff's casters: built on first need
         local restricted = EllesmereUI.AuraKit.AurasRestricted()
         for _, buff in ipairs(RAID_BUFFS) do
             if rb.enabled[buff.key] then
@@ -373,17 +342,12 @@ function EABR.CollectForeverRaidBuffs(missing, playerClass, inInstance)
                     and (EABR.FvHighest(fam.single) or EABR.FvHighest(fam.group)) ~= nil
                 if iCast and othersMissing then watch = fam end
                 if not iCast and iAmMissing then roster = true end
-                local classes = groupClasses
-                if classes and buff.party then
-                    partyClasses = partyClasses or EABR.FvPartyClassSet()
-                    classes = partyClasses
-                end
-                local doReceiver = not iCast and classes and classes[buff.class]
+                local doReceiver = not iCast and groupClasses and groupClasses[buff.class]
                     and EABR.PlayerBenefitsFromBuff(buff)
                 if (iCast or doReceiver) and EABR.FvReadable(fam, restricted) then
                     local isMissing, have, total, first
                     if iCast and othersMissing and grouped then
-                        have, total, first = EABR.FvCoverage(fam, buff.benefit, buff.party)
+                        have, total, first = EABR.FvCoverage(fam, buff.benefit)
                         isMissing = total > 0 and have < total
                     else
                         isMissing = EABR.FvUnitHas("player", fam) == false

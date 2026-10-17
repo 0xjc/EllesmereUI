@@ -689,8 +689,7 @@ mainFrame:SetScript("OnEvent", function(_, e, arg1, arg2, arg3)
 
     -- Talent/spec changes affect group aura tracking and form availability.
     if e == "PLAYER_TALENT_UPDATE" or e == "TRAIT_CONFIG_UPDATED"
-       or e == "PLAYER_SPECIALIZATION_CHANGED"
-       or (e == "SPELLS_CHANGED" and db and db.profile.auras.enabled.moonkin_form == true) then
+       or e == "PLAYER_SPECIALIZATION_CHANGED" then
         EABR.ReevaluateOwnOtherAuraTracking()
     end
 

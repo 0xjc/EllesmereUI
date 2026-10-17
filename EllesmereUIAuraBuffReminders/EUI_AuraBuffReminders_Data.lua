@@ -60,14 +60,13 @@ local RAID_BUFFS = {
 -- options grid). Same keys as retail, so a profile's switches move between
 -- the clients. castSpell = rank 1 (label and options icon); fam = the shared
 -- buff family (every rank, the group version, other casters' versions);
--- selfCast = cast with no target; party = reaches only the caster's party
--- (in a raid, their subgroup), as a shout does.
+-- selfCast = cast with no target.
 if EABR.FOREVER then
     RAID_BUFFS = {
         { key="motw",   class="DRUID",   name="Mark of the Wild",      castSpell=1126, dismissKey="raidbuff:motw",
           fam=EllesmereUI.FOREVER_BUFF_FAMILIES.mark },
         { key="bshout", class="WARRIOR", name="Battle Shout",          castSpell=6673, dismissKey="raidbuff:bshout",
-          fam=EllesmereUI.FOREVER_BUFF_FAMILIES.bshout, benefit="attackPower", selfCast=true, party=true },
+          fam=EllesmereUI.FOREVER_BUFF_FAMILIES.bshout, benefit="attackPower", selfCast=true },
         { key="fort",   class="PRIEST",  name="Power Word: Fortitude", castSpell=1243, dismissKey="raidbuff:fort",
           fam=EllesmereUI.FOREVER_BUFF_FAMILIES.fort },
         { key="ai",     class="MAGE",    name="Arcane Intellect",      castSpell=1459, dismissKey="raidbuff:ai",
