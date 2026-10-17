@@ -30,8 +30,8 @@ local previewFrames, previewGroupLabels = I.previewFrames, I.previewGroupLabels
 local BuildPreviewRoles, ApplyPreviewData = I.BuildPreviewRoles, I.ApplyPreviewData
 local InitPreviewHealthValues = I.InitPreviewHealthValues
 local previewHealthValues, previewPowerValues = I.previewHealthValues, I.previewPowerValues
-local previewRoles, SetOverlayContainer = I.previewRoles, I.SetOverlayContainer
-local SetPreviewActive, SetPreviewContainer = I.SetPreviewActive, I.SetPreviewContainer
+local previewRoles, SetPreviewActive = I.previewRoles, I.SetPreviewActive
+local SetPreviewContainer = I.SetPreviewContainer
 
 -- Shared state: one copy per file. A write goes through the Set<Name>
 -- function of the table that holds its list, which hands the value to
@@ -52,7 +52,6 @@ I.previewContainerSetters[#I.previewContainerSetters + 1] = function(v) previewC
 --  nothing is saved to the profile.
 -------------------------------------------------------------------------------
 local overlayContainer = nil
-I.overlayContainerSetters[#I.overlayContainerSetters + 1] = function(v) overlayContainer = v end
 
 local function GetOrCreateOverlayContainer()
     if overlayContainer then return overlayContainer end
@@ -76,7 +75,7 @@ local function GetOrCreateOverlayContainer()
     title:SetPoint("TOP", oc, "TOP", 0, -7)
     oc._title = title
 
-    SetOverlayContainer(oc)
+    overlayContainer = oc
     ns._overlayContainer = oc
     return oc
 end

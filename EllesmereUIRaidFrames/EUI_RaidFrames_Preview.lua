@@ -78,7 +78,7 @@ ns._pvActiveAuras = {}
 -- fails leaves it set, and the files behind it return at their first lines.
 ns._previewInternals = {
     previewActiveSetters = {}, previewFramesSetters = {}, classTokensSetters = {},
-    previewContainerSetters = {}, overlayContainerSetters = {},
+    previewContainerSetters = {},
     broken = false,
 }
 -- Set<Name> hands a new value to every copy registered in <name>Setters.
@@ -86,7 +86,6 @@ for setter, listName in pairs({
     SetPreviewActive = "previewActiveSetters", SetPreviewFrames = "previewFramesSetters",
     SetPreviewClassTokens = "classTokensSetters",
     SetPreviewContainer = "previewContainerSetters",
-    SetOverlayContainer = "overlayContainerSetters",
 }) do
     local list = ns._previewInternals[listName]
     ns._previewInternals[setter] = function(v)

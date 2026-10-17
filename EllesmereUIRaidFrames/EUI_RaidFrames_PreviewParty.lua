@@ -36,8 +36,6 @@ local containerFrame
 RF.containerFrameSetters[#RF.containerFrameSetters + 1] = function(v) containerFrame = v end
 local previewActive = false
 I.previewActiveSetters[#I.previewActiveSetters + 1] = function(v) previewActive = v end
-local overlayContainer
-I.overlayContainerSetters[#I.overlayContainerSetters + 1] = function(v) overlayContainer = v end
 
 -------------------------------------------------------------------------------
 --  Party preview (5-player, 1 group)
@@ -680,7 +678,7 @@ do
         end)
     end
     _G._ERF_UnlockModeOpen = function()
-        FadeOutFrame(overlayContainer)
+        FadeOutFrame(ns._overlayContainer)
         FadeOutFrame(ns._partyOC)
     end
 end
