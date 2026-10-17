@@ -5,10 +5,10 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --  rework (EllesmereUIBlizzardSkin_CharacterSheet.lua) plus the tooltip,
 --  context menu and static popup reskinning (EUI_BlizzardSkin_*.lua).
 -------------------------------------------------------------------------------
-local ADDON_NAME = ...
+local ADDON_NAME, ns = ...
 if not (EllesmereUI and EllesmereUI._ModuleNS and EllesmereUI.NewCombatQueue and EllesmereUI.FriendsKit and EllesmereUI.CreateQuantityDialog) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring (FriendsForever reads the parent's friends kit, Merchant Bulk Buy its quantity window)
-EllesmereUI._ModuleNS[ADDON_NAME] = select(2, ...)  -- LOD options files read this module ns via the registry
-EllesmereUI._ModuleNS[ADDON_NAME].CombatQueue = EllesmereUI.NewCombatQueue(CreateFrame("Frame"))
+EllesmereUI._ModuleNS[ADDON_NAME] = ns  -- LOD options files read this module ns via the registry
+ns.CombatQueue = EllesmereUI.NewCombatQueue(CreateFrame("Frame"))
 
 -- External weak-keyed lookup table for frame state (prevents tainting Blizzard frames)
 local FFD = setmetatable({}, { __mode = "k" })
@@ -453,12 +453,13 @@ function EllesmereUI.ReconcileWindowSkinLook()
 end
 
 -- Main-chunk locals the EUI_BlizzardSkin_*.lua files re-import by name.
--- broken: true while an EUI_BlizzardSkin_*.lua file loads; a file that fails
--- leaves it set, and the files behind it return at their first lines.
-local ns = select(2, ...)
+-- last: the file of the chain that most recently loaded to its end. Every
+-- EUI_BlizzardSkin_*.lua file returns at its first lines unless the file
+-- before it got there, so one that errors, does not compile or is missing
+-- stops the files behind it.
 ns._internals = {
     FFD = FFD, GetFFD = GetFFD,
-    broken = false,
+    last = "main",
 }
 -- A re-import of a name this table lacks fails where the part file loads,
 -- not later as a nil upvalue inside one of its functions.

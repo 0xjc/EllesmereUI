@@ -6,12 +6,11 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --  action button.
 --  Reads EllesmereUIBlizzardSkin.lua through ns._internals.
 -------------------------------------------------------------------------------
-local ADDON_NAME, ns = ...
+local _, ns = ...
 local I = ns._internals
 -- EllesmereUIBlizzardSkin.lua or an earlier EUI_BlizzardSkin_*.lua file
 -- failed to load.
-if not I or I.broken then return end
-I.broken = true
+if not I or I.last ~= "TooltipVisibility" then return end
 
 local GetFFD = I.GetFFD
 
@@ -25,18 +24,14 @@ local GetFFD = I.GetFFD
 --  The engine is resolved LAZILY. This file loads BEFORE
 --  EllesmereUIBlizzardSkin_WindowEngine.lua (see the .toc), so ns.WSkin does
 --  not exist at main-chunk time and a capture of it at the top of the file
---  would hand this block a nil engine. WS() below resolves on first use
---  through EllesmereUI._ModuleNS, the registry EllesmereUIBlizzardSkin.lua
---  populates. That deliberately removes a re-port landmine: there
---  is no engine capture to remember after an EUI update, and therefore no
---  silent fallback to hand-rolled fonts and colors when someone misses it.
+--  would hand this block a nil engine. WS() below reads it on first use, so
+--  there is no silent fallback to hand-rolled fonts and colors.
 -------------------------------------------------------------------------------
 ;(function()
     local _WS
     local function WS()
         if _WS then return _WS end
-        local mod = EllesmereUI._ModuleNS and EllesmereUI._ModuleNS[ADDON_NAME]
-        _WS = mod and mod.WSkin
+        _WS = ns.WSkin
         -- Force the theme on first use: a tooltip bar on the very first hover
         -- can reach WSkin.Font before the engine's own PLAYER_LOGIN boot and
         -- hand SetFont a nil font path.
@@ -1327,4 +1322,4 @@ local GetFFD = I.GetFFD
     end)
 end)()
 
-I.broken = false
+I.last = "HUD"

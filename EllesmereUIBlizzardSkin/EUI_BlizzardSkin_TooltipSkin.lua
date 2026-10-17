@@ -10,8 +10,7 @@ local _, ns = ...
 local I = ns._internals
 -- EllesmereUIBlizzardSkin.lua or an earlier EUI_BlizzardSkin_*.lua file
 -- failed to load.
-if not I or I.broken then return end
-I.broken = true
+if not I or I.last ~= "main" then return end
 
 local FFD, GetFFD = I.FFD, I.GetFFD
 
@@ -1793,4 +1792,4 @@ local FFD, GetFFD = I.FFD, I.GetFFD
     end
 end)()
 
-I.broken = false
+I.last = "TooltipSkin"

@@ -9,8 +9,7 @@ local _, ns = ...
 local I = ns._internals
 -- EllesmereUIBlizzardSkin.lua or an earlier EUI_BlizzardSkin_*.lua file
 -- failed to load.
-if not I or I.broken then return end
-I.broken = true
+if not I or I.last ~= "Dialogs" then return end
 
 -------------------------------------------------------------------------------
 --  UberTooltips CVar enforcement (only if user has manually set it in EUI)
@@ -514,4 +513,4 @@ do
     end)
 end
 
-I.broken = false
+I.last = "TooltipAnchor"
