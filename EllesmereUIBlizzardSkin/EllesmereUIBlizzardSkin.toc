@@ -11,6 +11,11 @@
 
 # Main Luas
 EllesmereUIBlizzardSkin.lua
+EUI_BlizzardSkin_TooltipSkin.lua
+EUI_BlizzardSkin_Dialogs.lua
+EUI_BlizzardSkin_TooltipAnchor.lua
+EUI_BlizzardSkin_TooltipVisibility.lua
+EUI_BlizzardSkin_HUD.lua
 EllesmereUIBlizzardSkin_DiminishingReturns.lua
 EllesmereUIBlizzardSkin_CharacterSheet.lua
 EllesmereUIBlizzardSkin_SocketPanel.lua

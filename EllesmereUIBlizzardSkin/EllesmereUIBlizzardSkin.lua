@@ -3,7 +3,7 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --  EllesmereUIBlizzardSkin.lua
 --  Umbrella addon for themed Blizzard UI frames. Hosts the Character Sheet
 --  rework (EllesmereUIBlizzardSkin_CharacterSheet.lua) plus the tooltip,
---  context menu and static popup reskinning below.
+--  context menu and static popup reskinning (EUI_BlizzardSkin_*.lua).
 -------------------------------------------------------------------------------
 local ADDON_NAME = ...
 if not (EllesmereUI and EllesmereUI._ModuleNS and EllesmereUI.NewCombatQueue and EllesmereUI.FriendsKit and EllesmereUI.CreateQuantityDialog) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring (FriendsForever reads the parent's friends kit, Merchant Bulk Buy its quantity window)
@@ -452,3 +452,16 @@ function EllesmereUI.ReconcileWindowSkinLook()
     if look then EllesmereUI.SwapWindowSkinStyle(look, false, look ~= "eui" and look or nil) end
 end
 
+-- Main-chunk locals the EUI_BlizzardSkin_*.lua files re-import by name.
+-- broken: true while an EUI_BlizzardSkin_*.lua file loads; a file that fails
+-- leaves it set, and the files behind it return at their first lines.
+local ns = select(2, ...)
+ns._internals = {
+    FFD = FFD, GetFFD = GetFFD,
+    broken = false,
+}
+-- A re-import of a name this table lacks fails where the part file loads,
+-- not later as a nil upvalue inside one of its functions.
+setmetatable(ns._internals, { __index = function(_, k)
+    error("ns._internals has no entry " .. tostring(k), 2)
+end })

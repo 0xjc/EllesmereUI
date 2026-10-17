@@ -1,3 +1,17 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_BlizzardSkin_TooltipAnchor.lua
+--
+--  Where the default tooltip sits: the UberTooltips CVar, anchor to cursor,
+--  the fixed position with its Unlock Mode mover, growth direction.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIBlizzardSkin.lua or an earlier EUI_BlizzardSkin_*.lua file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
 -------------------------------------------------------------------------------
 --  UberTooltips CVar enforcement (only if user has manually set it in EUI)
 -------------------------------------------------------------------------------
@@ -112,7 +126,7 @@ do
         if not (EllesmereUIDB and EllesmereUIDB.tooltipAnchorCursor) then return end
         -- Owner checked as well as the tooltip: a forbidden owner cannot be passed to SetOwner below. See TooltipOwnerUsable.
         if not TooltipOwnerUsable(parent) or tooltip:IsForbidden() then return end
-        -- "Show Tooltips" suppression parks the tip in a hidden host (below): it stays alive and invisible so the peek modifier can reveal it, so anchor it normally -- it must already ride the cursor when revealed.
+        -- "Show Tooltips" suppression parks the tip in a hidden host (EUI_BlizzardSkin_TooltipVisibility.lua): it stays alive and invisible so the peek modifier can reveal it, so anchor it normally -- it must already ride the cursor when revealed.
         local cf = EnsureCursorFrame()
         PositionCursorFrameNow(cf)
         local point = POINT_FOR_POS[EllesmereUIDB.tooltipCursorPosition or "top"] or "BOTTOM"
@@ -500,3 +514,4 @@ do
     end)
 end
 
+I.broken = false

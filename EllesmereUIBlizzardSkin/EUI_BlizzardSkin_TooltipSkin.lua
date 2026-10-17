@@ -1,3 +1,20 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_BlizzardSkin_TooltipSkin.lua
+--
+--  The game tooltip in the EllesmereUI style, with static popups, context
+--  menus, the resurrect glow and the LFG queue popup.
+--  Reads EllesmereUIBlizzardSkin.lua through ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIBlizzardSkin.lua or an earlier EUI_BlizzardSkin_*.lua file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local FFD, GetFFD = I.FFD, I.GetFFD
+
 -------------------------------------------------------------------------------
 --  Tooltip / Context Menu / Static Popup Skinning
 --  Restyles GameTooltip et al in EUI dark style; visual-only (alpha, backdrop color,
@@ -1776,3 +1793,4 @@
     end
 end)()
 
+I.broken = false

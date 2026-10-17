@@ -1,3 +1,20 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_BlizzardSkin_HUD.lua
+--
+--  Tooltip progress and status bars, UI widget status bars and the extra
+--  action button.
+--  Reads EllesmereUIBlizzardSkin.lua through ns._internals.
+-------------------------------------------------------------------------------
+local ADDON_NAME, ns = ...
+local I = ns._internals
+-- EllesmereUIBlizzardSkin.lua or an earlier EUI_BlizzardSkin_*.lua file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local GetFFD = I.GetFFD
+
 -------------------------------------------------------------------------------
 --  Blizzard HUD reskins: tooltip progress/status bars, UI widget status bar
 --  covers, and the extra action button.
@@ -7,11 +24,11 @@
 --
 --  The engine is resolved LAZILY. This file loads BEFORE
 --  EllesmereUIBlizzardSkin_WindowEngine.lua (see the .toc), so ns.WSkin does
---  not exist at main-chunk time and a `local ADDON_NAME, ns = ...` capture at
---  the top of the file would hand this block a nil engine. WS() below resolves
---  on first use through EllesmereUI._ModuleNS, the registry this file itself
---  populates near line 10. That deliberately removes a re-port landmine: there
---  is no second capture line to remember after an EUI update, and therefore no
+--  not exist at main-chunk time and a capture of it at the top of the file
+--  would hand this block a nil engine. WS() below resolves on first use
+--  through EllesmereUI._ModuleNS, the registry EllesmereUIBlizzardSkin.lua
+--  populates. That deliberately removes a re-port landmine: there
+--  is no engine capture to remember after an EUI update, and therefore no
 --  silent fallback to hand-rolled fonts and colors when someone misses it.
 -------------------------------------------------------------------------------
 ;(function()
@@ -739,7 +756,7 @@
         --
         -- hooksecurefunc on ONE FRAME'S method, not a write into the widget
         -- tree: no value is read, compared or stored, and it is the same call
-        -- this file already makes on GameTooltipStatusBar. pcall'd because a
+        -- this addon already makes on GameTooltipStatusBar. pcall'd because a
         -- field access on a widget frame can throw on its own.
         if not HUD.hooked[bar] and type(bar.DisplayBarValue) == "function" then
             HUD.hooked[bar] = true
@@ -1309,3 +1326,5 @@
         end
     end)
 end)()
+
+I.broken = false

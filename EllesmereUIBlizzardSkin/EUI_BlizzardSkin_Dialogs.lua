@@ -1,3 +1,20 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_BlizzardSkin_Dialogs.lua
+--
+--  Quick Keybind frame, premade group invite, LFG application dialog and
+--  the game menu.
+--  Reads EllesmereUIBlizzardSkin.lua through ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIBlizzardSkin.lua or an earlier EUI_BlizzardSkin_*.lua file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local GetFFD = I.GetFFD
+
 -------------------------------------------------------------------------------
 --  Quick Keybind Frame: dark reskin matching the queue popup style.
 -------------------------------------------------------------------------------
@@ -399,7 +416,7 @@ do
             if GameMenuFrame.buttonPool then
                 for btn in GameMenuFrame.buttonPool:EnumerateActive() do ApplyButtonStyle(btn) end
             end
-            -- The EUI/Unlock custom buttons are created by the PARENT addon and stored in ITS namespace FFD (EllesmereUI._GetFFD), not this file's local FFD; wrong table = dead code.
+            -- The EUI/Unlock custom buttons are created by the PARENT addon and stored in ITS namespace FFD (EllesmereUI._GetFFD), not this addon's own FFD; wrong table = dead code.
             local pd = EllesmereUI._GetFFD(GameMenuFrame)
             if pd and pd.euiBtn then ApplyButtonStyle(pd.euiBtn) end
             if pd and pd.unlockBtn then ApplyButtonStyle(pd.unlockBtn) end
@@ -454,3 +471,4 @@ do
     end)
 end
 
+I.broken = false

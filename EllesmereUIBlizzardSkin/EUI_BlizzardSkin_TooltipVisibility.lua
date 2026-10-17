@@ -1,3 +1,20 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_BlizzardSkin_TooltipVisibility.lua
+--
+--  When the tooltip shows: the Show Tooltips mode with its peek modifier
+--  and the comparison cleanup, and the unit health strip.
+--  Reads EllesmereUIBlizzardSkin.lua through ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+local I = ns._internals
+-- EllesmereUIBlizzardSkin.lua or an earlier EUI_BlizzardSkin_*.lua file
+-- failed to load.
+if not I or I.broken then return end
+I.broken = true
+
+local FFD = I.FFD
+
 -------------------------------------------------------------------------------
 --  Show Tooltips (global visibility mode). The "Blizzard Tooltip" dropdown
 --  (EllesmereUIDB.tooltipShowMode, default "always") suppresses the game tooltip
@@ -534,3 +551,4 @@ do
     end
 end
 
+I.broken = false
