@@ -1,3 +1,23 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ActionBars_Paging.lua
+--
+--  Per-bar paging: the configurable conditions, the class-specific state
+--  conditions, and the paging arrows and page number of action bar 1.
+--  Loads after EUI_ActionBars_Secure.lua; reads ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+
+local _G = _G
+local ipairs, pairs = ipairs, pairs
+local InCombatLockdown = InCombatLockdown
+local EFD = ns.EFD
+
+local EAB, EAB_VTABLE = ns.EAB, ns.EAB_VTABLE
+local I = ns._internals
+local barBaseSize, barFrames, NUM_AB_PAGES = I.barBaseSize, I.barFrames, I.NUM_AB_PAGES
+local SetPagingFrame = I.SetPagingFrame
+
 -------------------------------------------------------------------------------
 --  Configurable Paging System: per-bar paging based on modifier keys and
 --  class forms/stances. Empty paging config = bars behave exactly as before.
@@ -219,6 +239,7 @@ end
 --  Action Bar 1 Paging Arrows + Page Number
 -------------------------------------------------------------------------------
 local _pagingFrame    -- forward ref
+I.pagingFrameSetters[#I.pagingFrameSetters + 1] = function(v) _pagingFrame = v end
 local LayoutPagingFrame  -- forward ref (used inside SetupPagingFrame closure)
 
 -- The paging frame is parented to MainBar (see LayoutPagingFrame), so it
@@ -421,8 +442,7 @@ local function SetupPagingFrame()
     upBtn.commandName = "NEXTACTIONPAGE"
     downBtn.commandName = "PREVIOUSACTIONPAGE"
 
-    _pagingFrame = f
-    ns._PagingFrameBind(f)
+    SetPagingFrame(f)
     return f
 end
 
@@ -641,3 +661,7 @@ function ns._eabBuildPageChildSnippet(baseIndex)
         .. ns._eabPageVisSnippet .. ns._eabEmpowerSnippet
 end
 
+-- Entry points the files after this one re-import by name.
+I.SyncPagingAlpha, I.InitPagingQuickKeybindButton = SyncPagingAlpha, InitPagingQuickKeybindButton
+I.GetClassPagingConditions, I.LayoutPagingFrame = GetClassPagingConditions, LayoutPagingFrame
+I.SetupPagingFrame, I.WireSecurePagingButton = SetupPagingFrame, WireSecurePagingButton

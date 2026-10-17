@@ -1,3 +1,25 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ActionBars_Secure.lua
+--
+--  The secure setup handler that performs protected frame operations, the
+--  action button tables and their creation, and the event lists that are
+--  re-registered on the buttons.
+--  Loads after EUI_ActionBars_Controllers.lua; reads ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+
+local _G = _G
+local ipairs, pairs, type = ipairs, pairs, type
+local InCombatLockdown = InCombatLockdown
+local EFD = ns.EFD
+
+local EAB, EAB_VTABLE = ns.EAB, ns.EAB_VTABLE
+local I = ns._internals
+local BAR_CONFIG, STOCK_BAR_DISPOSAL = I.BAR_CONFIG, I.STOCK_BAR_DISPOSAL
+local hiddenParent = I.hiddenParent
+local RegisterButtonWithController = I.RegisterButtonWithController
+
 -------------------------------------------------------------------------------
 --  Secure Setup Handler: performs protected frame ops (SetParent, SetPoint,
 --  SetSize, Show/Hide) from within a restricted secure snippet so they run
@@ -117,6 +139,7 @@ _secureHandler:SetAttribute("_onattributechanged", [=[
 -- Register all buttons and bar frames as refs on the secure handler.
 -- Must be called AFTER SetupBar creates buttons (barButtons is populated).
 local _secureRefsReady = false
+I.secureRefsReadySetters[#I.secureRefsReadySetters + 1] = function(v) _secureRefsReady = v end
 -- One pass over every button that exists. Lazily built bars add buttons after
 -- it has already run, so the reveal path in RefreshRuntimeVisibility clears
 -- _secureRefsReady and calls this again; indices are reassigned consistently in
@@ -663,3 +686,13 @@ do
     V.HasTempShapeshiftActionBar = HasTempShapeshiftActionBar or (C_ActionBar and C_ActionBar.HasTempShapeshiftActionBar) or function() return false end
 end
 
+-- Entry points the files after this one re-import by name.
+I.BINDING_MAP, I.BUTTON_EVENT_LISTS = BINDING_MAP, BUTTON_EVENT_LISTS
+I.ReRegisterButtonEvents, I.barFrames, I.extraBarHolders = ReRegisterButtonEvents, barFrames, extraBarHolders
+I.dataBarFrames, I.blizzMovableHolders = dataBarFrames, blizzMovableHolders
+I.BLIZZ_MOVABLE_OVERLAY, I.buttonToBar, I.barBaseSize = BLIZZ_MOVABLE_OVERLAY, buttonToBar, barBaseSize
+I.BAR_SLOT_OFFSETS, I.allButtons, I.NUM_AB_PAGES = BAR_SLOT_OFFSETS, allButtons, NUM_AB_PAGES
+I.GetEABFlyout, I.GetOrCreateButton = GetEABFlyout, GetOrCreateButton
+I.SecureSetupHandler_RegisterBarFrame = SecureSetupHandler_RegisterBarFrame
+I.SecureSetupHandler_PrepareRefs, I.HideBlizzardBars = SecureSetupHandler_PrepareRefs, HideBlizzardBars
+I.SecureSetupHandler_Execute = SecureSetupHandler_Execute

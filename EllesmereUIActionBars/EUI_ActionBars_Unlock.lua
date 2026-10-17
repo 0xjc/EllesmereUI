@@ -1,3 +1,22 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ActionBars_Unlock.lua
+--
+--  Bar position save and restore, and the Unlock Mode registration.
+--  Loads after EUI_ActionBars_ApplyAll.lua; reads ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+
+local ipairs = ipairs
+local InCombatLockdown = InCombatLockdown
+
+local EAB = ns.EAB
+local I = ns._internals
+local BAR_CONFIG, EXTRA_BARS, SHAPE_BTN_EXPAND = I.BAR_CONFIG, I.EXTRA_BARS, I.SHAPE_BTN_EXPAND
+local barFrames, BLIZZ_MOVABLE_OVERLAY = I.barFrames, I.BLIZZ_MOVABLE_OVERLAY
+local blizzMovableHolders = I.blizzMovableHolders
+local LayoutBar = I.LayoutBar
+
 -------------------------------------------------------------------------------
 --  Position Save/Restore
 -------------------------------------------------------------------------------
@@ -463,3 +482,5 @@ local function RegisterWithUnlockMode()
     end
 end
 
+-- Entry points the files after this one re-import by name.
+I.RestoreBarPositions, I.RegisterWithUnlockMode = RestoreBarPositions, RegisterWithUnlockMode

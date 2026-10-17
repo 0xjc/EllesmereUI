@@ -1,8 +1,28 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ActionBars_ApplyAll.lua
+--
+--  ApplyAll, the full visual application over every bar.
+--  Loads after EUI_ActionBars_Vehicle.lua; reads ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+
+local ipairs, pairs = ipairs, pairs
+local wipe = wipe
+local InCombatLockdown = InCombatLockdown
+
+local EAB, EAB_VTABLE = ns.EAB, ns.EAB_VTABLE
+local I = ns._internals
+local _dragState, BAR_CONFIG = I._dragState, I.BAR_CONFIG
+local barFrames = I.barFrames
+local LayoutBar = I.LayoutBar
+local SetIsApplyingAll = I.SetIsApplyingAll
+
 -------------------------------------------------------------------------------
 --  Apply All orchestrates full visual application
 -------------------------------------------------------------------------------
 local function ApplyAll()
-    _isApplyingAll = true
+    SetIsApplyingAll(true)
     -- Full applies can create/enable bars and reassign slots without any
     -- dispatcher content event: retire the filled-slot fast lists, and the
     -- curated memo with them (profile swaps can land mid-session).
@@ -97,7 +117,7 @@ local function ApplyAll()
     ns.PartySpin_Refresh()
 
     if not inCombat then ns.RefreshPagingCycleMacros() end
-    _isApplyingAll = false
+    SetIsApplyingAll(false)
 end
 
 -- Handle for the lazy bar build in RefreshRuntimeVisibility, which sits above
@@ -106,3 +126,5 @@ end
 -- start firing that hook for the first time.
 ns._eabApplyAll = ApplyAll
 
+-- Entry points the files after this one re-import by name.
+I.ApplyAll = ApplyAll

@@ -1,3 +1,23 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ActionBars_Disposal.lua
+--
+--  The hidden dump frame and the early disposal of Blizzard's stock action
+--  bars, which runs while this file loads.
+--  Loads after EllesmereUIActionBars.lua; reads ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+
+local _G = _G
+local ipairs, pairs, type, pcall = ipairs, pairs, type, pcall
+local InCombatLockdown = InCombatLockdown
+local hooksecurefunc = hooksecurefunc
+local GetBindingKey = GetBindingKey
+
+local ForceCooldownPaint = ns.ForceCooldownPaint
+local I = ns._internals
+local FormatHotkeyText = I.FormatHotkeyText
+
 -------------------------------------------------------------------------------
 --  Hidden Dump Frame -- reparenting stock frames here is safer than :Hide(),
 --  which can trigger taint chains in protected code paths. Full-size so
@@ -397,3 +417,5 @@ do
     end
 end
 
+-- Entry points the files after this one re-import by name.
+I.hiddenParent = hiddenParent

@@ -1,3 +1,20 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ActionBars_Controllers.lua
+--
+--  The secure button controller (show-grid state, drag and click snippets)
+--  and the override controller that follows vehicle, override and
+--  possess bars.
+--  Loads after EUI_ActionBars_Disposal.lua; reads ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+
+local pairs, type = pairs, type
+local InCombatLockdown = InCombatLockdown
+local RegisterAttributeDriver = RegisterAttributeDriver
+
+local I = ns._internals
+
 -------------------------------------------------------------------------------
 --  Central Action Button Controller: a SecureHandlerAttributeTemplate that
 --  manages ALL action buttons. Tracks button-to-action mappings in a secure
@@ -326,3 +343,8 @@ local function RegisterBarWithOverrideController(frame)
     frame:SetAttribute("state-overridepage", OverrideController:GetAttribute("overridepage") or 0)
 end
 
+-- Entry points the files after this one re-import by name.
+I.SHOWGRID, I.SetShowGridInsecure, I._controllerButtons = SHOWGRID, SetShowGridInsecure, _controllerButtons
+I.RegisterButtonWithController = RegisterButtonWithController
+I.RegisterBarWithOverrideController = RegisterBarWithOverrideController
+I.ActionButtonController, I.InitShowGridMonitor = ActionButtonController, InitShowGridMonitor

@@ -1016,3 +1016,35 @@ local STOCK_BAR_DISPOSAL = {
     { name = "PetActionBar" },
 }
 
+-- Main-chunk locals the other EUI_ActionBars_*.lua files re-import by name.
+-- Each of those files adds the entry points the files behind it need (bottom
+-- of that file).
+-- The three ...Setters lists: a file that keeps one of these values registers
+-- a setter here; the place that assigns it writes through SetSecureRefsReady,
+-- SetPagingFrame or SetIsApplyingAll, built below, which runs them all.
+ns._internals = {
+    BAR_CONFIG = BAR_CONFIG, _fadeAlpha = _fadeAlpha, _quickKeybindState = _quickKeybindState,
+    FormatHotkeyText = FormatHotkeyText, StopFade = StopFade, SafeEnableMouse = SafeEnableMouse,
+    SafeEnableMouseMotionOnly = SafeEnableMouseMotionOnly,
+    ShouldQuickKeybindSurfaceBar = ShouldQuickKeybindSurfaceBar, FONT_PATH = FONT_PATH,
+    _gridState = _gridState, NUM_ACTIONBAR_BUTTONS = NUM_ACTIONBAR_BUTTONS,
+    SHAPE_EDGE_SCALES = SHAPE_EDGE_SCALES, STOCK_BAR_DISPOSAL = STOCK_BAR_DISPOSAL, BAR_LOOKUP = BAR_LOOKUP,
+    SHAPE_BTN_EXPAND = SHAPE_BTN_EXPAND, ALL_BARS = ALL_BARS, FadeTo = FadeTo, EXTRA_BARS = EXTRA_BARS,
+    _dragState = _dragState,
+    secureRefsReadySetters = {}, pagingFrameSetters = {}, isApplyingAllSetters = {},
+}
+for setter, listName in pairs({
+    SetSecureRefsReady = "secureRefsReadySetters",
+    SetPagingFrame = "pagingFrameSetters",
+    SetIsApplyingAll = "isApplyingAllSetters",
+}) do
+    local list = ns._internals[listName]
+    ns._internals[setter] = function(v)
+        for i = 1, #list do list[i](v) end
+    end
+end
+-- A re-import of a name this table lacks fails where the part file loads,
+-- not later as a nil upvalue inside one of its functions.
+setmetatable(ns._internals, { __index = function(_, k)
+    error("ns._internals has no entry " .. tostring(k), 2)
+end })

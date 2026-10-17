@@ -1,3 +1,29 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ActionBars_Bars.lua
+--
+--  The secure bar frames, SetupBar and the first-install capture of
+--  Blizzard's layout.
+--  Loads after EUI_ActionBars_Paging.lua; reads ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+
+local _G = _G
+local ipairs, pairs, type, pcall = ipairs, pairs, type, pcall
+local min, max = math.min, math.max
+local InCombatLockdown = InCombatLockdown
+local RegisterStateDriver = RegisterStateDriver
+
+local EAB, EAB_VTABLE, barButtons = ns.EAB, ns.EAB_VTABLE, ns.barButtons
+local I = ns._internals
+local BAR_CONFIG = I.BAR_CONFIG
+local RegisterBarWithOverrideController = I.RegisterBarWithOverrideController
+local BAR_SLOT_OFFSETS, barBaseSize, barFrames = I.BAR_SLOT_OFFSETS, I.barBaseSize, I.barFrames
+local BINDING_MAP, buttonToBar, GetEABFlyout = I.BINDING_MAP, I.buttonToBar, I.GetEABFlyout
+local GetOrCreateButton, ReRegisterButtonEvents = I.GetOrCreateButton, I.ReRegisterButtonEvents
+local SecureSetupHandler_RegisterBarFrame = I.SecureSetupHandler_RegisterBarFrame
+local GetClassPagingConditions = I.GetClassPagingConditions
+
 -------------------------------------------------------------------------------
 --  Secure Bar Frame Creation
 --  Each bar gets a SecureHandlerStateTemplate frame. Our buttons are created
@@ -692,3 +718,5 @@ function ns.AB_CaptureCapSpan(captured)
     return Walk(-1), Walk(1)
 end
 
+-- Entry points the files after this one re-import by name.
+I.CaptureBlizzardDefaults, I.SetupBar = CaptureBlizzardDefaults, SetupBar

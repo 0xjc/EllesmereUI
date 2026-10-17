@@ -1,3 +1,23 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ActionBars_Keybinds.lua
+--
+--  The keybind system: override bindings for every bar and the key-down
+--  CVar.
+--  Loads after EUI_ActionBars_VisibilityDrivers.lua; reads ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+
+local _G = _G
+local ipairs = ipairs
+local InCombatLockdown = InCombatLockdown
+local GetBindingKey = GetBindingKey
+
+local EAB, EAB_VTABLE, barButtons = ns.EAB, ns.EAB_VTABLE, ns.barButtons
+local I = ns._internals
+local BAR_CONFIG = I.BAR_CONFIG
+local BAR_SLOT_OFFSETS, barFrames, BINDING_MAP = I.BAR_SLOT_OFFSETS, I.barFrames, I.BINDING_MAP
+
 -------------------------------------------------------------------------------
 --  Keybind System: ALL standard-bar slots (empowered spells included) bind to
 --  native commands (ACTIONBUTTON1 etc.) -- the engine pairs press/release
@@ -316,4 +336,6 @@ local function ApplyKeyDownCVar()
     UpdateKeybinds()
 end
 
-
+-- Entry points the files after this one re-import by name.
+I.UpdateKeybinds, I._bindState, I._eabBindOwner = UpdateKeybinds, _bindState, _eabBindOwner
+I.ApplyKeyDownCVar = ApplyKeyDownCVar

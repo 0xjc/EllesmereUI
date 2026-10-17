@@ -1,3 +1,45 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ActionBars_Setup.lua
+--
+--  Edit Mode icon count sync and EAB:FinishSetup.
+--  Loads after EUI_ActionBars_Init.lua; reads ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+
+local _G = _G
+local ipairs, pairs, type, pcall = ipairs, pairs, type, pcall
+local wipe, tinsert = wipe, table.insert
+local InCombatLockdown = InCombatLockdown
+local hooksecurefunc = hooksecurefunc
+local C_Timer_After = C_Timer.After
+local RegisterAttributeDriver = RegisterAttributeDriver
+local EFD = ns.EFD
+
+local EAB, EAB_VTABLE, barButtons = ns.EAB, ns.EAB_VTABLE, ns.barButtons
+local I = ns._internals
+local _dragState, _gridState, _quickKeybindState = I._dragState, I._gridState, I._quickKeybindState
+local ALL_BARS, BAR_CONFIG, BAR_LOOKUP, FadeTo = I.ALL_BARS, I.BAR_CONFIG, I.BAR_LOOKUP, I.FadeTo
+local ShouldQuickKeybindSurfaceBar, STOCK_BAR_DISPOSAL = I.ShouldQuickKeybindSurfaceBar, I.STOCK_BAR_DISPOSAL
+local StopFade = I.StopFade
+local hiddenParent = I.hiddenParent
+local _controllerButtons, ActionButtonController = I._controllerButtons, I.ActionButtonController
+local InitShowGridMonitor, SetShowGridInsecure, SHOWGRID = I.InitShowGridMonitor, I.SetShowGridInsecure, I.SHOWGRID
+local BAR_SLOT_OFFSETS, barFrames, blizzMovableHolders = I.BAR_SLOT_OFFSETS, I.barFrames, I.blizzMovableHolders
+local buttonToBar, dataBarFrames, extraBarHolders = I.buttonToBar, I.dataBarFrames, I.extraBarHolders
+local GetEABFlyout, HideBlizzardBars = I.GetEABFlyout, I.HideBlizzardBars
+local SecureSetupHandler_Execute = I.SecureSetupHandler_Execute
+local SecureSetupHandler_PrepareRefs = I.SecureSetupHandler_PrepareRefs
+local SyncPagingAlpha = I.SyncPagingAlpha
+local SetupBar = I.SetupBar
+local ComputeBarLayout, LayoutBar = I.ComputeBarLayout, I.LayoutBar
+local AttachHoverHooks, hoverStates = I.AttachHoverHooks, I.hoverStates
+local BuildVisibilityString = I.BuildVisibilityString
+local _bindState, ApplyKeyDownCVar, UpdateKeybinds = I._bindState, I.ApplyKeyDownCVar, I.UpdateKeybinds
+local IsHouseEditorActive, OnGridChange = I.IsHouseEditorActive, I.OnGridChange
+local ApplyAll = I.ApplyAll
+local RegisterWithUnlockMode, RestoreBarPositions = I.RegisterWithUnlockMode, I.RestoreBarPositions
+
 -------------------------------------------------------------------------------
 --  Edit Mode Icon Count Sync: when EUI's configured icon count for a bar
 --  exceeds Edit Mode's setting, update the Edit Mode layout data via
@@ -1556,32 +1598,3 @@ function EAB:FinishSetup()
         if f then ns.ApplyBarDormancy(info.key, not f:IsVisible()) end
     end
 end
-
--- Main-chunk locals the other EUI_ActionBars_*.lua files re-import by name
--- (EUI_ActionBars_ButtonArt.lua and EUI_ActionBars_Range.lua add their entry
--- points for the files after them, EUI_ActionBars_DataBars.lua adds
--- SetupDataBars for the extra bars file).
-ns._internals = {
-    BAR_CONFIG = BAR_CONFIG, BINDING_MAP = BINDING_MAP, BUTTON_EVENT_LISTS = BUTTON_EVENT_LISTS,
-    ReRegisterButtonEvents = ReRegisterButtonEvents, barFrames = barFrames,
-    _fadeAlpha = _fadeAlpha, extraBarHolders = extraBarHolders,
-    dataBarFrames = dataBarFrames, blizzMovableHolders = blizzMovableHolders,
-    BLIZZ_MOVABLE_OVERLAY = BLIZZ_MOVABLE_OVERLAY, hoverStates = hoverStates,
-    AttachDataBarHoverHooks = AttachDataBarHoverHooks, _quickKeybindState = _quickKeybindState,
-    FormatHotkeyText = FormatHotkeyText, StopFade = StopFade,
-    SafeEnableMouse = SafeEnableMouse, SafeEnableMouseMotionOnly = SafeEnableMouseMotionOnly,
-    ShouldQuickKeybindSurfaceBar = ShouldQuickKeybindSurfaceBar,
-    SHOWGRID = SHOWGRID, SetShowGridInsecure = SetShowGridInsecure,
-    SyncPagingAlpha = SyncPagingAlpha, InitPagingQuickKeybindButton = InitPagingQuickKeybindButton,
-    FONT_PATH = FONT_PATH, LayoutBar = LayoutBar, buttonToBar = buttonToBar, _gridState = _gridState,
-    NUM_ACTIONBAR_BUTTONS = NUM_ACTIONBAR_BUTTONS,
-    barBaseSize = barBaseSize, SHAPE_EDGE_SCALES = SHAPE_EDGE_SCALES,
-    BAR_SLOT_OFFSETS = BAR_SLOT_OFFSETS, HideSlotArt = HideSlotArt,
-    _controllerButtons = _controllerButtons, allButtons = allButtons,
-    BuildVisibilityString = BuildVisibilityString,
-}
--- A re-import of a name this table lacks fails where the part file loads,
--- not later as a nil upvalue inside one of its functions.
-setmetatable(ns._internals, { __index = function(_, k)
-    error("ns._internals has no entry " .. tostring(k), 2)
-end })

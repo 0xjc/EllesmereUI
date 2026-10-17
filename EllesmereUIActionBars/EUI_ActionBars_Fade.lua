@@ -1,3 +1,25 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ActionBars_Fade.lua
+--
+--  Mouseover fade: hover states, fade in and out, and the hover hooks on
+--  bars and data bars.
+--  Loads after EUI_ActionBars_Layout.lua; reads ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+
+local _G = _G
+local ipairs, pairs = ipairs, pairs
+local C_Timer_After = C_Timer.After
+
+local EAB, EAB_VTABLE, barButtons = ns.EAB, ns.EAB_VTABLE, ns.barButtons
+local I = ns._internals
+local _gridState, _quickKeybindState, ALL_BARS, FadeTo = I._gridState, I._quickKeybindState, I.ALL_BARS, I.FadeTo
+local StopFade = I.StopFade
+local barFrames, blizzMovableHolders, dataBarFrames = I.barFrames, I.blizzMovableHolders, I.dataBarFrames
+local extraBarHolders, GetEABFlyout = I.extraBarHolders, I.GetEABFlyout
+local SyncPagingAlpha = I.SyncPagingAlpha
+
 -------------------------------------------------------------------------------
 --  Mouseover Fade System
 -------------------------------------------------------------------------------
@@ -306,3 +328,5 @@ function EAB:RefreshMouseover(onlyHoverGated)
     end
 end
 
+-- Entry points the files after this one re-import by name.
+I.hoverStates, I.AttachDataBarHoverHooks, I.AttachHoverHooks = hoverStates, AttachDataBarHoverHooks, AttachHoverHooks

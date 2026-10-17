@@ -1,3 +1,28 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ActionBars_Init.lua
+--
+--  OnInitialize, OnEnable and OnFirstLogin, and the slash commands.
+--  Loads after EUI_ActionBars_Unlock.lua; reads ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+
+local _G = _G
+local ipairs, pairs, type, pcall = ipairs, pairs, type, pcall
+local wipe = wipe
+local InCombatLockdown = InCombatLockdown
+local hooksecurefunc = hooksecurefunc
+local C_Timer_After = C_Timer.After
+local EFD = ns.EFD
+
+local defaults, EAB, barButtons = ns.defaults, ns.EAB, ns.barButtons
+local I = ns._internals
+local BAR_CONFIG, BAR_LOOKUP = I.BAR_CONFIG, I.BAR_LOOKUP
+local CaptureBlizzardDefaults = I.CaptureBlizzardDefaults
+local ApplyKeyDownCVar = I.ApplyKeyDownCVar
+local ApplyAll = I.ApplyAll
+local RestoreBarPositions = I.RestoreBarPositions
+
 -------------------------------------------------------------------------------
 --  Initialization
 -------------------------------------------------------------------------------
@@ -454,4 +479,3 @@ function EAB:OnFirstLogin()
     -- Now proceed with normal setup
     self:FinishSetup()
 end
-

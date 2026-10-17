@@ -1,3 +1,32 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ActionBars_Layout.lua
+--
+--  The layout engine that places buttons in a grid, bar chrome sizing,
+--  party mode and LayoutBar.
+--  Loads after EUI_ActionBars_Bars.lua; reads ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+
+local ipairs = ipairs
+local ceil, floor, max = math.ceil, math.floor, math.max
+local wipe = wipe
+local InCombatLockdown = InCombatLockdown
+local GetBindingKey = GetBindingKey
+local EFD = ns.EFD
+
+local EAB, barButtons = ns.EAB, ns.barButtons
+local I = ns._internals
+local _gridState, BAR_CONFIG, BAR_LOOKUP = I._gridState, I.BAR_CONFIG, I.BAR_LOOKUP
+local SHAPE_BTN_EXPAND, ShouldQuickKeybindSurfaceBar = I.SHAPE_BTN_EXPAND, I.ShouldQuickKeybindSurfaceBar
+local barBaseSize, barFrames = I.barBaseSize, I.barFrames
+local LayoutPagingFrame, SetupPagingFrame = I.LayoutPagingFrame, I.SetupPagingFrame
+local WireSecurePagingButton = I.WireSecurePagingButton
+-- Written in EUI_ActionBars_Paging.lua;
+-- SetPagingFrame hands the value to this copy.
+local _pagingFrame
+I.pagingFrameSetters[#I.pagingFrameSetters + 1] = function(v) _pagingFrame = v end
+
 -------------------------------------------------------------------------------
 --  Layout Engine positions buttons in a grid
 -------------------------------------------------------------------------------
@@ -239,6 +268,7 @@ end
 -- Upvalue for LayoutBar (must be declared before it). ApplyAll sets it during full
 -- rebuilds so edge preservation cannot save stale positions into the new profile.
 local _isApplyingAll = false
+I.isApplyingAllSetters[#I.isApplyingAllSetters + 1] = function(v) _isApplyingAll = v end
 
 local function LayoutBar(key)
     if InCombatLockdown() then ns._eabApplyDeferred = true return end
@@ -856,3 +886,5 @@ function EAB:RecalcFlyoutDirection(barKey)
     end
 end
 
+-- Entry points the files after this one re-import by name.
+I.LayoutBar, I.HideSlotArt, I.ComputeBarLayout = LayoutBar, HideSlotArt, ComputeBarLayout

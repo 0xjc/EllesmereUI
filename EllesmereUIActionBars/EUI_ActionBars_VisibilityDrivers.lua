@@ -1,3 +1,31 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ActionBars_VisibilityDrivers.lua
+--
+--  The visibility condition builder for the state drivers, runtime
+--  visibility with the lazy bar build, and extra bar visibility.
+--  Loads after EUI_ActionBars_Fade.lua; reads ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+
+local _G = _G
+local ipairs = ipairs
+local InCombatLockdown = InCombatLockdown
+local RegisterStateDriver = RegisterStateDriver
+local RegisterAttributeDriver = RegisterAttributeDriver
+
+local EAB, EAB_VTABLE, barButtons = ns.EAB, ns.EAB_VTABLE, ns.barButtons
+local I = ns._internals
+local ALL_BARS, BAR_CONFIG, EXTRA_BARS = I.ALL_BARS, I.BAR_CONFIG, I.EXTRA_BARS
+local barFrames, blizzMovableHolders, dataBarFrames = I.barFrames, I.blizzMovableHolders, I.dataBarFrames
+local extraBarHolders, SecureSetupHandler_PrepareRefs = I.extraBarHolders, I.SecureSetupHandler_PrepareRefs
+local LayoutBar = I.LayoutBar
+local SetSecureRefsReady = I.SetSecureRefsReady
+-- Written in EUI_ActionBars_Layout.lua;
+-- SetIsApplyingAll hands the value to this copy.
+local _isApplyingAll = false
+I.isApplyingAllSetters[#I.isApplyingAllSetters + 1] = function(v) _isApplyingAll = v end
+
 -------------------------------------------------------------------------------
 --  Visibility Condition Builder: macro condition string for RegisterStateDriver,
 --  per bar type and user settings (combat show/hide).
@@ -362,7 +390,7 @@ ns._eabBuildSkippedBars = function()
     end
     if built then
         -- The refs pass already ran without these buttons in it.
-        _secureRefsReady = false
+        SetSecureRefsReady(false)
         SecureSetupHandler_PrepareRefs()
         -- Everything cosmetic (borders, shapes, fonts, backgrounds, button
         -- art, cooldown visuals, range colouring) converges through the
@@ -412,3 +440,5 @@ ns._ixBarSync = function(barKey, eligOnly)
     end
 end
 
+-- Entry points the files after this one re-import by name.
+I.BuildVisibilityString = BuildVisibilityString

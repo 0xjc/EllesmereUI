@@ -1,3 +1,28 @@
+if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
+-------------------------------------------------------------------------------
+--  EUI_ActionBars_Vehicle.lua
+--
+--  The vehicle exit button, hiding Blizzard's vehicle and override bar,
+--  the vehicle highlight fix, housing editor keybinds and grid show/hide.
+--  Loads after EUI_ActionBars_Keybinds.lua; reads ns._internals.
+-------------------------------------------------------------------------------
+local _, ns = ...
+
+local _G = _G
+local ipairs, pairs, pcall = ipairs, pairs, pcall
+local InCombatLockdown = InCombatLockdown
+local C_Timer_After = C_Timer.After
+local EFD = ns.EFD
+
+local EAB, EAB_VTABLE, barButtons = ns.EAB, ns.EAB_VTABLE, ns.barButtons
+local I = ns._internals
+local _gridState, BAR_CONFIG, NUM_ACTIONBAR_BUTTONS = I._gridState, I.BAR_CONFIG, I.NUM_ACTIONBAR_BUTTONS
+local SafeEnableMouse = I.SafeEnableMouse
+local SetShowGridInsecure, SHOWGRID = I.SetShowGridInsecure, I.SHOWGRID
+local barFrames = I.barFrames
+local hoverStates = I.hoverStates
+local _bindState, _eabBindOwner, UpdateKeybinds = I._bindState, I._eabBindOwner, I.UpdateKeybinds
+
 -------------------------------------------------------------------------------
 --  Vehicle Exit Button: reparent to UIParent so it stays visible when
 --  ActionBarParent is hidden. Position and visibility are fully
@@ -534,3 +559,5 @@ do
     end)
 end
 
+-- Entry points the files after this one re-import by name.
+I.IsHouseEditorActive, I.OnGridChange = IsHouseEditorActive, OnGridChange
