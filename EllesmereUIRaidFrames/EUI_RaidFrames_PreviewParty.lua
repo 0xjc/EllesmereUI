@@ -240,6 +240,9 @@ local function GetOrCreatePartyPvFrame(index)
 end
 
 -- Apply preview data with party-specific width/height override
+-- The raid values ApplyPartyPreviewData overwrites for one call, kept to put back.
+local savedHealth, savedPower = {}, {}
+
 local function ApplyPartyPreviewData(f, index)
     local s = db.profile
     -- Use party proxy so ApplyPreviewData reads party-specific settings
@@ -255,14 +258,13 @@ local function ApplyPartyPreviewData(f, index)
     s.frameWidth, s.frameHeight = ew - (eres or 0), eh
 
     -- Temporarily swap preview value tables so ApplyPreviewData reads party data
-    local origHealth = previewHealthValues
-    local origPower  = previewPowerValues
     local origAbsorb = ns.previewAbsorbValues
     local origHA     = ns.previewHealAbsorbValues
     local origHP     = ns.previewHealPredValues
     local origRMH    = ns.previewReducedMaxHealth
 
     for i = 1, 5 do
+        savedHealth[i], savedPower[i] = previewHealthValues[i], previewPowerValues[i]
         previewHealthValues[i] = ns._partyPvHV[i]
         previewPowerValues[i]  = ns._partyPvPV[i]
     end
@@ -286,8 +288,8 @@ local function ApplyPartyPreviewData(f, index)
     s.frameWidth  = origW
     s.frameHeight = origH
     for i = 1, 5 do
-        previewHealthValues[i] = origHealth[i]
-        previewPowerValues[i]  = origPower[i]
+        previewHealthValues[i] = savedHealth[i]
+        previewPowerValues[i]  = savedPower[i]
     end
     ns.previewAbsorbValues     = origAbsorb
     ns.previewHealAbsorbValues = origHA
