@@ -1735,11 +1735,14 @@ local function BuildSidebarButtons(categoryCounts, totalCount)
                         EUI_Bags:RefreshInventory()
                     end)
 
+                    -- EnableKeyboard and SetPropagateKeyboardInput are protected in
+                    -- combat: the popup takes the keyboard as it shows out of combat
+                    -- (below) and stands aside in it, keys reaching the game.
                     popup:SetScript("OnKeyDown", function(s, key)
+                        if InCombatLockdown() then return end
                         if key == "ESCAPE" then s:Hide(); s:SetPropagateKeyboardInput(false)
                         else s:SetPropagateKeyboardInput(true) end
                     end)
-                    popup:EnableKeyboard(true)
                     -- Controller cursor: Cancel finds Add Category, which toggles the popup closed.
                     if EUI.PadCP() then popup.CloseButton = self end
 
@@ -1753,6 +1756,10 @@ local function BuildSidebarButtons(categoryCounts, totalCount)
                 popup._updateSelection()
                 popup:ClearAllPoints()
                 popup:SetPoint("BOTTOMLEFT", self, "BOTTOMRIGHT", 4, 0)
+                if not InCombatLockdown() then
+                    popup:EnableKeyboard(true)
+                    popup:SetPropagateKeyboardInput(true)
+                end
                 popup:Show()
                 popup._nameEB:SetFocus()
             end)
