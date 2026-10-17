@@ -1502,6 +1502,10 @@ local DEFAULTS = {
             gradientDir   = "HORIZONTAL",  -- "HORIZONTAL","VERTICAL"
             texture       = "none",
             showSpark     = false,
+            sparkWidth    = 8,
+            sparkOverhang = 0,      -- how far the spark reaches past the bar's top and bottom
+            -- Spark colours (mhSparkR/G/B/A, ohSpark.., rSpark..) are unset by default:
+            -- white, and a combined off hand's spark its fill colour.
             depleteFill   = true,   -- start full and deplete instead of filling up
             idleShowFill  = nil,    -- true = idle row sits full of its fill colour
             hideWhenIdle  = false,  -- hide the whole bar while no swing is running

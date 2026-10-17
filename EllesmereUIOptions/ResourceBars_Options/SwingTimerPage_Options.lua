@@ -438,6 +438,41 @@ function ns.ERB_BuildSwingTimerPage(pageName, parent, yOffset)
           setValue = function() end }
     );  y = y - h
     if not EllesmereUI._prebuilding then
+        -- Not tied to Show Spark: a combined off hand's spark shows either way.
+        -- Colours: store keys <key>SparkR/G/B/A, unset by default; the swatch
+        -- shows the colour the bar paints (ST_SparkColor).
+        local function SparkRow(label, key)
+            local prefix = key .. "Spark"
+            return { type = "colorpicker", label = label, hasAlpha = true,
+                get = function()
+                    if ns.ST_SparkColor then return ns.ST_SparkColor(key) end
+                    return 1, 1, 1, 1
+                end,
+                set = function(r, gg, b, a)
+                    local p = DB(); if not p then return end
+                    local g = p.swingTimer
+                    g[prefix .. "R"], g[prefix .. "G"], g[prefix .. "B"], g[prefix .. "A"] = r, gg, b, a
+                    RefreshST()
+                end }
+        end
+        EllesmereUI.BuildInlineCog(sparkRow._leftRegion, {
+            disabled = stOff, disabledTooltip = ST_TIP,
+            title = "Spark",
+            rows = {
+                { type = "slider", label = "Width", min = 1, max = 32, step = 1,
+                  get = function() local p = DB(); return p and p.swingTimer.sparkWidth or 8 end,
+                  set = function(v) local p = DB(); if not p then return end; p.swingTimer.sparkWidth = v; RefreshST() end },
+                { type = "slider", pixel = true, label = "Overhang", min = 0, max = 20, step = 1,
+                  tooltip = "How far the spark reaches past the top and bottom of the bar.",
+                  get = function() local p = DB(); return p and p.swingTimer.sparkOverhang or 0 end,
+                  set = function(v) local p = DB(); if not p then return end; p.swingTimer.sparkOverhang = v; RefreshST() end },
+                SparkRow("Main Hand Color", "mh"),
+                SparkRow("Off Hand Color", "oh"),
+                SparkRow("Ranged Color", "r"),
+            },
+        })
+    end
+    if not EllesmereUI._prebuilding then
         local rgn = sparkRow._rightRegion
         if rgn._control then rgn._control:Hide() end
         -- Checked = the row shows. The keys are the per-row toggles this
