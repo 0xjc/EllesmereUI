@@ -73,7 +73,8 @@ function EABR.BuildForeverFamilies()
     if fams then wipe(fams) else fams = {}; EABR._fvFams = fams end
     local fo = db.profile.forever
     local custom = fo and fo.customIDs
-    if not (custom and custom[1]) then return end
+    local groups = fo and fo.customGroups
+    if not ((custom and custom[1]) or (groups and groups[1])) then return end
     local familyOf = EABR._fvFamilyOf
     if not familyOf then
         familyOf = {}
@@ -84,22 +85,32 @@ function EABR.BuildForeverFamilies()
     end
     -- name -> the families its spellbook entries join
     local byName = {}
-    for i = 1, #custom do
-        local id = custom[i]
-        if not fams[id] then
-            local list = { id }
-            local shared = familyOf[id]
-            if shared then
-                for _, sid in ipairs(shared.ids) do
-                    if sid ~= id then list[#list + 1] = sid end
-                end
+    local function buildFamilyFor(spellID)
+        if type(spellID) ~= "number" or fams[spellID] then return end
+        local list = { spellID }
+        local shared = familyOf[spellID]
+        if shared then
+            for _, sid in ipairs(shared.ids) do
+                if sid ~= spellID then list[#list + 1] = sid end
             end
-            fams[id] = list
-            local name = SpellName(id)
-            if name then
-                local into = byName[name]
-                if not into then into = {}; byName[name] = into end
-                into[#into + 1] = list
+        end
+        fams[spellID] = list
+        local name = SpellName(spellID)
+        if name then
+            local into = byName[name]
+            if not into then into = {}; byName[name] = into end
+            into[#into + 1] = list
+        end
+    end
+    if custom then
+        for _, spellID in ipairs(custom) do buildFamilyFor(spellID) end
+    end
+    -- Group members get the same rank expansion, from the same spellbook pass.
+    if groups then
+        for _, group in ipairs(groups) do
+            local groupSpellIDs = type(group) == "table" and group.ids
+            if type(groupSpellIDs) == "table" then
+                for _, spellID in ipairs(groupSpellIDs) do buildFamilyFor(spellID) end
             end
         end
     end
@@ -120,6 +131,55 @@ function EABR.BuildForeverFamilies()
                     end
                     if not listed then list[#list + 1] = sid end
                 end
+            end
+        end
+    end
+end
+
+-- WoW Forever spell groups: one reminder per group while no aura from its
+-- spells (or their ranks, EABR.ForeverFamily) is active. While the client hides
+-- aura data from addons (AuraKit.AurasRestricted), a group counts as having no
+-- active aura only if none of its spells is flagged secret, so a hidden aura is
+-- not read as absent. Dismiss keys are per group table (weak), so removing or
+-- renaming a group never hands its dismissal to another.
+function EABR.CollectForeverGroups(missing, groups)
+    local dismissKeys = EABR._fvGroupKeys
+    if not dismissKeys then
+        dismissKeys = setmetatable({}, { __mode = "k" })
+        EABR._fvGroupKeys = dismissKeys
+        EABR._fvGroupN = 0
+    end
+    local aurasRestricted = EllesmereUI.AuraKit and EllesmereUI.AuraKit.AurasRestricted()
+    for _, group in ipairs(groups) do
+        local spellIDs = type(group) == "table" and group.ids
+        if type(spellIDs) == "table" then
+            local iconSpellID, hasActiveAura
+            local allAurasReadable = true
+            for _, spellID in ipairs(spellIDs) do
+                local rankSpellIDs = type(spellID) == "number" and SpellName(spellID)
+                    and EABR.ForeverFamily(spellID)
+                if rankSpellIDs then
+                    iconSpellID = iconSpellID or spellID  -- the group's icon is its first spell the client knows
+                    if PlayerHasAuraByID(rankSpellIDs) then hasActiveAura = true; break end
+                    if aurasRestricted and not EABR.FvRanksReadable(rankSpellIDs) then
+                        allAurasReadable = false
+                    end
+                end
+            end
+            if iconSpellID and allAurasReadable and not hasActiveAura then
+                local dismissKey = dismissKeys[group]
+                if not dismissKey then
+                    EABR._fvGroupN = EABR._fvGroupN + 1
+                    dismissKey = "forever:g" .. EABR._fvGroupN
+                    dismissKeys[group] = dismissKey
+                end
+                local entry = AcquireEntry()
+                entry.mode = "texture"; entry.spellID = iconSpellID
+                entry.texture = Tex(iconSpellID)
+                entry.label = type(group.name) == "string" and group.name
+                    or ShortLabel(SpellName(iconSpellID))
+                entry.cat = "forever"; entry.dismissKey = dismissKey
+                missing[#missing+1] = entry
             end
         end
     end
@@ -161,6 +221,10 @@ function EABR.CollectForever(missing, inInstance, inPvP, restricted)
             e.cat = "forever"; e.dismissKey = "forever:wellfed"
             missing[#missing+1] = e
         end
+    end
+    local groups = fo.customGroups
+    if groups and groups[1] and not restricted then
+        EABR.CollectForeverGroups(missing, groups)
     end
     local custom = fo.customIDs
     if not custom then return end
