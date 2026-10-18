@@ -1487,7 +1487,8 @@ local function BuildNameplatePreview(parent, parentW)
             end
             local mine = UnitFactionGroup("player")
             local fac = (mine == "Horde") and "Alliance" or "Horde"
-            EllesmereUI.SetFactionArt(factionIcon, DBVal("factionStyle") or defaults.factionStyle, fac)
+            local fStyle = DBVal("factionStyle") or defaults.factionStyle
+            EllesmereUI.SetFactionArt(factionIcon, fStyle, fac, EllesmereUI.FactionBadgeFor(fStyle, "player"))
             factionIcon:SetSize(fcSz, fcSz)
             if fcPos == "top" then
                 factionTopExtent = debuffY + fcSz + fcY
