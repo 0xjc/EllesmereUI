@@ -2578,7 +2578,7 @@ function ns.DMP_BuildPage(pageName, parent, yOffset)
     -- (the Editing Spec section owns the right 35%).
     local ovRaid, ovParty = ns.BM_PreviewOverrideTips("dm")
     local pvFrame, sectionH, PV_SCALE = ns.BM_BuildSimplePreview(leftFixed, p, fontPath, PP, pvSplitW / 2, -PAD,
-        { party = ns._bmPvParty, styleToggle = true, kitAuras = "debuffs",
+        { party = ns.BM_PreviewIsParty(), styleToggle = true, kitAuras = "debuffs",
           overrideTips = { raid = ovRaid, party = ovParty } })
     ns._dmPreviewFrame = pvFrame
     pvFrame._dmFontPath = fontPath

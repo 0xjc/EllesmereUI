@@ -891,6 +891,16 @@ function EllesmereUI.SpecOverrides_EditSessionName()
     return nil
 end
 
+--- READ-ONLY: the override session being edited as kind ("spec" | "cond")
+--- plus its group id, nil when none (EditSessionName's source).
+function EllesmereUI.SpecOverrides_EditSessionInfo()
+    if _editGroup then return "spec", _editGroup.id end
+    local C = EllesmereUI._CondOv
+    local e = C and C._edit
+    if e and e.id then return "cond", e.id end
+    return nil
+end
+
 --- READ-ONLY owning group for a spec's VALUES: first group in creation order
 --- containing the spec. Unlock-layout ownership (OwnerGid) is a different,
 --- layout-carrying rule -- never use it for values.

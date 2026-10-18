@@ -2008,6 +2008,35 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
     return pvFrame, sectionH, PV_SCALE
 end
 
+-- Which frames a condition group's contexts show: raid (raid, battleground),
+-- party (dungeon, arena, solo); neither for context-free conditions.
+function ns.BM_CondSides(g)
+    local c = g and g.conds or {}
+    return (c.raid or c.battleground) and true or false,
+        (c.dungeon or c.arena or c.solo) and true or false
+end
+
+-- The preview side an override editing session pins ("raid" | "party"): a
+-- condition group whose contexts show only one kind of frames. nil = free.
+function ns.BM_PreviewPinnedSide()
+    local info = EllesmereUI.SpecOverrides_EditSessionInfo
+    local kind, gid
+    if info then kind, gid = info() end
+    if kind ~= "cond" or not EllesmereUI.Conditions_GroupById then return nil end
+    local toRaid, toParty = ns.BM_CondSides(EllesmereUI.Conditions_GroupById(gid))
+    if toParty and not toRaid then return "party" end
+    if toRaid and not toParty then return "raid" end
+    return nil
+end
+
+-- The manager previews' style: the pinned side while one applies, else the
+-- session choice of the switch.
+function ns.BM_PreviewIsParty()
+    local pinned = ns.BM_PreviewPinnedSide()
+    if pinned then return pinned == "party" end
+    return ns._bmPvParty == true
+end
+
 -- The manager previews' override marks: tooltips for the Raid and the Party
 -- segment, nil where no override applies (read-only queries of the overrides
 -- system). "bm": groups with their own Buff Manager; "dm": overrides holding
@@ -2031,9 +2060,7 @@ function ns.BM_PreviewOverrideTips(kind)
     local function AddCond(gid)
         local g = gid and EllesmereUI.Conditions_GroupById and EllesmereUI.Conditions_GroupById(gid)
         if not g then return end
-        local c = g.conds or {}
-        local toRaid = c.raid or c.battleground
-        local toParty = c.dungeon or c.arena or c.solo
+        local toRaid, toParty = ns.BM_CondSides(g)
         if not (toRaid or toParty) then toRaid, toParty = true, true end
         Add(g.name, toRaid, toParty)
     end
@@ -2099,9 +2126,24 @@ function ns.BM_BuildPreviewStyleToggle(parent)
         square    = true,
         height    = 22,
         getChecked = function(key)
-            return (key == "party") == (ns._bmPvParty == true)
+            return (key == "party") == ns.BM_PreviewIsParty()
+        end,
+        -- An override editing session whose contexts show one kind of frames
+        -- pins the preview to that side; the other segment greys out.
+        isDisabled = function(key)
+            local pinned = ns.BM_PreviewPinnedSide()
+            return pinned ~= nil and key ~= pinned
+        end,
+        disabledTip = function()
+            local name = EllesmereUI.SpecOverrides_EditSessionName
+                and EllesmereUI.SpecOverrides_EditSessionName() or "?"
+            if ns.BM_PreviewPinnedSide() == "party" then
+                return EllesmereUI.Lf("Editing %s: it applies to party frames only.", name)
+            end
+            return EllesmereUI.Lf("Editing %s: it applies to raid frames only.", name)
         end,
         onToggle = function(key)
+            if ns.BM_PreviewPinnedSide() then return end
             local party = (key == "party")
             if party == (ns._bmPvParty == true) then return end
             ns._bmPvParty = party
@@ -3047,7 +3089,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
         end
         local ovRaid, ovParty = ns.BM_PreviewOverrideTips("bm")
         local pvFrame, sectionH, PV_SCALE = ns.BM_BuildSimplePreview(leftFrame, s, fontPath, PP, pvSplitW / 2, ly - 20,
-            { previewClass = previewClass, minH = 120, party = ns._bmPvParty,
+            { previewClass = previewClass, minH = 120, party = ns.BM_PreviewIsParty(),
               styleToggle = true, kitAuras = "buffs", overrideTips = { raid = ovRaid, party = ovParty } })
         local health = pvFrame._health
 
