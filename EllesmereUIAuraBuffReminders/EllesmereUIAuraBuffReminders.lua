@@ -15,9 +15,9 @@ local EABR = EllesmereUI.Lite.NewAddon("EllesmereUIAuraBuffReminders")
 -- four buffs (EABR.CollectForeverRaidBuffs) and one Forever-only section (the
 -- Camp Benefits campfire buff plus custom spell IDs) collected by
 -- EABR.CollectForever, with every other retail collector, its events and its
--- options sections off. Both values live on EABR because this file sits at
--- Lua's 200-local ceiling; retail reads FOREVER as false at each gate and
--- nothing else changes there.
+-- options sections off. Both values live on EABR, where every split file
+-- reads them; retail reads FOREVER as false at each gate and nothing else
+-- changes there.
 EABR.FOREVER = EllesmereUI.IS_FOREVER == true
 EABR.CAMP_BENEFITS = 1229741
 EABR.WELL_FED = 19705

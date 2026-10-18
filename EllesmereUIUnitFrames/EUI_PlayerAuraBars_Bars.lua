@@ -781,8 +781,9 @@ local function MapElementSettings(key, kind, barId)
     }
 end
 
--- Unlock-mode registration, patterned on EllesmereUIDamageMeters.lua's
--- ns.RegisterDMUnlock/MakeSATimerUnlockElement (observed EUI.MakeUnlockElement field
+-- Unlock-mode registration, patterned on Damage Meters' ns.RegisterDMUnlock
+-- (EUI_DamageMeters_State.lua) and MakeSATimerUnlockElement (EUI_DamageMeters_Timer.lua)
+-- (observed EUI.MakeUnlockElement field
 -- usage, not a verified schema). Both bars use noResize (AuraKit sizes the container
 -- from the active aura count, nothing to drag-resize) and noAnchorTarget (a
 -- dynamically-resizing frame is a bad anchor target for other elements).

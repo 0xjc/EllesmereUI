@@ -308,9 +308,8 @@ local function OwnerOf(fkey)
     return t, SegKey(t, segs[#segs])
 end
 
--- do ... end: Lua 5.1 allows ~200 locals per chunk, so the helper
--- below is released at `end` instead of taking a top-level slot. The global it wires up
--- stays, as always.
+-- do ... end: the helper below is released at `end` instead of taking a
+-- top-level slot. The global it wires up stays, as always.
 do
 -- Does any entry in `sStore` hold a VALUE (not just a recorded default) for `key` of
 -- `store`? Attribution by table identity, the same rule ClearStoreKey uses.

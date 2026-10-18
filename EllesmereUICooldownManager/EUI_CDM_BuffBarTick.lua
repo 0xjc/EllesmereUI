@@ -279,17 +279,34 @@ function ns.UpdateTrackedBuffBarTimers()
             if not isActive and not cfg.spellIDs
                and cfg.spellID and cfg.spellID > 0
                and C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID then
-                fbAura = C_UnitAuras.GetPlayerAuraBySpellID(cfg.spellID)
-                if not fbAura and cfg.baseSpellID and cfg.baseSpellID > 0 then
-                    fbAura = C_UnitAuras.GetPlayerAuraBySpellID(cfg.baseSpellID)
+                -- Each half re-queries only after its own aura edge (the wake frame
+                -- counts player aura events in _fbPGen; target aura events and target
+                -- changes in _fbTGen), not on every tick: a refresh or an expiry is
+                -- such an event, so the kept aura data stays current.
+                if bar._fbCfg ~= cfg or bar._fbSpell ~= cfg.spellID or bar._fbBase ~= cfg.baseSpellID then
+                    bar._fbCfg, bar._fbSpell, bar._fbBase = cfg, cfg.spellID, cfg.baseSpellID
+                    bar._fbPGen, bar._fbTGen = nil, nil
                 end
+                if bar._fbPGen ~= _tbbWake._fbPGen then
+                    bar._fbPGen = _tbbWake._fbPGen
+                    local a = C_UnitAuras.GetPlayerAuraBySpellID(cfg.spellID)
+                    if not a and cfg.baseSpellID and cfg.baseSpellID > 0 then
+                        a = C_UnitAuras.GetPlayerAuraBySpellID(cfg.baseSpellID)
+                    end
+                    bar._fbPAura = a or false
+                end
+                fbAura = bar._fbPAura or nil
                 -- Same net for a debuff the player put on the TARGET, which the queries
                 -- above can never see. Blizzard's viewer stalls exactly there after a
                 -- macro that clears and restores the target inside one frame: its
                 -- OnPlayerTargetChanged compares GUIDs, sees the same one it stored, and
                 -- never refreshes, so the item stays inactive until a real target switch.
                 if not fbAura and hasTarget then
-                    fbAura = _tbbWake.GetTargetAura(cfg)
+                    if bar._fbTGen ~= _tbbWake._fbTGen then
+                        bar._fbTGen = _tbbWake._fbTGen
+                        bar._fbTAura = _tbbWake.GetTargetAura(cfg) or false
+                    end
+                    fbAura = bar._fbTAura or nil
                 end
                 -- Fallback driving means the viewer has not bound this aura yet, and
                 -- Blizzard's late-bind can land WITHOUT a fresh player aura event. Keep

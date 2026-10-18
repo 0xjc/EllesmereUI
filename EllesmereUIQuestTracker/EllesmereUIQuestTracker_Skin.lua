@@ -437,6 +437,13 @@ local function SkinHeader(header, knownCollapsed)
                 if rg:GetObjectType() == "Texture" then tint(rg) end
             end
         end
+        -- WoW Forever's filter toggle beside it (nil on retail).
+        local toggle = EQT.FilterToggle
+        if toggle and toggle:GetParent() == header then
+            tint(toggle:GetNormalTexture())
+            tint(toggle:GetPushedTexture())
+            tint(toggle:GetHighlightTexture())
+        end
     end
 
     if not STOCK then
@@ -500,6 +507,8 @@ local function SkinHeader(header, knownCollapsed)
         end
     end
 end
+-- The Forever filter toggle re-skins its header once built.
+EQT.SkinHeader = SkinHeader
 
 -------------------------------------------------------------------------------
 -- Block skin: color quest title gold, objectives gray, completed green.
@@ -993,6 +1002,8 @@ local function MouseOff(f)
     _mouseOffSet[f] = mode
     f:EnableMouse(false)
 end
+-- For frames built while the tracker is hidden (the Forever filter toggle).
+EQT.MouseOff = MouseOff
 
 -- One block's click sinks: the block frame itself (bonus blocks), the header
 -- button (the quest log click), the item, group-finder and POI buttons, the
@@ -1509,6 +1520,8 @@ EQT.ApplyTrackerMouse = function(on)
         MouseOff(master.MinimizeButton)
         MouseOff(master.FilterButton)
     end
+    -- WoW Forever's filter toggle (nil on retail).
+    MouseOff(EQT.FilterToggle)
 end
 
 -------------------------------------------------------------------------------
