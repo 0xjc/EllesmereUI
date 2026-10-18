@@ -2040,6 +2040,9 @@ XF.GROUP_MENU = {
     { key = "dungeonAbbr",    label = EllesmereUI.L("Dungeon Names"),
       tip = EllesmereUI.L("Each dungeon square shows the dungeon's short name (e.g. KR for King's Rest, AoF for Altar of Fangs)."),
       onToggle = function() ns.Search_Layout() end },
+    { key = "dungeonScore",   label = EllesmereUI.L("Dungeon Keystone Level"),
+      tip = EllesmereUI.L("Each dungeon square shows your best keystone level this season, colored by its score rarity."),
+      onToggle = function() ns.Search_Layout() end },
     { key = "iconSize",       label = EllesmereUI.L("Role Icon Size"), stepper = { min = 100, max = 160, step = 5 },
       tip = EllesmereUI.L("Size of the role and specialization icons in the group list.") },
 }
@@ -2917,7 +2920,9 @@ function XF.Abbr(name)
     return abbr
 end
 
--- Short name on a square (Dungeon Names setting).
+-- Short name on a square (Dungeon Names setting). Stacked with the keystone
+-- level (top: name, bottom: level) when Dungeon Keystone Level is also on,
+-- else centred.
 function XF.SquareAbbr(sq, d, size)
     local on = Cfg().dungeonAbbr == true and d ~= nil
     if on and not sq.abbr then
@@ -2926,15 +2931,23 @@ function XF.SquareAbbr(sq, d, size)
         f:SetFrameLevel(sq:GetFrameLevel() + 3)
         f:EnableMouse(false)
         sq.abbr = f:CreateFontString(nil, "OVERLAY")
-        -- Anchor both sides so it centres properly.
-        sq.abbr:SetPoint("LEFT", sq, "LEFT", -4, 0)
-        sq.abbr:SetPoint("RIGHT", sq, "RIGHT", 4, 0)
         sq.abbr:SetJustifyH("CENTER")
-        sq.abbr:SetJustifyV("MIDDLE")
         sq.abbr:SetWordWrap(false)
     end
     if not sq.abbr then return end
     if on then
+        local stacked = Cfg().dungeonScore == true
+        sq.abbr:ClearAllPoints()
+        if stacked then
+            sq.abbr:SetPoint("TOPLEFT", sq, "TOPLEFT", -4, -2)
+            sq.abbr:SetPoint("TOPRIGHT", sq, "TOPRIGHT", 4, -2)
+            sq.abbr:SetJustifyV("TOP")
+        else
+            -- Anchor both sides so it centres properly.
+            sq.abbr:SetPoint("LEFT", sq, "LEFT", -4, 0)
+            sq.abbr:SetPoint("RIGHT", sq, "RIGHT", 4, 0)
+            sq.abbr:SetJustifyV("MIDDLE")
+        end
         -- Shrink until it fits.
         local fs = math.max(8, math.floor(size * 0.36))
         XF.Font(sq.abbr, fs, "OUTLINE")
@@ -2946,6 +2959,39 @@ function XF.SquareAbbr(sq, d, size)
         sq.abbr:SetTextColor(1, 1, 1, 1)
     end
     sq.abbr:SetShown(on)
+end
+
+-- Rarity-coloured hex prefix for a keystone score (white if Blizzard has no
+-- colour for it, e.g. score 0).
+local function KeystoneHexColor(score)
+    local color = C_ChallengeMode.GetSpecificDungeonOverallScoreRarityColor(score)
+    return color and ("|c" .. color:GenerateHexColor()) or "|cffffffff"
+end
+
+-- Best keystone level on a square, coloured by that dungeon's score rarity
+-- (Dungeon Keystone Level setting). Stacked below the dungeon name (top:
+-- name, bottom: level) when Dungeon Names is also on, else centred.
+function XF.SquareScore(sq, d, size)
+    local on = Cfg().dungeonScore == true and d ~= nil
+    if on then
+        local info = C_MythicPlus.GetSeasonBestForMap(d.cmID)
+        local level = info and info.level or 0
+        local score = info and info.dungeonScore or 0
+        sq:SetText(KeystoneHexColor(score) .. level .. "|r")
+        local fs = sq:GetFontString()
+        if fs then
+            local _, _, flags = fs:GetFont()
+            XF.Font(fs, math.max(8, math.floor(size * 0.42)), flags)
+            fs:ClearAllPoints()
+            if Cfg().dungeonAbbr == true then
+                fs:SetPoint("BOTTOM", sq, "BOTTOM", 0, 2)
+            else
+                fs:SetPoint("CENTER", sq, "CENTER", 0, 0)
+            end
+        end
+    else
+        sq:SetText("")
+    end
 end
 
 -- Dungeon squares after the reset.
@@ -2962,6 +3008,7 @@ local function LayoutSquares(size, after, show)
             sq:ClearAllPoints()
             sq:SetPoint("LEFT", prev, "RIGHT", SQ_GAP, 0)
             sq.icon:SetTexture(d.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+            XF.SquareScore(sq, d, size)
             XF.SquareAbbr(sq, d, size)
             sq:Show()
             prev = sq
