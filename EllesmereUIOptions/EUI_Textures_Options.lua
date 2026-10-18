@@ -386,11 +386,32 @@ local function TileUnitFrames(parent, y, W, tile)
             UFReload()
         end }
     if EllesmereUI.BlizzStyle.Active("unitframes") == "blizzard" then EllesmereUI.BlizzStyle.Gate("unitframes", castTexCfg) end
-    local _, h = W:DualRow(parent, y, barTexCfg("player"), barTexCfg("target"));  y = y - h
-    _, h = W:DualRow(parent, y, barTexCfg("focus"), absorbCfg("player"));  y = y - h
+    local ptRow, h = W:DualRow(parent, y, barTexCfg("player"), barTexCfg("target"));  y = y - h
+    local _
+    local focusRow
+    focusRow, h = W:DualRow(parent, y, barTexCfg("focus"), absorbCfg("player"));  y = y - h
     _, h = W:DualRow(parent, y, absorbCfg("target"), absorbCfg("focus"));  y = y - h
     _, h = W:DualRow(parent, y, healAbsorbCfg("player"), healAbsorbCfg("target"));  y = y - h
-    _, h = W:DualRow(parent, y, healAbsorbCfg("focus"), castTexCfg);  y = y - h
+    local castRow
+    castRow, h = W:DualRow(parent, y, healAbsorbCfg("focus"), castTexCfg);  y = y - h
+    -- Textured Background: the module pages' Texture Settings cog on each bar
+    -- texture dropdown, with the same row (the module's options env builds it).
+    local env = ns._UFO_OptEnv
+    local function TexBgCog(rgn, u)
+        if EllesmereUI._prebuilding or not env then return end
+        local blizzOn = not u and EllesmereUI.BlizzStyle.Active("unitframes") == "blizzard"
+        EllesmereUI.BuildInlineCog(rgn, {
+            disabled = blizzOn and function() return true end or nil,
+            disabledTooltip = blizzOn and EllesmereUI.BlizzStyle.Label("unitframes") or nil,
+            requireState = blizzOn and "disabled" or nil,
+            title = "Texture Settings",
+            rows = { env.TexBgRowCfg(u and function() return unitTable(u) end, UFReload) },
+        })
+    end
+    TexBgCog(ptRow._leftRegion, "player")
+    TexBgCog(ptRow._rightRegion, "target")
+    TexBgCog(focusRow._leftRegion, "focus")
+    TexBgCog(castRow._rightRegion)
     y = LinkRow(parent, y, "Pet, Target-of-Target & Boss Bar Textures",
         tile.folder, "Mini Frames", "DISPLAY", "Bar Texture")
     y = LinkRow(parent, y, "Frame, Power & Aura Border Styles",
