@@ -1772,6 +1772,7 @@ function ns.UFO_BuildUnitPreview(parent, unitKey, side)
         hTex[#hTex + 1] = healthFill
         hTex[#hTex + 1] = healthBg
         hTex[#hTex + 1] = healthBgColor
+        if pf._euiBgTex then hTex[#hTex + 1] = pf._euiBgTex end  -- Textured Background layer
         if dispelOverlayPreview then hTex[#hTex + 1] = dispelOverlayPreview end
         if absorbBar and absorbBar:GetStatusBarTexture() then hTex[#hTex + 1] = absorbBar:GetStatusBarTexture() end
         if healAbsorbBar then
@@ -1814,6 +1815,17 @@ function ns.UFO_BuildUnitPreview(parent, unitKey, side)
             local _, pToken = UnitPowerType("player")
             local pc = EllesmereUI.GetPowerColor(pToken or "MANA")
             PV_FillColor(pw._fill, texPath, pc.r, pc.g, pc.b, nil, nil, nil, 1)
+            -- Textured Background, as live.
+            local mpTex = ns.UF_TexBgOn(unitKey) and texPath
+            if mpTex then
+                pw._bg:SetTexture(mpTex)
+                pw._bg:SetVertexColor(17/255, 17/255, 17/255, 1)
+                pw._euiTex = true
+            elseif pw._euiTex then
+                pw._euiTex = nil
+                pw._bg:SetVertexColor(1, 1, 1, 1)
+                pw._bg:SetColorTexture(17/255, 17/255, 17/255, 1)
+            end
         end
         local pPos = ns.UF_PowerPos(s)
         local inTrack = pw and (isMini or pPos == "below" or pPos == "above")
@@ -2479,6 +2491,28 @@ function ns.UFO_BuildUnitPreview(parent, unitKey, side)
             end
             if healthFill then healthFill:SetAlpha(hFillA) end
             if healthBgColor then healthBgColor:SetAlpha(hBgA) end
+            -- Textured Background, as live: a fixed full-size layer while the fill is opaque.
+            local tbPath = ns.UF_TexBgOn(unitKey) and ns.UF_HealthOpaque(s)
+                and EllesmereUI.ResolveTexturePath(ns.healthBarTextures, ns.ResolveHealthBarTextureKey(s, isMini and ds or nil), nil)
+            local tb = pf._euiBgTex
+            if tbPath then
+                if not tb then
+                    tb = health:CreateTexture(nil, "BACKGROUND", nil, 2)
+                    tb:SetAllPoints(health)
+                    pf._euiBgTex = tb
+                end
+                tb:SetTexture(tbPath)
+                tb:SetVertexColor(uBgR, uBgG, uBgB, 1)
+                tb:SetAlpha(hBgA)
+                if s.healthVerticalFill and not blizzG then
+                    tb:SetTexCoord(1, 0, 0, 0, 1, 1, 0, 1)
+                else
+                    tb:SetTexCoord(0, 1, 0, 1)
+                end
+                tb:Show()
+            elseif tb then
+                tb:Hide()
+            end
         end
 
         -- Text sizes deliberately NOT donor-sourced (see the function):
@@ -2588,6 +2622,20 @@ function ns.UFO_BuildUnitPreview(parent, unitKey, side)
                 pf._powerFill:SetAlpha(s.powerGradientEnabled and 1 or pOpacity)
             end
             if pf._powerBg then pf._powerBg:SetColorTexture(pvPbR, pvPbG, pvPbB, 1) end
+            -- Textured Background, as live.
+            local pbg = pf._powerBg
+            if pbg then
+                local tp = ns.UF_TexBgOn(unitKey) and pOpacity >= 1
+                    and EllesmereUI.ResolveTexturePath(ns.healthBarTextures, s.healthBarTexture or db.profile.healthBarTexture or "none", nil)
+                if tp then
+                    pbg:SetTexture(tp)
+                    pbg:SetVertexColor(pvPbR, pvPbG, pvPbB, 1)
+                    pbg._euiTex = true
+                elseif pbg._euiTex then
+                    pbg._euiTex = nil
+                    pbg:SetVertexColor(1, 1, 1, 1)
+                end
+            end
             -- Spell Cost Prediction eyeball (player, WoW Forever): the last
             -- third of the fill in the prediction color, as during a cast.
             -- Mana only, as live.
@@ -2802,6 +2850,21 @@ function ns.UFO_BuildUnitPreview(parent, unitKey, side)
                 if castbar._previewBgTex then
                     local cbgC = s.castBgColor
                     castbar._previewBgTex:SetColorTexture(cbgC and cbgC.r or 0, cbgC and cbgC.g or 0, cbgC and cbgC.b or 0, s.castBgAlpha or 0.5)
+                    -- Textured Background, as live (not over the stock cast art).
+                    local cbt = castbar._previewBgTex
+                    local cbOwn = db.profile.castBarTexture
+                    local cbKey = (cbOwn and cbOwn ~= "inherit") and cbOwn or s.healthBarTexture or db.profile.healthBarTexture or "none"
+                    local cbPath = db.profile.castTextureBg and cbKey ~= "blizzard" and (s.castFillOpacity or 100) >= 100
+                        and EllesmereUI.BlizzStyle.Active("unitframes") ~= "blizzard"
+                        and EllesmereUI.ResolveTexturePath(ns.healthBarTextures, cbKey, nil)
+                    if cbPath then
+                        cbt:SetTexture(cbPath)
+                        cbt:SetVertexColor(cbgC and cbgC.r or 0, cbgC and cbgC.g or 0, cbgC and cbgC.b or 0, s.castBgAlpha or 0.5)
+                        cbt._euiTex = true
+                    elseif cbt._euiTex then
+                        cbt._euiTex = nil
+                        cbt:SetVertexColor(1, 1, 1, 1)
+                    end
                 end
                 if castFill then
                     castFill:ClearAllPoints()
