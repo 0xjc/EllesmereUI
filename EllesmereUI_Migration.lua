@@ -4360,6 +4360,65 @@ EllesmereUI.RegisterMigration({
     end,
 })
 
+-- WoW Forever: the Swing Timer follows the Resource Bars row of Global
+-- Settings > Style. A profile already on a stock style there keeps the
+-- EllesmereUI look it had (swingTimer.keepEuiLook = that style's key, read by
+-- ns.ST_Style) until that style changes. Its saved style slots, from before
+-- the Swing Timer's texture rode them, take the texture it has now, so a
+-- later switch keeps it. GLOBAL with per-profile stamps, gated on existing
+-- profiles: a fresh install stamps and never runs it, and profiles made
+-- later follow their style.
+if EllesmereUI.IS_FOREVER == true then
+EllesmereUI.RegisterMigration({
+    id          = "swing_timer_stock_style_v1",
+    scope       = "global",
+    description = "Keep the Swing Timer's look on profiles already using a stock Resource Bars style.",
+    body        = function(ctx)
+        local ID = "swing_timer_stock_style_v1"
+        local db = ctx.db
+        if not (db and type(db.profiles) == "table" and next(db.profiles)) then return end
+        for _, profData in pairs(db.profiles) do
+            if type(profData) == "table" then
+                local stamps = profData._migrations
+                if type(stamps) ~= "table" then
+                    stamps = {}
+                    profData._migrations = stamps
+                end
+                if not stamps[ID] then
+                    local erb = type(profData.addons) == "table" and profData.addons.EllesmereUIResourceBars
+                    if type(erb) == "table" then
+                        local key
+                        if erb.useClassicStyleBars then
+                            key = "classic"
+                        elseif erb.useBlizzardStyleBars then
+                            key = erb.useForeverStyleBars and "forever" or "blizzard"
+                        end
+                        local st = erb.swingTimer
+                        if key then
+                            if type(st) ~= "table" then
+                                st = {}
+                                erb.swingTimer = st
+                            end
+                            if st.keepEuiLook == nil then st.keepEuiLook = key end
+                        end
+                        local tex = type(st) == "table" and st.texture or nil
+                        local slots = erb._styleSlots
+                        if tex ~= nil and type(slots) == "table" then
+                            for _, slot in pairs(slots) do
+                                if type(slot) == "table" and slot["swingTimer.texture"] == nil then
+                                    slot["swingTimer.texture"] = tex
+                                end
+                            end
+                        end
+                    end
+                    stamps[ID] = true
+                end
+            end
+        end
+    end,
+})
+end
+
 -- Spell ID on Tooltip became on by default (an unset showSpellID reads as on,
 -- EllesmereUI.SpellIDOn). An account from before keeps it off: its unset value
 -- is written off. Existing users ONLY: a fresh install or Reset ALL has no
