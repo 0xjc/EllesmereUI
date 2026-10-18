@@ -1568,8 +1568,12 @@ end
 function ns.DMP_RefreshPreview()
     local pv = ns._dmPreviewFrame
     if not (pv and pv._health and pv:IsShown()) then return end
-    local p = DmProfile()
+    -- Party style: the replica's party view (scaled base grid, kit keys).
+    local p = pv._bmPvS or DmProfile()
     if not p then return end
+    -- Tile icon sizes live in dmDebuff, outside the proxy's scaled keys: live
+    -- party frames scale them by the party indicator scale, so does this.
+    local tileScale = pv._bmPvS and (ns._partyIndicatorScale or 1) or 1
     local PP = EllesmereUI.PanelPP or EllesmereUI.PP
     local fontPath = pv._dmFontPath
         or (EllesmereUI.GetFontPath("raidFrames"))
@@ -1896,7 +1900,7 @@ function ns.DMP_RefreshPreview()
                     -- Tile Display values: the tile's own keys over the base (nil = inherit).
                     sv = (ns.DM_TileStyleView and ns.DM_TileStyleView(p, t)) or p,
                     count = math.min(t.cap or 3, (sel or allVis) and 4 or 2),
-                    size = t.size or 18,
+                    size = (t.size or 18) * tileScale,
                     spacing = t.spacing or 1,
                     pos = t.position or "top",
                     grow = t.growDirection or "CENTER",
@@ -2572,16 +2576,12 @@ function ns.DMP_BuildPage(pageName, parent, yOffset)
     -- Preview: the shared health-bar replica in replica-only mode; the DM
     -- renderer draws the base grid + tiles on it. Centered in the LEFT 65%
     -- (the Editing Spec section owns the right 35%).
-    local pvFrame, sectionH = ns.BM_BuildSimplePreview(leftFixed, p, fontPath, PP, pvSplitW / 2, -PAD)
+    local ovRaid, ovParty = ns.BM_PreviewOverrideTips("dm")
+    local pvFrame, sectionH, PV_SCALE = ns.BM_BuildSimplePreview(leftFixed, p, fontPath, PP, pvSplitW / 2, -PAD,
+        { party = ns._bmPvParty, styleToggle = true, kitAuras = "debuffs",
+          overrideTips = { raid = ovRaid, party = ovParty } })
     ns._dmPreviewFrame = pvFrame
     pvFrame._dmFontPath = fontPath
-
-    -- Matches the replica builder's scale math (for the eyeball offset).
-    local PV_SCALE = 1.5
-    do
-        local rawH = p.frameHeight or 46
-        if rawH * PV_SCALE > 100 then PV_SCALE = 100 / rawH end
-    end
 
     -- Eyeball toggle: show all tiles at full opacity (BM parity)
     do

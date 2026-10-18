@@ -1050,6 +1050,8 @@ function ns.BM_ApplyPreviewIndicators(f, index, s)
     local iconPool = f._bmIconPool
     local barPool  = f._bmBarPool
     if not iconPool then return end
+    -- A manager page replica built in party style keeps reading the party view.
+    s = f._bmPvS or s
     -- Party preview passes the party proxy as `s`; use the party scale.
     local iscale = ((s == ns._scaledPartyProxy) and ns._partyBmScale or ns._bmScale) or 1
 
@@ -1201,6 +1203,11 @@ function ns.BM_ApplyPreviewIndicators(f, index, s)
                 end
             end
         end
+        -- Party Frames kit (manager page replica in party style): the live party
+        -- frames take the kit's Buff Size and one run outside the frame.
+        if f._bmPvS and ns.RF_PartyKit and ns.RF_PartyKit() and ns.RF_KitBmView then
+            out = ns.RF_KitBmView(out, true)
+        end
         -- Anchor To: stamp members with their terminal root and order them right after it, so the preview renders each set as one run.
         do
             local byId, isMember = {}, {}
@@ -1330,7 +1337,7 @@ function ns.BM_ApplyPreviewIndicators(f, index, s)
                             local per, wrapUp, wrapLeft = 0, false, false
                                 per = tonumber(ind.iconsPerRow) or 0
                                 local pu = string.upper(ind.position or "TOPLEFT")
-                                wrapUp = pu:find("BOTTOM", 1, true) ~= nil
+                                wrapUp = pu:find("BOTTOM", 1, true) ~= nil or ind.wrapUp == true
                                 wrapLeft = pu:find("RIGHT", 1, true) ~= nil
                                 local maxI = tonumber(ind.maxIcons) or 0
                                 if maxI > 0 and maxI < maxShow then maxShow = maxI end
@@ -1572,26 +1579,122 @@ end
 -------------------------------------------------------------------------------
 --  Health-bar replica preview, shared by the Debuff Manager (draws its own
 --  content on it) and the Buff Manager page. opts: previewClass (default:
---  the active spec's class), minH (150), noUniformRef. Returns pvFrame,
---  sectionH, scale.
+--  the active spec's class), minH (150), party (read the
+--  party view instead of `s`), styleToggle (Raid/Party row above it),
+--  kitAuras ("buffs" | "debuffs": the kit hint under that row),
+--  overrideTips ({ raid = tip, party = tip }: override marks per segment).
+--  Returns pvFrame, sectionH, scale.
 function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
     -- Options page pool (EllesmereUI_FramePool.lua): on a manager page's kept
     -- root the replica is handed out again, in creation order, by the next render.
     local CreateFrame = POOL.CreateFrame
     opts = opts or {}
+    -- Party style: the read-only party view (party size without an attached
+    -- portrait, party section overrides, party indicator scale), as the live
+    -- party frames read it. The kit's art is not rebuilt here.
+    if opts.party and ns._scaledPartyProxy then s = ns._scaledPartyProxy end
     local PV_SCALE = 1.5
     local rawW = s.frameWidth or 72
     local rawH = s.frameHeight or 46
     local previewPad = 20
     -- Cap on-screen height at 100px via uniform downscale (keeps rawW:rawH aspect).
     if rawH * PV_SCALE > 100 then PV_SCALE = 100 / rawH end
+    -- Party frames run much wider than raid cells: also keep the width inside
+    -- the preview column (centered on centerX).
+    if opts.party then
+        local maxW = centerX * 2 - previewPad * 2
+        if maxW > 0 and rawW * PV_SCALE > maxW then PV_SCALE = maxW / rawW end
+    end
     local pvH = floor(rawH * PV_SCALE + 0.5)
     local sectionH = max(pvH + previewPad * 2, opts.minH or 150)
+
+    -- Raid/Party row: captioned "Preview" and seated on the replica, so it
+    -- reads as a view switch, not as a second set of settings.
+    local kitMode = opts.party and ns.RF_PartyKit and ns.RF_PartyKit() and ns.RF_KitBuffMode
+        and ns.RF_KitBuffMode(ns.db and ns.db.profile)
+    local rowH = 0
+    if opts.styleToggle then
+        local row = CreateFrame("Frame", nil, parent)
+        local cap = row:CreateFontString(nil, "OVERLAY")
+        cap:SetFont(fontPath, 12, "")
+        cap:SetTextColor(1, 1, 1, 0.75)
+        cap:SetText(EllesmereUI.L("Preview"))
+        local seg, segBtn = ns.BM_BuildPreviewStyleToggle(row)
+        row:SetSize(math.ceil(cap:GetStringWidth()) + 10 + seg:GetWidth(), 22)
+        row:SetPoint("TOP", parent, "TOPLEFT", floor(centerX), topY)
+        cap:SetPoint("LEFT", row, "LEFT", 0, 0)
+        seg:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+        -- Overrides that apply on that side: a gold "i" (the overrides UI's
+        -- badge) in the segment's free right padding, carrying the tip.
+        -- Motion only: the segment keeps its clicks.
+        local tips = opts.overrideTips
+        if tips then
+            local gold = EllesmereUI._SPECOV_GOLD or { 199 / 255, 166 / 255, 90 / 255 }
+            for key, btn in pairs(segBtn) do
+                local tip = tips[key]
+                if tip then
+                    local badge = CreateFrame("Frame", nil, btn)
+                    badge:SetSize(12, 12)
+                    badge:SetPoint("RIGHT", btn, "RIGHT", -5, 0)
+                    badge:SetFrameLevel(btn:GetFrameLevel() + 5)
+                    local ico = badge:CreateTexture(nil, "OVERLAY")
+                    ico:SetAllPoints()
+                    ico:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-info.png")
+                    ico:SetVertexColor(gold[1], gold[2], gold[3], 0.85)
+                    badge:SetScript("OnEnter", function(self)
+                        ico:SetVertexColor(gold[1], gold[2], gold[3], 1)
+                        EllesmereUI.ShowWidgetTooltip(self, tip)
+                    end)
+                    badge:SetScript("OnLeave", function()
+                        ico:SetVertexColor(gold[1], gold[2], gold[3], 0.85)
+                        EllesmereUI.HideWidgetTooltip()
+                    end)
+                    badge:SetMouseClickEnabled(false)
+                end
+            end
+        end
+        row:EnableMouse(true)
+        row:SetScript("OnEnter", function(self)
+            EllesmereUI.ShowWidgetTooltip(self, EllesmereUI.L("Only changes the preview. Raid and party frames share these settings."))
+        end)
+        row:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
+        rowH = 22 + 18
+        -- The kit decides these auras' size and place on party frames: name
+        -- the override and its value, in the accent colour.
+        if kitMode and opts.kitAuras then
+            local p = ns.db.profile
+            local hint = parent:CreateFontString(nil, "OVERLAY")
+            hint:SetFont(fontPath, 11, "")
+            local ar, ag, ab = EllesmereUI.ResolveActiveAccent()
+            hint:SetTextColor(ar or 1, ag or 1, ab or 1, 0.9)
+            hint:SetWidth(centerX * 2 - previewPad * 2)
+            hint:SetWordWrap(true)
+            hint:SetJustifyH("CENTER")
+            hint:SetPoint("TOP", row, "BOTTOM", 0, -8)
+            if opts.kitAuras == "buffs" then
+                hint:SetText(EllesmereUI.Lf("Party Frames kit override: Buff Size %d (Party > Frame Style)",
+                    ns.RF_KitBuffSize and ns.RF_KitBuffSize(p) or 15))
+            else
+                hint:SetText(EllesmereUI.Lf("Party Frames kit override: Debuff Size %d (Party > Frame Style)",
+                    p.partyKitDebuffSize or 15))
+            end
+            rowH = rowH + math.ceil(hint:GetStringHeight()) + 8
+        end
+    end
+    -- Kit buffs above the frame: room for their lines (at the Buff Manager scale).
+    local aboveH = 0
+    if kitMode == "ABOVE" and opts.kitAuras == "buffs" and ns.RF_KitAboveUnits then
+        aboveH = math.ceil(ns.RF_KitAboveUnits(ns.db.profile) * (ns._partyBmScale or 1) * PV_SCALE)
+    end
+    sectionH = sectionH + rowH + aboveH
+    topY = topY - rowH - aboveH
 
     local pvFrame = CreateFrame("Frame", nil, parent)
     pvFrame:SetSize(rawW, rawH)
     pvFrame:SetScale(PV_SCALE)
     pvFrame:SetPoint("TOP", parent, "TOPLEFT", floor(centerX / PV_SCALE), topY / PV_SCALE)
+    -- The side the kit's buff run takes (callers keep their controls off it).
+    pvFrame._bmKitSide = (opts.kitAuras == "buffs") and kitMode or nil
 
     local bgc = s.customBgColor or { r = 17/255, g = 17/255, b = 17/255 }
     local bg = pvFrame:CreateTexture(nil, "BACKGROUND")
@@ -1625,7 +1728,7 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
     health:SetValue(85)
 
     -- Full-height anchor reference (mirrors the live buttons' d.uniformRef so Uniform Icon Anchoring previews identically; see ns.RF_AnchorHost).
-    if not opts.noUniformRef then
+    do
         local pvUniformRef = CreateFrame("Frame", nil, pvFrame)
         pvUniformRef:SetFrameLevel(health:GetFrameLevel())
         pvUniformRef:SetPoint("TOPLEFT", health, "TOPLEFT", 0, 0)
@@ -1899,8 +2002,129 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
     end
 
     pvFrame._health = health
+    -- Settings source for every later indicator pass on this replica (nil = the caller's).
+    pvFrame._bmPvS = opts.party and s or nil
 
     return pvFrame, sectionH, PV_SCALE
+end
+
+-- The manager previews' override marks: tooltips for the Raid and the Party
+-- segment, nil where no override applies (read-only queries of the overrides
+-- system). "bm": groups with their own Buff Manager; "dm": overrides holding
+-- debuff settings. A condition group lands on the side whose frames its
+-- contexts show; spec groups and context-free conditions land on both.
+function ns.BM_PreviewOverrideTips(kind)
+    local raid, party, seenR, seenP = nil, nil, {}, {}
+    local function Add(name, toRaid, toParty)
+        name = name or "?"
+        if toRaid and not seenR[name] then
+            seenR[name] = true
+            raid = raid or {}
+            raid[#raid + 1] = name
+        end
+        if toParty and not seenP[name] then
+            seenP[name] = true
+            party = party or {}
+            party[#party + 1] = name
+        end
+    end
+    local function AddCond(gid)
+        local g = gid and EllesmereUI.Conditions_GroupById and EllesmereUI.Conditions_GroupById(gid)
+        if not g then return end
+        local c = g.conds or {}
+        local toRaid = c.raid or c.battleground
+        local toParty = c.dungeon or c.arena or c.solo
+        if not (toRaid or toParty) then toRaid, toParty = true, true end
+        Add(g.name, toRaid, toParty)
+    end
+    if kind == "bm" then
+        local seed = EllesmereUI.SpecOverrides_BmSeedSources
+        if not seed then return nil, nil end
+        local _, order = seed()
+        for i = 1, #order do
+            local typ, gid = order[i]:match("^(%a+):(%d+)$")
+            if typ == "cond" then
+                AddCond(tonumber(gid))
+            elseif typ == "spec" and EllesmereUI.SpecOverrides_GroupById then
+                local g = EllesmereUI.SpecOverrides_GroupById(tonumber(gid))
+                if g then Add(g.name, true, true) end
+            end
+        end
+    else
+        local capturedBy = EllesmereUI.SpecOverrides_CapturedBy
+        if not capturedBy then return nil, nil end
+        local keys = { "debuffSize", "debuffPosition", "debuffOffsetX", "debuffOffsetY",
+            "debuffGrowDirection", "debuffWrapDirection", "debuffPerRow", "debuffCap",
+            "debuffSpacing", "debuffIconZoom", "debuffBorderSize", "debuffShowSwipe",
+            "debuffShowDurText", "debuffDurTextSize", "debuffShowStacks", "debuffStacksTextSize",
+            "debuffStacksOffsetX", "debuffStacksOffsetY" }
+        for i = 1, #keys do
+            local holders = capturedBy("EllesmereUIRaidFrames", keys[i])
+            for j = 1, #holders do
+                local h = holders[j]
+                if h.kind == "cond" then
+                    AddCond(h.id)
+                else
+                    -- Spec values: the spec's group, else the spec's own name.
+                    local og = EllesmereUI.SpecOverrides_OwningGroupFor
+                        and EllesmereUI.SpecOverrides_OwningGroupFor(h.id)
+                    local name = og and og.name
+                    if not name and GetSpecializationInfoByID then
+                        local _, sn = GetSpecializationInfoByID(h.id)
+                        name = sn
+                    end
+                    Add(name, true, true)
+                end
+            end
+        end
+    end
+    local sub = (kind == "bm") and EllesmereUI.L("These overrides use their own Buff Manager.")
+        or EllesmereUI.L("These overrides hold their own debuff settings.")
+    local function Tip(names)
+        if not names then return nil end
+        return "|cffc7a65a" .. EllesmereUI.L("Overridden by:") .. "|r " .. table.concat(names, ", ")
+            .. "\n|cff909090" .. sub .. "|r"
+    end
+    return Tip(raid), Tip(party)
+end
+
+-- Raid / Party style switch of the manager pages' previews. Session only
+-- (never saved): the Buff and Debuff Manager settings are shared by both.
+function ns.BM_BuildPreviewStyleToggle(parent)
+    local seg = EllesmereUI.BuildSegmentedControl({
+        parent    = parent,
+        keys      = { "raid", "party" },
+        labels    = { raid = "Raid", party = "Party" },
+        autoWidth = true,
+        square    = true,
+        height    = 22,
+        getChecked = function(key)
+            return (key == "party") == (ns._bmPvParty == true)
+        end,
+        onToggle = function(key)
+            local party = (key == "party")
+            if party == (ns._bmPvParty == true) then return end
+            ns._bmPvParty = party
+            EllesmereUI:RefreshPage(true)
+        end,
+    })
+    -- The segment buttons (the control keeps them private): the buttons under
+    -- its pill whose labels read Raid / Party. Second return, by key.
+    local byText = { [EllesmereUI.L("Raid")] = "raid", [EllesmereUI.L("Party")] = "party" }
+    local btnOf = {}
+    local kids = { seg:GetChildren() }
+    for i = 1, #kids do
+        local btns = { kids[i]:GetChildren() }
+        for j = 1, #btns do
+            local regions = { btns[j]:GetRegions() }
+            for r = 1, #regions do
+                local rg = regions[r]
+                local key = rg.GetText and byText[rg:GetText() or ""]
+                if key then btnOf[key] = btns[j] end
+            end
+        end
+    end
+    return seg, btnOf
 end
 
 function ns.BM_BuildPage(pageName, parent, yOffset)
@@ -2821,8 +3045,10 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
             local _, pc = UnitClass("player")
             previewClass = pc
         end
+        local ovRaid, ovParty = ns.BM_PreviewOverrideTips("bm")
         local pvFrame, sectionH, PV_SCALE = ns.BM_BuildSimplePreview(leftFrame, s, fontPath, PP, pvSplitW / 2, ly - 20,
-            { previewClass = previewClass, minH = 120, noUniformRef = true })
+            { previewClass = previewClass, minH = 120, party = ns._bmPvParty,
+              styleToggle = true, kitAuras = "buffs", overrideTips = { raid = ovRaid, party = ovParty } })
         local health = pvFrame._health
 
         -- Vertical divider between preview and editing spec
@@ -2921,7 +3147,12 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
 
             local eyeBtn = CreateFrame("Button", nil, leftFrame)
             eyeBtn:SetSize(26, 26)
-            eyeBtn:SetPoint("LEFT", pvFrame, "RIGHT", 18 / PV_SCALE, 0)
+            -- The kit's buff run beside the frame on the right: the eyeball moves left.
+            if pvFrame._bmKitSide == "RIGHT" then
+                eyeBtn:SetPoint("RIGHT", pvFrame, "LEFT", -18 / PV_SCALE, 0)
+            else
+                eyeBtn:SetPoint("LEFT", pvFrame, "RIGHT", 18 / PV_SCALE, 0)
+            end
             eyeBtn:SetFrameLevel(leftFrame:GetFrameLevel() + 5)
 
             local eyeTex = eyeBtn:CreateTexture(nil, "OVERLAY")
