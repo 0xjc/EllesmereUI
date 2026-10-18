@@ -2236,40 +2236,44 @@ local function BuildNameplatePreview(parent, parentW)
         end
 
         -- Height calculation: "top" slot auras stack above the top text; corner items (and a "top" raid marker or classification icon) anchor to the health bar beside it, so the two count as max, not sum.
-        local stackExtent, cornerExtent = 0, 0
-        local function isCorner(s) return s == "topleft" or s == "topright" end
-        local function addAura(slotVal, count, sz, iconH, spacing, yOff)
-            if slotVal == "top" then
-                stackExtent = math.max(stackExtent, sz + yOff)
-            elseif isCorner(slotVal) then
-                -- "up" growth stacks the icons, as PlaceInSlot does
-                local stackH = 0
-                if (DBVal(slotVal .. "SlotGrowth") or defaults[slotVal .. "SlotGrowth"]) == "up" then
-                    stackH = (count - 1) * (spacing - sz + iconH)
+        -- Its working locals live in a block: this function is near Lua 5.1's 200-local cap.
+        local healthFromTop
+        do
+            local stackExtent, cornerExtent = 0, 0
+            local function isCorner(s) return s == "topleft" or s == "topright" end
+            local function addAura(slotVal, count, sz, iconH, spacing, yOff)
+                if slotVal == "top" then
+                    stackExtent = math.max(stackExtent, sz + yOff)
+                elseif isCorner(slotVal) then
+                    -- "up" growth stacks the icons, as PlaceInSlot does
+                    local stackH = 0
+                    if (DBVal(slotVal .. "SlotGrowth") or defaults[slotVal .. "SlotGrowth"]) == "up" then
+                        stackH = (count - 1) * (spacing - sz + iconH)
+                    end
+                    cornerExtent = math.max(cornerExtent, debuffY + sz + stackH + yOff)
                 end
-                cornerExtent = math.max(cornerExtent, debuffY + sz + stackH + yOff)
             end
+            addAura(debuffSlotVal, PV_CONST.DEBUFF_COUNT, debuffSz, debuffH, debuffSpacing, debuffYOff)
+            addAura(buffSlotVal, PV_CONST.BUFF_COUNT, buffSz, buffH, buffSpacing, buffYOff)
+            addAura(ccSlotVal, PV_CONST.CC_COUNT, ccSz, ccH, ccSpacing, ccYOff)
+            if showRM then
+                if rmPos == "top" then cornerExtent = math.max(cornerExtent, debuffY + rmSize + rmYOff)
+                elseif isCorner(rmPos) then cornerExtent = math.max(cornerExtent, rmSize + rmYOff) end
+            end
+            if showCL then
+                if clPos == "top" then cornerExtent = math.max(cornerExtent, debuffY + reIconSz + clYOff)
+                elseif isCorner(clPos) then cornerExtent = math.max(cornerExtent, 2 + reIconSz + clYOff) end
+            end
+            cornerExtent = math.max(cornerExtent, factionTopExtent)
+            -- Only include name text height when something is actually in the top slot
+            local topTextH = (slotTop ~= "none") and (topFontSz + 4 + nameYOff + topYOff) or 0
+            -- Only add debuffY gap when an aura occupies the center "top" position or the top text slot is used
+            local hasTopAura = (debuffSlotVal == "top") or (buffSlotVal == "top") or (ccSlotVal == "top")
+            local effectiveDebuffY = (hasTopAura or slotTop ~= "none") and debuffY or 0
+            local topStackH = topTextH + effectiveDebuffY + stackExtent
+            -- 15 matches the bottom margin below the cast bar in totalH
+            healthFromTop = Snap(15 + math.max(topStackH, cornerExtent) + cpPush)
         end
-        addAura(debuffSlotVal, PV_CONST.DEBUFF_COUNT, debuffSz, debuffH, debuffSpacing, debuffYOff)
-        addAura(buffSlotVal, PV_CONST.BUFF_COUNT, buffSz, buffH, buffSpacing, buffYOff)
-        addAura(ccSlotVal, PV_CONST.CC_COUNT, ccSz, ccH, ccSpacing, ccYOff)
-        if showRM then
-            if rmPos == "top" then cornerExtent = math.max(cornerExtent, debuffY + rmSize + rmYOff)
-            elseif isCorner(rmPos) then cornerExtent = math.max(cornerExtent, rmSize + rmYOff) end
-        end
-        if showCL then
-            if clPos == "top" then cornerExtent = math.max(cornerExtent, debuffY + reIconSz + clYOff)
-            elseif isCorner(clPos) then cornerExtent = math.max(cornerExtent, 2 + reIconSz + clYOff) end
-        end
-        cornerExtent = math.max(cornerExtent, factionTopExtent)
-        -- Only include name text height when something is actually in the top slot
-        local topTextH = (slotTop ~= "none") and (topFontSz + 4 + nameYOff + topYOff) or 0
-        -- Only add debuffY gap when an aura occupies the center "top" position or the top text slot is used
-        local hasTopAura = (debuffSlotVal == "top") or (buffSlotVal == "top") or (ccSlotVal == "top")
-        local effectiveDebuffY = (hasTopAura or slotTop ~= "none") and debuffY or 0
-        local topStackH = topTextH + effectiveDebuffY + stackExtent
-        -- 15 matches the bottom margin below the cast bar in totalH
-        local healthFromTop = Snap(15 + math.max(topStackH, cornerExtent) + cpPush)
         health:ClearAllPoints()
         health:SetSize(barW, barH)
 
