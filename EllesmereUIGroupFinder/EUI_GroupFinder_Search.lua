@@ -1024,11 +1024,17 @@ local function IconLayer(icon)
     d.crown:SetAtlas("groupfinder-icon-leader", false)
     d.crown:SetSize(10, 6)
     d.crown:SetPoint("BOTTOM", icon, "TOP", 0, 1)
+    -- blizzard's leaver mark lives on the icon under this layer, so it gets
+    -- drawn again up here (same atlas, size and spot)
+    d.leaver = f:CreateTexture(nil, "OVERLAY", nil, 1)
+    d.leaver:SetAtlas("groupfinder-icon-leaver", false)
+    d.leaver:SetSize(12, 12)
+    d.leaver:SetPoint("TOPRIGHT", icon, "TOPRIGHT", 4, 2)
     return d
 end
 
 local function ClearLayer(d)
-    d.circle:Hide(); d.ring:Hide(); d.spec:Hide(); d.role:Hide(); d.full:Hide(); d.crown:Hide()
+    d.circle:Hide(); d.ring:Hide(); d.spec:Hide(); d.role:Hide(); d.full:Hide(); d.crown:Hide(); d.leaver:Hide()
 end
 
 -- Our icon layers off on a row we leave alone (a recycled row would keep the
@@ -1182,6 +1188,13 @@ local function DecorateIcons(entry, resultID, info, ai)
                 if m and crownOn and not IsSecret(m.isLeader) and m.isLeader then
                     d.crown:SetDesaturated(disabled)
                     d.crown:Show()
+                end
+                local lv = icon.LeaverIcon
+                local leaver = lv and lv:IsShown()
+                if leaver and not IsSecret(leaver) then
+                    d.leaver:SetDesaturated(disabled)
+                    d.leaver:SetAlpha(disabled and 0.5 or 1)
+                    d.leaver:Show()
                 end
             end
         end
