@@ -1199,9 +1199,26 @@ initFrame:SetScript("OnEvent", function(self)
         return proxy
     end
 
+    -- Textured Background: the Texture Settings cog row, shared by the Display
+    -- page and Global Settings > Textures. kind: "health" or "cast"; apply: the
+    -- page's own refresh after a write.
+    local function TexBgRowCfg(kind, apply)
+        local cast = kind == "cast"
+        local key = cast and "castTextureBg" or "healthTextureBg"
+        local texKey = cast and "castBarTexture" or "healthBarTexture"
+        return ns.NP_BlizzOnlyGate({ type = "toggle", label = "Textured Background",
+            tooltip = cast and "Draws the bar texture on the cast bar background too."
+                or "Draws the bar texture on the health bar background too.",
+            disabled = function() return (DBVal(texKey) or "none") == "none" end,
+            disabledTooltip = cast and "This option requires a Cast Bar Texture other than None."
+                or "This option requires a Bar Texture other than None.",
+            get = function() return DBVal(key) == true end,
+            set = function(v) DB()[key] = v and true or false; apply() end })
+    end
     -- Shared with the page builders under Nameplates_Options\ (read in their
     -- prologs). Every field is final here: optState holds the mutable state.
     ns._NPO_OptEnv = {
+        TexBgRowCfg = TexBgRowCfg,
         _colorPagePreviews = _colorPagePreviews, ADDON_NAME = ADDON_NAME, BAR_W = BAR_W, DB = DB,
         DBColor = DBColor, DBVal = DBVal, defaults = defaults, displayCastIcons = displayCastIcons,
         FOCUS_LETTER_ANCHOR_ORDER = FOCUS_LETTER_ANCHOR_ORDER,
