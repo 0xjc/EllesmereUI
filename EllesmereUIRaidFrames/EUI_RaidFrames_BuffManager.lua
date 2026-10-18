@@ -1632,7 +1632,7 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
         -- Motion only: the segment keeps its clicks.
         local tips = opts.overrideTips
         if tips then
-            local gold = EllesmereUI._SPECOV_GOLD or { 199 / 255, 166 / 255, 90 / 255 }
+            local gold = EllesmereUI._SPECOV_GOLD
             for key, btn in pairs(segBtn) do
                 local tip = tips[key]
                 if tip then
@@ -2011,21 +2011,21 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
     return pvFrame, sectionH, PV_SCALE
 end
 
--- Which frames a condition group's contexts show: raid (raid, battleground),
--- party (dungeon, arena, solo); neither for context-free conditions.
+-- Which frames a condition group can apply on: raid (raid, battleground),
+-- party (dungeon, arena, solo). Keybind and Dark Mode hold wherever the player
+-- is, so a group with either reaches both; neither when it has no condition.
 function ns.BM_CondSides(g)
     local c = g and g.conds or {}
+    if c.keybind or c.darkmode then return true, true end
     return (c.raid or c.battleground) and true or false,
         (c.dungeon or c.arena or c.solo) and true or false
 end
 
 -- The preview side an override editing session pins ("raid" | "party"): a
--- condition group whose contexts show only one kind of frames. nil = free.
+-- condition group that applies on only one kind of frames. nil = free.
 function ns.BM_PreviewPinnedSide()
-    local info = EllesmereUI.SpecOverrides_EditSessionInfo
-    local kind, gid
-    if info then kind, gid = info() end
-    if kind ~= "cond" or not EllesmereUI.Conditions_GroupById then return nil end
+    local kind, gid = EllesmereUI.SpecOverrides_EditSessionInfo()
+    if kind ~= "cond" then return nil end
     local toRaid, toParty = ns.BM_CondSides(EllesmereUI.Conditions_GroupById(gid))
     if toParty and not toRaid then return "party" end
     if toRaid and not toParty then return "raid" end
@@ -2040,11 +2040,19 @@ function ns.BM_PreviewIsParty()
     return ns._bmPvParty == true
 end
 
+-- The base debuff settings an override can hold key by key (the Debuff
+-- Manager's own content rides its forks).
+local DM_BASE_KEYS = { "debuffSize", "debuffPosition", "debuffOffsetX", "debuffOffsetY",
+    "debuffGrowDirection", "debuffWrapDirection", "debuffPerRow", "debuffCap",
+    "debuffSpacing", "debuffIconZoom", "debuffBorderSize", "debuffShowSwipe",
+    "debuffShowDurText", "debuffDurTextSize", "debuffShowStacks", "debuffStacksTextSize",
+    "debuffStacksOffsetX", "debuffStacksOffsetY" }
+
 -- The manager previews' override marks: tooltips for the Raid and the Party
 -- segment, nil where no override applies (read-only queries of the overrides
--- system). "bm": groups with their own Buff Manager; "dm": overrides holding
--- debuff settings. A condition group lands on the side whose frames its
--- contexts show; spec groups and context-free conditions land on both.
+-- system). "bm": groups with their own Buff Manager; "dm": groups with their
+-- own Debuff Manager and overrides holding base debuff settings. A condition
+-- group lands on the side whose frames it applies on; spec groups land on both.
 function ns.BM_PreviewOverrideTips(kind)
     local raid, party, seenR, seenP = nil, nil, {}, {}
     local function Add(name, toRaid, toParty)
@@ -2061,67 +2069,54 @@ function ns.BM_PreviewOverrideTips(kind)
         end
     end
     local function AddCond(gid)
-        local g = gid and EllesmereUI.Conditions_GroupById and EllesmereUI.Conditions_GroupById(gid)
+        local g = gid and EllesmereUI.Conditions_GroupById(gid)
         if not g then return end
         local toRaid, toParty = ns.BM_CondSides(g)
         if not (toRaid or toParty) then toRaid, toParty = true, true end
         Add(g.name, toRaid, toParty)
     end
-    if kind == "bm" then
-        local seed = EllesmereUI.SpecOverrides_BmSeedSources
-        if not seed then return nil, nil end
-        local _, order = seed()
-        for i = 1, #order do
-            local typ, gid = order[i]:match("^(%a+):(%d+)$")
-            if typ == "cond" then
-                AddCond(tonumber(gid))
-            elseif typ == "spec" and EllesmereUI.SpecOverrides_GroupById then
-                local g = EllesmereUI.SpecOverrides_GroupById(tonumber(gid))
-                if g then Add(g.name, true, true) end
-            end
-        end
-    else
-        local capturedBy = EllesmereUI.SpecOverrides_CapturedBy
-        if not capturedBy then return nil, nil end
-        local keys = { "debuffSize", "debuffPosition", "debuffOffsetX", "debuffOffsetY",
-            "debuffGrowDirection", "debuffWrapDirection", "debuffPerRow", "debuffCap",
-            "debuffSpacing", "debuffIconZoom", "debuffBorderSize", "debuffShowSwipe",
-            "debuffShowDurText", "debuffDurTextSize", "debuffShowStacks", "debuffStacksTextSize",
-            "debuffStacksOffsetX", "debuffStacksOffsetY" }
-        for i = 1, #keys do
-            local holders = capturedBy("EllesmereUIRaidFrames", keys[i])
-            for j = 1, #holders do
-                local h = holders[j]
-                if h.kind == "cond" then
-                    AddCond(h.id)
-                else
-                    -- Spec values: the spec's group, else the spec's own name.
-                    local og = EllesmereUI.SpecOverrides_OwningGroupFor
-                        and EllesmereUI.SpecOverrides_OwningGroupFor(h.id)
-                    local name = og and og.name
-                    if not name and GetSpecializationInfoByID then
-                        local _, sn = GetSpecializationInfoByID(h.id)
-                        name = sn
-                    end
-                    Add(name, true, true)
+    -- Groups with their own Buff or Debuff Manager.
+    local specGids, condGids = EllesmereUI.SpecOverrides_ManagerForkOwners(kind)
+    for i = 1, #specGids do
+        local g = EllesmereUI.SpecOverrides_GroupById(specGids[i])
+        if g then Add(g.name, true, true) end
+    end
+    for i = 1, #condGids do AddCond(condGids[i]) end
+    if kind == "dm" then
+        local holders = EllesmereUI.SpecOverrides_CapturedBy("EllesmereUIRaidFrames", DM_BASE_KEYS)
+        for j = 1, #holders do
+            local h = holders[j]
+            if h.kind == "cond" then
+                AddCond(h.id)
+            else
+                -- Spec values: the spec's group, else the spec's own name.
+                local og = EllesmereUI.SpecOverrides_OwningGroupFor(h.id)
+                local name = og and og.name
+                if not name and GetSpecializationInfoByID then
+                    local _, sn = GetSpecializationInfoByID(h.id)
+                    name = sn
                 end
+                Add(name, true, true)
             end
         end
     end
     local sub = (kind == "bm") and EllesmereUI.L("These overrides use their own Buff Manager.")
         or EllesmereUI.L("These overrides hold their own debuff settings.")
+    local rgb = EllesmereUI._SPECOV_GOLD
+    local gold = EllesmereUI.HexColor(rgb[1], rgb[2], rgb[3])
     local function Tip(names)
         if not names then return nil end
-        return "|cffc7a65a" .. EllesmereUI.L("Overridden by:") .. "|r " .. table.concat(names, ", ")
-            .. "\n|cff909090" .. sub .. "|r"
+        return gold .. EllesmereUI.L("Overridden by:") .. "|r " .. table.concat(names, ", ")
+            .. "\n" .. EllesmereUI.COLOR_CODES.DIM .. sub .. "|r"
     end
     return Tip(raid), Tip(party)
 end
 
 -- Raid / Party style switch of the manager pages' previews. Session only
 -- (never saved): the Buff and Debuff Manager settings are shared by both.
+-- Returns the control and its segment buttons by key.
 function ns.BM_BuildPreviewStyleToggle(parent)
-    local seg = EllesmereUI.BuildSegmentedControl({
+    local seg, _, _, btnOf = EllesmereUI.BuildSegmentedControl({
         parent    = parent,
         keys      = { "raid", "party" },
         labels    = { raid = "Raid", party = "Party" },
@@ -2138,8 +2133,7 @@ function ns.BM_BuildPreviewStyleToggle(parent)
             return pinned ~= nil and key ~= pinned
         end,
         disabledTip = function()
-            local name = EllesmereUI.SpecOverrides_EditSessionName
-                and EllesmereUI.SpecOverrides_EditSessionName() or "?"
+            local name = EllesmereUI.SpecOverrides_EditSessionName() or "?"
             if ns.BM_PreviewPinnedSide() == "party" then
                 return EllesmereUI.Lf("Editing %s: it applies to party frames only.", name)
             end
@@ -2153,22 +2147,6 @@ function ns.BM_BuildPreviewStyleToggle(parent)
             EllesmereUI:RefreshPage(true)
         end,
     })
-    -- The segment buttons (the control keeps them private): the buttons under
-    -- its pill whose labels read Raid / Party. Second return, by key.
-    local byText = { [EllesmereUI.L("Raid")] = "raid", [EllesmereUI.L("Party")] = "party" }
-    local btnOf = {}
-    local kids = { seg:GetChildren() }
-    for i = 1, #kids do
-        local btns = { kids[i]:GetChildren() }
-        for j = 1, #btns do
-            local regions = { btns[j]:GetRegions() }
-            for r = 1, #regions do
-                local rg = regions[r]
-                local key = rg.GetText and byText[rg:GetText() or ""]
-                if key then btnOf[key] = btns[j] end
-            end
-        end
-    end
     return seg, btnOf
 end
 

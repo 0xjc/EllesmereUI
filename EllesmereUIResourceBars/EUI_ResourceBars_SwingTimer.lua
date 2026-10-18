@@ -1618,9 +1618,13 @@ function ns.ST_MakeUnlockElement(MK, Rebuild)
         -- The rows' textured border outside the stack: every row spans the full
         -- width and the outer rows' edges are the stack's, so one row's reach.
         getMatchPad = function() return ns.ERB_EuiBorderPad(P()) end,
+        -- Rebuild is a full ApplyAll and the settle pass hands the size again
+        -- after every resize burst: an unchanged size rebuilds nothing.
         setWidth = function(_, w)
             local cfg = P(); if not cfg then return end
-            cfg.width = PP.Snap(math.max(w, 10))
+            local v = PP.Snap(math.max(w, 10))
+            if cfg.width == v then return end
+            cfg.width = v
             Rebuild()
         end,
         -- The mover resizes the whole stack; the per-row height is what is stored.
@@ -1628,7 +1632,9 @@ function ns.ST_MakeUnlockElement(MK, Rebuild)
             local cfg = P(); if not cfg then return end
             local n = ShownCount()
             local sp = cfg.rowSpacing or 0
-            cfg.height = PP.Snap(math.max((h - (n - 1) * sp) / n, 4))
+            local v = PP.Snap(math.max((h - (n - 1) * sp) / n, 4))
+            if cfg.height == v then return end
+            cfg.height = v
             Rebuild()
         end,
         savePos = save, loadPos = load, clearPos = clear, applyPos = apply,

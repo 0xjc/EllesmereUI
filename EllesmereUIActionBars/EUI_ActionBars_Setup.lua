@@ -824,7 +824,13 @@ function EAB:FinishSetup()
         -- combat deferred nothing.
         if ns._eabApplyDeferred then
             ns._eabApplyDeferred = nil
+            ns._eabMainBarAsbOwed = nil
             ApplyAll()
+        elseif ns._eabMainBarAsbOwed then
+            -- Only main bar AlwaysShow passes ran in combat (page flips, spell
+            -- swaps): its own pass writes what they skipped.
+            ns._eabMainBarAsbOwed = nil
+            self:ApplyAlwaysShowButtons("MainBar")
         end
         -- The pet bar's combat parking changed a slot: one pet pass finishes it
         -- (Hide, mouse, statehidden), not the full ApplyAll.
@@ -1144,8 +1150,16 @@ function EAB:FinishSetup()
         _gridState.spellsPending = true
         C_Timer_After(0, function()
             _gridState.spellsPending = false
-            LayoutBar("StanceBar")
-            self:RefreshRuntimeVisibility() -- form count may have changed; re-eval stance bar show/hide
+            -- The stance bar follows the number of forms, which only a talent or a
+            -- newly learned spell changes. SPELLS_CHANGED also fires mid-combat on
+            -- every spell swap (procs, Holy Armaments), where both passes are
+            -- combat-gated and would only flag a full ApplyAll for combat end.
+            local nForms = GetNumShapeshiftForms() or 0
+            if nForms ~= _gridState.spellsForms then
+                _gridState.spellsForms = nForms
+                LayoutBar("StanceBar")
+                self:RefreshRuntimeVisibility() -- re-eval stance bar show/hide
+            end
             -- Content-signature gate: SPELLS_CHANGED also fires mid-combat on
             -- spell-override flips (proc morphs), where slot CONTENTS are identical and
             -- the full AlwaysShow + ForceButtonRefresh sweep below (~140 buttons;

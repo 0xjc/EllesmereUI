@@ -803,27 +803,31 @@ function EllesmereUI.SpecOverrides_IsCaptured(folder, ...)
     return false
 end
 
---- Which overrides hold this setting (IsCaptured's match): an array of
---- { kind = "spec", id = specID } and { kind = "cond", id = condition group
---- id }, each once; empty when none does. Read-only, for options pages that
---- tell apart where an override applies.
-function EllesmereUI.SpecOverrides_CapturedBy(folder, ...)
-    local fkey = folder .. FS .. table.concat({ ... }, PS)
+--- Which overrides hold any of these settings: keys are top-level keys of
+--- the module's profile root (no table sits above one, so IsCaptured's match
+--- is the key itself). An array of { kind = "spec", id = specID } and
+--- { kind = "cond", id = condition group id }, each once; empty when none
+--- does. One pass over both stores. Read-only, for options pages that tell
+--- apart where an override applies.
+function EllesmereUI.SpecOverrides_CapturedBy(folder, keys)
+    local want = {}
+    for i = 1, #keys do want[folder .. FS .. keys[i]] = true end
     local C = EllesmereUI._CondOv
-    local out, seen = {}, {}
+    local out, seen = {}, { spec = {}, cond = {} }
     for pass = 1, 2 do
         local store, kind
         if pass == 1 then store, kind = GetStore(), "spec"
         elseif C and C.GetStore then store, kind = C.GetStore(), "cond" end
         if store then
+            local seenKind = seen[kind]
             for _, e in ipairs(store) do
                 local vals = e.values
                 if type(vals) == "table" then
                     for id, map in pairs(vals) do
-                        if type(id) == "number" and type(map) == "table" and not seen[kind .. id] then
+                        if type(id) == "number" and type(map) == "table" and not seenKind[id] then
                             for k in pairs(map) do
-                                if k == fkey or (#k < #fkey and fkey:sub(1, #k + 1) == k .. PS) then
-                                    seen[kind .. id] = true
+                                if want[k] then
+                                    seenKind[id] = true
                                     out[#out + 1] = { kind = kind, id = id }
                                     break
                                 end

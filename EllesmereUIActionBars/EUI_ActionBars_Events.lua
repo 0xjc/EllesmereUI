@@ -54,16 +54,16 @@ end
 
 -- Content/reveal passes reconcile all slots; attack events only touch candidates.
 function ns.AB_SyncAttackState(btn, action, onlyAttacks)
-    local hasAction = action and HasAction(action)
-    local attacking = hasAction and IsAttackAction(action)
-    local repeating = hasAction and IsAutoRepeatAction(action)
+    local hasAction = action and C_ActionBar.HasAction(action)
+    local attacking = hasAction and C_ActionBar.IsAttackAction(action)
+    local repeating = hasAction and C_ActionBar.IsAutoRepeatAction(action)
     local fd = ns._eabFD[btn]
     local checked = btn:GetChecked()
     if issecretvalue and issecretvalue(checked) then checked = nil end
     if onlyAttacks and not (attacking or repeating or checked or (fd and fd.attackFlashing)) then
         return
     end
-    local current = hasAction and IsCurrentAction(action)
+    local current = hasAction and C_ActionBar.IsCurrentAction(action)
     ns.AB_SetAttackFlash(btn, repeating or (attacking and current))
     local wanted = (current or repeating) and true or false
     if checked ~= wanted then btn:SetChecked(wanted) end
