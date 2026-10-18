@@ -1579,7 +1579,8 @@ end
 -------------------------------------------------------------------------------
 --  Health-bar replica preview, shared by the Debuff Manager (draws its own
 --  content on it) and the Buff Manager page. opts: previewClass (default:
---  the active spec's class), minH (150), party (read the
+--  the active spec's class), minH (floor of the whole band, 91: the
+--  Editing Spec block beside it), party (read the
 --  party view instead of `s`), styleToggle (Raid/Party row above it),
 --  kitAuras ("buffs" | "debuffs": the kit hint under that row),
 --  overrideTips ({ raid = tip, party = tip }: override marks per segment).
@@ -1606,7 +1607,9 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
         if maxW > 0 and rawW * PV_SCALE > maxW then PV_SCALE = maxW / rawW end
     end
     local pvH = floor(rawH * PV_SCALE + 0.5)
-    local sectionH = max(pvH + previewPad * 2, opts.minH or 150)
+    -- The band follows the replica (it changes with the Raid/Party style);
+    -- the switch row and kit room join it below.
+    local sectionH = pvH + previewPad * 2
 
     -- Raid/Party row: captioned "Preview" and seated on the replica, so it
     -- reads as a view switch, not as a second set of settings.
@@ -1658,7 +1661,7 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
             EllesmereUI.ShowWidgetTooltip(self, EllesmereUI.L("Only changes the preview. Raid and party frames share these settings."))
         end)
         row:SetScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
-        rowH = 22 + 18
+        rowH = 22 + 24
         -- The kit decides these auras' size and place on party frames: name
         -- the override and its value, in the accent colour.
         if kitMode and opts.kitAuras then
@@ -1686,7 +1689,7 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
     if kitMode == "ABOVE" and opts.kitAuras == "buffs" and ns.RF_KitAboveUnits then
         aboveH = math.ceil(ns.RF_KitAboveUnits(ns.db.profile) * (ns._partyBmScale or 1) * PV_SCALE)
     end
-    sectionH = sectionH + rowH + aboveH
+    sectionH = max(sectionH + rowH + aboveH, opts.minH or 91)
     topY = topY - rowH - aboveH
 
     local pvFrame = CreateFrame("Frame", nil, parent)
@@ -3089,7 +3092,7 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
         end
         local ovRaid, ovParty = ns.BM_PreviewOverrideTips("bm")
         local pvFrame, sectionH, PV_SCALE = ns.BM_BuildSimplePreview(leftFrame, s, fontPath, PP, pvSplitW / 2, ly - 20,
-            { previewClass = previewClass, minH = 120, party = ns.BM_PreviewIsParty(),
+            { previewClass = previewClass, party = ns.BM_PreviewIsParty(),
               styleToggle = true, kitAuras = "buffs", overrideTips = { raid = ovRaid, party = ovParty } })
         local health = pvFrame._health
 
