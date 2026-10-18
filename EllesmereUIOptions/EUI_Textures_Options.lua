@@ -286,9 +286,19 @@ local function TileNameplates(parent, y, W, tile)
             end }
     end
 
-    local _, h = W:DualRow(parent, y,
+    local _, texRow, h
+    texRow, h = W:DualRow(parent, y,
         texCfg("Bar Texture", "healthBarTexture"),
         texCfg("Cast Bar Texture", "castBarTexture"));  y = y - h
+    -- Textured Background cogs.
+    local function Row(kind)
+        return function()
+            local env = ns._NPO_OptEnv
+            return env and env.TexBgRowCfg(kind, NPTexApply)
+        end
+    end
+    TexBgCog(texRow._leftRegion, Row("health"), "nameplates")
+    TexBgCog(texRow._rightRegion, Row("cast"), "nameplates")
     _, h = W:DualRow(parent, y,
         { type = "dropdown", text = "Absorb Style", values = absorbStyleValues, order = absorbStyleOrder,
           getValue = function()

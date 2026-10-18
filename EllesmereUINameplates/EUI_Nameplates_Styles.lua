@@ -1067,6 +1067,43 @@ function ns.ApplyCastBarTexture(plate)
     -- A path swap mints a new fill object: it joins the rounded body.
     if plate._npRounded then ns.NP_ApplyRounding(plate, "cast") end
 end
+-- Textured Background (Bar Texture / Cast Bar Texture cogs; off by default): a
+-- bar's background takes the bar texture, tinted by the background colour. While
+-- on, the background's own SetColorTexture tints the texture, so the colour rows'
+-- live repaints keep it; off puts the flat colour back. The enemy appearance pass
+-- runs this (friendly plates never do); Blizzard Style draws its own art there.
+do
+    local function PaintTinted(self, r, g, b, a)
+        self:SetVertexColor(r, g, b, a)
+    end
+    local function Apply(bg, on, texKey, c, a)
+        if not bg then return end
+        local path = on and EllesmereUI.ResolveTexturePath(ns.healthBarTextures, texKey or "none", nil)
+        if path then
+            if bg._npTexBgPath ~= path then
+                bg:SetTexture(path)
+                bg._npTexBgPath = path
+            end
+            bg.SetColorTexture = PaintTinted
+            bg:SetColorTexture(c.r, c.g, c.b, a)
+        elseif bg._npTexBgPath then
+            bg._npTexBgPath = nil
+            bg.SetColorTexture = nil
+            bg:SetVertexColor(1, 1, 1, 1)
+            bg:SetColorTexture(c.r, c.g, c.b, a)
+        end
+    end
+    function ns.NP_TexBgApply(plate)
+        local hOn, cOn = p and p.healthTextureBg, p and p.castTextureBg
+        if not (hOn or cOn or plate._npTexBgSeen) then return end
+        if ns.NP_Style() == "blizzard" then return end
+        plate._npTexBgSeen = true
+        Apply(plate.healthBG, hOn, p and p.healthBarTexture,
+            (p and p.bgColor) or defaults.bgColor, (p and p.bgAlpha) or defaults.bgAlpha)
+        Apply(plate.castBG, cOn, p and p.castBarTexture,
+            (p and p.castBgColor) or defaults.castBgColor, (p and p.castBgAlpha) or defaults.castBgAlpha)
+    end
+end
 
 function ns.ApplyAbsorbStyle(plate)
     local style = (p and p.absorbStyle) or defaults.absorbStyle
