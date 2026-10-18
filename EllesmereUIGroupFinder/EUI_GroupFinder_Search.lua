@@ -2930,6 +2930,8 @@ function XF.Abbr(name)
     local abbr = table.concat(out)
     if abbr == "" then abbr = Abbrev(name) end
     if abbr == "" then abbr = name end
+    local ov = EllesmereUI._dungeonAbbrevOverride
+    if ov and ov[abbr] then abbr = ov[abbr] end
     return abbr
 end
 
