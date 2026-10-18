@@ -66,6 +66,7 @@ local function ApplyGroupIcon(tex, icon)
         if c then tex:SetTexCoord(c[1], c[2], c[3], c[4]) end
     end
 end
+EllesmereUI.SpecOverrides_ApplyGroupIcon = ApplyGroupIcon
 
 -------------------------------------------------------------------------------
 --  Toolbar button + active-group indicator
@@ -357,8 +358,12 @@ local function ShowNameIconPopup(specIDs, editing)
                 p:Hide()
                 if UpdateIndicator then UpdateIndicator() end
                 if RefreshCardsPopup then RefreshCardsPopup() end
+                -- The RF manager pages list override groups in their sidebar.
                 local ap = EllesmereUI:GetActivePage()
-                if ap == LIST_PAGE then EllesmereUI:RefreshPage(true) end
+                if ap == LIST_PAGE or (EllesmereUI:GetActiveModule() == "EllesmereUIRaidFrames"
+                   and (ap == "Buff Manager" or ap == "Debuff Manager")) then
+                    EllesmereUI:RefreshPage(true)
+                end
                 return
             end
             local specs = p._specs
@@ -943,7 +948,10 @@ RefreshCardsPopup = function()
                         if EllesmereUI.IS_FOREVER then EllesmereUI._SO_ForeverConverge() end
                         UpdateIndicator()   -- current spec may have been a member
                         RefreshCardsPopup()
-                        if EllesmereUI:GetActivePage() == LIST_PAGE then
+                        -- The RF manager pages list override groups in their sidebar.
+                        local ap = EllesmereUI:GetActivePage()
+                        if ap == LIST_PAGE or (EllesmereUI:GetActiveModule() == "EllesmereUIRaidFrames"
+                           and (ap == "Buff Manager" or ap == "Debuff Manager")) then
                             EllesmereUI:RefreshPage(true)
                         end
                     end,
@@ -1187,6 +1195,34 @@ function EllesmereUI.SpecOverrides_ToggleCardsPopup(anchorBtn)
     EnsurePanelHideHook()
 end
 
+--- Editing-as toggle for one override group, like clicking its card in the
+--- cards popup, but switching directly past the manager page lock (the
+--- manager sidebar's override list). kind "spec"|"cond". The lock is only
+--- skipped when the target's fork can go live here; otherwise the page would
+--- open covered by the "info" overlay, so the lock's popup explains instead.
+function EllesmereUI.SpecOverrides_ToggleOverrideEdit(kind, gid)
+    local lockKind, lockGid = EllesmereUI.SpecOverrides_BmPageLockInfo()
+    if not lockKind then lockKind, lockGid = EllesmereUI.SpecOverrides_DmPageLockInfo() end
+    if kind == "spec" then
+        local g = GroupById(gid)
+        if not g then return end
+        -- Eligible: a member spec, and no OTHER group owns the live spec fork.
+        local cur, member = CurrentSpecID(), false
+        for _, sid in ipairs(g.specs or {}) do
+            if sid == cur then member = true; break end
+        end
+        local force = member and not (lockKind == "spec" and lockGid ~= g.id)
+        if _editGroup == g then ExitGroupEdit() else EnterGroupEdit(g, force) end
+    elseif kind == "cond" then
+        local g = EllesmereUI.Conditions_GroupById and EllesmereUI.Conditions_GroupById(gid)
+        if not g then return end
+        -- A live spec fork means a spec owner exists, and spec wins.
+        local force = lockKind ~= "spec"
+        if Cond._edit == g then Cond.ExitEdit() else Cond.EnterEdit(g, force) end
+    end
+    RefreshCardsPopup()
+end
+
 -------------------------------------------------------------------------------
 --  CONDITIONAL OVERRIDES UI: toolbar button, cards popup, condition picker
 --  (with keybind capture), name/icon popup. Mirrors the spec-overrides UI
@@ -1261,7 +1297,10 @@ function Cond.ShowNameIconPopup(conds, keyStr, existing)
             -- self-guards the BM page lock and any active session.
             if newGroup then Cond.EnterEdit(newGroup) end
             Cond.RefreshCards()
-            if EllesmereUI:GetActivePage() == LIST_PAGE then
+            -- The RF manager pages list override groups in their sidebar.
+            local ap = EllesmereUI:GetActivePage()
+            if ap == LIST_PAGE or (EllesmereUI:GetActiveModule() == "EllesmereUIRaidFrames"
+               and (ap == "Buff Manager" or ap == "Debuff Manager")) then
                 EllesmereUI:RefreshPage(true)
             end
         end)

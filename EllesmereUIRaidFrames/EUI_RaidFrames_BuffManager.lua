@@ -2150,6 +2150,155 @@ function ns.BM_BuildPreviewStyleToggle(parent)
     return seg, btnOf
 end
 
+-------------------------------------------------------------------------------
+--  Override list for the manager sidebars (Buff Manager here, Debuff Manager
+--  in EUI_RaidFrames_ManagerPages.lua): tile rows for the override groups that
+--  own a fork, under a PAB-style header. The live fork gets the accent strip
+--  and a gold dot; the rest are dimmed. Click (row or pencil) = editing-as
+--  toggle (card parity). kind = "bm" | "dm"; returns the new y cursor.
+-------------------------------------------------------------------------------
+function ns.BM_BuildOverrideList(parent, y, width, fontPath, kind)
+    local owners = EllesmereUI.SpecOverrides_ManagerForkOwners
+    if not owners then return y end
+    local specGids, condGids = owners(kind)
+    if #specGids + #condGids == 0 then return y end
+    -- The fork live on this page (session-applied conditional first).
+    local liveKind, liveGid
+    local lockInfo = (kind == "dm") and EllesmereUI.SpecOverrides_DmPageLockInfo
+        or EllesmereUI.SpecOverrides_BmPageLockInfo
+    if lockInfo then liveKind, liveGid = lockInfo() end
+    local ovList = {}
+    for i = 1, #specGids do
+        local g = EllesmereUI.SpecOverrides_GroupById(specGids[i])
+        if g then
+            ovList[#ovList + 1] = { kind = "spec", gid = g.id, name = g.name or "?", icon = g.icon,
+                active = liveKind == "spec" and liveGid == g.id }
+        end
+    end
+    for i = 1, #condGids do
+        local g = EllesmereUI.Conditions_GroupById(condGids[i])
+        if g then
+            ovList[#ovList + 1] = { kind = "cond", gid = g.id, name = g.name or "?", icon = g.icon,
+                active = liveKind == "cond" and liveGid == g.id }
+        end
+    end
+    if #ovList == 0 then return y end
+    local CreateFrame = POOL.CreateFrame
+    local PP = EllesmereUI.PanelPP
+    -- Metrics follow the Player Aura Bars sidebar (58px tiles, 36px
+    -- icon, 13px title, 14px pencil).
+    local OV_PAD, OV_ROW_H, OV_ICON, OV_EDIT = 8, 58, 36, 14
+    local ac = EllesmereUI.ELLESMERE_GREEN
+    local applyIcon = EllesmereUI.SpecOverrides_ApplyGroupIcon
+
+    -- PAB section header: inset divider, centered caps label.
+    local hdrLine = parent:CreateTexture(nil, "ARTWORK")
+    PP.Height(hdrLine, 1)
+    PP.Point(hdrLine, "TOPLEFT", parent, "TOPLEFT", 8, y)
+    PP.Point(hdrLine, "TOPRIGHT", parent, "TOPLEFT", width - 8, y)
+    hdrLine:SetColorTexture(1, 1, 1, 0.08)
+    local hdr = parent:CreateFontString(nil, "OVERLAY")
+    hdr:SetFont(fontPath, 11, "")
+    PP.Point(hdr, "TOP", parent, "TOPLEFT", floor(width / 2), y - 13)
+    hdr:SetTextColor(0.6, 0.6, 0.6)
+    hdr:SetText(string.upper(EllesmereUI.L("Overrides")))
+    y = y - 32
+
+    for i = 1, #ovList do
+        local ov = ovList[i]
+        local row = CreateFrame("Button", nil, parent)
+        PP.Size(row, width, OV_ROW_H)
+        PP.Point(row, "TOPLEFT", parent, "TOPLEFT", 0, y)
+        row:SetFrameLevel(parent:GetFrameLevel() + 1)
+        row:SetAlpha(ov.active and 1 or 0.45)
+        local bg = row:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints()
+        bg:SetColorTexture(1, 1, 1, ov.active and 0.06 or 0)
+        local sep = row:CreateTexture(nil, "ARTWORK")
+        PP.Height(sep, 1)
+        PP.Point(sep, "BOTTOMLEFT", row, "BOTTOMLEFT", 0, 0)
+        PP.Point(sep, "BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 0)
+        sep:SetColorTexture(1, 1, 1, 0.04)
+        if ov.active then
+            local strip = row:CreateTexture(nil, "ARTWORK", nil, 2)
+            PP.Size(strip, 2, OV_ROW_H)
+            PP.Point(strip, "TOPLEFT", row, "TOPLEFT", 0, 0)
+            strip:SetColorTexture(ac.r, ac.g, ac.b, 1)
+        end
+
+        local textX, titleY = 12, -12
+        if applyIcon then
+            local icon = row:CreateTexture(nil, "ARTWORK")
+            PP.Size(icon, OV_ICON, OV_ICON)
+            PP.Point(icon, "LEFT", row, "LEFT", OV_PAD, 0)
+            applyIcon(icon, ov.icon)
+            -- Icons stay at full alpha while an inactive row dims.
+            if icon.SetIgnoreParentAlpha then icon:SetIgnoreParentAlpha(true) end
+            textX = OV_PAD + OV_ICON + 8
+        end
+
+        local function onClick()
+            if EllesmereUI.SpecOverrides_ToggleOverrideEdit then
+                EllesmereUI.SpecOverrides_ToggleOverrideEdit(ov.kind, ov.gid)
+            end
+        end
+
+        -- Pencil (tile position, bottom right): same editing-as toggle
+        -- as the row, as a visible cue.
+        local editBtn = CreateFrame("Button", nil, row)
+        PP.Size(editBtn, OV_EDIT, OV_EDIT)
+        PP.Point(editBtn, "BOTTOMRIGHT", row, "BOTTOMRIGHT", -8, 6)
+        editBtn:SetFrameLevel(row:GetFrameLevel() + 2)
+        local editTex = editBtn:CreateTexture(nil, "OVERLAY")
+        editTex:SetAllPoints()
+        if editTex.SetSnapToPixelGrid then
+            editTex:SetSnapToPixelGrid(false); editTex:SetTexelSnappingBias(0)
+        end
+        editTex:SetTexture("Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-edit.png")
+        editBtn:SetAlpha(0.5)
+        editBtn:SetScript("OnEnter", function(self) self:SetAlpha(0.9) end)
+        editBtn:SetScript("OnLeave", function(self) self:SetAlpha(0.5) end)
+        editBtn:SetScript("OnClick", onClick)
+
+        if ov.active then
+            -- Gold dot (the override cards' gold) marks the live fork.
+            local dot = row:CreateTexture(nil, "ARTWORK")
+            PP.Size(dot, 8, 8)
+            dot:SetTexture("Interface\\Common\\CommonMaskCircle")
+            local gold = EllesmereUI._SPECOV_GOLD
+            dot:SetVertexColor(gold[1], gold[2], gold[3], 1)
+            PP.Point(dot, "TOPRIGHT", row, "TOPRIGHT", -12, -14)
+        end
+
+        local name = row:CreateFontString(nil, "OVERLAY")
+        name:SetFont(fontPath, 13, "")
+        PP.Point(name, "TOPLEFT", row, "TOPLEFT", textX, titleY)
+        PP.Point(name, "RIGHT", row, "RIGHT", -28, 0)
+        name:SetJustifyH("LEFT")
+        name:SetWordWrap(false)
+        name:SetTextColor(1, 1, 1)
+        name:SetText(ov.name)
+        local sub = row:CreateFontString(nil, "OVERLAY")
+        sub:SetFont(fontPath, 11, "")
+        PP.Point(sub, "TOPLEFT", name, "BOTTOMLEFT", 0, -4)
+        PP.Point(sub, "RIGHT", row, "RIGHT", -28, 0)
+        sub:SetJustifyH("LEFT")
+        sub:SetWordWrap(false)
+        sub:SetTextColor(0.4, 0.4, 0.4)
+        sub:SetText(EllesmereUI.L(ov.kind == "spec" and "Spec" or "Conditional"))
+        -- Text stays at full alpha while an inactive row dims.
+        if name.SetIgnoreParentAlpha then
+            name:SetIgnoreParentAlpha(true); sub:SetIgnoreParentAlpha(true)
+        end
+
+        row:SetScript("OnEnter", function() if not ov.active then bg:SetColorTexture(1, 1, 1, 0.04) end end)
+        row:SetScript("OnLeave", function() bg:SetColorTexture(1, 1, 1, ov.active and 0.06 or 0) end)
+        row:SetScript("OnClick", onClick)
+        y = y - OV_ROW_H
+    end
+    return y - 8
+end
+
 function ns.BM_BuildPage(pageName, parent, yOffset)
     local W = EllesmereUI.Widgets
     if not W then return 0 end
@@ -3019,6 +3168,9 @@ function ns.BM_BuildPage(pageName, parent, yOffset)
 
         tileY = tileY - ADD_BTN_PAD - ADD_BTN_H - ADD_BTN_PAD
     end
+
+    -- Override list (shared with the Debuff Manager sidebar).
+    tileY = ns.BM_BuildOverrideList(sidebarFrame, tileY, sidebarW, fontPath, "bm")
 
     -------------------------------------------------------------------
     --  LEFT COLUMN (72%): Fixed top area + scrollable settings below
