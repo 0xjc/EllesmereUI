@@ -2325,7 +2325,7 @@ function ns.UFO_BuildPowerBarSection(parent, y, ctx)
         -- For Shadow Priest the alt is "no override" (nil) so UnitPowerType returns Insanity.
         local SPEC_POWER_ALTS = {
             DRUID  = {
-                [1] = { "Astral Power", "Mana",     0 },   -- Balance
+                [1] = { "Astral Power (Default)", "Mana",     0 },   -- Balance
                 [2] = { "Energy",       "Mana",     0 },   -- Feral
                 [3] = { "Rage",         "Mana",     0 },   -- Guardian
             },
@@ -2350,6 +2350,14 @@ function ns.UFO_BuildPowerBarSection(parent, y, ctx)
                 local data = s and classAlts[s]
                 ptValues["default"] = data and data[1] or nil
                 ptValues["alt"]     = data and data[2] or nil
+				local extra = (playerClass == "DRUID" and s == 1)
+				ptValues["astral"]  = extra and "Astral Power (Non-Ferals)" or nil
+				ptOrder[1] = "default"
+				if extra then
+					ptOrder[2] = "astral"; ptOrder[3] = "alt"
+				else
+					ptOrder[2] = "alt"; ptOrder[3] = nil
+				end
             end
             local labelSpec = GetSpec()
             FillPowerTypeValues(labelSpec)
@@ -2369,6 +2377,7 @@ function ns.UFO_BuildPowerBarSection(parent, y, ctx)
                           and C_SpecializationInfo.GetSpecializationInfo(s)
                       if not sid then return "default" end
                       local ov = UNIT_DB_MAP["player"]().powerTypeOverride
+					  if ov and ov[sid] == "astral" then return "astral" end
                       if ov and ov[sid] then return "alt" end
                       return "default"
                   end,
@@ -2382,6 +2391,9 @@ function ns.UFO_BuildPowerBarSection(parent, y, ctx)
                       if v == "alt" then
                           if not pdb.powerTypeOverride then pdb.powerTypeOverride = {} end
                           pdb.powerTypeOverride[sid] = true
+					  elseif v == "astral" then
+						  if not pdb.powerTypeOverride then pdb.powerTypeOverride = {} end
+						  pdb.powerTypeOverride[sid] = "astral"	  
                       else
                           if pdb.powerTypeOverride then pdb.powerTypeOverride[sid] = nil end
                       end

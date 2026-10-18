@@ -833,7 +833,7 @@ function ns.ERB_BuildBarDisplayPage(pageName, parent, yOffset)
     if DB().primary.enabled then
         local _, playerClass = UnitClass("player")
         local SPEC_POWER_ALTS = {
-            DRUID  = { [1] = { "Mana", "Astral Power" }, [2] = { "Energy", "Mana" }, [3] = { "Rage", "Mana" } },
+            DRUID  = { [1] = { "Mana (Match Form)", "Astral Power", "Mana (Always)" }, [2] = { "Energy", "Mana" }, [3] = { "Rage", "Mana" } },
             PRIEST = { [3] = { "Mana", "Insanity" } },
             SHAMAN = { [1] = { "Mana", "Maelstrom" } },
             EVOKER = { [3] = { "Ebon Might", "Mana" } },
@@ -844,8 +844,9 @@ function ns.ERB_BuildBarDisplayPage(pageName, parent, yOffset)
             local spec = GetSpecialization and GetSpecialization()
             local data = spec and classAlts[spec]
             if data then
-                local ptValues = { ["default"] = data[1], ["alt"] = data[2] }
+                local ptValues = { ["default"] = data[1], ["alt"] = data[2], ["always"] = data[3] }
                 local ptOrder  = { "default", "alt" }
+				if data[3] then ptOrder[3] = "always" end
                 local powerTypeRow
                 powerTypeRow, h = W:DualRow(parent, y,
                     { type="dropdown", text="Power Type",
@@ -863,6 +864,7 @@ function ns.ERB_BuildBarDisplayPage(pageName, parent, yOffset)
                           if not sid then return "default" end
                           local p = DB(); if not p then return "default" end
                           local ov = p.primary.powerTypeOverride
+						  if ov and ov[sid] == "mana" then return "always" end
                           if ov and ov[sid] then return "alt" end
                           return "default"
                       end,
@@ -876,6 +878,9 @@ function ns.ERB_BuildBarDisplayPage(pageName, parent, yOffset)
                           if v == "alt" then
                               if not p.primary.powerTypeOverride then p.primary.powerTypeOverride = {} end
                               p.primary.powerTypeOverride[sid] = true
+						  elseif v == "always" then
+							  if not p.primary.powerTypeOverride then p.primary.powerTypeOverride = {} end
+							  p.primary.powerTypeOverride[sid] = "mana"   	  
                           else
                               if p.primary.powerTypeOverride then p.primary.powerTypeOverride[sid] = nil end
                           end

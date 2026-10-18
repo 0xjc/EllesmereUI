@@ -475,7 +475,15 @@ function EllesmereUI.GetPlayerPowerOverride()
         or (C_SpecializationInfo and C_SpecializationInfo.GetSpecializationInfo(spec))
         or nil
     local ov = db.profile.player and db.profile.player.powerTypeOverride
-    if sid and ov and ov[sid] and classAlt then
+	local choice = sid and ov and ov[sid]
+    if choice == "astral" then
+        -- opt-in: Astral Power in every form except cat and bear
+        if classFile == "DRUID" and spec == 1 then
+            local f = GetShapeshiftFormID()
+            if f ~= 1 and f ~= 5 then return Enum.PowerType.LunarPower end
+        end
+        return nil
+    elseif sid and ov and ov[sid] and classAlt then
         return classAlt[spec]
     elseif classDef and classDef[spec] ~= nil then
         return classDef[spec]
