@@ -43,6 +43,14 @@ local function Secret(v)
     return issecretvalue and issecretvalue(v)
 end
 
+-- The form text's own setting; unset follows the power bar's.
+local function FormVal(s, key, base, def)
+    local v = s[key]
+    if v == nil then v = s[base] end
+    if v == nil then v = def end
+    return v
+end
+
 local function Paint()
     local bar, pt = S.bar, S.pt
     if not (bar and pt) then return end
@@ -53,6 +61,8 @@ local function Paint()
         bar.text:SetFormattedText("%d", UnitPower("player", pt))
     elseif mode == "pct" then
         bar.text:SetFormattedText(S.fmtPct, UnitPowerPercent("player", pt, true, CurveConstants.ScaleTo100))
+    elseif mode == "curmax" then
+        bar.text:SetFormattedText("%d / %d", UnitPower("player", pt), UnitPowerMax("player", pt))
     elseif mode == "both" then
         bar.text:SetFormattedText(S.fmtBoth, UnitPower("player", pt),
             UnitPowerPercent("player", pt, true, CurveConstants.ScaleTo100))
@@ -68,9 +78,11 @@ local function Color()
     local op = s.powerBarOpacity or 100
     if op <= 1.0 then op = op * 100 end
     bar:SetStatusBarColor(r, g, b, op / 100)
-    -- Text Color: power-coloured takes the form's colour, else custom or white.
-    local tc = s.powerTextColor
-    if s.powerPercentTextPowerColor then
+    -- Form Text Color: power-coloured takes the form's colour, else custom or
+    -- white. Neither set follows the power bar's Text Color.
+    local pc, tc = s.foreverFormTextPowerColor, s.foreverFormTextColor
+    if pc == nil and tc == nil then pc, tc = s.powerPercentTextPowerColor, s.powerTextColor end
+    if pc then
         bar.text:SetTextColor(r, g, b)
     elseif tc then
         bar.text:SetTextColor(tc.r, tc.g, tc.b, tc.a or 1)
@@ -148,25 +160,25 @@ local function Build(frame)
     S.bar = bar
 end
 
--- The power bar's text settings: Power Text (format), Text Position and its
--- cog (size, offsets), the percent sign. Smart shows the value (form power is
--- never mana).
+-- The Form Power Text settings (format, position, size, offsets, percent
+-- sign); each unset one follows the power bar's. Smart shows the value (form
+-- power is never mana).
 local function StyleText(s)
     local fs = S.bar.text
-    local pos, fmt = s.powerPercentText or "none", s.powerTextFormat or "perpp"
+    local pos = FormVal(s, "foreverFormTextPos", "powerPercentText", "none")
+    local fmt = FormVal(s, "foreverFormTextFormat", "powerTextFormat", "perpp")
     if pos == "none" or fmt == "none" then
         S.text = nil
         fs:Hide()
         return
     end
-    S.text = (fmt == "curpp" or fmt == "smart") and "cur" or (fmt == "both" and "both") or "pct"
-    local sign = (s.powerShowPercent ~= false) and "%%" or ""
+    S.text = (fmt == "curpp" or fmt == "smart") and "cur" or (fmt == "curmaxpp" and "curmax")
+        or (fmt == "both" and "both") or "pct"
+    local sign = (FormVal(s, "foreverFormShowPercent", "powerShowPercent", true) ~= false) and "%%" or ""
     S.fmtPct, S.fmtBoth = "%d" .. sign, "%d | %d" .. sign
-    EllesmereUI.ApplyModuleFont(fs, nil, s.powerPercentSize or 9, "unitFrames")
-    -- Its own offsets (Form Text X / Y in the Text Position cog); unset follows the power text's.
-    local ox, oy = s.foreverFormTextX, s.foreverFormTextY
-    if ox == nil then ox = s.powerPercentX or 0 end
-    if oy == nil then oy = s.powerPercentY or 0 end
+    EllesmereUI.ApplyModuleFont(fs, nil, FormVal(s, "foreverFormTextSize", "powerPercentSize", 9), "unitFrames")
+    local ox = FormVal(s, "foreverFormTextX", "powerPercentX", 0)
+    local oy = FormVal(s, "foreverFormTextY", "powerPercentY", 0)
     fs:ClearAllPoints()
     if pos == "left" then
         fs:SetJustifyH("LEFT")
@@ -260,8 +272,11 @@ function ns.UF_ForeverFormBar(frame, power, s)
     Sync()
 end
 
--- The offset sliders re-place only this bar: a full frame reload per slider
--- step visibly rebuilds the player frame.
+-- The form bar's own options re-apply only this bar: a full frame reload per
+-- slider step visibly rebuilds the player frame.
 function ns.UF_ForeverFormBarRelayout()
-    if S.on and S.bar then Layout(S.frame, S.power, S.settings) end
+    if not (S.on and S.bar) then return end
+    Layout(S.frame, S.power, S.settings)
+    StyleText(S.settings)
+    Sync()
 end
