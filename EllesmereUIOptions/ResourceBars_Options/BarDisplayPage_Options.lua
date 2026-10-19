@@ -135,6 +135,7 @@ function ns.ERB_BuildBarDisplayPage(pageName, parent, yOffset)
     if not EllesmereUI._prebuilding then
         _clickMappings.classResource, _clickMappings.countText = nil, nil
         _clickMappings.power, _clickMappings.health = nil, nil
+        _clickMappings.arcaneSoul = nil
     end
 
     -- Per-spec editing lives in the shared Spec Overrides system (spec groups + editing-as); legacy Advanced data migrates via MigrateRBAdvancedProfile.
@@ -1283,19 +1284,22 @@ function ns.ERB_BuildBarDisplayPage(pageName, parent, yOffset)
     -- than built and disabled, since nothing in it can ever apply to them.
     -- The spec/hero-tree gate itself lives in the module (it changes at
     -- runtime); this only decides whether the controls exist at all.
+    local asSection, asEnableRow
     if select(2, UnitClass("player")) == "MAGE" then
         -- Straight to the module: this display is not part of the bar build,
         -- so a full ApplyAll would rebuild every bar to retint one string.
+        -- The preview header shows the same sample, so it follows too.
         local function RefreshAS()
             if ns.AS_Apply then ns.AS_Apply() end
+            env.UpdatePreviewHeader()
         end
         local asOff = function() local p = DB(); return p and not p.arcaneSoul.enabled end
         local AS_TIP = "Arcane Soul Helper"
 
-        _, h = W:SectionHeader(parent, "ARCANE SOUL (SUNFURY)", y);  y = y - h
+        asSection, h = W:SectionHeader(parent, "ARCANE SOUL (SUNFURY)", y);  y = y - h
+        AddPreviewEye(asSection, "ARCANE SOUL (SUNFURY)", "arcaneSoul")
 
         -- Row: Enable Arcane Soul Helper (+ position cog) | Show Threshold
-        local asEnableRow
         asEnableRow, h = W:DualRow(parent, y,
             { type = "toggle", text = "Enable Arcane Soul Helper",
               tooltip = "Shows a countdown to the Arcane Soul window over the last seconds of Arcane Surge, then the time left inside it. Sunfury Arcane Mages only.",
@@ -1470,6 +1474,7 @@ function ns.ERB_BuildBarDisplayPage(pageName, parent, yOffset)
         _clickMappings.countText = { section = classSection, target = classResourceTextRow, slotSide = "left" }
         _clickMappings.power = { section = powerSection, target = powerEnableRow }
         _clickMappings.health = { section = healthSection, target = healthEnableRow }
+        if asSection then _clickMappings.arcaneSoul = { section = asSection, target = asEnableRow } end
     end
 
     return math.abs(y)
