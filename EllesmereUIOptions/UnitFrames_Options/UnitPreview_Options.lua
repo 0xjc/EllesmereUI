@@ -4055,7 +4055,9 @@ function ns.UFO_BuildUnitPreview(parent, unitKey, side)
                 local fSz = s.factionIndicatorSize or 18
                 local fPos = s.factionIndicatorPosition or "topright"
                 local fOx, fOy = s.factionIndicatorX or 0, s.factionIndicatorY or 0
-                EllesmereUI.SetFactionArt(factionInd, s.factionIndicatorStyle or "pvp", fac)
+                local fStyle = s.factionIndicatorStyle or "pvp"
+                -- The preview shows your own badge on both frames.
+                EllesmereUI.SetFactionArt(factionInd, fStyle, fac, EllesmereUI.FactionBadgeFor(fStyle, "player"))
                 factionInd:SetSize(fSz, fSz)
                 factionInd:ClearAllPoints()
                 if fPos == "portrait" and portraitFrame and sp then

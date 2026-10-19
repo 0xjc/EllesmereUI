@@ -253,9 +253,10 @@ function NameplateFrame:UpdateFaction(artOnly)
     -- Repaint only when the art or the dim changes (inputs: faction, Icon Style, dim).
     -- The texture keeps its art across pool recycles, so the memo never goes stale.
     local style = ns.NP_GetFactionStyle()
-    if self._facArt ~= atlas or self._facStyle ~= style then
-        EllesmereUI.SetFactionArt(self.faction, style, atlas)
-        self._facArt, self._facStyle = atlas, style
+    local badge = EllesmereUI.FactionBadgeFor(style, unit)
+    if self._facArt ~= atlas or self._facStyle ~= style or self._facBadge ~= badge then
+        EllesmereUI.SetFactionArt(self.faction, style, atlas, badge)
+        self._facArt, self._facStyle, self._facBadge = atlas, style, badge
     end
     if self._facDim ~= dim then
         self.faction:SetDesaturated(dim)
