@@ -4684,7 +4684,8 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                 do
                     local wrap = CreateFrame("Button", nil, popup)
                     wrap:SetSize(16, 16)
-                    wrap:SetPoint("BOTTOM", popup, "BOTTOM", -46, 60)
+                    -- Below the status line (6px under the input), clear of Add/Cancel (top at +44).
+                    wrap:SetPoint("BOTTOM", popup, "BOTTOM", -46, 50)
                     wrap:Hide()
                     local bg = wrap:CreateTexture(nil, "BACKGROUND")
                     bg:SetAllPoints(); bg:SetColorTexture(0.060, 0.049, 0.037, 1)
