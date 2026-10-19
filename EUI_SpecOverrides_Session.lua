@@ -117,6 +117,19 @@ local function SampleAttribution()
     end
 end
 
+-- An override entry's crumb from its fields, each localized: module title, element,
+-- the page's tab label, section; nil while the module is not registered. The list
+-- rebuilds it live (BuildListRow); capture stores it for when the module is missing.
+local function BuildEntryCrumb(module, element, page, section)
+    local modTitle = module and EllesmereUI:GetModuleTitle(module)
+    if not modTitle then return nil end
+    local parts = { L(modTitle) }
+    if element then parts[#parts + 1] = L(element) end
+    if page then parts[#parts + 1] = L(EUI_NS.GetTabLabel(module, page)) end
+    if section then parts[#parts + 1] = L(section) end
+    return table.concat(parts, "  >  ")
+end
+
 local function AutoCapture(changes)
     -- Hidden search prebuild: selector setters and lazy page seeding write
     -- db.profile from a pass the user never sees -- never capture them.
@@ -218,16 +231,10 @@ local function AutoCapture(changes)
     local isNew = false
     if not entry then
         isNew = true
-        local crumbParts = {}
-        local modTitle = module and EllesmereUI:GetModuleTitle(module)
-        if modTitle then crumbParts[#crumbParts + 1] = L(modTitle) end
-        if element then crumbParts[#crumbParts + 1] = L(element) end
-        if page then crumbParts[#crumbParts + 1] = L(page) end
-        if section then crumbParts[#crumbParts + 1] = L(section) end
         entry = {
             label = slotLabel,
             slotLabel = slotLabel,
-            crumb = table.concat(crumbParts, "  >  "),
+            crumb = BuildEntryCrumb(module, element, page, section),
             module = module, page = page,
             element = element, section = section,
             group = condSession and condSession.id or (_editGroup and _editGroup.id or nil),
@@ -1354,5 +1361,6 @@ Cond.EnterEdit = function(g, force)
 end
 
 I.EnsurePanelHideHook, I.EnterGroupEdit = EnsurePanelHideHook, EnterGroupEdit
+I.BuildEntryCrumb = BuildEntryCrumb
 I.ExitGroupEdit, I.OnPageRebuilt = ExitGroupEdit, OnPageRebuilt
 I.broken = false

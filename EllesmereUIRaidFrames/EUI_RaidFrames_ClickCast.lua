@@ -4482,7 +4482,7 @@ function ns.CC_BuildPage(pageName, parent, yOffset)
     do
         local row = MakeRow(centerY)
         RowLabel(row, "Mouseover Frames")
-        local mfValues = { all = "All Unit Frames", rf = "EUI Raid Frames" }
+        local mfValues = { all = "All Unit Frames", rf = "EUI Group Frames" }
         local mfOrder = { "all", "rf" }
         local ddCtrl = EllesmereUI.BuildDropdownControl(
             row, 160, row:GetFrameLevel() + 2,

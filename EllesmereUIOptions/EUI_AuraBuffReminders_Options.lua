@@ -1273,7 +1273,7 @@ initFrame:SetScript("OnEvent", function(self)
                 return { type="toggle", text="Beacon M+ Reminders",
                   tooltip="During Mythic+ boss fights, shows a glowing red Beacon on your tank's raid frame while they have your Beacon of Light or Beacon of Faith.",
                   disabled=function() return not EllesmereUI._ModuleNS["EllesmereUIRaidFrames"] end,
-                  disabledTooltip=EllesmereUI.DisabledTooltip("EllesmereUI Raid Frames"),
+                  disabledTooltip=EllesmereUI.DisabledTooltip("EllesmereUI Group Frames"),
                   getValue=function() local d = DDB(); return d and d.beaconMPlus == true end,
                   setValue=function(v)
                       local d = DDB(); if not d then return end
