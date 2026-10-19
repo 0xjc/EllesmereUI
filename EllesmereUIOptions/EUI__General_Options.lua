@@ -230,6 +230,13 @@ end
 -------------------------------------------------------------------------------
 EllesmereUI._WHATSNEW_PATCHES = {
     {
+        version = "9.6.2",
+        fixes = {
+            { module = "General", text = "Nameplates, Unit Frames and Action Bars do less work while you log in or reload the UI." },
+            { module = "Unit Frames", text = "Absorb text on a frame whose absorb bars are turned off now clears when a shield runs out on its own." },
+        },
+    },
+    {
         version = "9.6.1",
         features = {
             {

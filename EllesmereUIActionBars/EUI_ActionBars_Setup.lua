@@ -324,12 +324,14 @@ function EAB:FinishSetup()
     -- of the bar build nor starves the modules behind it. If a pull starts
     -- in the one-frame gap, both callees bail and re-arm on regen -- the
     -- same contract the combat path already lives on.
+    -- loginBuilt: the login loading screen's restore pass (PLAYER_ENTERING_WORLD
+    -- below) only checks the signature after this build instead of forcing another.
     if InCombatLockdown() then
-        UpdateKeybinds()
+        if UpdateKeybinds() then _bindState.loginBuilt = true end
         EAB:RebuildVisToggleBindings()
     else
         C_Timer_After(0, function()
-            UpdateKeybinds()
+            if UpdateKeybinds() then _bindState.loginBuilt = true end
             EAB:RebuildVisToggleBindings()
         end)
     end
@@ -869,7 +871,15 @@ function EAB:FinishSetup()
             -- INTO combat (die, release, run back in while the raid still fights)
             -- needs this or empower slots sit on native bindings (Press-and-Tap
             -- behaviour) until the next reload.
-            _bindState.sigValid = false
+            -- The one exception is the login loading screen right after the login
+            -- build (loginBuilt): nothing can have cleared the bindings since (the
+            -- housing clear invalidates the signature itself), so only the signature
+            -- check runs, which still rebuilds on any change.
+            if _bindState.loginBuilt then
+                _bindState.loginBuilt = nil
+            else
+                _bindState.sigValid = false
+            end
             UpdateKeybinds()
         end)
         -- Re-evaluate visibility options (visOnlyInstances, visHideHousing,
