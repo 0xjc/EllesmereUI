@@ -182,14 +182,9 @@ local function StyleText(s)
     fs:Show()
 end
 
--- Where the stock art ends under the bars, up from the stock box's bottom.
--- The WoW Forever kit copies Blizzard Style's and lowers vis.b for its level
--- badge at the far left; under the bars the art ends where Blizzard's does.
-local function ArtBottom(G)
-    local base = ns.UF_Forever() and ns.UF_KITS.blizzard
-    local bg = base and ((G == ns.UF_BLIZZ.target) and base.target or base.player)
-    return (bg and bg.vis and bg.vis.b) or G.vis.b
-end
+-- WoW Forever: the art under the bars ends at the power track's rim (its
+-- vis.b is the level badge's, far lower), so the bar drops just past the rim.
+local FOREVER_RIM_DROP = 3
 
 local function Layout(frame, power, s)
     local bar, PP = S.bar, EllesmereUI.PP
@@ -202,7 +197,8 @@ local function Layout(frame, power, s)
     if G and G.power and G.vis and G.h then
         -- Just under the art, lined up with the power bar.
         bs, h = 1, G.power.h
-        local drop = G.h - ArtBottom(G) - (G.power.y + G.power.h) + UNDER_ART_GAP
+        local drop = ns.UF_Forever() and FOREVER_RIM_DROP
+            or (G.h - G.vis.b - (G.power.y + G.power.h) + UNDER_ART_GAP)
         bar:SetPoint("TOPLEFT", power, "BOTTOMLEFT", 0, -drop)
         bar:SetPoint("TOPRIGHT", power, "BOTTOMRIGHT", 0, -drop)
     else
