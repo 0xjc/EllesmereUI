@@ -583,13 +583,13 @@ function ns.ERB_BuildPowerSection(parent, y, ctx)
         })
     end
 
-    -- Out of Combat Opacity cog: dims the Power bar to this alpha out of combat (100 = no fade); applied by ns.ResolveBarAlpha in UpdateVisibility, which reacts to combat.
+    -- Out of Combat Opacity & Visibility cog: Fade Out of Combat dims the Power bar to this alpha out of combat (100 = no fade; ns.ResolveBarAlpha in UpdateVisibility, which reacts to combat). Show When Energy / Mana Missing reveal a rule-hidden bar while that resource is below full (ns.ERB_MissingWanted, same pass); Mana also covers a shapeshifted druid's attached mana bar.
     if not EllesmereUI._prebuilding then
         local rgn = powerBorderRow._leftRegion
         EllesmereUI.BuildInlineCog(rgn, {
             disabled = function() local c = cfg(); return c and not c.enabled end,
             disabledTooltip = powerDisTip,
-            title = "Out of Combat Opacity",
+            title = "Out of Combat Opacity & Visibility",
             rows = {
                 { type = "toggle", label = "Fade Out of Combat",
                   get = function() local c = cfg(); return c and c.oocFadeEnabled == true end,
@@ -604,6 +604,20 @@ function ns.ERB_BuildPowerSection(parent, y, ctx)
                   set = function(v)
                       local c = cfg(); if not c then return end
                       c.oocAlpha = v / 100; RefreshPower()
+                  end },
+                { type = "toggle", label = "Show When Energy Missing",
+                  tooltip = "Shows the Power bar while its energy is below full, even when its Visibility setting hides it. Resources that rest at empty, such as rage, are not affected.",
+                  get = function() local c = cfg(); return c and c.showWhenMissing == true end,
+                  set = function(v)
+                      local c = cfg(); if not c then return end
+                      c.showWhenMissing = v; RefreshPower()
+                  end },
+                { type = "toggle", label = "Show When Mana Missing",
+                  tooltip = "Shows the Power bar while it shows mana, or a shapeshifted druid's mana bar, while mana is below full, even when its Visibility setting hides it.",
+                  get = function() local c = cfg(); return c and c.showManaWhenMissing == true end,
+                  set = function(v)
+                      local c = cfg(); if not c then return end
+                      c.showManaWhenMissing = v; RefreshPower()
                   end },
             },
         })
