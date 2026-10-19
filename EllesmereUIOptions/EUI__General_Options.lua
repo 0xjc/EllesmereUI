@@ -231,7 +231,35 @@ end
 EllesmereUI._WHATSNEW_PATCHES = {
     {
         version = "9.6.2",
+        features = {
+            {
+                -- A row in the Attach Important Buffs to Cursor cog (both clients).
+                module = "AuraBuff Reminders",
+                title  = "Only on Cursor in Combat",
+                desc   = "Important buffs can follow your cursor only while you are in combat, and show with your other reminders the rest of the time",
+                nav    = { module = "EllesmereUIAuraBuffReminders", page = "Auras, Buffs & Consumables",
+                           section = "DISPLAY", highlight = "Attach Important Buffs to Cursor" },
+            },
+            {
+                -- A dropdown on each Talent Reminders row (retail only: the page is not built on WoW Forever).
+                module = "AuraBuff Reminders",
+                title  = "Not Needed Reminder Choice",
+                desc   = "Choose where each talent's 'Not Needed' reminder shows: never, this season's instances or every instance; one that was on now shows in this season's instances",
+                nav    = (not EllesmereUI.IS_FOREVER) and { module = "EllesmereUIAuraBuffReminders", page = "Talent Reminders",
+                           section = "ACTIVE REMINDERS" } or nil,
+            },
+            {
+                -- The zone dropdown on each Talent Reminders row (retail only, as above).
+                module = "AuraBuff Reminders",
+                title  = "Edit Talent Reminder Zones",
+                desc   = "Each talent reminder in the list has its own zone dropdown to change where it reminds you, with Delete Reminder at its top",
+                nav    = (not EllesmereUI.IS_FOREVER) and { module = "EllesmereUIAuraBuffReminders", page = "Talent Reminders",
+                           section = "ACTIVE REMINDERS" } or nil,
+            },
+        },
         fixes = {
+            { module = "AuraBuff Reminders", text = "Talent reminders now remind in zones added to them later, and in the zone of a reminder made with an older version." },
+            { module = "AuraBuff Reminders", text = "Attach Important Buffs to Cursor no longer does work as you move your mouse while nothing is on the cursor." },
             { module = "General", text = "Nameplates, Unit Frames and Action Bars do less work while you log in or reload the UI." },
             { module = "Unit Frames", text = "Absorb text on a frame whose absorb bars are turned off now clears when a shield runs out on its own." },
         },
