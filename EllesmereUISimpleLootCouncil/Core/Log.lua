@@ -1,4 +1,5 @@
-if EUI_CLIENT_BLOCKED then return end if select(2, ...).slcInert then return end 
+if EUI_CLIENT_BLOCKED then return end if ... == "SimpleLootCouncil" and SimpleLootCouncil and SimpleLootCouncil.EDITION == "eui" then return end
+
 
 
 
@@ -150,6 +151,9 @@ local LEVEL_COLOR = {
     WARN  = "|cffffd100",
     ERROR = "|cffff4040",
 }
+
+Log.ECHO_PREFIX = {}
+for level, color in pairs(LEVEL_COLOR) do Log.ECHO_PREFIX[level] = color .. "SimpleLootCouncil|r " end
 Log.CHAT_PREFIX = {
     accent = LEVEL_COLOR.INFO .. "SimpleLootCouncil:|r ",
     warn = LEVEL_COLOR.WARN .. "SimpleLootCouncil:|r ",
@@ -174,7 +178,7 @@ local function Write(level, prefix, message, detail, logOnly)
     end
 
     local chatLine = prefix == "Taint" and line:gsub("|", "||") or line
-    print(("%sSimpleLootCouncil|r %s"):format(LEVEL_COLOR[level] or "", chatLine))
+    addon.Chat.Echo(level, chatLine)
 end
 
 
@@ -228,11 +232,12 @@ end
 local SESSION_MARKER = "session start ---"
 
 
+
 function Log:GetSessionEntries()
-    local ordered = self:GetEntries()
-    local start = 1
-    for i = #ordered, 1, -1 do
-        local line = ordered[i]
+    DropStaleHold()
+    local start = 0
+    for i = count - 1, 0, -1 do
+        local line = entries[(head + i - 1) % maxEntries + 1]
         if type(line) == "string" and line:find(SESSION_MARKER, 1, true) then
             start = i
             break
@@ -240,8 +245,8 @@ function Log:GetSessionEntries()
     end
 
     local out = {}
-    for i = start, #ordered do
-        out[#out + 1] = ordered[i]
+    for i = start, count - 1 do
+        out[#out + 1] = entries[(head + i - 1) % maxEntries + 1]
     end
     return out
 end
@@ -273,7 +278,7 @@ local function OnBlocked(event, isTainted, blockedFunc)
         Log:WLogOnly("Taint", event, isTainted, blockedFunc)
         if isTainted == OWN_ADDON and chatWarnings and not echoToChat then
             local T = addon.Locale.Text
-            print(Log.CHAT_PREFIX.error .. addon.Locale.Format(
+            addon.Chat.Error(addon.Locale.Format(
                 T["the game blocked an action by this addon (%s). Please report it with your /slc log."],
                 (tostring(blockedFunc):gsub("|", "||"))))
         end
