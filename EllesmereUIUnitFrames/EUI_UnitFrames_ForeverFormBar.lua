@@ -28,7 +28,6 @@ if playerClass ~= "DRUID" then return end
 
 local MANA = (Enum and Enum.PowerType and Enum.PowerType.Mana) or 0
 local WHITE = "Interface\\Buttons\\WHITE8X8"
-local UNDER_ART_GAP = 2
 local UnitPower, UnitPowerMax, UnitPowerType = UnitPower, UnitPowerMax, UnitPowerType
 
 -- Event host at file scope, so its work bills Unit Frames.
@@ -182,10 +181,10 @@ local function StyleText(s)
     fs:Show()
 end
 
--- WoW Forever and Classic WoW UI: the art under the bars ends at the power
--- track's rim (their vis.b is the level badge's or portrait ring's, far
--- lower), so the bar drops just past the rim.
-local FOREVER_RIM_DROP, CLASSIC_RIM_DROP = 3, 0
+-- Under the bars, every stock art ends at the power track's edge (vis.b is
+-- the level badge's or portrait ring's, far lower). WoW Forever's track
+-- has a rim below it, so the bar drops past that.
+local FOREVER_RIM_DROP = 3
 
 local function Layout(frame, power, s)
     local bar, PP = S.bar, EllesmereUI.PP
@@ -198,9 +197,7 @@ local function Layout(frame, power, s)
     if G and G.power and G.vis and G.h then
         -- Just under the art, lined up with the power bar.
         bs, h = 1, G.power.h
-        local drop = (ns.UF_Forever() and FOREVER_RIM_DROP)
-            or (ns.UF_Style() == "classic" and CLASSIC_RIM_DROP)
-            or (G.h - G.vis.b - (G.power.y + G.power.h) + UNDER_ART_GAP)
+        local drop = ns.UF_Forever() and FOREVER_RIM_DROP or 0
         bar:SetPoint("TOPLEFT", power, "BOTTOMLEFT", 0, -drop)
         bar:SetPoint("TOPRIGHT", power, "BOTTOMRIGHT", 0, -drop)
     else
