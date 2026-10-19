@@ -1,4 +1,5 @@
-if EUI_CLIENT_BLOCKED then return end if select(2, ...).slcInert then return end 
+if EUI_CLIENT_BLOCKED then return end if ... == "SimpleLootCouncil" and SimpleLootCouncil and SimpleLootCouncil.EDITION == "eui" then return end
+
 
 
 SimpleLootCouncil = SimpleLootCouncil or {}
@@ -207,7 +208,6 @@ local function BuildEntry(session, winner, item)
         boss = item.boss,
         encounterID = item.encounterID,
         note = candidate and candidate.note,
-        votes = addon.Session:GetVoteCount(session, winner),
         groupSize = GetNumGroupMembers(),
         delivered = item.delivered and true or false,
 
@@ -221,6 +221,11 @@ end
 
 
 local struck = {}
+
+
+local function Forget(kind, key)
+    if addon.SharedSaved then addon.SharedSaved.Forget(addon.db, kind, key) end
+end
 
 
 
@@ -279,6 +284,7 @@ local ROW_FIELDS = {
     difficultyName = "string", boss = "string", encounterID = "number",
     note = "string", votes = "number", groupSize = "number", delivered = "boolean",
     awardSeq = "number", reason = "string", coin = "boolean", quantity = "number",
+    editedAt = "number",
 }
 local MAX_TEXT, MAX_LONG = 255, 1024
 local LONG_FIELDS = { link = true, note = true, reason = true, responseText = true }
@@ -327,6 +333,8 @@ end
 
 
 local function Stamp(row)
+
+    row.editedAt = GetServerTime()
     local player, raidTeam = addon.Player, addon.RaidTeam
     row.recorder = player and player.GetFullName and player:GetFullName("player") or nil
     row.guild = raidTeam and raidTeam.GetGuildName and raidTeam:GetGuildName() or nil
@@ -446,6 +454,7 @@ function History:RemoveForSession(session, winner, runId, seq)
             and (not winner or entry.winner == winner) then
             addon.db.history[id] = nil
             struck[id] = true
+            Forget("history", id)
             struckNow[#struckNow + 1] = entry
             addon.Log:I("History", "struck", entry.link, "from", tostring(entry.winner))
         end
@@ -474,6 +483,8 @@ function History:MarkDelivered(session, winner, runId)
             matched = matched + 1
             if not entry.delivered then
                 entry.delivered = true
+
+                entry.editedAt = GetServerTime()
                 changed = changed + 1
                 addon.Log:D("History", "delivered", entry.link, "to",
                     tostring(entry.winner))
@@ -587,10 +598,18 @@ function History:Count()
 end
 
 
-function History:GetAll()
+
+function History:GetAll(unsorted)
     local all = {}
     EachEntry(function(entry) all[#all + 1] = entry end)
-    table.sort(all, function(a, b) return EpochOf(a) > EpochOf(b) end)
+    if unsorted then return all end
+
+    table.sort(all, function(a, b)
+        local x, y = a.epoch, b.epoch
+        if type(x) ~= "number" then x = 0 end
+        if type(y) ~= "number" then y = 0 end
+        return x > y
+    end)
     return all
 end
 
@@ -649,8 +668,16 @@ function History:OriginChoices()
     local guilds, recorders, byGuild, byRecorder = {}, {}, {}, {}
     local hidden = { total = 0 }
     local kind, selected = Selection()
+
+    local recorderKeys = {}
     EachEntry(function(entry)
-        local guildKey, recorderKey = History.GuildKey(entry), History.RecorderKey(entry)
+        local guildKey = History.GuildKey(entry)
+        local recorder = type(entry.recorder) == "string" and entry.recorder or false
+        local recorderKey = recorderKeys[recorder]
+        if not recorderKey then
+            recorderKey = History.RecorderKey(entry)
+            recorderKeys[recorder] = recorderKey
+        end
         local g = byGuild[guildKey]
         if not g then
             g = { key = guildKey, label = entry.guild, count = 0 }
@@ -663,7 +690,11 @@ function History:OriginChoices()
             byRecorder[recorderKey], recorders[#recorders + 1] = r, r
         end
         r.count = r.count + 1
-        if not History.PassesOrigin(entry) then hidden.total = hidden.total + 1 end
+
+        if (kind == "guild" and guildKey ~= selected)
+            or (kind == "recorder" and recorderKey ~= selected) then
+            hidden.total = hidden.total + 1
+        end
     end)
     local Fold = addon.Locale.Fold
     local function order(a, b)
@@ -694,6 +725,7 @@ local function FindStoredEntry(id)
         end
     end
 end
+
 
 local function MarkEdited(entry)
     entry.editedAt = GetServerTime()
@@ -762,19 +794,36 @@ function History:SetReason(id, reasonIndex)
     return FinishEdit("changed award reason for", entry)
 end
 
-function History:DeleteEntry(id)
-    local store, key, entry = FindStoredEntry(id)
-    if not store then return false end
 
-    store[key] = nil
 
-    if store == addon.db.history then struck[key] = true end
+function History:DeleteEntries(ids)
+    local removed, last = 0, nil
+    for _, id in ipairs(ids or {}) do
+        local store, key, entry = FindStoredEntry(id)
+        if store then
+            store[key] = nil
+
+            if store == addon.db.history then struck[key] = true end
+            Forget(store == addon.db.history and "history" or "imported", key)
+            removed = removed + 1
+            last = entry
+        end
+    end
+    if removed == 0 then return 0 end
+
     Reindex()
     if addon.Snapshot then addon.Snapshot:Prune() end
-    addon.Log:I("History", "deleted", tostring(id), "from",
-        entry.source or "slc")
-    addon.Callbacks:Fire("HistoryChanged", "deleted", entry)
-    return true
+    if removed == 1 then
+        addon.Log:I("History", "deleted", tostring(last.id), "from", last.source or "slc")
+    else
+        addon.Log:I("History", "deleted", removed, "entries")
+    end
+    addon.Callbacks:Fire("HistoryChanged", "deleted", removed == 1 and last or nil)
+    return removed
+end
+
+function History:DeleteEntry(id)
+    return History:DeleteEntries({ id }) > 0
 end
 
 
@@ -782,7 +831,7 @@ end
 
 
 
-function History:PruneOlderThan(days)
+function History:PruneOlderThan(days, login)
     local cutoff = GetServerTime() - (days * 24 * 60 * 60)
     local removed = 0
     for id, entry in pairs(addon.db.history or {}) do
@@ -791,6 +840,8 @@ function History:PruneOlderThan(days)
             removed = removed + 1
         end
     end
+
+    if login then return removed end
     if removed > 0 then Reindex() end
 
     if addon.Snapshot then addon.Snapshot:Prune() end
@@ -799,10 +850,10 @@ end
 
 
 
-function History:PruneBySetting()
+function History:PruneBySetting(login)
     local days = tonumber(addon.db.historyPruneDays) or 0
     if days <= 0 then return 0, 0 end
-    local removed = History:PruneOlderThan(days)
+    local removed = History:PruneOlderThan(days, login)
     if removed > 0 then
         addon.Log:I("History", "pruned", removed, "entries older than", days, "days")
     end
@@ -813,6 +864,7 @@ end
 
 function History:Clear()
     local removed = History:Count()
+    for id in pairs(addon.db.history or {}) do Forget("history", id) end
     addon.db.history = {}
     Reindex()
     if addon.Snapshot then addon.Snapshot:Prune() end
@@ -964,11 +1016,11 @@ function History:Init()
     addon.db.history = addon.db.history or {}
     addon.db.imported = addon.db.imported or {}
 
-    local removed, days = History:PruneBySetting()
+    local removed, days = History:PruneBySetting(true)
     History.loginDriver = StartLoginPass()
     if removed > 0 then
 
-        print(addon.Log.CHAT_PREFIX.accent .. addon.Locale.Format(addon.Locale.Plural{
+        addon.Chat.Print(addon.Locale.Format(addon.Locale.Plural{
             one = "removed %d award history entry older than %d days - \"Keep award history for\" in /slc, Data & history.",
             other = "removed %d award history entries older than %d days - \"Keep award history for\" in /slc, Data & history.",
         }, removed, removed, days))

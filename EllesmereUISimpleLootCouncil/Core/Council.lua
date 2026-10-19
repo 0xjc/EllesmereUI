@@ -1,10 +1,12 @@
-if EUI_CLIENT_BLOCKED then return end if select(2, ...).slcInert then return end 
+if EUI_CLIENT_BLOCKED then return end if ... == "SimpleLootCouncil" and SimpleLootCouncil and SimpleLootCouncil.EDITION == "eui" then return end
+
 
 
 
 SimpleLootCouncil = SimpleLootCouncil or {}
 local addon = SimpleLootCouncil
 local T = addon.Locale.Text
+local IsSecret = addon.IsSecret
 
 local Council = {}
 addon.Council = Council
@@ -183,6 +185,19 @@ end
 
 
 
+local function UnitRank(unit, guild, guildRealm)
+    if not unit then return nil end
+    local name, rankName, _, realm = GetGuildInfo(unit)
+    if IsSecret(name, rankName, realm) or type(name) ~= "string" or name == "" then return nil end
+    if name ~= guild then return false end
+    if (realm or "") ~= (guildRealm or "") or type(rankName) ~= "string" or rankName == "" then
+        return nil
+    end
+    return rankName
+end
+
+
+
 
 function Council:RankMembers()
     local candidates = addon.GetCandidates()
@@ -198,15 +213,33 @@ function Council:RankMembers()
         return {}, true
     end
 
-    local byName, readable = addon.RaidTeam:GetRosterIndex()
-    if readable == false then return LastRankMembers(candidates), false end
 
 
-    local out = {}
+    local out, unknown = {}, nil
+    local guild = addon.RaidTeam:GetGuildName()
+    local _, _, _, guildRealm = GetGuildInfo("player")
     for fullName in pairs(candidates) do
-        local member = byName[fullName]
-        if member and member.rank and set[member.rank] then
-            out[fullName] = member.rank
+        local rank
+        if guild and not IsSecret(guildRealm) then
+            rank = UnitRank(addon.Roster and addon.Roster:UnitForName(fullName), guild, guildRealm)
+        end
+        if rank == nil then
+            unknown = unknown or {}
+            unknown[#unknown + 1] = fullName
+        elseif rank and set[rank] then
+            out[fullName] = rank
+        end
+    end
+
+    if unknown then
+        local byName, readable = addon.RaidTeam:GetRosterIndex()
+        if readable == false then return LastRankMembers(candidates), false end
+
+        for _, fullName in ipairs(unknown) do
+            local member = byName[fullName]
+            if member and member.rank and set[member.rank] then
+                out[fullName] = member.rank
+            end
         end
     end
     lastRankMembers = out
@@ -928,9 +961,9 @@ local function Collect(name)
 end
 
 local function OnSyncRequest(_, sender)
-    addon.Log:D("Council", "council requested by", sender)
 
     if not sender or addon.Player:IsSelf(sender) then return end
+    addon.Log:D("Council", "council requested by", sender)
 
 
     if not MayBroadcast() then return end
@@ -957,10 +990,12 @@ end
 local function OnCouncil(args, sender)
     if type(args) ~= "table" then return end
 
+    if addon.Player:IsSelf(sender) then return end
+
 
 
     local leader = IsInGroup() and addon.GetGroupLeader()
-    if leader and not addon.Player:IsSelf(sender) then
+    if leader then
         if addon.Player:IsSame(sender, leader) then
             heardFrom = sender
 

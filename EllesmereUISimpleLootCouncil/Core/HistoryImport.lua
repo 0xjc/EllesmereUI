@@ -1,4 +1,5 @@
-if EUI_CLIENT_BLOCKED then return end if select(2, ...).slcInert then return end 
+if EUI_CLIENT_BLOCKED then return end if ... == "SimpleLootCouncil" and SimpleLootCouncil and SimpleLootCouncil.EDITION == "eui" then return end
+
 
 
 
@@ -111,6 +112,12 @@ end
 
 function Import:Clear()
     local removed = Import:Count()
+
+    if addon.SharedSaved then
+        for id in pairs(addon.db.imported or {}) do
+            addon.SharedSaved.Forget(addon.db, "imported", id)
+        end
+    end
     addon.db.imported = {}
     addon.History:Reindex()
     addon.Log:I("Import", "cleared", removed, "imported entries")

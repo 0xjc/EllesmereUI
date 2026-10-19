@@ -1,4 +1,5 @@
-if EUI_CLIENT_BLOCKED then return end if select(2, ...).slcInert then return end 
+if EUI_CLIENT_BLOCKED then return end if ... == "SimpleLootCouncil" and SimpleLootCouncil and SimpleLootCouncil.EDITION == "eui" then return end
+
 
 
 local ADDON_NAME = ...
@@ -12,7 +13,7 @@ local T = addon.Locale.Text
 addon.VERSION = addon.VERSION or "dev"
 
 
-addon.DEV_TOOLS = false
+addon.DEV_TOOLS = true
 
 
 
@@ -29,12 +30,17 @@ local OnAddOnLoaded, OnPlayerLogin
 local boot = CreateFrame("Frame")
 boot:RegisterEvent("ADDON_LOADED")
 boot:RegisterEvent("PLAYER_LOGIN")
-local loggedIn = false
+boot:RegisterEvent("PLAYER_LOGOUT")
+local dbReady, loggedIn = false, false
 boot:SetScript("OnEvent", function(self, event, name)
     if event == "ADDON_LOADED" then
         if name ~= ADDON_NAME then return end
         self:UnregisterEvent("ADDON_LOADED")
-        OnAddOnLoaded()
+
+        if addon.EDITION ~= "eui" or IsLoggedIn() then
+            dbReady = true
+            OnAddOnLoaded()
+        end
 
         if not loggedIn and IsLoggedIn() then
             loggedIn = true
@@ -44,19 +50,33 @@ boot:SetScript("OnEvent", function(self, event, name)
     elseif event == "PLAYER_LOGIN" and not loggedIn then
         loggedIn = true
         self:UnregisterEvent("PLAYER_LOGIN")
+        if not dbReady then
+            dbReady = true
+            OnAddOnLoaded()
+        end
         OnPlayerLogin()
+    elseif event == "PLAYER_LOGOUT" and addon.db then
+
+        addon.db.savedAt = GetServerTime()
     end
 end)
 
 
-
-local svName = "SimpleLootCouncilDB"
+local STANDALONE_SV = "SimpleLootCouncilDB"
+local svName = STANDALONE_SV
 
 function OnAddOnLoaded()
-    svName = addon.SAVED_VARIABLES or "SimpleLootCouncilDB"
-    if addon.AdoptSavedVariables then addon.AdoptSavedVariables() end
-    _G[svName] = _G[svName] or {}
-    local db = _G[svName]
+    svName = addon.SAVED_VARIABLES or STANDALONE_SV
+    local db = type(_G[svName]) == "table" and _G[svName] or {}
+    if svName ~= STANDALONE_SV then
+
+        local mirror = type(_G[STANDALONE_SV]) == "table" and _G[STANDALONE_SV] or nil
+        db = addon.SharedSaved.Reconcile(db, mirror)
+        local standalone = C_AddOns.IsAddOnLoaded and select(2, C_AddOns.IsAddOnLoaded("SimpleLootCouncil"))
+        if mirror or standalone then _G[STANDALONE_SV] = db end
+    end
+    addon.SharedSaved.Expire(db)
+    _G[svName] = db
 
 
 
@@ -70,7 +90,9 @@ function OnAddOnLoaded()
 
 
     addon.Log:Init(db)
-    addon.Log:I("Core", "loaded", addon.VERSION, "schema", db.schemaVersion)
+
+    addon.Log:I("Core", "loaded", addon.VERSION, "schema", db.schemaVersion,
+        "edition", addon.EDITION == "eui" and "eui" or "sa", "saved", svName)
     for _, rejected in ipairs(addon.Locale.rejected) do
         addon.Log:W("Locale", "rejected", rejected.key, rejected.reason)
     end
@@ -87,7 +109,19 @@ local function ModuleName(module)
     return "?"
 end
 
+
+local initCost = {}
+local function Clock()
+    local ms = debugprofilestop and debugprofilestop()
+    return type(ms) == "number" and ms or 0
+end
+local function Heap()
+    local kb = collectgarbage("count")
+    return type(kb) == "number" and kb or 0
+end
+
 local function Init(module, ...)
+    local started, heap = Clock(), Heap()
     local args, count = { ... }, select("#", ...)
     local ok, err = xpcall(function() module:Init(unpack(args, 1, count)) end, function(e)
         local stack = debugstack and debugstack(2, 6, 0)
@@ -96,9 +130,25 @@ local function Init(module, ...)
     if not ok then
         addon.Log:Bug("Core", "Init failed for " .. ModuleName(module) .. ": " .. tostring(err))
     end
+    initCost[#initCost + 1] = { module = module, ms = Clock() - started,
+        kb = Heap() - heap }
     return ok
 end
 addon.GuardedInit = Init
+
+local function LogLoginCost()
+    local ms, kb = 0, 0
+    for _, cost in ipairs(initCost) do ms, kb = ms + cost.ms, kb + cost.kb end
+    table.sort(initCost, function(a, b) return a.ms > b.ms end)
+    local parts = {}
+    for i = 1, math.min(6, #initCost) do
+        local cost = initCost[i]
+        parts[i] = ("%s %.1fms %dKB"):format(ModuleName(cost.module), cost.ms, cost.kb)
+    end
+    addon.Log:I("Core", ("login init %d modules %.1fms %dKB, slowest: %s"):format(
+        #initCost, ms, kb, table.concat(parts, ", ")))
+    initCost = {}
+end
 
 function OnPlayerLogin()
 
@@ -163,7 +213,8 @@ function OnPlayerLogin()
     Init(addon.Pixel)
 
 
-    if not addon.Style.rounded then
+
+    if not addon.Style.rounded and addon.EDITION ~= "eui" then
         addon.Log:W("UI", "rounded corner art did not load; frames will be square")
     end
 
@@ -190,6 +241,7 @@ function OnPlayerLogin()
     Init(addon.UI.ConfigShareFrame)
     Init(addon.UI.SessionPanel)
     Init(addon.UI.Options)
+    LogLoginCost()
 
 
 
@@ -203,18 +255,18 @@ function OnPlayerLogin()
     end
 
 
-    print(addon.Locale.Format(T["|cff478cebSimpleLootCouncil|r v%s loaded.  |cff73716C/slc|r for options."],
+    addon.Chat.Raw(addon.Locale.Format(T["|cff478cebSimpleLootCouncil|r v%s loaded.  |cff73716C/slc|r for options."],
         tostring(addon.VERSION)))
 
     for _, notice in ipairs(pendingNotices) do
-        print(addon.Log.CHAT_PREFIX.accent .. notice)
+        addon.Chat.Print(notice)
     end
     pendingNotices = {}
 
 
 
     if addon.Locale.IsPseudo() then
-        print(addon.Log.CHAT_PREFIX.error .. T["the pseudo-locale test mode is ON - every string is wrapped in guillemets, announcements included. /slc pseudo off turns it off."])
+        addon.Chat.Error(T["the pseudo-locale test mode is ON - every string is wrapped in guillemets, announcements included. /slc pseudo off turns it off."])
     end
 end
 
@@ -270,7 +322,7 @@ addon.Comms:Register("ping", "any", function(args, sender)
         return
     end
     local size = args and args.size or 0
-    print((addon.Log.CHAT_PREFIX.accent .. "ping from %s, %d bytes intact=%s")
+    addon.Chat.Print(("ping from %s, %d bytes intact=%s")
         :format(tostring(sender), size,
             tostring(args and args.blob and #args.blob == size)))
 end)
@@ -395,7 +447,7 @@ local function ShowDump(title, text, count)
 end
 
 local function Print(msg)
-    print(addon.Log.CHAT_PREFIX.accent .. msg)
+    addon.Chat.Print(msg)
 end
 
 
@@ -505,6 +557,7 @@ local function HelpSections(dev)
                     T["simulated run of 1-%d items from %d rare dungeon boss drops that WoW: Forever serves; no argument gives 3"],
                     addon.TestLoot.MAX, addon.TestLoot:DungeonCount()) },
                 { T["testcoin [Name-Realm] [session]"], T["fake a coin result"], retailOnly = true },
+                { T["fakecoins [<count>] [Name-Realm] / clear"], T["fake coin history at each queued item's boss"], retailOnly = true },
                 { T["stress [<raiders> [<items> [<seconds>]] / stop]"], T["replay a raid's answers"] },
                 { T["pseudo [on / off]"], T["localisation test mode"] },
             },
@@ -570,14 +623,14 @@ local function HelpSections(dev)
 end
 
 local function HelpLine(command, text)
-    print(HELP_LINE:format(command, text))
+    addon.Chat.Raw(HELP_LINE:format(command, text))
 end
 
 local function PrintHelp(dev)
     local version = addon.Locale.Format(dev and T["v%s - developer commands"] or T["v%s"], addon.VERSION)
-    print(HELP_TITLE:format(version))
+    addon.Chat.Raw(HELP_TITLE:format(version))
     for _, section in ipairs(HelpSections(dev)) do
-        print(HELP_HEADER:format(section[1]))
+        addon.Chat.Raw(HELP_HEADER:format(section[1]))
         for i = 2, #section do
 
             if not (addon.IsForever and section[i].retailOnly)
@@ -587,7 +640,7 @@ local function PrintHelp(dev)
         end
     end
     if not dev then
-        print(" ")
+        addon.Chat.Raw(" ")
         HelpLine(T["help dev"], T["developer and diagnostic commands"])
     end
 end
@@ -1099,11 +1152,15 @@ SlashCmdList["SIMPLELOOTCOUNCIL"] = function(input)
         }, #wanting, #wanting))
         local outstanding = #wanting
         for _, i in ipairs(wanting) do
-            addon.Encounter:JournalBossForLink(links[i], function(boss, detail, encounterID)
+            addon.Encounter:JournalBossForLink(links[i], function(boss, detail, encounterID, journalDifficulty)
                 if boss then
                     sources[i] = sources[i] or {}
                     sources[i].boss = boss
                     sources[i].encounterID = encounterID
+
+                    if not sources[i].difficultyID and journalDifficulty then
+                        sources[i].difficultyID = journalDifficulty
+                    end
                     origin[i] = T["from the Adventure Guide"]
                     anySource = true
                 else
@@ -1442,11 +1499,11 @@ SlashCmdList["SIMPLELOOTCOUNCIL"] = function(input)
                 local season = tostring(addon.db.raidTeam and addon.db.raidTeam.seasonId)
                 Print(start
                     and addon.Locale.Format(T["season %s, started %s"],
-                        season, date("!%Y/%m/%d", start))
+                        season, addon.DateText(start, true))
                     or addon.Locale.Format(
                         T["season %s, |cffE57373start date not known|r - the raid team view counts everything until it is"],
                         season))
-                Print(T["  /slc team season 2026-08-01  - set it"])
+                Print(T["  /slc team season 01/08/2026  - set it"])
                 Print(T["  /slc team season clear       - forget it"])
                 return
             end
@@ -1459,7 +1516,7 @@ SlashCmdList["SIMPLELOOTCOUNCIL"] = function(input)
 
             local epoch = addon.RaidTeam:ParseDate(value)
             if not epoch then
-                Print(T["could not read that date - use 2026-08-01"])
+                Print(T["could not read that date - use 01/08/2026"])
                 return
             end
 
@@ -1470,7 +1527,7 @@ SlashCmdList["SIMPLELOOTCOUNCIL"] = function(input)
 
             addon.RaidTeam:SetSeasonStart(epoch)
             Print(addon.Locale.Format(T["season start set to %s"],
-                date("!%Y/%m/%d", epoch)))
+                addon.DateText(epoch, true)))
             return
         end
 
@@ -1568,7 +1625,7 @@ SlashCmdList["SIMPLELOOTCOUNCIL"] = function(input)
             for i = math.max(1, #nights - 19), #nights do
                 local n = nights[i]
                 Print(addon.Locale.Format(T["  %s  %d pull(s), %d kill(s)"],
-                    date("!%Y/%m/%d", n.startedAt or 0), n.pulls or 0, n.kills or 0))
+                    addon.DateText(n.startedAt or 0, true), n.pulls or 0, n.kills or 0))
             end
             return
         end
@@ -1590,7 +1647,7 @@ SlashCmdList["SIMPLELOOTCOUNCIL"] = function(input)
             or T["%s: %d/%d nights (%d/%d pulls), first seen %s"],
             Ambiguate(name, "short"), att.attended, att.nights,
             att.pullsAttended, att.pulls,
-            date("!%Y/%m/%d", att.firstSeen or 0)))
+            addon.DateText(att.firstSeen or 0, true)))
 
 
 
@@ -1688,10 +1745,59 @@ SlashCmdList["SIMPLELOOTCOUNCIL"] = function(input)
         Print(addon.Locale.Format(T["simulated: %s coined %s from %s (not recorded to history)"],
             Ambiguate(candidate, "short"), item.link, tostring(boss)))
 
+
+    elseif cmd == "fakecoins" then
+        if addon.IsForever then
+            Print(T["WoW: Forever has no bonus rolls."])
+            return
+        end
+        local perBoss, who
+        for word in (input:match("^%S+%s*(.*)$") or ""):gmatch("%S+") do
+            if word:lower() == "clear" then
+                local removed = addon.BonusRoll:ClearTestHistory()
+                Print(addon.Locale.Format(addon.Locale.Plural{
+                    one = "removed %d fake coin row", other = "removed %d fake coin rows",
+                }, removed, removed))
+                return
+            elseif tonumber(word) then
+                perBoss = math.max(1, math.min(20, math.floor(tonumber(word))))
+            else
+                who = word
+            end
+        end
+        if #addon.Session:GetItems() == 0 then
+            Print(T["no items in the run - /slc test first, then /slc fakecoins [count] [Name-Realm]"])
+            return
+        end
+        local name = who or addon.Player:GetFullName("player")
+        if not name then
+            Print(addon.Locale.Format(T["could not resolve %s"], tostring(who)))
+            return
+        end
+        local seeded, skipped = addon.BonusRoll:SeedTestHistory(name, perBoss)
+        local rows = 0
+        for _, line in ipairs(seeded) do
+            rows = rows + line.count
+            Print(addon.Locale.Format(addon.Locale.Plural{
+                one = "item %d: %s (difficulty %d) - %d fake coin for %s",
+                other = "item %d: %s (difficulty %d) - %d fake coins for %s",
+            }, line.count, line.session, line.boss, line.difficultyID, line.count,
+                Ambiguate(name, "short")))
+        end
+        for _, line in ipairs(skipped) do
+            Print(addon.Locale.Format(T["item %d skipped: %s"], line.session,
+                line.why == "boss" and T["no boss yet"]
+                or T["no difficulty known - add it with 'from heroic <boss>'"]))
+        end
+        Print(addon.Locale.Format(
+            T["fake coin history added - rows: %d, bosses: %d. /slc fakecoins clear removes it."],
+            rows, #seeded))
+
     elseif cmd == "guild" then
 
         Print("in a group: " .. tostring(IsInGroup())
-            .. ", in a guild: " .. tostring(IsInGuild()))
+            .. ", in a guild: " .. tostring(IsInGuild())
+            .. ", in an instance: " .. tostring(addon.Loot.InInstance()))
         Print("gate says guild group: "
             .. tostring(addon.Loot.IsGuildGroup())
             .. " (funnel.guildGroupOnly is "
