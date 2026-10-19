@@ -25,9 +25,9 @@ local function HeaderBuilder(header, width)
 end
 _G._EUI_ThreatHeaderBuilder = HeaderBuilder
 
-local ICON_STYLES = { none = "None", blizzard = "Blizzard", modern = "Modern", pixel = "Pixel", glyph = "Glyph",
+local ICON_STYLES = { none = "None", blizzard = "Blizzard", modern = "Modern", pixel = "Pixel", pixelsComic = "Comic", glyph = "Glyph",
     arcade = "Arcade", legend = "Legend", midnight = "Midnight", runic = "Runic" }
-local ICON_STYLE_ORDER = { "none", "---", "blizzard", "modern", "pixel", "glyph", "arcade", "legend", "midnight", "runic" }
+local ICON_STYLE_ORDER = { "none", "---", "blizzard", "modern", "pixel", "pixelsComic", "glyph", "arcade", "legend", "midnight", "runic" }
 local BAR_COLORS = { class = "Class Color", accent = "Accent Color", custom = "Custom Color" }
 local BAR_COLOR_ORDER = { "class", "accent", "custom" }
 local OUTLINES = { __global = "EUI Global Default", none = "Drop Shadow", outline = "Outline", thick = "Thick Outline" }
@@ -423,7 +423,8 @@ _G._EUI_BuildThreatMeterPage = function(pageName, parent, yOffset)
         end
         texValues._menuOpts = { itemHeight = 28, background = function(key) return lookup[key] end }
     end
-    _, h = W:DualRow(parent, y,
+    local iconRow
+    iconRow, h = W:DualRow(parent, y,
         { type = "dropdown", text = "Bar Texture", values = texValues, order = texOrder,
           disabled = off, disabledTooltip = "Threat Meter",
           getValue = function() return GetStyle("bars", "barTexture") end,
@@ -433,6 +434,23 @@ _G._EUI_BuildThreatMeterPage = function(pageName, parent, yOffset)
           getValue = function() return GetStyle("bars", "iconStyle") end,
           setValue = function(v) ns.SetStyleValue("bars", "iconStyle", v) end }
     );  y = y - h
+    if not EllesmereUI._prebuilding then
+        local zoomOff, zoomTip = Needs(function() return GetStyle("bars", "iconStyle") == "none" end, "Icon Style")
+        local rows = {
+            { type = "slider", label = "Zoom", min = 0, max = 0.20, step = 0.01,
+              get = function() return GetStyle("bars", "iconZoom") end,
+              set = function(v) ns.SetStyleValue("bars", "iconZoom", v) end },
+        }
+        if EllesmereUI.GetBorderCompanion(GetStyle("borders", "borderTexture"), "sepV") then
+            rows[#rows + 1] = Gate({ type = "toggle", label = "Separator",
+                tooltip = "Adds a vertical separator between the icon and bar using the bar border's style, size and color.",
+                get = function() return GetStyle("bars", "iconSeparator") end,
+                set = function(v) ns.SetStyleValue("bars", "iconSeparator", v) end })
+        end
+        EllesmereUI.BuildInlineCog(iconRow._rightRegion, {
+            title = "Icon Settings", disabled = zoomOff, disabledTooltip = zoomTip, rows = rows,
+        })
+    end
 
     local pullRow
     pullRow, h = W:DualRow(parent, y,
@@ -455,8 +473,9 @@ _G._EUI_BuildThreatMeterPage = function(pageName, parent, yOffset)
     local headerToggle = Toggle("showHeader", "Show Header",
         "A title row with the name of the mob whose threat is shown.",
         EllesmereUI.SectionToggleSetValue(function(v) Set("showHeader", v) end))
+    local headerRow
     if Get("showHeader") then
-        _, h = W:DualRow(parent, y, headerToggle, StyleSlider("header", "hdrHeight", "Header Height", 14, 40));  y = y - h
+        headerRow, h = W:DualRow(parent, y, headerToggle, StyleSlider("header", "hdrHeight", "Header Height", 14, 40));  y = y - h
 
         local textRow
         textRow, h = W:DualRow(parent, y,
@@ -486,7 +505,21 @@ _G._EUI_BuildThreatMeterPage = function(pageName, parent, yOffset)
             Swatch(bgRow._rightRegion, Gate(lineSwatch))
         end
     else
-        _, h = W:DualRow(parent, y, headerToggle, BLANK());  y = y - h
+        headerRow, h = W:DualRow(parent, y, headerToggle, BLANK());  y = y - h
+    end
+    if not EllesmereUI._prebuilding and EllesmereUI.GetBorderCompanion(GetStyle("borders", "windowBorderTexture"), "sepH") then
+        local sepOff, sepTip = Needs(function() return not Get("showHeader") end, "Show Header")
+        EllesmereUI.BuildInlineCog(headerRow._leftRegion, Gate({
+            title = "Header Settings", disabled = sepOff, disabledTooltip = sepTip,
+            rows = {
+                { type = "toggle", label = "Bottom Separator",
+                  tooltip = "Uses the window border's style, size and color for the separator.",
+                  disabled = function() return GetStyle("borders", "windowBorderIncludeHeader") == false end,
+                  disabledTooltip = "Include Header in Border",
+                  get = function() return GetStyle("header", "hdrBottomSeparator") end,
+                  set = function(v) ns.SetStyleValue("header", "hdrBottomSeparator", v) end },
+            },
+        }))
     end
 
     _, h = W:Spacer(parent, y, 20);  y = y - h
@@ -537,6 +570,15 @@ _G._EUI_BuildThreatMeterPage = function(pageName, parent, yOffset)
             function() return not Get("playerColorOn") end, "Custom Player Color"))
         Swatch(customRow._rightRegion, ColorSwatch("tankColor", "Tank Color",
             function() return not Get("tankColorOn") end, "Custom Tank Color"))
+        EllesmereUI.BuildInlineCog(customRow._leftRegion, {
+            title = "Player Bar Settings", disabled = off, disabledTooltip = "Threat Meter",
+            rows = {
+                { type = "toggle", label = "Show Player Marker",
+                  tooltip = "Shows the white stripe on the left edge of your own threat bar.",
+                  get = function() return Get("showPlayerMarker") end,
+                  set = function(v) Set("showPlayerMarker", v) end },
+            },
+        })
     end
 
     local barBgRow
@@ -619,15 +661,18 @@ _G._EUI_BuildThreatMeterPage = function(pageName, parent, yOffset)
 
     local windowBorderOff, windowBorderTip = Needs(function() return IsZero("borders", "windowBorderSize") end,
         "Window Border Size")
-    local includeHeader = StyleToggle("borders", "windowBorderIncludeHeader", "Include Header in Border")
+    local includeHeader = StyleToggle("borders", "windowBorderIncludeHeader", "Include Header in Border", true)
     includeHeader.disabled, includeHeader.disabledTooltip = windowBorderOff, windowBorderTip
     local bgRow
     bgRow, h = W:DualRow(parent, y,
-        StyleSlider("colors", "bgAlpha", "Background", 0, 1, 0.01),
-        Gate(includeHeader)
+        Gate({ type = "dropdown", text = "Background Texture", values = texValues, order = texOrder,
+          disabled = off, disabledTooltip = "Threat Meter",
+          getValue = function() return GetStyle("colors", "bgTexture") end,
+          setValue = function(v) ns.SetStyleValue("colors", "bgTexture", v) end }),
+        StyleSlider("colors", "bgAlpha", "Background", 0, 1, 0.01)
     );  y = y - h
     if not EllesmereUI._prebuilding then
-        Swatch(bgRow._leftRegion, BlizzOnly(StyleSwatch("colors", { "bgR", "bgG", "bgB" }, "Background Color")))
+        Swatch(bgRow._rightRegion, BlizzOnly(StyleSwatch("colors", { "bgR", "bgG", "bgB" }, "Background Color")))
     end
 
     local borderValues, borderOrder = EllesmereUI.GetBorderTextureDropdown()
@@ -700,10 +745,23 @@ _G._EUI_BuildThreatMeterPage = function(pageName, parent, yOffset)
         Gate(BorderSize(false, "Bar Border Size"))
     );  y = y - h
     if not EllesmereUI._prebuilding then
+        if EllesmereUI.GetBorderCompanion(GetStyle("borders", "borderTexture"), "sepH") then
+            EllesmereUI.BuildInlineCog(barBorderRow._leftRegion, Gate({
+                title = "Bar Border Settings", disabled = off, disabledTooltip = "Threat Meter",
+                rows = {
+                    { type = "toggle", label = "Separators",
+                      tooltip = "Replaces each bar's border with a bottom separator, kept inside the window.",
+                      get = function() return GetStyle("borders", "barSeparators") end,
+                      set = function(v) ns.SetStyleValue("borders", "barSeparators", v) end },
+                },
+            }))
+        end
         local sc = StyleSwatch("borders", { "borderR", "borderG", "borderB" }, "Bar Border Color")
         sc.disabled, sc.disabledTooltip = Needs(function() return IsZero("borders", "borderSize") end, "Bar Border Size")
         Swatch(barBorderRow._rightRegion, Gate(sc))
     end
+
+    _, h = W:DualRow(parent, y, Gate(includeHeader), BLANK());  y = y - h
 
     return math.abs(y)
 end
