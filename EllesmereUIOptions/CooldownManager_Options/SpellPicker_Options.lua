@@ -4756,7 +4756,8 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                 do
                     local wrap = CreateFrame("Button", nil, popup)
                     wrap:SetSize(16, 16)
-                    wrap:SetPoint("BOTTOM", popup, "BOTTOM", -46, 60)
+                    -- Below the status line (6px under the input), clear of Add/Cancel (top at +44).
+                    wrap:SetPoint("BOTTOM", popup, "BOTTOM", -46, 50)
                     wrap:Hide()
                     local bg = wrap:CreateTexture(nil, "BACKGROUND")
                     bg:SetAllPoints(); bg:SetColorTexture(0.060, 0.049, 0.037, 1)
@@ -4875,6 +4876,12 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                         SetStatus("Already tracked")
                         return
                     end
+                end
+                -- A cooldown Blizzard's Cooldown Manager offers goes through the spell
+                -- list: as a custom spell its menu would write settings its icon never reads.
+                if not isCustomBuffPopup and ns.IsCDMTrackedCooldown and ns.IsCDMTrackedCooldown(sid) then
+                    SetStatus("Already in the spell list")
+                    return
                 end
                 popup._dimmer:Hide()
                 -- Tag as custom spell so ghost bar routing can skip it
