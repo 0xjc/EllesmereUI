@@ -1,4 +1,5 @@
-if EUI_CLIENT_BLOCKED then return end if select(2, ...).slcInert then return end 
+if EUI_CLIENT_BLOCKED then return end if ... == "SimpleLootCouncil" and SimpleLootCouncil and SimpleLootCouncil.EDITION == "eui" then return end
+
 
 
 
@@ -288,6 +289,8 @@ local function OnSlotCleared(slot)
 
     local link = slotCache[slot]
     if not link then return end
+
+    if not (Loot.handling and IsInGroup()) then return end
     if WasViaRoll(link) then return end
     if not Loot:IsCouncilItem(link) then return end
 
@@ -420,6 +423,14 @@ Loot.IsGuildGroup = IsGuildGroup
 
 
 
+local function InInstance()
+    if type(IsInInstance) ~= "function" then return true end
+    return IsInInstance() and true or false
+end
+Loot.InInstance = InInstance
+
+
+
 function Loot:GetGuildPartyCounts()
     RefreshGuildParty()
     return guildPresent, guildRequired
@@ -457,7 +468,7 @@ end
 
 function Loot:GuardReason()
     if not addon.db.funnel or not addon.db.funnel.guildGroupOnly then return nil end
-    if not IsGuildGroup() then return "group" end
+    if InInstance() and not IsGuildGroup() then return "group" end
     if Loot:SharesLootMasterGuild() ~= true then return "guild" end
     return nil
 end
@@ -756,10 +767,10 @@ function Loot:ApplyHandling(on, sender, armed, quiet)
 
     if not quiet and Loot.handling and FunnelRole() == "pass" then
 
-        print(addon.Log.CHAT_PREFIX.accent .. addon.Locale.Format(T["loot council is active - this addon will PASS group loot rolls on your behalf, and %s will collect them for the council to distribute."],
+        addon.Chat.Print(addon.Locale.Format(T["loot council is active - this addon will PASS group loot rolls on your behalf, and %s will collect them for the council to distribute."],
             tostring(addon.GetMasterLooter())))
     elseif not quiet and Loot.handling and FunnelRole() == "need" then
-        print(addon.Log.CHAT_PREFIX.accent .. T["you are collecting loot for the council - this addon will roll Need on group loot for you."])
+        addon.Chat.Print(T["you are collecting loot for the council - this addon will roll Need on group loot for you."])
     end
 end
 
@@ -971,6 +982,7 @@ function Loot:Init()
         end
     end
 
+    local wasInInstance = nil
     local f = CreateFrame("Frame")
     f:RegisterEvent("LOOT_READY")
     f:RegisterEvent("LOOT_OPENED")
@@ -997,6 +1009,10 @@ function Loot:Init()
             return
         elseif event == "PLAYER_ENTERING_WORLD" then
             GroupChanged(true)
+
+            local inside = InInstance()
+            if wasInInstance ~= nil and inside ~= wasInInstance then GuildStateChanged() end
+            wasInInstance = inside
             return
         elseif event == "PLAYER_GUILD_UPDATE" then
             if Loot.handling and addon.db.funnel and addon.db.funnel.guildGroupOnly then
