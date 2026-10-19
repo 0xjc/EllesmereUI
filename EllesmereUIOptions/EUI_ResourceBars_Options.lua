@@ -365,6 +365,8 @@ initFrame:SetScript("OnEvent", function(self)
             end
         elseif key == "health" then
             if not p.health.enabled then return EllesmereUI.DisabledTooltip("Health Bar") end
+        elseif key == "arcaneSoul" then
+            if not (p.arcaneSoul and p.arcaneSoul.enabled) then return EllesmereUI.DisabledTooltip("Arcane Soul Helper") end
         end
         return nil
     end
@@ -1176,7 +1178,8 @@ initFrame:SetScript("OnEvent", function(self)
         end
 
         -- The stack, top to bottom: Class Resource, Power, Health (the live
-        -- default order), each shown while its bar is on and its eye is open.
+        -- default order), then Arcane Soul (Mage only, below a divider), each
+        -- shown while its bar is on and its eye is open.
         do
             local pb, hb = _previewFrames.powerBar, _previewFrames.healthBar
             local showPower = pb and not pvHidden.power and not PreviewBar.Avail(p, "power")
@@ -1186,11 +1189,40 @@ initFrame:SetScript("OnEvent", function(self)
             if pb then pb:SetShown(showPower and true or false) end
             if hb then hb:SetShown(showHealth and true or false) end
 
+            local asf = _previewFrames.arcaneSoul
+            local styleAS = _G._ERB_StyleArcaneSoulSample
+            local showAS = asf and styleAS and not pvHidden.arcaneSoul and not PreviewBar.Avail(p, "arcaneSoul")
+            if showAS then
+                -- Sized from the static sample when its font changed (a font not
+                -- loaded yet measures 0: the text size stands in, and deferred
+                -- updates measure again, 0.2s doubling up to about 6s in all),
+                -- then straight back to the replay.
+                local size, changed = styleAS(asf._fs)
+                if changed then asf._asTries = 0 end
+                if changed or asf._asEstimated then
+                    local w, h = asf._fs:GetStringWidth(), asf._fs:GetStringHeight()
+                    asf._asEstimated = not (w > 0 and h > 0) or nil
+                    asf:SetSize(math.ceil(w > 0 and w or size * 5), math.ceil(h > 0 and h or size))
+                    local tries = asf._asTries or 0
+                    if asf._asEstimated and tries < 5 then
+                        asf._asTries = tries + 1
+                        local gen = PoolGen(asf)
+                        C_Timer.After(0.2 * 2 ^ tries, function()
+                            if PoolGen(asf) == gen and asf:IsVisible() then UpdatePreviewHeader() end
+                        end)
+                    end
+                end
+                local tick = _G._ERB_ArcaneSoulDemoTick
+                if tick then tick(asf) end
+            end
+            if asf then asf:SetShown(showAS and true or false) end
+
             local labels = _previewFrames.labels or {}
             local stack, stackLbl = {}, {}
             if pc and pc:IsShown() then stack[#stack + 1] = pc; stackLbl[#stack] = labels.classResource end
             if showPower then stack[#stack + 1] = pb; stackLbl[#stack] = labels.power end
             if showHealth then stack[#stack + 1] = hb; stackLbl[#stack] = labels.health end
+            if showAS then stack[#stack + 1] = asf; stackLbl[#stack] = labels.arcaneSoul end
             for _, fs in pairs(labels) do fs:Hide() end
 
             -- Each element: its title (a header-scale font string, so its
@@ -1202,9 +1234,25 @@ initFrame:SetScript("OnEvent", function(self)
             local total = 0
             for i = 1, #stack do total = total + titleH + stack[i]:GetHeight() end
             total = total + gap * math.max(0, #stack - 1)
+            -- A one-pixel divider between the bars and Arcane Soul, as wide as the widest bar.
+            local div = _previewFrames.asDivider
+            local divAt = (div and container and showAS and #stack > 1) and #stack or nil
+            local divH, divW = 0, 0
+            if divAt then
+                divH = 1 / container:GetEffectiveScale()
+                total = total + divH + gap
+                for i = 1, divAt - 1 do divW = math.max(divW, stack[i]:GetWidth()) end
+            end
+            if div then div:SetShown(divAt and true or false) end
             -- Offsets from the container centre, bar edges on the preview's pixel grid.
             local top = snap(total / 2)
             for i = 1, #stack do
+                if i == divAt then
+                    div:ClearAllPoints()
+                    div:SetSize(divW, divH)
+                    div:SetPoint("TOP", container, "CENTER", 0, top)
+                    top = snap(top - divH - gap)
+                end
                 local f = stack[i]
                 local fh = f:GetHeight()
                 local barTop = snap(top - titleH)
@@ -1374,6 +1422,35 @@ initFrame:SetScript("OnEvent", function(self)
         -- Built for every spec (cheap, pooled); UpdatePreviewHeader shows what applies.
         _previewFrames.powerBar = PreviewBar.Build(container)
         _previewFrames.healthBar = PreviewBar.Build(container)
+        -- Arcane Soul: its section exists for Mages only, so does its element.
+        -- The element replays the live sequence (the eye hides only it); the
+        -- watcher keeps the on-screen sample running while this header shows.
+        _previewFrames.arcaneSoul, _previewFrames.asDivider = nil, nil
+        if classFile == "MAGE" then
+            local asf = CreateFrame("Frame", nil, container)
+            asf._fs = asf:CreateFontString(nil, "OVERLAY")
+            asf._fs:SetPoint("CENTER", asf, "CENTER", 0, 0)
+            asf._fs._asStamp = nil  -- a reused font string is reset: style it again
+            asf:SetSize(1, 1)
+            if _G._ERB_ArcaneSoulDemoOnUpdate then asf:SetScript("OnUpdate", _G._ERB_ArcaneSoulDemoOnUpdate) end
+            _previewFrames.arcaneSoul = asf
+
+            local div = container:CreateTexture(nil, "ARTWORK")
+            div:SetColorTexture(1, 1, 1, 0.10)
+            UnsnapTex(div)
+            div:Hide()
+            _previewFrames.asDivider = div
+
+            local screenDemo = _G._ERB_ArcaneSoulScreenDemo
+            if screenDemo then
+                local watch = CreateFrame("Frame", nil, container)
+                watch:SetSize(1, 1)
+                watch:SetPoint("CENTER")
+                watch:SetScript("OnShow", function(self) screenDemo(self, true) end)
+                watch:SetScript("OnHide", function(self) screenDemo(self, false) end)
+                if watch:IsVisible() then screenDemo(watch, true) end
+            end
+        end
         -- Element titles at header scale (the hint's size), on a child frame so
         -- the header cache stashes them with the rest.
         do
@@ -1391,6 +1468,7 @@ initFrame:SetScript("OnEvent", function(self)
                 classResource = Title(EllesmereUI.L("Class Resource")),
                 power = Title(EllesmereUI.L("Power Bar")),
                 health = Title(EllesmereUI.L("Health Bar")),
+                arcaneSoul = _previewFrames.arcaneSoul and Title(EllesmereUI.L("Arcane Soul")) or nil,
             }
         end
 
@@ -1402,6 +1480,7 @@ initFrame:SetScript("OnEvent", function(self)
         if pipC then CreateHitOverlay(pipC, "classResource", overlayLevel) end
         CreateHitOverlay(_previewFrames.powerBar, "power", overlayLevel)
         CreateHitOverlay(_previewFrames.healthBar, "health", overlayLevel)
+        if _previewFrames.arcaneSoul then CreateHitOverlay(_previewFrames.arcaneSoul, "arcaneSoul", overlayLevel) end
         if pipC and pipC._countText then
             -- Padded frame around the text for easier clicking
             local ctHit = CreateFrame("Frame", nil, pipC)
