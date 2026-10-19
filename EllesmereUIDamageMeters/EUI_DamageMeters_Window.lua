@@ -2146,7 +2146,7 @@ local function CreateDMWindow(winIdx)
                         end
                         local overkill = ev.overkill
                         if isFatal and overkill and not IsSecret(overkill) and type(overkill) == "number" and overkill > 0 then
-                            bar.amount:SetText(amtStr .. " |cffff3333(" .. AbbrevNumber(overkill) .. " overkill)|r" .. pctStr)
+                            bar.amount:SetText(amtStr .. " |cffff3333(" .. EllesmereUI.Lf("%1$s overkill", AbbrevNumber(overkill)) .. ")|r" .. pctStr)
                         else
                             bar.amount:SetText(amtStr .. pctStr)
                         end
@@ -2277,7 +2277,7 @@ local function CreateDMWindow(winIdx)
                 SetDMFont(bar.label, leftFS); SetDMFont(bar.amount, rightFS)
                 local spellName
                 if spell.spellID then local okS, sn = pcall(function() return C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(spell.spellID) end); spellName = (okS and sn) or nil end
-                bar.label:SetText(spellName or spell.creatureName or "Unknown")
+                bar.label:SetText(spellName or spell.creatureName or L("Unknown"))
                 if canPercent and totalDmg > 0 then
                     bar.amount:SetText(format("%s  %.1f%%", AbbrevNumber(entry.amount), (entry.amount / totalDmg) * 100))
                 else

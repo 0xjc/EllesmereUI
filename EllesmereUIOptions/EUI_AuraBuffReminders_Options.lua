@@ -3098,7 +3098,7 @@ initFrame:SetScript("OnEvent", function(self)
                 spellFS:SetWordWrap(false)
                 spellFS:SetMaxLines(1)
                 spellFS:SetPoint("LEFT", spellIcon, "RIGHT", 8, 0)
-                spellFS:SetText(reminder.spellName or "Unknown")
+                spellFS:SetText(reminder.spellName or EllesmereUI.L("Unknown"))
 
                 -- The picker's zones for this reminder, with Delete Reminder
                 -- pinned above them. Its last zone stays checked: a reminder
