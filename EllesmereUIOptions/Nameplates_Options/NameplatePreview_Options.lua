@@ -1090,31 +1090,14 @@ local function BuildNameplatePreview(parent, parentW)
         cast:SetValue(optState._previewCastFill or 0.60)
         castParts.icon:SetTexture(displayCastIcons[optState._previewCastIconIdx or 1])
         do
+            -- Backgrounds and Textured Background as live (the Blizzard Style
+            -- pass below wins).
             local hbgC = (DB() and DB().bgColor) or defaults.bgColor
-            local hbgA = DBVal("bgAlpha") or defaults.bgAlpha
-            healthBG:SetColorTexture(hbgC.r, hbgC.g, hbgC.b, hbgA)
             local cbgC = (DB() and DB().castBgColor) or defaults.castBgColor
-            local cbgA = DBVal("castBgAlpha") or defaults.castBgAlpha
-            castParts.bg:SetColorTexture(cbgC.r, cbgC.g, cbgC.b, cbgA)
-            -- Textured Background, as live (the Blizzard Style pass below wins).
-            local hTex = DBVal("healthTextureBg") and EllesmereUI.ResolveTexturePath(ns.healthBarTextures, DBVal("healthBarTexture") or "none", nil)
-            if hTex then
-                healthBG:SetTexture(hTex)
-                healthBG:SetVertexColor(hbgC.r, hbgC.g, hbgC.b, hbgA)
-                healthBG._npTexBg = true
-            elseif healthBG._npTexBg then
-                healthBG._npTexBg = nil
-                healthBG:SetVertexColor(1, 1, 1, 1)
-            end
-            local cTex = DBVal("castTextureBg") and EllesmereUI.ResolveTexturePath(ns.healthBarTextures, DBVal("castBarTexture") or "none", nil)
-            if cTex then
-                castParts.bg:SetTexture(cTex)
-                castParts.bg:SetVertexColor(cbgC.r, cbgC.g, cbgC.b, cbgA)
-                castParts.bg._npTexBg = true
-            elseif castParts.bg._npTexBg then
-                castParts.bg._npTexBg = nil
-                castParts.bg:SetVertexColor(1, 1, 1, 1)
-            end
+            ns.NP_TexBgPaint(healthBG, ns.NP_TexBgPath(DB(), false),
+                hbgC.r, hbgC.g, hbgC.b, DBVal("bgAlpha") or defaults.bgAlpha)
+            ns.NP_TexBgPaint(castParts.bg, ns.NP_TexBgPath(DB(), true),
+                cbgC.r, cbgC.g, cbgC.b, DBVal("castBgAlpha") or defaults.castBgAlpha)
         end
 
         -- Cast bar border (pixel-perfect, mirrors the real nameplates)

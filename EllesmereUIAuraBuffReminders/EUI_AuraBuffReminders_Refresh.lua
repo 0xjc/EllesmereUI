@@ -71,6 +71,10 @@ function EABR.BuildForeverFamilies()
     EABR._fvFamDirty = false
     local fams = EABR._fvFams
     if fams then wipe(fams) else fams = {}; EABR._fvFams = fams end
+    -- The families with a rank in this character's spellbook (spell groups:
+    -- EABR.CollectForeverGroups), from the same pass.
+    local known = EABR._fvKnownFams
+    if known then wipe(known) else known = {}; EABR._fvKnownFams = known end
     local fo = db.profile.forever
     local custom = fo and fo.customIDs
     local groups = fo and fo.customGroups
@@ -130,6 +134,7 @@ function EABR.BuildForeverFamilies()
                         if list[k] == sid then listed = true; break end
                     end
                     if not listed then list[#list + 1] = sid end
+                    known[list] = true
                 end
             end
         end
@@ -137,11 +142,15 @@ function EABR.BuildForeverFamilies()
 end
 
 -- WoW Forever spell groups: one reminder per group while no aura from its
--- spells (or their ranks, EABR.ForeverFamily) is active. While the client hides
--- aura data from addons (AuraKit.AurasRestricted), a group counts as having no
--- active aura only if none of its spells is flagged secret, so a hidden aura is
--- not read as absent. Dismiss keys are per group table (weak), so removing or
--- renaming a group never hands its dismissal to another.
+-- spells (or their ranks, EABR.ForeverFamily) is active, out of combat only.
+-- While the client hides aura data from addons (AuraKit.AurasRestricted), a
+-- group counts as having no active aura only if none of its spells is flagged
+-- secret, so a hidden aura is not read as absent. A group shows only for a
+-- character that knows one of its spells (a rank in the spellbook): groups are
+-- profile settings, so one made on another class shows nothing here. The icon
+-- is the first such spell's; the tooltip names the group (no spell on the
+-- entry). Dismiss keys are per group table (weak), so removing or renaming a
+-- group never hands its dismissal to another.
 function EABR.CollectForeverGroups(missing, groups)
     local dismissKeys = EABR._fvGroupKeys
     if not dismissKeys then
@@ -159,7 +168,7 @@ function EABR.CollectForeverGroups(missing, groups)
                 local rankSpellIDs = type(spellID) == "number" and SpellName(spellID)
                     and EABR.ForeverFamily(spellID)
                 if rankSpellIDs then
-                    iconSpellID = iconSpellID or spellID  -- the group's icon is its first spell the client knows
+                    if not iconSpellID and EABR._fvKnownFams[rankSpellIDs] then iconSpellID = spellID end
                     if PlayerHasAuraByID(rankSpellIDs) then hasActiveAura = true; break end
                     if aurasRestricted and not EABR.FvRanksReadable(rankSpellIDs) then
                         allAurasReadable = false
@@ -174,7 +183,7 @@ function EABR.CollectForeverGroups(missing, groups)
                     dismissKeys[group] = dismissKey
                 end
                 local entry = AcquireEntry()
-                entry.mode = "texture"; entry.spellID = iconSpellID
+                entry.mode = "texture"
                 entry.texture = Tex(iconSpellID)
                 entry.label = type(group.name) == "string" and group.name
                     or ShortLabel(SpellName(iconSpellID))
@@ -186,8 +195,9 @@ function EABR.CollectForeverGroups(missing, groups)
 end
 
 -- WoW Forever collector: the Camp Benefits campfire buff, Well Fed (any food
--- buff: the shared Well Fed name, or one of EABR.FOOD_BUFFS) and the user's
--- custom spell IDs, absence only (no expiry thresholds). A custom ID counts as
+-- buff: the shared Well Fed name, or one of EABR.FOOD_BUFFS), the user's spell
+-- groups (EABR.CollectForeverGroups) and custom spell IDs, absence only (no
+-- expiry thresholds). A custom ID counts as
 -- up while any spell of its rank family is (EABR.ForeverFamily). Entries are
 -- display-only textures carrying the spell for the tooltip; presence goes
 -- through PlayerHasAuraByID, so combat falls back to the pre-pull snapshot
@@ -230,9 +240,14 @@ function EABR.CollectForever(missing, inInstance, inPvP, restricted)
     if not custom then return end
     local keys = EABR._foreverKeys
     if not keys then keys = {}; EABR._foreverKeys = keys end
+    -- Out of combat under the aura lock a secret aura reads absent, so a custom
+    -- spell shows only while none of its ranks is secret (combat reads the
+    -- pre-pull snapshot instead).
+    local auraLock = not restricted and EllesmereUI.AuraKit and EllesmereUI.AuraKit.AurasRestricted()
     for i = 1, #custom do
         local id = custom[i]
-        if not PlayerHasAuraByID(EABR.ForeverFamily(id)) then
+        local fam = EABR.ForeverFamily(id)
+        if not PlayerHasAuraByID(fam) and not (auraLock and fam and not EABR.FvRanksReadable(fam)) then
             local dk = keys[id]
             if not dk then dk = "forever:" .. id; keys[id] = dk end
             local e = AcquireEntry()

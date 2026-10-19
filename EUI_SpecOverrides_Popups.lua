@@ -677,8 +677,8 @@ local function SetGroupSpecs(g, newSpecs)
     if _editGroup == g then ExitGroupEdit(true) end
     -- Bank live Buff/Debuff Manager edits into the layer that holds them before
     -- the membership change can move fork ownership (the apply below never harvests).
-    if EllesmereUI.SpecOverrides_HarvestBmLayout then EllesmereUI.SpecOverrides_HarvestBmLayout() end
-    if EllesmereUI.SpecOverrides_HarvestDmLayout then EllesmereUI.SpecOverrides_HarvestDmLayout() end
+    EllesmereUI.SpecOverrides_HarvestBmLayout()
+    EllesmereUI.SpecOverrides_HarvestDmLayout()
     local oldSet, newSet = {}, {}
     for _, id in ipairs(g.specs or {}) do oldSet[id] = true end
     for _, id in ipairs(newSpecs) do newSet[id] = true end
@@ -1229,7 +1229,7 @@ function EllesmereUI.SpecOverrides_ToggleOverrideEdit(kind, gid)
         local force = member and not (lockKind == "spec" and lockGid ~= g.id)
         if _editGroup == g then ExitGroupEdit() else EnterGroupEdit(g, force) end
     elseif kind == "cond" then
-        local g = EllesmereUI.Conditions_GroupById and EllesmereUI.Conditions_GroupById(gid)
+        local g = EllesmereUI.Conditions_GroupById(gid)
         if not g then return end
         -- A live spec fork means a spec owner exists, and spec wins.
         local force = lockKind ~= "spec"
@@ -1245,7 +1245,7 @@ function EllesmereUI.SpecOverrides_EditOverrideGroup(kind, gid)
         local g = GroupById(gid)
         if g then EditGroupSpecs(g) end
     elseif kind == "cond" then
-        local g = EllesmereUI.Conditions_GroupById and EllesmereUI.Conditions_GroupById(gid)
+        local g = EllesmereUI.Conditions_GroupById(gid)
         if not g then return end
         if cardsPopup then cardsPopup:Hide() end
         Cond.ShowPickerPopup(g)

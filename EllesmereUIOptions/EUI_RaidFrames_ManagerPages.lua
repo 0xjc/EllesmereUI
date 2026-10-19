@@ -2558,9 +2558,7 @@ function ns.DMP_BuildPage(pageName, parent, yOffset)
     end
 
     -- Override list (BM parity; builder lives in the Buff Manager file).
-    if ns.BM_BuildOverrideList then
-        tileY = ns.BM_BuildOverrideList(sidebarChild, tileY, sidebarW, fontPath, "dm")
-    end
+    tileY = ns.BM_BuildOverrideList(sidebarChild, tileY, sidebarW, fontPath, "dm")
 
     sidebarChild:SetHeight(max(10, math.abs(tileY)))
 
@@ -3707,7 +3705,13 @@ function ns.BMP_BuildAssignedFilters(parent, sy, ind, fontPath)
         setValue = function(v)
             if v == "raid" or v == "party" then ind.showIn = v else ind.showIn = nil end
             if ns.BM2_Invalidate then ns.BM2_Invalidate() end
-            if ns.ReloadFrames then ns.ReloadFrames() end
+            -- Frames and preview: the preview shows the indicator only on the
+            -- side of its Raid / Party switch that renders it.
+            if ns._bmReloadAndUpdate then
+                ns._bmReloadAndUpdate()
+            elseif ns.ReloadFrames then
+                ns.ReloadFrames()
+            end
         end }
 
     -- CUSTOM ORDER (icon/square indicators, beside Show In): opt-in fixed

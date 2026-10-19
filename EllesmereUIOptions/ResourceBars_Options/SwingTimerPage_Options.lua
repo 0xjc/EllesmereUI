@@ -196,7 +196,7 @@ function ns.ERB_BuildSwingTimerPage(pageName, parent, yOffset)
 
     -- Global Settings > Style: the rows wear the Resource Bars row's stock
     -- frame (ns.ST_Style), which gates the EUI border rows as on the other
-    -- bars. A profile that keeps the EllesmereUI look keeps them live.
+    -- bars.
     local stStock = ns.ST_Style() ~= "eui"
     local stClassic = stStock and ns.ERB_BarsClassic()
     local function Gate(cfg)
@@ -233,7 +233,7 @@ function ns.ERB_BuildSwingTimerPage(pageName, parent, yOffset)
                     local p = DB(); if not p then return end
                     p.swingTimer.stockBorderScale = v
                     RefreshST()
-                    if EllesmereUI.ReapplyMatchPads then EllesmereUI.ReapplyMatchPads("ERB_SwingTimer") end
+                    EllesmereUI.ReapplyMatchPads("ERB_SwingTimer")
                     EllesmereUI:RefreshPage()
                 end,
                 { disabled = stOff, disabledTooltip = ST_TIP }) or

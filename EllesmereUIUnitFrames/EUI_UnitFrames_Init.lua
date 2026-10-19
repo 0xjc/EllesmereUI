@@ -1278,8 +1278,9 @@ local function InitializeFrames()
                 end
             end
             if atlas then
-                -- Paint only on a real change: faction, style and dim are the
-                -- paint's only inputs (the texture is ours, so the memo lives on it).
+                -- Paint only on a real change: faction, style, dim and the honor
+                -- badge are the paint's only inputs (the texture is ours, so the
+                -- memo lives on it).
                 local style = s.factionIndicatorStyle or "pvp"
                 local badge = EllesmereUI.FactionBadgeFor(style, unit)
                 if tex._facFac ~= fac or tex._facStyle ~= style or tex._facDim ~= dim or tex._facBadge ~= badge then

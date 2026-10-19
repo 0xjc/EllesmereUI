@@ -535,7 +535,7 @@ function ns.ERB_BuildPowerSection(parent, y, ctx)
                   local isPowerColored = not c or not c.customColored
                   return isPowerColored and 1 or 0.3
               end },
-    }, { disabled = powerOff, disabledTooltip = powerDisTip })
+    }, { size = 20, disabled = powerOff, disabledTooltip = powerDisTip })
     end
     if not ctx.advanced and ctx.syncRows and not EllesmereUI._prebuilding then
         ctx.syncRows.powerOpacity = powerBorderRow._leftRegion

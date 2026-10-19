@@ -9846,9 +9846,12 @@ local function Skin_IconSelectorPopup(p, backdrop, reskin)
         end
         if gBox.GetView and gBox:GetView() then pcall(gd.iconDim) end
     end
-    WSkin.HookShow(p, WSkin.Debounce(function()
-        if p:IsVisible() then reskin() end
-    end))
+    -- Built only while the frame has no show hook (HookShow keeps the first).
+    if not GetFFD(p).showHook then
+        WSkin.HookShow(p, WSkin.Debounce(function()
+            if p:IsVisible() then reskin() end
+        end))
+    end
 end
 
 -- Macro popup (MacroPopupFrame): uses the shared icon selector popup skin.
@@ -10007,20 +10010,18 @@ WSkin.RegisterWindow({
     apply = Skin_Macros,
 })
 
--- Equipment Manager popup wears the sheet's own shell under the sheet's "charsheet" key, so it
--- follows that card's on/off, style and Modern swap. Blizzard Default keeps the
--- stock popup, like the sheet itself.
+-- Equipment Manager popup (GearManagerPopupFrame, built with PaperDollFrame at load)
+-- wears the sheet's own shell under the sheet's "charsheet" key, so it follows that
+-- card's on/off, style and Modern swap. Blizzard Default keeps the stock popup, like
+-- the sheet itself, and so does WoW Forever. The sheet skin raises the popup's icon
+-- grid a strata above the shell (PreSkinCharacterSheet).
+local GEAR_SHELL_OPTS = { noTopBar = true }
+local function GearPopupBackdrop(f) WSkin.Shell("charsheet", f, GEAR_SHELL_OPTS) end
 local function Skin_GearPopup()
+    if EllesmereUI.IS_FOREVER or ns.CharSheetStock() then return end
     local p = _G.GearManagerPopupFrame
-    if not p then
-        if _G.CharacterFrame then WSkin.HookShow(_G.CharacterFrame, WSkin.Debounce(Skin_GearPopup)) end
-        return
-    end
-    if EllesmereUI.IS_FOREVER or (ns.CharSheetStock and ns.CharSheetStock()) then return end
-    Skin_IconSelectorPopup(p, function(f)
-        WSkin.Shell("charsheet", f, { noTopBar = true })
-    end, Skin_GearPopup)
-    if p.IconSelector then p.IconSelector:SetFrameStrata("DIALOG") end
+    if not p then return end
+    Skin_IconSelectorPopup(p, GearPopupBackdrop, Skin_GearPopup)
 end
 
 WSkin.RegisterWindow({

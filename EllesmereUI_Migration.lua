@@ -4361,57 +4361,31 @@ EllesmereUI.RegisterMigration({
 })
 
 -- WoW Forever: the Swing Timer follows the Resource Bars row of Global
--- Settings > Style. A profile already on a stock style there keeps the
--- EllesmereUI look it had (swingTimer.keepEuiLook = that style's key, read by
--- ns.ST_Style) until that style changes. Its saved style slots, from before
--- the Swing Timer's texture rode them, take the texture it has now, so a
--- later switch keeps it. GLOBAL with per-profile stamps, gated on existing
--- profiles: a fresh install stamps and never runs it, and profiles made
--- later follow their style.
+-- Settings > Style, and its texture rides that row's style slots. Slots saved
+-- before then take the texture it has now, so switching styles later brings a
+-- custom texture back (also after the Classic seed's Plating, which a profile
+-- already on Classic gets at its first load with this build); a slot without
+-- it restores the default. Existing accounts only: a fresh install stamps it
+-- without running.
 if EllesmereUI.IS_FOREVER == true then
 EllesmereUI.RegisterMigration({
-    id          = "swing_timer_stock_style_v1",
+    id          = "swing_timer_style_slots_v1",
     scope       = "global",
-    description = "Keep the Swing Timer's look on profiles already using a stock Resource Bars style.",
+    description = "Save the Swing Timer's texture into the Resource Bars style slots saved before it joined them.",
     body        = function(ctx)
-        local ID = "swing_timer_stock_style_v1"
-        local db = ctx.db
-        if not (db and type(db.profiles) == "table" and next(db.profiles)) then return end
-        for _, profData in pairs(db.profiles) do
-            if type(profData) == "table" then
-                local stamps = profData._migrations
-                if type(stamps) ~= "table" then
-                    stamps = {}
-                    profData._migrations = stamps
-                end
-                if not stamps[ID] then
-                    local erb = type(profData.addons) == "table" and profData.addons.EllesmereUIResourceBars
-                    if type(erb) == "table" then
-                        local key
-                        if erb.useClassicStyleBars then
-                            key = "classic"
-                        elseif erb.useBlizzardStyleBars then
-                            key = erb.useForeverStyleBars and "forever" or "blizzard"
-                        end
-                        local st = erb.swingTimer
-                        if key then
-                            if type(st) ~= "table" then
-                                st = {}
-                                erb.swingTimer = st
-                            end
-                            if st.keepEuiLook == nil then st.keepEuiLook = key end
-                        end
-                        local tex = type(st) == "table" and st.texture or nil
-                        local slots = erb._styleSlots
-                        if tex ~= nil and type(slots) == "table" then
-                            for _, slot in pairs(slots) do
-                                if type(slot) == "table" and slot["swingTimer.texture"] == nil then
-                                    slot["swingTimer.texture"] = tex
-                                end
-                            end
-                        end
+        local profiles = ctx.db and ctx.db.profiles
+        if type(profiles) ~= "table" then return end
+        for _, profData in pairs(profiles) do
+            local erb = type(profData) == "table" and type(profData.addons) == "table"
+                and profData.addons.EllesmereUIResourceBars
+            local st = type(erb) == "table" and erb.swingTimer
+            local tex = type(st) == "table" and st.texture or nil
+            local slots = tex ~= nil and erb._styleSlots
+            if type(slots) == "table" then
+                for _, slot in pairs(slots) do
+                    if type(slot) == "table" and slot["swingTimer.texture"] == nil then
+                        slot["swingTimer.texture"] = tex
                     end
-                    stamps[ID] = true
                 end
             end
         end

@@ -973,7 +973,7 @@ initFrame:SetScript("OnEvent", function(self)
             }
             for spellIndex, spellID in ipairs(group.ids) do
                 slots[#slots + 1] = { type="labeledButton", buttonText="Remove", width=90,
-                    text=_G._EABR_SpellName(spellID, tostring(spellID)) .. " |cff808080" .. spellID .. "|r",
+                    text=_G._EABR_SpellName(spellID, tostring(spellID)) .. " " .. EllesmereUI.COLOR_CODES.DIM .. spellID .. "|r",
                     tooltip="Remove this spell from the group.",
                     onClick=function()
                         table.remove(group.ids, spellIndex)
@@ -981,8 +981,8 @@ initFrame:SetScript("OnEvent", function(self)
                         EllesmereUI:RefreshPage(true)
                     end }
             end
-            slots[#slots + 1] = { type="labeledButton", text="Remove this group", buttonText="Remove Group", width=120,
-                tooltip="Remove this group",
+            slots[#slots + 1] = { type="labeledButton", text="Remove Group", buttonText="Remove", width=90,
+                tooltip="Deletes this group and its spells.",
                 onClick=function()
                     table.remove(f.customGroups, groupIndex)
                     RefreshAll()
@@ -1016,7 +1016,7 @@ initFrame:SetScript("OnEvent", function(self)
         local W = EllesmereUI.Widgets
         local function Slot(id)
             return { type="labeledButton", buttonText="Remove", width=90,
-                text=_G._EABR_SpellName(id, tostring(id)) .. " |cff808080" .. id .. "|r",
+                text=_G._EABR_SpellName(id, tostring(id)) .. " " .. EllesmereUI.COLOR_CODES.DIM .. id .. "|r",
                 tooltip="Reminds you whenever this buff is missing. Remove stops tracking it.",
                 onClick=function()
                     local fo = FDB()
@@ -1273,7 +1273,7 @@ initFrame:SetScript("OnEvent", function(self)
                 return { type="toggle", text="Beacon M+ Reminders",
                   tooltip="During Mythic+ boss fights, shows a glowing red Beacon on your tank's raid frame while they have your Beacon of Light or Beacon of Faith.",
                   disabled=function() return not EllesmereUI._ModuleNS["EllesmereUIRaidFrames"] end,
-                  disabledTooltip=EllesmereUI.DisabledTooltip("EllesmereUI Group Frames"),
+                  disabledTooltip=EllesmereUI.DisabledTooltip("EllesmereUI Raid & Party Frames"),
                   getValue=function() local d = DDB(); return d and d.beaconMPlus == true end,
                   setValue=function(v)
                       local d = DDB(); if not d then return end

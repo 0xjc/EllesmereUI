@@ -340,7 +340,7 @@ Register("chat",         "EllesmereUIChat",            "Chat",
 -- fill, or Classic's Blizzard Raid Bar), flush spacing, the stock role icons
 -- and absorb looks (the module's own seed; it also runs at enable for a
 -- profile that arrives already switched).
-Register("raidframes",   "EllesmereUIRaidFrames",      "Group Frames",
+Register("raidframes",   "EllesmereUIRaidFrames",      "Raid & Party Frames",
     RFProfile, "useBlizzardStyle", "useClassicStyle", "RF_Style",
     function(p, styleKey)
         local rf = NS("EllesmereUIRaidFrames")

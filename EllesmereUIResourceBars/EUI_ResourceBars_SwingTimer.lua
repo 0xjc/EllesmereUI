@@ -148,44 +148,9 @@ local function P()
 end
 
 -- The look the rows wear: the Resource Bars row of Global Settings > Style
--- (ns.ERB_BarsStyle; WoW Forever draws Blizzard Style), latched for the
--- session. A profile already on a stock style when the Swing Timer started
--- following it keeps the EllesmereUI look (keepEuiLook = that style's key,
--- written by swing_timer_stock_style_v1) until its style changes.
-local function BarsKey(p)
-    if type(p) ~= "table" then return "eui" end
-    if p.useClassicStyleBars then return "classic" end
-    if p.useBlizzardStyleBars then return p.useForeverStyleBars and "forever" or "blizzard" end
-    return "eui"
-end
-
+-- (ns.ERB_BarsStyle, latched for the session; WoW Forever draws Blizzard Style).
 function ns.ST_Style()
-    local v = S.style
-    if v == nil then
-        local ERB = ns.ERB
-        local p = ERB and ERB.db and ERB.db.profile
-        if not p then return "eui" end
-        local cfg = p.swingTimer
-        local keep = cfg and cfg.keepEuiLook
-        if keep and keep ~= BarsKey(p) then
-            cfg.keepEuiLook = nil
-            keep = nil
-        end
-        v = keep and "eui" or ns.ERB_BarsStyle()
-        S.style = v
-    end
-    return v
-end
-
--- Profile switch (EllesmereUI_Profiles.lua STYLE_FLAGS extra): true when the
--- incoming Resource Bars profile `p` would give the rows another look.
-function ns.ST_StyleChanged(p)
-    local key = BarsKey(p)
-    local st = type(p) == "table" and p.swingTimer
-    local keep = type(st) == "table" and st.keepEuiLook
-    local want = "eui"
-    if key ~= "eui" and keep ~= key then want = (key == "classic") and "classic" or "blizzard" end
-    return want ~= ns.ST_Style()
+    return ns.ERB_BarsStyle()
 end
 
 -- Under a stock style every row wears its own frame, whose rim reaches past

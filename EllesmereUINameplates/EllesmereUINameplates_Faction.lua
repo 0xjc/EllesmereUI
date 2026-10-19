@@ -65,7 +65,8 @@ local function Refresh(fp)
     b:SetFrameLevel(nameplate:GetFrameLevel() + 5)
     b:ClearAllPoints()
     b:SetPoint("RIGHT", fs, "LEFT", -2, 0)
-    -- Repaint only when the art or the dim changes (inputs: faction, Icon Style, dim).
+    -- Repaint only when the art or the dim changes (inputs: faction, Icon Style, honor
+    -- badge, dim).
     local style = ns.NP_GetFactionStyle()
     local badge = EllesmereUI.FactionBadgeFor(style, unit)
     if b.facArt ~= atlas or b.facStyle ~= style or b.facBadge ~= badge then

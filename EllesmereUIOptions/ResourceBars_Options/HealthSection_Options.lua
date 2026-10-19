@@ -594,7 +594,7 @@ function ns.ERB_BuildHealthSection(parent, y, ctx)
                   local isClassColored = not c or not c.customColored
                   return isClassColored and 1 or 0.3
               end },
-    }, { disabled = healthOff, disabledTooltip = "Health Bar" })
+    }, { size = 20, disabled = healthOff, disabledTooltip = "Health Bar" })
     end
     if not ctx.advanced and ctx.syncRows and not EllesmereUI._prebuilding then
         ctx.syncRows.healthOpacity = healthBorderRow._leftRegion

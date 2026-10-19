@@ -861,10 +861,6 @@ function ERB:OnEnable()
         end
         ns.ERB_SeedStockCast(cb)
     end
-    -- WoW Forever: the Swing Timer's look latches before the Classic seed,
-    -- timer on or off, so a profile whose Resource Bars style changed since
-    -- it kept the EllesmereUI look follows the style from here on.
-    if ns.ST_Style then ns.ST_Style() end
     -- The same for the bars: an unseeded profile keeps its own values in the
     -- EllesmereUI slot before the Classic seed writes over them.
     if ns.ERB_BarsClassic() then

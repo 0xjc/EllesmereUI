@@ -748,13 +748,20 @@ local function BuildDisplayLayout(parent, y, ctx)
             RefreshAllTextures()
             UpdatePreview()
           end }));  y = y - h
-    -- Textured Background cogs on the two texture dropdowns.
+    -- Textured Background cogs on the two texture dropdowns, greyed while
+    -- Blizzard Style draws its stock backgrounds (as Global Settings > Textures).
     if not EllesmereUI._prebuilding then
         local function TexBgApply() RefreshAllTextures(); UpdatePreview() end
-        EllesmereUI.BuildInlineCog(texRow._leftRegion, {
-            title = "Texture Settings", rows = { env.TexBgRowCfg("health", TexBgApply) } })
-        EllesmereUI.BuildInlineCog(texRow._rightRegion, {
-            title = "Texture Settings", rows = { env.TexBgRowCfg("cast", TexBgApply) } })
+        local blizz = ns.NP_BlizzOnly()
+        local function TexBgCog(rgn, kind)
+            EllesmereUI.BuildInlineCog(rgn, {
+                disabled = blizz and function() return true end or nil,
+                disabledTooltip = blizz and EllesmereUI.BlizzStyle.Label("nameplates") or nil,
+                requireState = blizz and "disabled" or nil,
+                title = "Texture Settings", rows = { env.TexBgRowCfg(kind, TexBgApply) } })
+        end
+        TexBgCog(texRow._leftRegion, "health")
+        TexBgCog(texRow._rightRegion, "cast")
     end
 
     -- WoW Forever variant only (the Forever client): Show Level Box, the

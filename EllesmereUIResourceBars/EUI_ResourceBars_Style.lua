@@ -156,9 +156,9 @@ end
 -- profile (the controls stay the user's afterwards): Border Around All on
 -- when the shown bars already sit as one anchored stack, and "Plating" as
 -- the bar texture (on the health and power keys too where a bar has its own
--- texture, and on WoW Forever's Swing Timer, under a stamp of its own and not
--- while it keeps the EllesmereUI look). Run by the Style page on the switch
--- and at enable for a profile that arrives already switched.
+-- texture, and on WoW Forever's Swing Timer, under a stamp of its own). Run by
+-- the Style page on the switch and at enable for a profile that arrives
+-- already switched.
 function ns.ERB_SeedStockBars(p, styleKey)
     local g = p and p.general
     if not g or styleKey ~= "classic" then return end
@@ -173,7 +173,7 @@ function ns.ERB_SeedStockBars(p, styleKey)
         end
     end
     local st = EllesmereUI.IS_FOREVER == true and p.swingTimer
-    if st and not st.classicTextureSeeded and st.keepEuiLook ~= "classic" then
+    if st and not st.classicTextureSeeded then
         st.classicTextureSeeded = true
         st.texture = "plating"
     end

@@ -1054,6 +1054,9 @@ function ns.BM_ApplyPreviewIndicators(f, index, s)
     s = f._bmPvS or s
     -- Party preview passes the party proxy as `s`; use the party scale.
     local iscale = ((s == ns._scaledPartyProxy) and ns._partyBmScale or ns._bmScale) or 1
+    -- The frames this preview stands for, which each indicator's Show In is
+    -- tested against as the live frames test it (ns.BM2_SpecIndicators).
+    local pvKind = (f._bmPvS or (s ~= nil and s == ns._scaledPartyProxy)) and "party" or "raid"
 
     -- Hide all first (reset cooldowns so they re-apply fresh)
     for _, fr in ipairs(iconPool) do
@@ -1128,7 +1131,14 @@ function ns.BM_ApplyPreviewIndicators(f, index, s)
         -- Shared per-indicator preview synthesis; idOffset shifts INHERITED
         -- copies into their display id range (BM_INH_OFFSETS) so ids stay
         -- unique for the anchor pass, selection highlight and click-resolve.
-        local function AppendPv(ind, idOffset)
+        -- list = the indicator's own bucket, where its Anchor To root lives.
+        local function AppendPv(ind, idOffset, list)
+            -- Show In: left out where the live frames of this kind leave it out.
+            local showIn = ns.BM2_EffectiveShowIn and ns.BM2_EffectiveShowIn(ind, list)
+            if (showIn == "raid" and pvKind == "party")
+                or (showIn == "party" and pvKind ~= "party") then
+                return
+            end
             local resolved
             if ns.BM2_ResolveSpells then
                 resolved = ns.BM2_ResolveSpells(ind)
@@ -1181,7 +1191,7 @@ function ns.BM_ApplyPreviewIndicators(f, index, s)
         end
         local inds = ns.BM2_SpecInds(activeSpecKey)
         if inds then
-            for i = 1, #inds do AppendPv(inds[i], nil) end
+            for i = 1, #inds do AppendPv(inds[i], nil, inds) end
         end
         -- Concrete views union the inherited group buckets, so the preview
         -- matches what the spec actually renders; per-spec disabled entries
@@ -1197,7 +1207,7 @@ function ns.BM_ApplyPreviewIndicators(f, index, s)
                         local gind = ginds[i]
                         if not (ns.BM2_InhDisabled
                             and ns.BM2_InhDisabled(activeSpecKey, gkey, gind.id)) then
-                            AppendPv(gind, off)
+                            AppendPv(gind, off, ginds)
                         end
                     end
                 end
@@ -2012,13 +2022,14 @@ function ns.BM_BuildSimplePreview(parent, s, fontPath, PP, centerX, topY, opts)
 end
 
 -- Which frames a condition group can apply on: raid (raid, battleground),
--- party (dungeon, arena, solo). Keybind and Dark Mode hold wherever the player
--- is, so a group with either reaches both; neither when it has no condition.
+-- party (dungeon, arena, solo, party). Keybind and Dark Mode hold wherever the
+-- player is, so a group with either reaches both; neither when it has no
+-- condition.
 function ns.BM_CondSides(g)
     local c = g and g.conds or {}
     if c.keybind or c.darkmode then return true, true end
     return (c.raid or c.battleground) and true or false,
-        (c.dungeon or c.arena or c.solo) and true or false
+        (c.dungeon or c.arena or c.solo or c.party) and true or false
 end
 
 -- The preview side an override editing session pins ("raid" | "party"): a
@@ -2161,23 +2172,18 @@ end
 -- after a group is renamed, re-specced or deleted. Merged into any existing entry.
 do
     local reg = EllesmereUI.SpecOverrides_GroupListingPages
-    if reg then
-        local pages = reg.EllesmereUIRaidFrames or {}
-        pages["Buff Manager"], pages["Debuff Manager"] = true, true
-        reg.EllesmereUIRaidFrames = pages
-    end
+    local pages = reg.EllesmereUIRaidFrames or {}
+    pages["Buff Manager"], pages["Debuff Manager"] = true, true
+    reg.EllesmereUIRaidFrames = pages
 end
 
 function ns.BM_BuildOverrideList(parent, y, width, fontPath, kind)
-    local owners = EllesmereUI.SpecOverrides_ManagerForkOwners
-    if not owners then return y end
-    local specGids, condGids = owners(kind)
+    local specGids, condGids = EllesmereUI.SpecOverrides_ManagerForkOwners(kind)
     if #specGids + #condGids == 0 then return y end
     -- The fork live on this page (session-applied conditional first).
-    local liveKind, liveGid
     local lockInfo = (kind == "dm") and EllesmereUI.SpecOverrides_DmPageLockInfo
         or EllesmereUI.SpecOverrides_BmPageLockInfo
-    if lockInfo then liveKind, liveGid = lockInfo() end
+    local liveKind, liveGid = lockInfo()
     local ovList = {}
     for i = 1, #specGids do
         local g = EllesmereUI.SpecOverrides_GroupById(specGids[i])
@@ -2220,25 +2226,16 @@ function ns.BM_BuildOverrideList(parent, y, width, fontPath, kind)
     local gold = EllesmereUI._SPECOV_GOLD
     for i = 1, #ovList do
         local ov = ovList[i]
-        local function onClick()
-            if EllesmereUI.SpecOverrides_ToggleOverrideEdit then
-                EllesmereUI.SpecOverrides_ToggleOverrideEdit(ov.kind, ov.gid)
-            end
-        end
         local tileH = EllesmereUI.BuildManagerTile(parent, y, {
             width = width, fontPath = fontPath, height = 58, textRight = -28,
             editSize = 14, editSnap = true,
             title = ov.name,
             subtitle = EllesmereUI.L(ov.kind == "spec" and "Spec" or "Conditional"),
-            iconApply = applyIcon and function(tex) applyIcon(tex, ov.icon) end,
+            iconApply = function(tex) applyIcon(tex, ov.icon) end,
             selected = ov.active,
             statusDot = ov.active and gold or nil,
-            onSelect = onClick,
-            onEdit = function()
-                if EllesmereUI.SpecOverrides_EditOverrideGroup then
-                    EllesmereUI.SpecOverrides_EditOverrideGroup(ov.kind, ov.gid)
-                end
-            end,
+            onSelect = function() EllesmereUI.SpecOverrides_ToggleOverrideEdit(ov.kind, ov.gid) end,
+            onEdit = function() EllesmereUI.SpecOverrides_EditOverrideGroup(ov.kind, ov.gid) end,
         })
         y = y - tileH
     end

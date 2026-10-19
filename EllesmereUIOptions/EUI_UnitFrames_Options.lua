@@ -107,9 +107,7 @@ function ns.UF_ClassicCastBorderRow(W, parent, y, getS, key, onChange, sync, mat
                 if t then t[ns.UF_CastClassicKey(units[i])] = v end
             end
             sync.reload()
-            if EllesmereUI.ReapplyMatchPads then
-                for i = 1, #units do EllesmereUI.ReapplyMatchPads(units[i] .. "Castbar") end
-            end
+            for i = 1, #units do EllesmereUI.ReapplyMatchPads(units[i] .. "Castbar") end
             EllesmereUI:RefreshPage()
         end
         EllesmereUI.BuildSyncIcon({

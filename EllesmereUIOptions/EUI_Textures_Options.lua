@@ -471,7 +471,7 @@ local function TileRaidFrames(parent, y, W, tile)
     local healAbsorbStyleOrder = { "none", "healBlizzModern", "striped", "stripedReversed", "stripedThick", "stripedThickR", "clean", "blizzard", "largeOutlinedStripes", "largeOutlinedStripesR", "largeStripes", "largeStripesR", "blizzardRaid", "pixelsShield" }
     local maxHealthStyleOrder = { "none", "maxHealthStripes", "striped", "stripedReversed", "stripedThick", "stripedThickR", "clean", "blizzard", "healBlizzModern", "largeOutlinedStripes", "largeOutlinedStripesR", "largeStripes", "largeStripesR", "blizzardRaid", "pixelsShield" }
     AppendSmTail(absorbStyleValues, { absorbStyleOrder, healAbsorbStyleOrder, maxHealthStyleOrder }, ns.healthBarTextureNames, ns.healthBarTextureOrder)
-    -- Default Blizz Frames' swatch draws its in-game compound (see the Group Frames page).
+    -- Default Blizz Frames' swatch draws its in-game compound (see the Raid & Party Frames page).
     local modernSwatch = { base = { 0.776, 0.784, 1.0 }, tint = { 0.569, 0.588, 1.0 }, tile = true }
     absorbStyleValues._menuOpts = {
         itemHeight = 28,
@@ -504,7 +504,7 @@ local function TileRaidFrames(parent, y, W, tile)
           end,
           setValue = function(v)
               local p = db(); if not p then return end
-              -- Blizzard Glow Line follows the pick (see the Group Frames page).
+              -- Blizzard Glow Line follows the pick (see the Raid & Party Frames page).
               if v == "blizzardModern" then
                   p.absorbGlowLine = true
               elseif p.absorbStyle == "blizzardModern" then

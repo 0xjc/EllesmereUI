@@ -1067,40 +1067,55 @@ function ns.ApplyCastBarTexture(plate)
     -- A path swap mints a new fill object: it joins the rounded body.
     if plate._npRounded then ns.NP_ApplyRounding(plate, "cast") end
 end
--- Textured Background (Bar Texture / Cast Bar Texture cogs; off by default): a
--- bar's background takes the bar texture, tinted by the background colour. While
--- on, the background's own SetColorTexture tints the texture, so the colour rows'
--- live repaints keep it; off puts the flat colour back. The enemy appearance pass
--- runs this (friendly plates never do); Blizzard Style draws its own art there.
+-- Bar backgrounds, painted on every enemy appearance pass so a profile switch or
+-- an override reaches live plates: the Background / Cast Background colours, and
+-- Textured Background (Bar Texture / Cast Bar Texture cogs; off by default),
+-- which puts the bar texture there tinted by that colour. While textured, a
+-- background's own SetColorTexture tints the texture, so the colour rows' live
+-- repaints keep it: paint these backgrounds only through SetColorTexture
+-- (SetTexture / SetAtlas go around it). Blizzard Style draws its stock art there.
 do
-    local function PaintTinted(self, r, g, b, a)
-        self:SetVertexColor(r, g, b, a)
+    local function PaintTinted(self, r, g, b, a) self:SetVertexColor(r, g, b, a) end
+    -- A background's texture path in settings s (nil = flat); the options
+    -- preview shares it.
+    function ns.NP_TexBgPath(s, cast)
+        if not (s and s[cast and "castTextureBg" or "healthTextureBg"]) then return nil end
+        return EllesmereUI.ResolveTexturePath(ns.healthBarTextures,
+            s[cast and "castBarTexture" or "healthBarTexture"] or "none", nil)
     end
-    local function Apply(bg, on, texKey, c, a)
-        if not bg then return end
-        local path = on and EllesmereUI.ResolveTexturePath(ns.healthBarTextures, texKey or "none", nil)
+    -- One paint of a background that is never swapped (the options preview).
+    function ns.NP_TexBgPaint(tex, path, r, g, b, a)
+        if path then
+            tex:SetTexture(path)
+            tex:SetVertexColor(r, g, b, a)
+            tex._npTexBgPath = path
+            return
+        end
+        if tex._npTexBgPath then
+            tex._npTexBgPath = nil
+            tex:SetVertexColor(1, 1, 1, 1)
+        end
+        tex:SetColorTexture(r, g, b, a)
+    end
+    local function Paint(bg, path, c, a)
         if path then
             if bg._npTexBgPath ~= path then
                 bg:SetTexture(path)
                 bg._npTexBgPath = path
             end
             bg.SetColorTexture = PaintTinted
-            bg:SetColorTexture(c.r, c.g, c.b, a)
         elseif bg._npTexBgPath then
             bg._npTexBgPath = nil
             bg.SetColorTexture = nil
             bg:SetVertexColor(1, 1, 1, 1)
-            bg:SetColorTexture(c.r, c.g, c.b, a)
         end
+        bg:SetColorTexture(c.r, c.g, c.b, a)
     end
-    function ns.NP_TexBgApply(plate)
-        local hOn, cOn = p and p.healthTextureBg, p and p.castTextureBg
-        if not (hOn or cOn or plate._npTexBgSeen) then return end
+    function ns.ApplyBarBackgrounds(plate)
         if ns.NP_Style() == "blizzard" then return end
-        plate._npTexBgSeen = true
-        Apply(plate.healthBG, hOn, p and p.healthBarTexture,
+        Paint(plate.healthBG, ns.NP_TexBgPath(p, false),
             (p and p.bgColor) or defaults.bgColor, (p and p.bgAlpha) or defaults.bgAlpha)
-        Apply(plate.castBG, cOn, p and p.castBarTexture,
+        Paint(plate.castBG, ns.NP_TexBgPath(p, true),
             (p and p.castBgColor) or defaults.castBgColor, (p and p.castBgAlpha) or defaults.castBgAlpha)
     end
 end

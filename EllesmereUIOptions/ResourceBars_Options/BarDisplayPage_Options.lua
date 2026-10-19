@@ -570,9 +570,7 @@ function ns.ERB_BuildBarDisplayPage(pageName, parent, yOffset)
                   end
                   Refresh()
                   -- The size-match pads follow the shared scale.
-                  if EllesmereUI.ReapplyMatchPads then
-                      for i = 1, #CLASSIC_MATCH_KEYS do EllesmereUI.ReapplyMatchPads(CLASSIC_MATCH_KEYS[i]) end
-                  end
+                  for i = 1, #CLASSIC_MATCH_KEYS do EllesmereUI.ReapplyMatchPads(CLASSIC_MATCH_KEYS[i]) end
                   EllesmereUI:RefreshPage()
               end }
     end
@@ -900,8 +898,11 @@ function ns.ERB_BuildBarDisplayPage(pageName, parent, yOffset)
     -- Row 7: Power Type override (spec-dependent, like UF Power Type dropdown). Hidden with the rest of the Power section while the bar is off.
     if DB().primary.enabled then
         local _, playerClass = UnitClass("player")
+        -- A spec's third label is an extra choice ("always": Balance's Mana in
+        -- every form); tip = the row's tooltip for the class.
         local SPEC_POWER_ALTS = {
-            DRUID  = { [1] = { "Mana (Match Form)", "Astral Power", "Mana (Always)" }, [2] = { "Energy", "Mana" }, [3] = { "Rage", "Mana" } },
+            DRUID  = { [1] = { "Mana (Match Form)", "Astral Power", "Mana (Always)" }, [2] = { "Energy", "Mana" }, [3] = { "Rage", "Mana" },
+                       tip = "The first choice follows your form: Energy in Cat Form, Rage in Bear Form and Mana in the others. The other choices keep their power in every form." },
             PRIEST = { [3] = { "Mana", "Insanity" } },
             SHAMAN = { [1] = { "Mana", "Maelstrom" } },
             EVOKER = { [3] = { "Ebon Might", "Mana" } },
@@ -914,10 +915,10 @@ function ns.ERB_BuildBarDisplayPage(pageName, parent, yOffset)
             if data then
                 local ptValues = { ["default"] = data[1], ["alt"] = data[2], ["always"] = data[3] }
                 local ptOrder  = { "default", "alt" }
-				if data[3] then ptOrder[3] = "always" end
+                if data[3] then ptOrder[3] = "always" end
                 local powerTypeRow
                 powerTypeRow, h = W:DualRow(parent, y,
-                    { type="dropdown", text="Power Type",
+                    { type="dropdown", text="Power Type", tooltip = classAlts.tip,
                       values = ptValues, order = ptOrder,
                       -- Stored by SPEC ID, not the GetSpecialization() index:
                       -- one profile holds one set, so an index key collides
@@ -932,7 +933,7 @@ function ns.ERB_BuildBarDisplayPage(pageName, parent, yOffset)
                           if not sid then return "default" end
                           local p = DB(); if not p then return "default" end
                           local ov = p.primary.powerTypeOverride
-						  if ov and ov[sid] == "mana" then return "always" end
+                          if ov and ov[sid] == "mana" then return "always" end
                           if ov and ov[sid] then return "alt" end
                           return "default"
                       end,
@@ -946,9 +947,9 @@ function ns.ERB_BuildBarDisplayPage(pageName, parent, yOffset)
                           if v == "alt" then
                               if not p.primary.powerTypeOverride then p.primary.powerTypeOverride = {} end
                               p.primary.powerTypeOverride[sid] = true
-						  elseif v == "always" then
-							  if not p.primary.powerTypeOverride then p.primary.powerTypeOverride = {} end
-							  p.primary.powerTypeOverride[sid] = "mana"   	  
+                          elseif v == "always" then
+                              if not p.primary.powerTypeOverride then p.primary.powerTypeOverride = {} end
+                              p.primary.powerTypeOverride[sid] = "mana"
                           else
                               if p.primary.powerTypeOverride then p.primary.powerTypeOverride[sid] = nil end
                           end

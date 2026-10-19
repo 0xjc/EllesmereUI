@@ -56,12 +56,10 @@ function ns.ERB_ClassicBorderSizeCfg(cfgFn, offFn, offTip, rebuild, matchKey)
                 for i = 1, #CLASSIC_SYNC_KEYS do p[CLASSIC_SYNC_KEYS[i]].stockBorderScale = v end
             end
             rebuild()
-            if EllesmereUI.ReapplyMatchPads then
-                if all then
-                    for i = 1, #CLASSIC_MATCH_KEYS do EllesmereUI.ReapplyMatchPads(CLASSIC_MATCH_KEYS[i]) end
-                else
-                    EllesmereUI.ReapplyMatchPads(matchKey)
-                end
+            if all then
+                for i = 1, #CLASSIC_MATCH_KEYS do EllesmereUI.ReapplyMatchPads(CLASSIC_MATCH_KEYS[i]) end
+            else
+                EllesmereUI.ReapplyMatchPads(matchKey)
             end
             EllesmereUI:RefreshPage()
         end,
@@ -116,9 +114,7 @@ function ns.ERB_ClassicBorderSync(region, dbFn, key, refresh, flashFn)
             local v = p[key].stockBorderScale
             for i = 1, #CLASSIC_SYNC_KEYS do p[CLASSIC_SYNC_KEYS[i]].stockBorderScale = v end
             refresh()
-            if EllesmereUI.ReapplyMatchPads then
-                for i = 1, #CLASSIC_MATCH_KEYS do EllesmereUI.ReapplyMatchPads(CLASSIC_MATCH_KEYS[i]) end
-            end
+            for i = 1, #CLASSIC_MATCH_KEYS do EllesmereUI.ReapplyMatchPads(CLASSIC_MATCH_KEYS[i]) end
             EllesmereUI:RefreshPage()
         end,
         isSynced = function()
