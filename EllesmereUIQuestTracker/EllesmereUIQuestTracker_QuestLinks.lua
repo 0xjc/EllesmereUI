@@ -4,6 +4,7 @@ local EQT = ns.EQT
 
 ns.QT_DEFAULTS.profile.questTracker.wowheadQuestLinks = false
 ns.QT_DEFAULTS.profile.questTracker.wowheadQuestComments = false
+ns.QT_DEFAULTS.profile.questTracker.wowheadQuestClientLanguage = false
 
 local site = EllesmereUI.IS_FOREVER and "forever/"
     or (WOW_PROJECT_ID == WOW_PROJECT_MAINLINE and "" or "classic/")
@@ -17,14 +18,21 @@ local function AddQuestLink(owner, root)
         or questID <= 0 or questID ~= math.floor(questID) then return end
     -- ModifyMenu also visits its last generated description when registered.
     addedMenus[root] = true
-    local url = "https://www.wowhead.com/" .. site .. "quest=" .. string.format("%.0f", questID) .. "/"
+    local questPath = site .. "quest=" .. string.format("%.0f", questID) .. "/"
     root:CreateDivider()
     root:CreateButton(EllesmereUI.L("Wowhead Link"), function()
         if not EQT.Cfg("wowheadQuestLinks") then return end
+        local locale = ""
+        if EQT.Cfg("wowheadQuestClientLanguage") then
+            locale = ({ deDE="de/", ptBR="pt/", esES="es/", esMX="mx/",
+                frFR="fr/", itIT="it/", ruRU="ru/", zhTW="tw/", zhCN="cn/",
+                koKR="ko/" })[GetLocale()] or ""
+        end
         EllesmereUI:ShowInputPopup({
             title = EllesmereUI.L("Wowhead Link"),
             message = EllesmereUI.L("Press Ctrl+C to copy, then paste the link into your browser."),
-            initialText = url .. (EQT.Cfg("wowheadQuestComments") and "#comments" or ""),
+            initialText = "https://www.wowhead.com/" .. locale .. questPath
+                .. (EQT.Cfg("wowheadQuestComments") and "#comments" or ""),
             maxLetters = 256,
             confirmText = EllesmereUI.L("Close"),
             cancelText = EllesmereUI.L("Cancel"),

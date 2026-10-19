@@ -8321,3 +8321,4 @@ L["Press Ctrl+C to copy, then paste the link into your browser."] = "Mit Strg+C 
 
 L["Wowhead Link Settings"] = "Wowhead-Link-Einstellungen"
 L["Jump to Comments"] = "Direkt zu Kommentaren"
+L["Use Client Language"] = "Client-Sprache verwenden"

@@ -30,6 +30,8 @@ local function RunCase(forever, project, site)
     assert(loadfile(path))("EllesmereUIQuestTracker", ns)
     for key, value in pairs(ns.QT_DEFAULTS.profile.questTracker) do cfg[key] = value end
     assert(cfg.wowheadQuestLinks == false and cfg.wowheadQuestComments == false)
+    assert(cfg.wowheadQuestClientLanguage == false)
+    GetLocale = function() error("Locale must not be queried unless enabled") end
     ns.EQT.ApplyQuestLinks()
     assert(registrations == 0 and popup == nil, "disabled feature must be inert")
     cfg.wowheadQuestLinks = true
@@ -67,6 +69,23 @@ local function RunCase(forever, project, site)
         cfg.wowheadQuestComments = false
         click()
         assert(popup.initialText == base)
+
+        for locale, prefix in pairs({ deDE="de/", ptBR="pt/", esES="es/", esMX="mx/",
+            frFR="fr/", itIT="it/", ruRU="ru/", zhTW="tw/", zhCN="cn/",
+            koKR="ko/", enUS="", enGB="", unknown="" }) do
+            GetLocale = function() return locale end
+            cfg.wowheadQuestClientLanguage = true
+            for _, comments in ipairs({ false, true }) do
+                cfg.wowheadQuestComments = comments
+                click()
+                assert(popup.initialText == "https://www.wowhead.com/" .. prefix .. site
+                    .. "quest=98025/" .. (comments and "#comments" or ""))
+            end
+            cfg.wowheadQuestClientLanguage = false
+            cfg.wowheadQuestComments = false
+            click()
+            assert(popup.initialText == base)
+        end
 
         -- Disabling/profile changes must remove both callbacks and gate stale clicks.
         cfg.wowheadQuestLinks = false

@@ -611,6 +611,9 @@ initFrame:SetScript("OnEvent", function(self)
             disabled = function() return not Cfg("wowheadQuestLinks") end,
             disabledTooltip = "Wowhead Quest Links",
             rows = {
+                { type="toggle", label="Use Client Language",
+                  get=function() return Cfg("wowheadQuestClientLanguage") == true end,
+                  set=function(v) Set("wowheadQuestClientLanguage", v) end },
                 { type="toggle", label="Jump to Comments",
                   get=function() return Cfg("wowheadQuestComments") == true end,
                   set=function(v) Set("wowheadQuestComments", v) end },
