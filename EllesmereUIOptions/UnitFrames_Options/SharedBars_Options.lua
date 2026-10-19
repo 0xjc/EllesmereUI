@@ -2287,7 +2287,8 @@ function ns.UFO_BuildPowerBarSection(parent, y, ctx)
               end }
         local _, playerClass = UnitClass("player")
         if playerClass == "DRUID" then
-            _, h = W:DualRow(parent, y,
+            local powerTypeRow
+            powerTypeRow, h = W:DualRow(parent, y,
                 -- Mana + Form Power: Mana plus foreverFormBar (a second bar
                 -- with the form's power, EUI_UnitFrames_ForeverFormBar.lua).
                 { type="dropdown", text="Power Type",
@@ -2312,6 +2313,29 @@ function ns.UFO_BuildPowerBarSection(parent, y, ctx)
                       ReloadAndUpdate()
                   end },
                 sparkCfg);  y = y - h
+            -- Cog: the Form Power bar's offsets. They re-place only that bar
+            -- (EUI_UnitFrames_ForeverFormBar.lua), not the whole frame.
+            if not EllesmereUI._prebuilding then
+                local function NoFormBar() return not SVal("foreverFormBar", false) end
+                local function SetFormBarOffset(key, v)
+                    SDB()[key] = v
+                    ns.UF_ForeverFormBarRelayout()
+                end
+                EllesmereUI.BuildInlineCog(powerTypeRow._leftRegion, {
+                    icon = EllesmereUI.RESIZE_ICON,
+                    disabled = NoFormBar,
+                    disabledTooltip = "Requires Power Type: Mana + Form Power.",
+                    title = "Form Power Bar",
+                    rows = {
+                        { type="slider", label="X Offset", min=-50, max=50, step=1,
+                          get=function() return SVal("foreverFormBarX", 0) end,
+                          set=function(v) SetFormBarOffset("foreverFormBarX", v) end },
+                        { type="slider", label="Y Offset", min=-50, max=50, step=1,
+                          get=function() return SVal("foreverFormBarY", 0) end,
+                          set=function(v) SetFormBarOffset("foreverFormBarY", v) end },
+                    },
+                })
+            end
         elseif EllesmereUI.ManaRegenSpark then
             _, h = W:DualRow(parent, y, sparkCfg, EllesmereUI.BlankRowCfg());  y = y - h
         end

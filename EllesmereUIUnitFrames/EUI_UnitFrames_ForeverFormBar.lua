@@ -193,13 +193,15 @@ local function Layout(frame, power, s)
     -- A stock look draws an attached power bar inside its frame art.
     local G = (not detached) and ns.UF_Blizz() and ns.UF_BlizzGeom(frame)
     local bs, c, h
+    -- Form Bar X / Y Offset (Power Type cog).
+    local ox, oy = s.foreverFormBarX or 0, s.foreverFormBarY or 0
     bar:ClearAllPoints()
     if G and G.power and G.vis and G.h then
         -- Just under the art, lined up with the power bar.
         bs, h = 1, G.power.h
         local drop = ns.UF_Forever() and FOREVER_RIM_DROP or 0
-        bar:SetPoint("TOPLEFT", power, "BOTTOMLEFT", 0, -drop)
-        bar:SetPoint("TOPRIGHT", power, "BOTTOMRIGHT", 0, -drop)
+        bar:SetPoint("TOPLEFT", power, "BOTTOMLEFT", ox, oy - drop)
+        bar:SetPoint("TOPRIGHT", power, "BOTTOMRIGHT", ox, oy - drop)
     else
         -- Against the power bar, overlapping by the border so the two share
         -- one line: the frame's border on an attached bar, its own when detached.
@@ -211,11 +213,11 @@ local function Layout(frame, power, s)
         h = power:GetHeight()
         local overlap = bs * PP.mult
         if pos == "above" or pos == "detached_top" then
-            bar:SetPoint("BOTTOMLEFT", power, "TOPLEFT", 0, -overlap)
-            bar:SetPoint("BOTTOMRIGHT", power, "TOPRIGHT", 0, -overlap)
+            bar:SetPoint("BOTTOMLEFT", power, "TOPLEFT", ox, oy - overlap)
+            bar:SetPoint("BOTTOMRIGHT", power, "TOPRIGHT", ox, oy - overlap)
         else
-            bar:SetPoint("TOPLEFT", power, "BOTTOMLEFT", 0, overlap)
-            bar:SetPoint("TOPRIGHT", power, "BOTTOMRIGHT", 0, overlap)
+            bar:SetPoint("TOPLEFT", power, "BOTTOMLEFT", ox, oy + overlap)
+            bar:SetPoint("TOPRIGHT", power, "BOTTOMRIGHT", ox, oy + overlap)
         end
     end
     bar:SetHeight(math.max(1, h or 1))
@@ -251,9 +253,15 @@ function ns.UF_ForeverFormBar(frame, power, s)
     bar:SetFrameLevel(power:GetFrameLevel() + 1)
     bar.border:SetFrameLevel(bar:GetFrameLevel() + 5)
     bar.textFrame:SetFrameLevel(bar:GetFrameLevel() + 6)
-    S.settings = s
+    S.settings, S.frame, S.power = s, frame, power
     Layout(frame, power, s)
     StyleText(s)
     evf:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
     Sync()
+end
+
+-- The offset sliders re-place only this bar: a full frame reload per slider
+-- step visibly rebuilds the player frame.
+function ns.UF_ForeverFormBarRelayout()
+    if S.on and S.bar then Layout(S.frame, S.power, S.settings) end
 end
