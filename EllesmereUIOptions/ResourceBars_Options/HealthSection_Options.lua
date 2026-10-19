@@ -827,5 +827,5 @@ function ns.ERB_BuildHealthSection(parent, y, ctx)
     -- Simple page: cover these controls when the current spec overrides Health in Advanced, so edits here aren't silently ignored.
     if not ctx.advanced then ns.ERB_SimpleOverrideOverlay(parent, _advTop, y, "health") end
 
-    return y
+    return y, hdr, healthEnableRow
 end
