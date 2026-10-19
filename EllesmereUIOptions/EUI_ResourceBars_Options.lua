@@ -237,11 +237,20 @@ initFrame:SetScript("OnEvent", function(self)
         local host = PoolGen(hdr) and _previewHintFS and _previewHintFS:GetParent()
         if host and host:GetParent() == hdr then host:Hide() end
     end
-    local function RehomeHint(page, other)
+    local function RehomeHint(page)
         local host = _previewHintFS and _previewHintFS:GetParent()
-        local hdr, away = _hintHdr[page], _hintHdr[other]
-        if not (host and hdr and away) or hdr == away then return end
-        if host:GetParent() == away then
+        local hdr = _hintHdr[page]
+        if not (host and hdr) then return end
+        -- The hint may sit on any other preview page's header.
+        local cur, away = host:GetParent(), nil
+        for other, oh in pairs(_hintHdr) do
+            if other ~= page then
+                if oh == hdr then return end
+                if oh == cur then away = oh end
+            end
+        end
+        if not away and cur ~= hdr then return end
+        if away then
             host:SetParent(hdr)
             host:SetFrameLevel(hdr:GetFrameLevel() + 1)
             _previewHintFS:ClearAllPoints()
@@ -343,6 +352,37 @@ initFrame:SetScript("OnEvent", function(self)
         tf:SetFrameLevel(bar:GetFrameLevel() + 10)
         bar._text = tf:CreateFontString(nil, "OVERLAY")
         return bar
+    end
+
+    -- A preview whose bar is off: dimmed like the page's greyed controls, and
+    -- its hit overlays hidden so no click leads to those rows. hits: optional.
+    function PreviewBar.Lock(frame, on, hits)
+        frame:SetAlpha(on and 1 or 0.3)
+        if hits then
+            for _, hit in ipairs(hits) do hit:SetShown(on) end
+        end
+    end
+
+    -- The click hint of the preview showing now: only while it has something to click.
+    -- hdr: that preview's header; the hint shows only once it sits there.
+    function PreviewBar.HintFor(on, hdr)
+        -- A dismissed hint is left to its fade (DismissPreviewHint).
+        if not _previewHintFS or IsPreviewHintDismissed() then return end
+        local host = _previewHintFS:GetParent()
+        _previewHintFS:SetShown(on and host and host:GetParent() == hdr or false)
+    end
+
+    -- Size the shown header for its preview (baseH) and the hint, only on a
+    -- change of at least one physical pixel (the header snaps to them).
+    -- Silent: a resize here must move the page down, not scroll it under the header.
+    function PreviewBar.SizeHeader(hdr, baseH)
+        -- The hint's dismiss fade sizes the header to this: never another page's.
+        _headerBaseH = baseH
+        local want = baseH + ((_previewHintFS and _previewHintFS:IsShown()) and 35 or 0)
+        local es = hdr:GetEffectiveScale()
+        local px = (es > 0) and ((EllesmereUI.PP and EllesmereUI.PP.perfect or 1) / es) or 1
+        if math.abs(hdr:GetHeight() - want) < px * 0.5 then return end
+        EllesmereUI:SetContentHeaderHeightSilent(want)
     end
 
     -- nil while the bar can show in the preview, else the eye's tooltip
@@ -4068,6 +4108,11 @@ initFrame:SetScript("OnEvent", function(self)
         pf.container:SetScale(_castBarPreviewScale * fitScale)
 
         pf.container:ClearAllPoints(); pf.container:SetPoint("CENTER", hdr, "CENTER", 0, 0)
+        -- Dimmed while the bar is off, like the page's greyed controls; no
+        -- click then leads to those rows.
+        local cbOn = cb.enabled and true or false
+        PreviewBar.Lock(pf.container, cbOn, pf.hits)
+        PreviewBar.HintFor(cbOn, hdr)
         -- Bar frame (sits beside the icon; iconOnRight puts the icon on the right)
         local iconOnRight = hasIcon and cb.iconOnRight
         pf.barFrame:SetSize(w, h)
@@ -4326,8 +4371,7 @@ initFrame:SetScript("OnEvent", function(self)
         ns.ReflowFontString(pf.spellText)
 
         -- Update header height: 80px preview + optional hint text
-        local hintH = (_previewHintFS and _previewHintFS:IsShown()) and 35 or 0
-        EllesmereUI:UpdateContentHeaderHeight(80 + hintH)
+        PreviewBar.SizeHeader(hdr, 80)
     end
 
     local _castBarPreviewBuilder = function(hdr, hdrW)
@@ -4505,25 +4549,30 @@ initFrame:SetScript("OnEvent", function(self)
         ns.ERB_CastTextColor(spellText, cb.spellTextR, cb.spellTextG, cb.spellTextB, cb.spellTextA)
         _castBarPreviewFrames.spellText = spellText
 
-        -- Create hit overlays for preview click-to-scroll
+        -- Create hit overlays for preview click-to-scroll (kept for the
+        -- bar-off state: dimmed, no clicks)
         wipe(_hitOverlays)
+        local hits = {}
+        pf.hits = hits
         local overlayLevel = container:GetFrameLevel() + 20
-        CreateHitOverlay(barFrame, "castBar", overlayLevel)
-        CreateHitOverlay(iconFrame, "castIcon", overlayLevel + 5)
+        hits[#hits + 1] = CreateHitOverlay(barFrame, "castBar", overlayLevel)
+        hits[#hits + 1] = CreateHitOverlay(iconFrame, "castIcon", overlayLevel + 5)
         if cb.showTimer then
             local ttHit = CreateFrame("Frame", nil, bar)
             ttHit:SetPoint("TOPLEFT", timerText, "TOPLEFT", -2, 2)
             ttHit:SetPoint("BOTTOMRIGHT", timerText, "BOTTOMRIGHT", 2, -2)
-            CreateHitOverlay(ttHit, "castTimer", overlayLevel + 5)
+            hits[#hits + 1] = CreateHitOverlay(ttHit, "castTimer", overlayLevel + 5)
         end
         if cb.showSpellText then
             local stHit = CreateFrame("Frame", nil, bar)
             stHit:SetPoint("TOPLEFT", spellText, "TOPLEFT", -2, 2)
             stHit:SetPoint("BOTTOMRIGHT", spellText, "BOTTOMRIGHT", 2, -2)
-            CreateHitOverlay(stHit, "castSpellText", overlayLevel + 5)
+            hits[#hits + 1] = CreateHitOverlay(stHit, "castSpellText", overlayLevel + 5)
         end
+        PreviewBar.Lock(container, cb.enabled and true or false, hits)
 
-        -- Hint text
+        -- Hint text: made even while the bar is off, shown only while it is on
+        -- (nothing to click otherwise), so switching the bar on can show it.
         local TOTAL_H = 80
         _headerBaseH = TOTAL_H
         local hintShown = not IsPreviewHintDismissed()
@@ -4543,8 +4592,8 @@ initFrame:SetScript("OnEvent", function(self)
             host:Show()
             _previewHintFS:ClearAllPoints()
             _previewHintFS:SetPoint("BOTTOM", hdr, "BOTTOM", 0, 20)
-            _previewHintFS:Show()
-            TOTAL_H = TOTAL_H + 35
+            _previewHintFS:SetShown(cb.enabled and true or false)
+            if cb.enabled then TOTAL_H = TOTAL_H + 35 end
         elseif _previewHintFS then
             _previewHintFS:Hide()
         end
@@ -4605,6 +4654,424 @@ initFrame:SetScript("OnEvent", function(self)
         SetCastBarPreviewFill = function(v) _castBarPreviewFill = v end,
     }
 
+    -- GCD Bar preview: one static mock of the bar at a random fill, styled
+    -- from p.gcdBar the way BuildGCDBar paints the live bar. Always
+    -- horizontal like the bar stack preview (Horizontal (Left) keeps its
+    -- fill direction); a vertical bar shows at its configured size laid flat.
+    do
+        local env = ns._ERB_OptEnv
+        local GCD_PREVIEW_H = 80
+
+        -- The shared preview hint on a GCD or Totem Bar header build, as the
+        -- Cast Bar header places it. Returns the height it adds.
+        -- Made even while the preview is off (shown only while on), so
+        -- switching the bar on can show it.
+        local function PlaceHint(hdr, on)
+            if IsPreviewHintDismissed() then
+                if _previewHintFS then _previewHintFS:Hide() end
+                return 0
+            end
+            if not _previewHintFS then
+                -- Held across builds and pages (module state): out of its header's pool.
+                local hintHost = PoolKeep(CreateFrame("Frame", nil, hdr))
+                hintHost:SetAllPoints(hdr)
+                _previewHintFS = EllesmereUI.MakeFont(hintHost, 11, nil, 1, 1, 1)
+                _previewHintFS:SetAlpha(0.45)
+                _previewHintFS:SetText(EllesmereUI.L("Click elements to scroll to and highlight their options"))
+            end
+            local host = _previewHintFS:GetParent()
+            host:SetParent(hdr)
+            host:SetFrameLevel(hdr:GetFrameLevel() + 1)
+            host:Show()
+            _previewHintFS:ClearAllPoints()
+            _previewHintFS:SetPoint("BOTTOM", hdr, "BOTTOM", 0, 20)
+            _previewHintFS:SetShown(on and true or false)
+            return on and 35 or 0
+        end
+
+        local gcdFill = 0.6
+        local pf = {}
+
+        -- building: the header build itself (it returns the height); any
+        -- other update resizes the shown header for the hint.
+        local function UpdateGCDPreview(building)
+            local p = DB()
+            if not (p and pf.bar) then return end
+            local g = p.gcdBar
+            local container = pf.container
+            local hdr = container:GetParent()
+
+            -- Scale down to fit when the bar is wider than the panel; snap on
+            -- the grid of that final scale.
+            local rawW = g.width or 220
+            local PAD = EllesmereUI.CONTENT_PAD or 10
+            local availW = ((pf.hdrW or hdr:GetWidth()) - PAD * 2) / pf.scale
+            local fitScale = 1
+            if rawW > availW and rawW > 0 and availW > 0 then fitScale = availW / rawW end
+            container:SetScale(pf.scale * fitScale)
+            local cScale = container:GetEffectiveScale()
+            if cScale <= 0 then cScale = 1 end
+            local function Snap(val)
+                return math.floor(val * cScale + 0.5) / cScale
+            end
+            local w, h = Snap(rawW), Snap(g.height or 12)
+            container:SetSize(w, h)
+            container:ClearAllPoints(); container:SetPoint("CENTER", hdr, "CENTER", 0, 0)
+            local on = g.enabled and true or false
+            PreviewBar.Lock(container, on, pf.hits)
+            if not building then
+                PreviewBar.HintFor(on, hdr)
+                PreviewBar.SizeHeader(hdr, GCD_PREVIEW_H)
+            end
+
+            -- Border + Bottom Separator, as BuildGCDBar
+            local bdr = pf.border
+            local bs = g.borderSize or 0
+            bdr:SetFrameLevel(g.borderBehind and math.max(0, container:GetFrameLevel() - 1) or (container:GetFrameLevel() + 5))
+            ns.ERB_AnchorBorderHost(bdr, container, ns.ERB_BorderExtents(g))
+            EllesmereUI.ApplyBorderStyle(bdr, bs,
+                g.borderR or 0, g.borderG or 0, g.borderB or 0, g.borderA or 1,
+                g.borderTexture or "solid", g.borderTextureOffset, g.borderTextureOffsetY,
+                g.borderTextureShiftX, g.borderTextureShiftY, "resourcebars", bs,
+                nil, EllesmereUI.BorderPx(g.borderSizePx, bs, g.borderTexture or "solid"))
+            ns.ERB_Separators(container, g, (g.edgeSep and ns.ERB_Textured(g)) and true or false,
+                container:GetFrameLevel() + 7)
+
+            -- Texture + background (Textured Background included)
+            local bar, bg = pf.bar, pf.bg
+            -- The live fill inset inside a border: one physical pixel, on this grid.
+            local inset = bs > 0 and (1 / cScale) or 0
+            bar:ClearAllPoints()
+            bar:SetPoint("TOPLEFT", container, "TOPLEFT", inset, -inset)
+            bar:SetPoint("BOTTOMRIGHT", container, "BOTTOMRIGHT", -inset, inset)
+            bar:SetStatusBarTexture(EllesmereUI.ResolveTexturePath(_G._ERB_BarTextures, g.texture, "Interface\\Buttons\\WHITE8x8"))
+            bg:SetTexture(nil)
+            bg:SetColorTexture(g.bgR, g.bgG, g.bgB, g.bgA)
+            if g.textureBg or bg._erbBgTex then
+                ns.ERB_BgTexture(bg, g.textureBg and EllesmereUI.ResolveTexturePath(_G._ERB_BarTextures, g.texture, nil),
+                    g.bgR, g.bgG, g.bgB, g.bgA)
+            end
+
+            local leftward = g.orientation == "HORIZONTAL_LEFT"
+            bar:SetReverseFill(leftward)
+            bar:SetValue(gcdFill)
+
+            -- Fill color / gradient
+            local fillTex = bar:GetStatusBarTexture()
+            local fR, fG, fB, fA = g.fillR, g.fillG, g.fillB, g.fillA or 1
+            if g.classColored then
+                local _, cf = UnitClass("player")
+                local cc = cf and CLASS_COLORS[cf]
+                if cc then fR, fG, fB = cc[1], cc[2], cc[3] end
+            end
+            if g.gradientEnabled then
+                fillTex:SetGradient(g.gradientDir or "HORIZONTAL", CreateColor(fR, fG, fB, fA),
+                    CreateColor(g.gradientR, g.gradientG, g.gradientB, g.gradientA or 1))
+            else
+                fillTex:SetVertexColor(fR, fG, fB, fA)
+            end
+
+            -- Spark on the fill's leading edge
+            local spark = pf.spark
+            if g.showSpark then
+                spark:SetSize(8, h)
+                spark:ClearAllPoints()
+                spark:SetPoint("CENTER", fillTex, leftward and "LEFT" or "RIGHT", 0, 0)
+                spark:Show()
+            else
+                spark:Hide()
+            end
+        end
+
+        env.UpdateGCDPreview = UpdateGCDPreview
+        env.SetGCDPreviewFill = function(v) gcdFill = v end
+
+        env._gcdPreviewBuilder = function(hdr, hdrW)
+            HintBuildStart(PAGE_GCD, hdr)
+            local p = DB()
+            if not p then return 0 end
+
+            -- Pixel sizes match the live bar: the panel's scale against UIParent's.
+            pf.scale = UIParent:GetEffectiveScale() / hdr:GetEffectiveScale()
+
+            local container = CreateFrame("Frame", nil, hdr)
+            container:SetPoint("CENTER", hdr, "CENTER", 0, 0)
+            container:SetScale(pf.scale)
+            pf.container = container
+
+            local bg = container:CreateTexture(nil, "BACKGROUND")
+            bg:SetAllPoints()
+            pf.bg = bg
+
+            local bar = CreateFrame("StatusBar", nil, container)
+            bar:SetMinMaxValues(0, 1)
+            bar:SetOrientation("HORIZONTAL")
+            bar:SetRotatesTexture(false)
+            bar:SetFrameLevel(container:GetFrameLevel() + 1)
+            pf.bar = bar
+
+            local spark = bar:CreateTexture(nil, "OVERLAY", nil, 1)
+            spark:SetTexture(ns.SPARK_TEX or "Interface\\AddOns\\EllesmereUI\\media\\cast_spark.tga")
+            spark:SetBlendMode("ADD")
+            pf.spark = spark
+
+            local bdrFrame = CreateFrame("Frame", nil, container)
+            bdrFrame:SetAllPoints(container)
+            pf.border = bdrFrame
+
+            wipe(_hitOverlays)
+            pf.hits = { CreateHitOverlay(container, "gcdBar", container:GetFrameLevel() + 20) }
+
+            -- Width is known only once hdr is laid out: fit against hdrW for this pass.
+            pf.hdrW = hdrW
+            UpdateGCDPreview(true)
+            pf.hdrW = nil
+
+            _headerBaseH = GCD_PREVIEW_H
+            return GCD_PREVIEW_H + PlaceHint(hdr, p.gcdBar.enabled)
+        end
+
+        env.RestoreGCDPreview = function()
+            gcdFill = math.random(30, 85) / 100
+            -- Header shown again from the cache: take the hint back before the update sizes it.
+            if not IsPreviewHintDismissed() then RehomeHint(PAGE_GCD) end
+            UpdateGCDPreview()
+        end
+
+        -- Totem Bar preview: sample icons in the Totem Bar layout (Icon Size,
+        -- Spacing, Orientation, border, timer), static like the Cast Bar's.
+        -- WoW Forever shamans with the Call Totem Bar on get its six buttons
+        -- as a second group below. No swipe: the timers stand still.
+        -- Header height: at least TOTEM_PREVIEW_H, the stack plus TOTEM_PREVIEW_VPAD, at most TOTEM_PREVIEW_MAXH.
+        local TOTEM_PREVIEW_H, TOTEM_PREVIEW_VPAD, TOTEM_PREVIEW_MAXH = 80, 40, 260
+        local TOTEM_ICONS = {
+            { tex = "Interface\\Icons\\Spell_Nature_StoneSkinTotem", timer = "24" },
+            { tex = "Interface\\Icons\\Spell_Fire_SearingTotem", timer = "11" },
+            { tex = "Interface\\Icons\\Spell_Nature_ManaRegenTotem", timer = "52" },
+            { tex = "Interface\\Icons\\Spell_Nature_Windfury", timer = "7" },
+        }
+        local CALL_ICONS = {
+            { tex = "Interface\\Icons\\Spell_Shaman_DropAll_01" },
+            { tex = "Interface\\Icons\\Spell_Nature_StoneSkinTotem" },
+            { tex = "Interface\\Icons\\Spell_Fire_SearingTotem", timer = "5" },
+            { tex = "Interface\\Icons\\Spell_Nature_ManaRegenTotem" },
+            { tex = "Interface\\Icons\\Spell_Nature_Windfury", timer = "18" },
+            { tex = "Interface\\Icons\\Spell_Shaman_TotemRecall" },
+        }
+        -- Each group: key (profile table), icons, zoom (the live crop), map
+        -- keys for the hit overlays.
+        local TOTEM_GROUPS = {
+            { key = "totemBar", icons = TOTEM_ICONS, zoom = 0.055, mapIcon = "totemIcon", mapTimer = "totemTimer" },
+            { key = "callTotemBar", icons = CALL_ICONS, zoom = 0.08, mapIcon = "callTotemIcon", mapTimer = "callTotemTimer" },
+        }
+        local tp = { groups = {} }
+
+        -- The Call Totem Bar group shows where its section does, while it is on.
+        local function CallTotemShown(p)
+            local c = p and p.callTotemBar
+            return ns.ERB_HasCallTotemSection() and c and c.enabled == true
+        end
+
+        -- building: the header build itself (it returns the height); any
+        -- other update resizes the shown header.
+        -- Something in the Totem preview takes a click (a group that is on).
+        local function TotemPreviewClickable()
+            for _, grp in ipairs(tp.groups) do
+                if grp.on then return true end
+            end
+            return false
+        end
+
+        local function UpdateTotemPreview(building)
+            local p = DB()
+            local container = tp.container
+            if not (p and container) then return end
+            -- The Call Totem Bar switched since the build (on this page, the
+            -- fast refresh rebuilds nothing; or elsewhere before a cache
+            -- restore): its group comes or goes with a rebuild.
+            if not building and #tp.groups ~= (CallTotemShown(p) and 2 or 1) then
+                EllesmereUI:RefreshPage(true)
+                return
+            end
+            local hdr = container:GetParent()
+
+            -- Group sizes in live units first: the fit scale (and with it the
+            -- pixel grid) is known only once the whole stack is measured.
+            local GAP = 10
+            local totalW, totalH, shown = 0, 0, 0
+            for gi, grp in ipairs(tp.groups) do
+                local t = p[TOTEM_GROUPS[gi].key]
+                grp.t = nil
+                if t then
+                    local n = #grp.icons
+                    local len = n * (t.iconSize or 30) + (n - 1) * (t.spacing or 2)
+                    local across = t.iconSize or 30
+                    local vertical = t.orientation == "VERTICAL"
+                    totalW = math.max(totalW, vertical and across or len)
+                    totalH = totalH + (vertical and len or across) + (shown > 0 and GAP or 0)
+                    shown = shown + 1
+                    grp.t = t
+                end
+            end
+
+            -- The header grows with the stack (a column, two groups) up to
+            -- TOTEM_PREVIEW_MAXH; past that, or past the panel width, it scales down.
+            local PAD = EllesmereUI.CONTENT_PAD or 10
+            local availW = ((tp.hdrW or hdr:GetWidth()) - PAD * 2) / tp.scale
+            local availH = (TOTEM_PREVIEW_MAXH - TOTEM_PREVIEW_VPAD) / tp.scale
+            local fit = 1
+            if totalW > availW and availW > 0 then fit = availW / totalW end
+            if totalH * fit > availH and availH > 0 then fit = availH / totalH end
+            container:SetScale(tp.scale * fit)
+            tp.baseH = math.max(TOTEM_PREVIEW_H, math.ceil(totalH * tp.scale * fit) + TOTEM_PREVIEW_VPAD)
+
+            local cScale = container:GetEffectiveScale()
+            if cScale <= 0 then cScale = 1 end
+            local function Snap(val)
+                return math.floor(val * cScale + 0.5) / cScale
+            end
+
+            local snapW, top = 0, 0
+            for gi, grp in ipairs(tp.groups) do
+                local t = grp.t
+                if t then
+                    local size = Snap(t.iconSize or 30)
+                    -- A set gap keeps at least one physical pixel when the stack is fitted down.
+                    local spacing = (t.spacing or 2) > 0 and math.max(1 / cScale, Snap(t.spacing or 2)) or 0
+                    local vertical = t.orientation == "VERTICAL"
+                    local n = #grp.icons
+                    local len = n * size + (n - 1) * spacing
+                    local gw, gh = len, size
+                    if vertical then gw, gh = size, len end
+                    grp.frame:SetSize(gw, gh)
+                    grp.frame:ClearAllPoints()
+                    grp.frame:SetPoint("TOP", container, "TOP", 0, -top)
+                    top = top + gh + GAP
+                    snapW = math.max(snapW, gw)
+                    local bs = t.borderSize or 0
+                    local texKey = t.borderTexture or "solid"
+                    local showTimer = t.showTimer ~= false
+                    -- The active totem bar shows only for the player's own class, as live.
+                    local on = true
+                    if gi == 1 then
+                        local ec = t.enabledClasses
+                        local _, cf = UnitClass("player")
+                        on = (ec and cf and ec[cf]) and true or false
+                    end
+                    grp.on = on
+                    for i, ic in ipairs(grp.icons) do
+                        ic:SetSize(size, size)
+                        ic:ClearAllPoints()
+                        local off = (i - 1) * (size + spacing)
+                        if vertical then
+                            ic:SetPoint("TOP", grp.frame, "TOP", 0, -off)
+                        else
+                            ic:SetPoint("LEFT", grp.frame, "LEFT", off, 0)
+                        end
+                        -- "Show Behind": +3 in front of the icon, level-1 behind it, as live.
+                        local bdr = ic._border
+                        bdr:SetFrameLevel(t.borderBehind and math.max(0, ic:GetFrameLevel() - 1) or (ic:GetFrameLevel() + 3))
+                        EllesmereUI.ApplyBorderStyle(bdr, bs,
+                            t.borderR or 0, t.borderG or 0, t.borderB or 0, t.borderA or 1,
+                            texKey, t.borderTextureOffset, t.borderTextureOffsetY,
+                            t.borderTextureShiftX, t.borderTextureShiftY, "resourcebars", bs,
+                            nil, EllesmereUI.BorderPx(t.borderSizePx, bs, texKey))
+                        local fs = ic._timer
+                        if fs then
+                            if showTimer then
+                                SetPVFont(fs, FONT_PATH, t.timerSize or 11, "resourceBars")
+                                fs:Show()
+                            else
+                                fs:Hide()
+                            end
+                        end
+                    end
+                    PreviewBar.Lock(grp.frame, on, grp.iconHits)
+                    for _, hit in ipairs(grp.timerHits) do hit:SetShown(on and showTimer) end
+                end
+            end
+            container:SetSize(math.max(1, snapW), math.max(1, top - GAP))
+            container:ClearAllPoints(); container:SetPoint("CENTER", hdr, "CENTER", 0, 0)
+
+            _headerBaseH = tp.baseH
+            if not building then
+                PreviewBar.HintFor(TotemPreviewClickable(), hdr)
+                PreviewBar.SizeHeader(hdr, tp.baseH)
+            end
+        end
+
+        env.UpdateTotemPreview = UpdateTotemPreview
+
+        env._totemPreviewBuilder = function(hdr, hdrW)
+            HintBuildStart(PAGE_TOTEM, hdr)
+            local p = DB()
+            if not p then return 0 end
+
+            -- Pixel sizes match the live bar: the panel's scale against UIParent's.
+            tp.scale = UIParent:GetEffectiveScale() / hdr:GetEffectiveScale()
+
+            local container = CreateFrame("Frame", nil, hdr)
+            container:SetPoint("CENTER", hdr, "CENTER", 0, 0)
+            container:SetScale(tp.scale)
+            tp.container = container
+
+            wipe(_hitOverlays)
+            wipe(tp.groups)
+            local overlayLevel = container:GetFrameLevel() + 20
+            -- The Call Totem Bar group is built only where it shows.
+            local nGroups = CallTotemShown(p) and 2 or 1
+            for gi = 1, nGroups do
+                local def = TOTEM_GROUPS[gi]
+                local frame = CreateFrame("Frame", nil, container)
+                frame:Show()
+                local grp = { frame = frame, icons = {}, timerHits = {} }
+                tp.groups[gi] = grp
+                grp.iconHits = { CreateHitOverlay(frame, def.mapIcon, overlayLevel) }
+                for i, d in ipairs(def.icons) do
+                    local ic = CreateFrame("Frame", nil, frame)
+                    local tex = ic:CreateTexture(nil, "ARTWORK")
+                    tex:SetAllPoints()
+                    tex:SetTexture(d.tex)
+                    tex:SetTexCoord(def.zoom, 1 - def.zoom, def.zoom, 1 - def.zoom)
+                    ic._border = CreateFrame("Frame", nil, ic)
+                    ic._border:SetAllPoints(ic)
+                    if d.timer then
+                        -- The live timer is the cooldown's countdown number: white, centred.
+                        local tf = CreateFrame("Frame", nil, ic)
+                        tf:SetAllPoints(ic)
+                        tf:SetFrameLevel(ic:GetFrameLevel() + 5)
+                        local fs = tf:CreateFontString(nil, "OVERLAY")
+                        SetPVFont(fs, FONT_PATH, 11, "resourceBars")
+                        fs:SetPoint("CENTER", ic, "CENTER", 0, 0)
+                        fs:SetTextColor(1, 1, 1, 1)
+                        fs:SetText(d.timer)
+                        ic._timer = fs
+                        -- Every timer leads to the timer settings, above the icon overlay.
+                        local hit = CreateFrame("Frame", nil, frame)
+                        hit:SetPoint("TOPLEFT", fs, "TOPLEFT", -2, 2)
+                        hit:SetPoint("BOTTOMRIGHT", fs, "BOTTOMRIGHT", 2, -2)
+                        CreateHitOverlay(hit, def.mapTimer, overlayLevel + 5)
+                        grp.timerHits[#grp.timerHits + 1] = hit
+                    end
+                    grp.icons[i] = ic
+                end
+            end
+
+            -- Width is known only once hdr is laid out: fit against hdrW for this pass.
+            tp.hdrW = hdrW
+            UpdateTotemPreview(true)
+            tp.hdrW = nil
+
+            return tp.baseH + PlaceHint(hdr, TotemPreviewClickable())
+        end
+
+        env.RestoreTotemPreview = function()
+            -- Header shown again from the cache: take the hint back before the update sizes it.
+            if not IsPreviewHintDismissed() then RehomeHint(PAGE_TOTEM) end
+            UpdateTotemPreview()
+        end
+    end
+
     -- Register the module
     EllesmereUI:RegisterModule("EllesmereUIResourceBars", {
         title       = "Resource Bars",
@@ -4630,6 +5097,10 @@ initFrame:SetScript("OnEvent", function(self)
                 return _previewHeaderBuilder
             elseif pageName == PAGE_CASTBAR then
                 return _castBarPreviewBuilder
+            elseif pageName == PAGE_GCD then
+                return ns._ERB_OptEnv._gcdPreviewBuilder
+            elseif pageName == PAGE_TOTEM then
+                return ns._ERB_OptEnv._totemPreviewBuilder
             end
             return nil
         end,
@@ -4655,7 +5126,7 @@ initFrame:SetScript("OnEvent", function(self)
                     if dismissed then
                         _previewHintFS:Hide()
                     else
-                        RehomeHint(PAGE_DISPLAY, PAGE_CASTBAR)
+                        RehomeHint(PAGE_DISPLAY)
                         _previewHintFS:SetAlpha(0.45)
                         _previewHintFS:Show()
                         if _previewHintFS:GetParent() then _previewHintFS:GetParent():Show() end
@@ -4669,8 +5140,12 @@ initFrame:SetScript("OnEvent", function(self)
                 -- Randomize cast bar preview fill each time the tab is opened
                 _castBarPreviewFill = math.random(30, 85) / 100
                 -- Before the preview update: it sizes the header for the hint.
-                if not IsPreviewHintDismissed() then RehomeHint(PAGE_CASTBAR, PAGE_DISPLAY) end
+                if not IsPreviewHintDismissed() then RehomeHint(PAGE_CASTBAR) end
                 UpdateCastBarPreview()
+            elseif pageName == PAGE_GCD then
+                ns._ERB_OptEnv.RestoreGCDPreview()
+            elseif pageName == PAGE_TOTEM then
+                ns._ERB_OptEnv.RestoreTotemPreview()
             end
         end,
         onReset = function()
