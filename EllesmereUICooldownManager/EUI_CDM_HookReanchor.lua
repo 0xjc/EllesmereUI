@@ -2353,9 +2353,6 @@ local function CollectAndReanchor()
         ns._cdmUnresolvedRetries = 0
     end
 
-    -- Claims just settled: retire the proc-alert child map so the next alert
-    -- rebuilds it against the fresh claim set.
-    if ns._cdmClaimGen then ns._cdmClaimGen = ns._cdmClaimGen + 1 end
     if ns.RefreshStaleCDMKeybinds then ns.RefreshStaleCDMKeybinds() end
     -- A flipped Show When Missing icon whose bar Phase 2 did not reach.
     if next(ns._missingFlipBars) then
