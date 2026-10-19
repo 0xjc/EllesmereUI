@@ -301,6 +301,7 @@ local DEFAULTS = {
             useClassicStyle = false,
             alwaysShow    = false,  -- keep the bar on screen (sitting empty) while nothing is being cast
             showIcon      = true,
+            iconOnPortrait = false,
             iconOnRight   = false,  -- attach the spell icon to the right of the bar instead of the left
             showIconDivider = false,  -- draw a 1px divider at the icon/bar seam (interior seam has no border otherwise)
             iconSize      = 0,  -- 0 = the bar height
