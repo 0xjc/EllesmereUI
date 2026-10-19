@@ -182,9 +182,10 @@ local function StyleText(s)
     fs:Show()
 end
 
--- WoW Forever: the art under the bars ends at the power track's rim (its
--- vis.b is the level badge's, far lower), so the bar drops just past the rim.
-local FOREVER_RIM_DROP = 3
+-- WoW Forever and Classic WoW UI: the art under the bars ends at the power
+-- track's rim (their vis.b is the level badge's or portrait ring's, far
+-- lower), so the bar drops just past the rim.
+local FOREVER_RIM_DROP, CLASSIC_RIM_DROP = 3, 0
 
 local function Layout(frame, power, s)
     local bar, PP = S.bar, EllesmereUI.PP
@@ -197,7 +198,8 @@ local function Layout(frame, power, s)
     if G and G.power and G.vis and G.h then
         -- Just under the art, lined up with the power bar.
         bs, h = 1, G.power.h
-        local drop = ns.UF_Forever() and FOREVER_RIM_DROP
+        local drop = (ns.UF_Forever() and FOREVER_RIM_DROP)
+            or (ns.UF_Style() == "classic" and CLASSIC_RIM_DROP)
             or (G.h - G.vis.b - (G.power.y + G.power.h) + UNDER_ART_GAP)
         bar:SetPoint("TOPLEFT", power, "BOTTOMLEFT", 0, -drop)
         bar:SetPoint("TOPRIGHT", power, "BOTTOMRIGHT", 0, -drop)
