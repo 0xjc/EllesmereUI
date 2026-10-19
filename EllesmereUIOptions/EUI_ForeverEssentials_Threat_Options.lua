@@ -630,6 +630,10 @@ _G._EUI_BuildThreatMeterPage = function(pageName, parent, yOffset)
         "This option requires a Displayed Value other than None.", true)
     local valuesToggle = StyleToggle("colors", "rightTextUseClassColor", "Class-Colored Values", true)
     valuesToggle.disabled, valuesToggle.disabledTooltip, valuesToggle.rawTooltip = valueOff, valueTip, valueRaw
+    valuesToggle.setValue = function(v)
+        ns.SetStyleValues("colors", { rightTextUseClassColor = v, rightTextUseThreatGradient = false })
+        EllesmereUI:RefreshPage()
+    end
     local nameRow
     nameRow, h = W:DualRow(parent, y,
         StyleToggle("colors", "leftTextUseClassColor", "Class-Colored Names", true),
@@ -644,10 +648,34 @@ _G._EUI_BuildThreatMeterPage = function(pageName, parent, yOffset)
             off, "Threat Meter", nil,
             EllesmereUI.NameFormatCogRow(function() return Get("nameFormat") end,
                 function(v) Set("nameFormat", v) end))
-        local valueSwatch = AlternativeTo(StyleSwatch("colors", "rightTextColor", "Value Color"),
-            "colors", "rightTextUseClassColor")
+        local valueSwatch = Alternative(StyleSwatch("colors", "rightTextColor", "Value Color"),
+            function() return not GetStyle("colors", "rightTextUseClassColor") and not GetStyle("colors", "rightTextUseThreatGradient") end,
+            function() ns.SetStyleValues("colors", { rightTextUseClassColor = false, rightTextUseThreatGradient = false }) end)
         valueSwatch.disabled, valueSwatch.disabledTooltip, valueSwatch.rawTooltip = valueOff, valueTip, valueRaw
         Swatch(nameRow._rightRegion, valueSwatch)
+        Swatch(nameRow._rightRegion, {
+            tooltip = "Threat Gradient: smoothly colors values from green at 0% to red at 100% of pull threat. Click again to use your fixed value color.",
+            disabled = valueOff, disabledTooltip = valueTip, rawTooltip = valueRaw,
+            getValue = function() return 1, 1, 1 end,
+            setValue = function() end,
+            refreshAlpha = function() return GetStyle("colors", "rightTextUseThreatGradient") and 1 or 0.3 end,
+            onClick = function()
+                ns.SetStyleValues("colors", { rightTextUseClassColor = false,
+                    rightTextUseThreatGradient = not GetStyle("colors", "rightTextUseThreatGradient") })
+                EllesmereUI:RefreshPage()
+            end,
+        })
+        local gradient = nameRow._rightRegion._lastInline
+        local low = gradient:CreateTexture(nil, "ARTWORK", nil, 1)
+        low:SetPoint("TOPLEFT")
+        low:SetPoint("BOTTOMRIGHT", gradient, "BOTTOM", 0, 0)
+        low:SetColorTexture(1, 1, 1, 1)
+        low:SetGradient("HORIZONTAL", CreateColor(0, 1, 0, 1), CreateColor(1, 1, 0, 1))
+        local high = gradient:CreateTexture(nil, "ARTWORK", nil, 1)
+        high:SetPoint("TOPLEFT", gradient, "TOP", 0, 0)
+        high:SetPoint("BOTTOMRIGHT")
+        high:SetColorTexture(1, 1, 1, 1)
+        high:SetGradient("HORIZONTAL", CreateColor(1, 1, 0, 1), CreateColor(1, 0, 0, 1))
         OffsetCog(nameRow._rightRegion, "Value Position", { "bars", "rightTextOffsetX" }, { "bars", "rightTextOffsetY" },
             valueOff, valueTip, valueRaw)
     end

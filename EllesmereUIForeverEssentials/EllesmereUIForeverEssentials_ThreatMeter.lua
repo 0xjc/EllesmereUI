@@ -66,7 +66,7 @@ local STYLE_DEFAULTS = {
     colors = { showClassColor = true, barColorUseAccent = true, barColor = { r = 0.35, g = 0.55, b = 0.8 },
         barFillAlpha = 1, bgR = 0, bgG = 0, bgB = 0, bgAlpha = 0.75, bgTexture = "none",
         barBgR = 0, barBgG = 0, barBgB = 0, barBgAlpha = 0.045, barBgUseClassColor = false,
-        leftTextUseClassColor = false, rightTextUseClassColor = false,
+        leftTextUseClassColor = false, rightTextUseClassColor = false, rightTextUseThreatGradient = false,
         leftTextColor = { r = 1, g = 1, b = 1 }, rightTextColor = { r = 1, g = 1, b = 1 } },
     borders = { windowBorderTexture = "solid", windowBorderSize = 0, windowBorderSizePx = false,
         windowBorderColor = { r = 0, g = 0, b = 0, a = 1 }, windowBorderIncludeHeader = true,
@@ -801,6 +801,7 @@ local function PaintRow(row, e, dm, top, gen)
         row._own = e.own == true
         row.self:SetShown(row._own and dm.showPlayerMarker)
         row._aggro, row._name = nil, nil
+        row._valueThreat = nil
         if not e.unit then
             -- A preview row: the Name Format reaches your own sample name.
             local name = e.pull and EllesmereUI.L("Pull Aggro") or e.name
@@ -840,7 +841,17 @@ local function PaintRow(row, e, dm, top, gen)
         Look.RowBg(row.bg, bg and bg.r or dm.barBgR, bg and bg.g or dm.barBgG,
             bg and bg.b or dm.barBgB, dm.barBgAlpha)
         PaintText(row.label, dm.leftTextUseClassColor and color or dm.leftTextColor)
-        PaintText(row.value, dm.rightTextUseClassColor and color or dm.rightTextColor)
+        if not dm.rightTextUseThreatGradient then
+            PaintText(row.value, dm.rightTextUseClassColor and color or dm.rightTextColor)
+        end
+    end
+    if dm.rightTextUseThreatGradient and (dm.showValue or dm.showPercent) then
+        local pct = math.max(0, math.min(100, e.scaled or 0))
+        if row._valueThreat ~= pct then
+            row._valueThreat = pct
+            local t = pct / 50
+            row.value:SetTextColor(math.min(1, t), math.min(1, 2 - t), 0)
+        end
     end
     -- Every bar shares one scale: raw threat against the top of the whole list.
     local fillValue = top > 0 and e.raw * 100 / top or 0
