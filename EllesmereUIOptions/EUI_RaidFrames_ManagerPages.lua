@@ -2557,6 +2557,11 @@ function ns.DMP_BuildPage(pageName, parent, yOffset)
         tileY = tileY - ADD_BTN_PAD - ADD_BTN_H - ADD_BTN_PAD
     end
 
+    -- Override list (BM parity; builder lives in the Buff Manager file).
+    if ns.BM_BuildOverrideList then
+        tileY = ns.BM_BuildOverrideList(sidebarChild, tileY, sidebarW, fontPath, "dm")
+    end
+
     sidebarChild:SetHeight(max(10, math.abs(tileY)))
 
     -------------------------------------------------------------------
