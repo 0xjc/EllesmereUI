@@ -4804,6 +4804,12 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
                         return
                     end
                 end
+                -- A cooldown Blizzard's Cooldown Manager offers goes through the spell
+                -- list: as a custom spell its menu would write settings its icon never reads.
+                if not isCustomBuffPopup and ns.IsCDMTrackedCooldown and ns.IsCDMTrackedCooldown(sid) then
+                    SetStatus("Already in the spell list")
+                    return
+                end
                 popup._dimmer:Hide()
                 -- Tag as custom spell so ghost bar routing can skip it
                 local sdTag = bd and ns.GetBarSpellData(bd.key)
