@@ -78,7 +78,7 @@ local function RunCase(forever, project, site)
             for _, comments in ipairs({ false, true }) do
                 cfg.wowheadQuestComments = comments
                 click()
-                assert(popup.initialText == "https://www.wowhead.com/" .. prefix .. site
+                assert(popup.initialText == "https://www.wowhead.com/" .. site .. prefix
                     .. "quest=98025/" .. (comments and "#comments" or ""))
             end
             cfg.wowheadQuestClientLanguage = false

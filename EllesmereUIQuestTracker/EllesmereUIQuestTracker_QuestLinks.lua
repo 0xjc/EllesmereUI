@@ -18,7 +18,7 @@ local function AddQuestLink(owner, root)
         or questID <= 0 or questID ~= math.floor(questID) then return end
     -- ModifyMenu also visits its last generated description when registered.
     addedMenus[root] = true
-    local questPath = site .. "quest=" .. string.format("%.0f", questID) .. "/"
+    local questPath = "quest=" .. string.format("%.0f", questID) .. "/"
     root:CreateDivider()
     root:CreateButton(EllesmereUI.L("Wowhead Link"), function()
         if not EQT.Cfg("wowheadQuestLinks") then return end
@@ -31,7 +31,7 @@ local function AddQuestLink(owner, root)
         EllesmereUI:ShowInputPopup({
             title = EllesmereUI.L("Wowhead Link"),
             message = EllesmereUI.L("Press Ctrl+C to copy, then paste the link into your browser."),
-            initialText = "https://www.wowhead.com/" .. locale .. questPath
+            initialText = "https://www.wowhead.com/" .. site .. locale .. questPath
                 .. (EQT.Cfg("wowheadQuestComments") and "#comments" or ""),
             maxLetters = 256,
             confirmText = EllesmereUI.L("Close"),
