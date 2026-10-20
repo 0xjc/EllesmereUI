@@ -4,7 +4,7 @@ local _, ns = ...
 ns = ns.__euiCoreNS or ns
 local visuals = {}
 ns.PointVisuals = visuals
-local DOT_MASK = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\circle_mask.tga"
+local DOT_FILL = "Interface\\AddOns\\EllesmereUI\\media\\basics\\point_anchor_fill.tga"
 local DOT_BORDER = "Interface\\AddOns\\EllesmereUI\\media\\basics\\point_anchor_border.tga"
 visuals.idleSize, visuals.hoverSize = 8, 12
 local defaults = { point = {1, 1, 1, 1}, border = {0, 0, 0, 1}, line = {1, 0.2, 0.2, 1} }
@@ -40,38 +40,47 @@ function visuals.SizeDot(art, size)
     if art.dotSize == size and art.pixelSize == px then return end
     art.dotSize, art.pixelSize = size, px
     art:SetSize(size, size)
-    -- Each atlas cell has a hollow one-pixel ring for its physical diameter.
-    local cell = math.max(1, math.min(16, math.floor(size / px + 0.5))) - 1
+    -- Matched cells prefilter both edges at their displayed pixel size.
+    local diameter = math.max(1, math.min(16, math.floor(size / px + 0.5)))
+    local cell = diameter - 1
     local x, y = (cell % 4) * 64, math.floor(cell / 4) * 64
-    art.border:SetTexCoord((x + 2) / 256, (x + 62) / 256, (y + 2) / 256, (y + 62) / 256)
+    local padded = size * (diameter + 2) / diameter
+    art.fill:SetSize(padded, padded)
+    art.border:SetSize(padded, padded)
+    art.fill:SetTexCoord(x / 256, (x + 64) / 256, y / 256, (y + 64) / 256)
+    art.border:SetTexCoord(x / 256, (x + 64) / 256, y / 256, (y + 64) / 256)
 end
 
 function visuals.CreateDot(parent)
     local art = CreateFrame("Frame", nil, parent)
     art:EnableMouse(false)
     local border = art:CreateTexture(nil, "OVERLAY")
-    border:SetAllPoints(art)
+    border:SetPoint("CENTER", art, "CENTER")
     border:SetTexture(DOT_BORDER, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE", "LINEAR")
     border:SetSnapToPixelGrid(false)
     border:SetTexelSnappingBias(0)
     local fill = art:CreateTexture(nil, "ARTWORK")
-    fill:SetAllPoints(art)
-    fill:SetColorTexture(1, 1, 1, 1)
+    fill:SetPoint("CENTER", art, "CENTER")
+    fill:SetTexture(DOT_FILL, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE", "LINEAR")
     fill:SetSnapToPixelGrid(false)
     fill:SetTexelSnappingBias(0)
-    local mask = art:CreateMaskTexture()
-    mask:SetTexture(DOT_MASK, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE", "LINEAR")
-    -- The portrait mask pads the circle by 12 transparent texels on each edge.
-    mask:SetTexCoord(12 / 128, 116 / 128, 12 / 128, 116 / 128)
-    mask:SetAllPoints(fill)
-    mask:SetSnapToPixelGrid(false)
-    mask:SetTexelSnappingBias(0)
-    fill:AddMaskTexture(mask)
     art.fill, art.border = fill, border
     visuals.ColorDot(art, 1)
     dots = dots or {}
     dots[#dots + 1] = art
     return art
+end
+
+function visuals.RaiseAboveMover(frame, mover)
+    local level = mover:GetFrameLevel()
+    if mover._raisedLevel then level = math.max(level, mover._raisedLevel + 100) end
+    if mover._cogBtn then level = math.max(level, mover._cogBtn:GetFrameLevel()) end
+    level = level + 30
+    if frame:GetFrameLevel() == level then return end
+    -- Fixed frames ignore SetFrameLevel until their level is unlocked.
+    frame:SetFixedFrameLevel(false)
+    frame:SetFrameLevel(level)
+    frame:SetFixedFrameLevel(true)
 end
 
 local markers
@@ -82,8 +91,7 @@ local function ShowPoint(index, mover, point, alpha)
         markers[index] = marker
     end
     if marker:GetParent() ~= mover then marker:SetParent(mover) end
-    local level = mover:GetFrameLevel() + 25
-    if marker:GetFrameLevel() ~= level then marker:SetFrameLevel(level) end
+    visuals.RaiseAboveMover(marker, mover)
     if marker.point ~= point or marker.mover ~= mover then
         marker:ClearAllPoints()
         marker:SetPoint("CENTER", mover, point)

@@ -134,7 +134,7 @@ ns.unlockParts.PointPicker = function(UM)
         local w, h = set:GetSize()
         local px = ((UM.PP and UM.PP.perfect) or 1) / set:GetEffectiveScale()
         local hit = math.max(px, math.min(12 * px, w / 3, h / 3))
-        local idle, hover = math.min(visuals.idleSize * px, hit), math.min(visuals.hoverSize * px, hit)
+        local idle, hover = math.min(visuals.idleSize * px, hit), visuals.hoverSize * px
         for _, button in ipairs(set.buttons) do
             button:SetSize(hit, hit)
             if button.idleSize ~= idle or button.hoverSize ~= hover then
@@ -204,7 +204,7 @@ ns.unlockParts.PointPicker = function(UM)
         if set.mover ~= mover then set:Hide() end
         set.mover = mover
         set:SetParent(mover)
-        set:SetFrameLevel(mover:GetFrameLevel() + 30)
+        visuals.RaiseAboveMover(set, mover)
         set:ClearAllPoints()
         set:SetAllPoints(mover)
         Layout(set)
