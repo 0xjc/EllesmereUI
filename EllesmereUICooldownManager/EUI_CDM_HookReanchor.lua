@@ -2068,7 +2068,7 @@ local function CollectAndReanchor()
 
     ns._spellOrderDirty = false  -- spell order caches are now valid
 
-    -- Re-apply proc glows for any active procs (picks up per-spell settings)
+    -- Seed changed proc identities; ordinary reanchors leave event state intact.
     if ns.ScanExistingProcGlows then ns.ScanExistingProcGlows() end
 
     ---------------------------------------------------------------------------
