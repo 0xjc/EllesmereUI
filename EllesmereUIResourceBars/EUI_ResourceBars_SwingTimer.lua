@@ -64,9 +64,8 @@ local MO_KEY     = "swing"   -- ERB._moEligible slot for the shared mouseover po
 
 -- Display order, top to bottom. `key` is the colour-key prefix in the store
 -- (mhR/mhG/... ohR/... rR/..., and mhSparkR/... for the spark), `show` the
--- per-row toggle key, `melee` the rows driven by the Auto Attack state, `queue`
--- the row a queued on-next-swing attack is shown on (Main Hand only: the attack
--- always lands on the main hand swing).
+-- per-row toggle key, `melee` the rows the Auto Attack state colors, `queue` the
+-- row a queued attack always lands on (Main Hand).
 local ROWS = {
     { type = SWING.MainHand, key = "mh", tag = "MH", show = "showMH", melee = true, queue = true },
     { type = SWING.OffHand,  key = "oh", tag = "OH", show = "showOH", melee = true },
@@ -82,9 +81,8 @@ local ROWS = {
 -- for a class that has one: ACTIONBAR_UPDATE_STATE storms in combat and is
 -- registered only while there are names to compare (the paint touches the rows
 -- only when the queued attack changes).
--- Heroic Strike, Raptor Strike and Maul each have their own colour (queueHS...,
--- queueRaptor..., queueMaul...); while one is unset it inherits the older shared
--- "queue" colour (`shared`), so existing profiles look the same until changed.
+-- Heroic Strike / Raptor Strike / Maul colors (queueHS, queueRaptor, queueMaul);
+-- while unset they use the shared "queue" color (`shared`).
 local QUEUE_COLOR  = { key = "queue", r = 1, g = 0.70, b = 0.20 }
 local QUEUE_COLORS = {
     [845]  = { key = "queueCleave", r = 0.95, g = 0.35, b = 0.25 },                    -- Cleave
@@ -207,24 +205,30 @@ local function CanSwing(swingType)
     return type(speed) == "number" and speed > 0
 end
 
--- A shield in the off hand slot (inventory slot 17). Static item data, no server
--- round trip; a restricted answer counts as no shield. A shield never swings, but
--- it counts as an off hand: its row shows (labelled Shield) without Always Show Rows.
+-- Shield in the off hand slot: it never swings but counts as an off hand.
 local OFFHAND_SLOT = 17
 local function OffHandIsShield()
     local id = GetInventoryItemID("player", OFFHAND_SLOT)
     if not (id and Plain(id)) then return false end
-    local info = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
-    if not info then return false end
-    local _, _, _, loc = info(id)
+    local _, _, _, loc = C_Item.GetItemInfoInstant(id)
     return Plain(loc) and loc == "INVTYPE_SHIELD"
 end
 
+-- Shield handling (and its event) is active only with Show Shield As Off Hand
+-- or Always Show Rows on.
+local function ShieldAware(cfg)
+    return cfg and (cfg.shieldRow or cfg.alwaysShowRows) and true or false
+end
+local function ShieldOff(cfg) return ShieldAware(cfg) and OffHandIsShield() end
+
+-- Rows a queued attack shows on: Main Hand, plus Off Hand unless Queued On Main
+-- Hand Only is on.
+local function QueueRow(def, cfg) return def.queue or (def.melee and not cfg.queueMainHandOnly) end
+
 -- A row is shown while its toggle is on and its slot can swing: the live answer
 -- when it is plain, else the last one known for that row (a swing of its type
--- is proof too, see PLAYER_SWING). Nothing known yet reads as no row. With
--- Always Show Rows every row whose toggle is on is shown, weapon or not;
--- row._canSwing still holds the real answer (a row with no weapon never waits).
+-- is proof too, see PLAYER_SWING). Nothing known yet reads as no row. Always
+-- Show Rows shows every ticked row; row._canSwing keeps the real answer.
 local function RowWanted(def, cfg, row)
     if cfg and cfg[def.show] == false then return false end
     local can = CanSwing(def.type)
@@ -234,9 +238,7 @@ local function RowWanted(def, cfg, row)
         row._canSwing = can
     end
     if cfg and cfg.alwaysShowRows then return true end
-    -- An equipped shield counts as an off hand: the row shows, but never swings
-    -- (row._canSwing stays false, so it neither waits nor takes a fill).
-    if not can and def.type == SWING.OffHand and OffHandIsShield() then return true end
+    if not can and def.type == SWING.OffHand and ShieldOff(cfg) then return true end
     return can
 end
 
@@ -250,7 +252,7 @@ local function ShownCount()
     for i = 1, #ROWS do if RowWanted(ROWS[i], cfg) then n = n + 1 end end
     -- ROWS[1] / ROWS[2] = Main Hand / Off Hand
     if cfg and cfg.combineHands and RowWanted(ROWS[1], cfg) and RowWanted(ROWS[2], cfg)
-        and not OffHandIsShield() then
+        and not ShieldOff(cfg) then
         n = n - 1
     end
     return math.max(n, 1)
@@ -659,7 +661,7 @@ end
 -- slot) never waits: it would count as live and hold the bar up under Hide
 -- When Idle.
 local function ShouldWait(row, cfg)
-    return row:IsShown() and row._canSwing and not row._merged and AttackOn(row._def)
+    return row:IsShown() and row._canSwing ~= false and not row._merged and AttackOn(row._def)
         and (StateFull(cfg) or GuideRow(row, cfg)) and true or false
 end
 
@@ -951,7 +953,7 @@ function ApplyRowFill(row, cfg)
     local def = row._def
     local pend = row._waiting and StateFull(cfg)
     local aim = not pend and row._aiming
-    local q = not (pend or aim) and def.queue and S.queued
+    local q = not (pend or aim) and QueueRow(def, cfg) and S.queued
     local act = not (pend or aim or q) and S.active[def.melee and "melee" or "ranged"]
     local fR, fG, fB, fA
     if pend then
@@ -979,10 +981,9 @@ function ApplyRowFill(row, cfg)
     end
 end
 
--- The row's tag text: the slot tag, or "Shield" on an Off Hand row with a shield
--- in its slot (no weapon swings there, so the row is kept only by Always Show Rows).
+-- The slot tag, or "Shield" on an Off Hand row with a shield equipped.
 local function TagText(row, cfg)
-    if row._def.type == SWING.OffHand and row._canSwing == false and OffHandIsShield() then
+    if row._def.type == SWING.OffHand and row._canSwing == false and ShieldOff(cfg) then
         return EllesmereUI.L("Shield")
     end
     return row._def.tag
@@ -991,7 +992,7 @@ end
 -- Slot tag, with the queued attack's name on the Main Hand row while one is queued.
 local function ApplyRowTag(row, cfg)
     local def = row._def
-    if S.queued and def.queue then
+    if S.queued and QueueRow(def, cfg) then
         row._tag:SetText(def.tag .. " - " .. S.queued.name)
     else
         row._tag:SetText(TagText(row, cfg))
@@ -1020,7 +1021,7 @@ local function PaintQueue(cfg)
     S.queued = queued
     for i = 1, #S.rows do
         local row = S.rows[i]
-        if row._def.queue then
+        if QueueRow(row._def, cfg) then
             ApplyRowFill(row, cfg)
             ApplyRowTag(row, cfg)
         end
@@ -1144,13 +1145,12 @@ local function StockChrome(row, cfg, w, h)
     if ns.ERB_BarsClassic() then row._textFrame:SetFrameLevel(row:GetFrameLevel() + 10) end
 end
 
--- The slot tag: shown with Show Weapon Label, never on a combined off hand, and
--- (Hide Label Without Weapon) not on a row kept only by Always Show Rows whose
--- slot has no weapon. row._canSwing is false only on a plain "no weapon" answer.
+-- Tag visibility: Show Weapon Label, not on a combined off hand, and with Hide
+-- Label Without Weapon not on a weaponless row (a shield keeps its tag).
 local function ApplyRowLabel(row, cfg)
     local show = cfg.showLabel ~= false and not row._merged
     if show and cfg.hideLabelNoWeapon and row._canSwing == false
-        and not (row._def.type == SWING.OffHand and OffHandIsShield()) then
+        and not (row._def.type == SWING.OffHand and ShieldOff(cfg)) then
         show = false
     end
     ApplyRowTag(row, cfg)
@@ -1305,7 +1305,7 @@ local function RefreshRows(cfg)
         end
         if def.type == SWING.MainHand then mhShown = can end
         local merged = (def.type == SWING.OffHand and can and mhShown and cfg.combineHands
-            and not OffHandIsShield()) and true or nil
+            and not ShieldOff(cfg)) and true or nil
         if merged ~= row._merged then
             row._merged = merged
             row._restyle = true
@@ -1442,8 +1442,8 @@ shell:SetScript("OnEvent", function(self, event, a1, a2, a3)
         end
         UpdateRangeAll()
     else
-        -- WEAPON_SLOT_CHANGED / PLAYER_EQUIPMENT_CHANGED (a1 = slot; only the
-        -- off hand slot matters here: a shield) / UNIT_ATTACK_SPEED / PLAYER_ENTERING_WORLD
+        -- WEAPON_SLOT_CHANGED / PLAYER_EQUIPMENT_CHANGED (off hand slot only) /
+        -- UNIT_ATTACK_SPEED / PLAYER_ENTERING_WORLD
         if event == "PLAYER_EQUIPMENT_CHANGED" and a1 ~= OFFHAND_SLOT then return end
         if RefreshRows(cfg) then RestyleMarked(cfg) end
         if TracksAttack(cfg) then
@@ -1466,7 +1466,6 @@ local function RegisterEvents()
     shell:RegisterEvent("PLAYER_SWING_RANGE_UPDATE")
     shell:RegisterEvent("PLAYER_TARGET_CHANGED")
     shell:RegisterEvent("WEAPON_SLOT_CHANGED")
-    shell:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
     shell:RegisterEvent("PLAYER_ENTERING_WORLD")
     shell:RegisterEvent("PLAYER_DEAD")
     shell:RegisterUnitEvent("UNIT_ATTACK_SPEED", "player")
@@ -1480,6 +1479,16 @@ local function ApplyQueueEvents(cfg)
         shell:RegisterEvent("ACTIONBAR_UPDATE_STATE")
     else
         shell:UnregisterEvent("ACTIONBAR_UPDATE_STATE")
+    end
+end
+
+-- Equipment changes matter only to the shield handling.
+local function ApplyShieldEvents(cfg)
+    if not S.events then return end
+    if ShieldAware(cfg) then
+        shell:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+    else
+        shell:UnregisterEvent("PLAYER_EQUIPMENT_CHANGED")
     end
 end
 
@@ -1616,6 +1625,7 @@ function ns.ST_Apply()
     RegisterEvents()
     ApplyQueueEvents(cfg)
     ApplyActiveEvents(cfg)
+    ApplyShieldEvents(cfg)
     -- Highlight turned off with an attack queued: the paint below must clear it.
     if not QueueOn(cfg) then S.queued = false end
     -- Attack state: read once per enable, kept by the edges while on.

@@ -420,6 +420,8 @@ local DEFAULTS = {
             showR         = true,
             alwaysShowRows = false, -- true = every row whose toggle is on shows, with or without a weapon in the slot
             hideLabelNoWeapon = false, -- true = with Always Show Rows, a row with no weapon in its slot shows no label
+            shieldRow     = false, -- true = an equipped shield shows the Off Hand row, labelled Shield
+            queueMainHandOnly = false, -- true = a queued attack shows on the Main Hand row only
             combineHands  = false,  -- off hand as a spark on the Main Hand bar instead of its own row
             textSize      = 11,
             rangeCheck    = true,   -- dim rows whose target is out of auto-attack range
