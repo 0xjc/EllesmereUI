@@ -83,7 +83,6 @@ local DEFAULTS = {
             barAlpha    = 1.0,
             oocFadeEnabled = false,  -- "Fade Out of Combat" toggle (off by default)
             oocAlpha    = 0.5,       -- alpha the bar fades to while out of combat
-            showWhenMissing = false,  -- reveal a hidden bar while below full (off by default)
             visibility  = "always",  -- "always","combat","target","mouseover","never","in_combat","in_raid","in_party","solo"
             visHideHousing = false,
             visOnlyInstances = false,
@@ -117,9 +116,10 @@ local DEFAULTS = {
             borderSize  = 1,
             borderR     = 0, borderG = 0, borderB = 0, borderA = 1,
             borderTexture = "solid",
-            -- Border extensions (textured styles only): UI units past each
-            -- screen edge. 0 = off (ns.ERB_BorderExtents).
-            borderExtendTop = 0, borderExtendBottom = 0, borderExtendLeft = 0, borderExtendRight = 0,
+            -- Extend Top / Extend Bottom (Border Options cog, textured styles
+            -- only): UI units the border reaches past the bar's top / bottom
+            -- edge on screen. 0 = off (ns.ERB_BorderExtents).
+            borderExtendTop = 0, borderExtendBottom = 0,
             -- Bottom Separator (Border Options cog, textured styles only): edgeSep
             -- off = None; on = the companion strip along the bottom edge, art
             -- edgeSepArt ("match" = the bar's own style, else a border key),
@@ -149,8 +149,6 @@ local DEFAULTS = {
             barAlpha    = 1.0,
             oocFadeEnabled = false,  -- "Fade Out of Combat" toggle (off by default)
             oocAlpha    = 0.5,       -- alpha the bar fades to while out of combat
-            showWhenMissing = false,  -- reveal a hidden bar while below full (off by default)
-            showManaWhenMissing = false,
             visibility  = "always",  -- "always","combat","target","mouseover","never","in_combat","in_raid","in_party","solo"
             visHideHousing = false,
             visOnlyInstances = false,
@@ -217,7 +215,7 @@ local DEFAULTS = {
             borderSize  = 1,
             borderR     = 0, borderG = 0, borderB = 0, borderA = 1,
             borderTexture = "solid",
-            borderExtendTop = 0, borderExtendBottom = 0, borderExtendLeft = 0, borderExtendRight = 0,  -- full-bar border only, never per-pip
+            borderExtendTop = 0, borderExtendBottom = 0,  -- full-bar border only, never per-pip
             -- Separators (Border Options cog): edgeSep = the dropdown's on/off (None
             -- = false), edgeSepH = the bottom-edge line, edgeSepV = one line per gap
             -- between pips and runes; edgeSepArt / edgeSepY as on the power bar.
@@ -304,7 +302,6 @@ local DEFAULTS = {
             useClassicStyle = false,
             alwaysShow    = false,  -- keep the bar on screen (sitting empty) while nothing is being cast
             showIcon      = true,
-            iconOnPortrait = false,
             iconOnRight   = false,  -- attach the spell icon to the right of the bar instead of the left
             showIconDivider = false,  -- draw a 1px divider at the icon/bar seam (interior seam has no border otherwise)
             iconSize      = 0,  -- 0 = the bar height
@@ -326,7 +323,7 @@ local DEFAULTS = {
             borderSize    = 1,
             borderR       = 0, borderG = 0, borderB = 0, borderA = 1,
             borderTexture = "solid",
-            borderExtendTop = 0, borderExtendBottom = 0, borderExtendLeft = 0, borderExtendRight = 0,  -- border host is bar + icon
+            borderExtendTop = 0, borderExtendBottom = 0,  -- border host is bar + icon
             edgeSep = false, edgeSepY = 0, edgeSepArt = "match",  -- Bottom Separator (Border Options cog)
             iconDividerArt = false,  -- Border Art Divider (Spell Icon Settings cog)
             bgR           = 0, bgG = 0, bgB = 0, bgA = 0.7,
@@ -379,7 +376,7 @@ local DEFAULTS = {
             borderSize    = 1,
             borderR       = 0, borderG = 0, borderB = 0, borderA = 1,
             borderTexture = "solid",
-            borderExtendTop = 0, borderExtendBottom = 0, borderExtendLeft = 0, borderExtendRight = 0,
+            borderExtendTop = 0, borderExtendBottom = 0,
             edgeSep = false, edgeSepY = 0, edgeSepArt = "match",  -- Bottom Separator (Border Options cog)
             bgR           = 0, bgG = 0, bgB = 0, bgA = 0.7,
             frameStrata   = "MEDIUM",
@@ -421,6 +418,8 @@ local DEFAULTS = {
             showMH        = true,   -- per-row toggles (a row also needs a weapon in the slot)
             showOH        = true,
             showR         = true,
+            alwaysShowRows = false, -- true = every row whose toggle is on shows, with or without a weapon in the slot
+            hideLabelNoWeapon = false, -- true = with Always Show Rows, a row with no weapon in its slot shows no label
             combineHands  = false,  -- off hand as a spark on the Main Hand bar instead of its own row
             textSize      = 11,
             rangeCheck    = true,   -- dim rows whose target is out of auto-attack range
@@ -428,7 +427,8 @@ local DEFAULTS = {
             -- Attack State: "off" | "queued" (melee rows take the queued attack's colour + name)
             -- | "full" (also On while the attack is on, Waiting while it is on with nothing swinging)
             attackState   = "queued",
-            queueR = 1, queueG = 0.70, queueB = 0.20, queueA = 1,   -- Queued: Heroic Strike / Maul / Raptor Strike
+            queueR = 1, queueG = 0.70, queueB = 0.20, queueA = 1,   -- Queued: shared fallback for Heroic Strike / Maul / Raptor Strike
+            -- Per-attack colours (queueHSR/G/B/A, queueRaptor..., queueMaul...) are unset by default: they inherit the shared Queued colour above.
             queueCleaveR = 0.95, queueCleaveG = 0.35, queueCleaveB = 0.25, queueCleaveA = 1,   -- Queued: Cleave
             activeR = 0.047, activeG = 0.824, activeB = 0.616, activeA = 1,   -- On: EUI teal #0CD29D
             pendingR = 0.659, pendingG = 0.502, pendingB = 0.949, pendingA = 1,   -- Waiting: violet #A880F2
