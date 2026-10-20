@@ -709,6 +709,7 @@ local function SnapshotPositions()
         for childKey, info in pairs(anchorDB) do
             snapshotAnchors[childKey] = {
                 target = info.target, side = info.side,
+                mode = info.mode, sourcePoint = info.sourcePoint, targetPoint = info.targetPoint,
                 offsetX = info.offsetX, offsetY = info.offsetY,
                 refX = info.refX, refY = info.refY,
                 edgeOffX = info.edgeOffX, edgeOffY = info.edgeOffY,
@@ -1050,6 +1051,7 @@ local function RevertPositions()
         for childKey, info in pairs(snapshotAnchors) do
             anchorDB[childKey] = {
                 target = info.target, side = info.side,
+                mode = info.mode, sourcePoint = info.sourcePoint, targetPoint = info.targetPoint,
                 offsetX = info.offsetX, offsetY = info.offsetY,
                 refX = info.refX, refY = info.refY,
                 edgeOffX = info.edgeOffX, edgeOffY = info.edgeOffY,
@@ -1328,6 +1330,7 @@ local function DoClose(closeAction)
     end
 
     -- Clean up pick mode / anchor dropdown state
+    UM.PointPicker.Cancel()
     UM.pickMode = nil
     UM.pickModeMover = nil
     if UM.anchorDropdownFrame then UM.anchorDropdownFrame:Hide() end
@@ -1478,8 +1481,7 @@ local function CreateUnlockFrame()
     UM.unlockFrame._overlay = overlay
     UM.unlockFrame._overlayMaxAlpha = 0.20
 
-    -- Anchor connector lines: accent-colored lines drawn center-to-center
-    -- between each anchored child and its parent, rendered behind all elements.
+    -- Anchor lines connect mover centers or the explicit point pair.
     local anchorLinePool = {}
     local anchorPulsePool = {}
     local anchorLineFrame = CreateFrame("Frame", nil, UIParent)
@@ -1519,6 +1521,7 @@ local function CreateUnlockFrame()
     local function UpdateAnchorLines()
         local db = GetAnchorDB()
         local idx = 0
+        local pointLines = 0
         local now = GetTime()
         if db and UM.isUnlocked then
             for childKey, info in pairs(db) do
@@ -1548,12 +1551,25 @@ local function CreateUnlockFrame()
                         -- Parent center (line destination)
                         local x2 = ((tm:GetLeft() or 0) + (tm:GetRight()  or 0)) * 0.5
                         local y2 = ((tm:GetBottom() or 0) + (tm:GetTop()  or 0)) * 0.5
+                        if info.mode == "POINT" then
+                            local sx, sy = UM.PointPicker.Point(cm, info.sourcePoint)
+                            local tx, ty = UM.PointPicker.Point(tm, info.targetPoint)
+                            if sx and tx then
+                                x1, y1, x2, y2 = sx, sy, tx, ty
+                                pointLines = pointLines + 1
+                                UM.PointVisuals.Connection(pointLines, cm, info.sourcePoint, tm, info.targetPoint, ease)
+                            end
+                        end
                         -- Partial endpoint based on animation progress
                         local ex = x1 + (x2 - x1) * ease
                         local ey = y1 + (y2 - y1) * ease
                         line:SetStartPoint("BOTTOMLEFT", UIParent, x1, y1)
                         line:SetEndPoint("BOTTOMLEFT", UIParent, ex, ey)
-                        line:SetVertexColor(1, 0.7, 0.3, 0.75 * ease)
+                        if info.mode == "POINT" then
+                            line:SetVertexColor(1, 0.2, 0.2, 0.75 * ease)
+                        else
+                            line:SetVertexColor(1, 0.7, 0.3, 0.75 * ease)
+                        end
                         line:Show()
 
                         -- Pulse overlay: streak that sweeps child->parent, loops every 3s
@@ -1588,7 +1604,11 @@ local function CreateUnlockFrame()
                                     local py2 = y1 + (y2 - y1) * clampHead
                                     pulse:SetStartPoint("BOTTOMLEFT", UIParent, px1, py1)
                                     pulse:SetEndPoint("BOTTOMLEFT", UIParent, px2, py2)
-                                    pulse:SetVertexColor(1, 0.89, 0.625, 0.5 * fadeA)
+                                    if info.mode == "POINT" then
+                                        pulse:SetVertexColor(1, 0.65, 0.65, 0.5 * fadeA)
+                                    else
+                                        pulse:SetVertexColor(1, 0.89, 0.625, 0.5 * fadeA)
+                                    end
                                     pulse:Show()
                                 end
                             else
@@ -1611,6 +1631,7 @@ local function CreateUnlockFrame()
         for i = idx + 1, #anchorPulsePool do
             anchorPulsePool[i]:Hide()
         end
+        UM.PointVisuals.TrimConnections(pointLines)
     end
 
     -- Drive line updates every frame while unlock mode is open
@@ -1619,7 +1640,10 @@ local function CreateUnlockFrame()
     anchorLineDriver:Hide()
     UM.unlockFrame._anchorLineDriver = anchorLineDriver
     UM.unlockFrame._anchorLineFrame  = anchorLineFrame
-    UM.unlockFrame._clearAnchorLineAnim = function() wipe(anchorLineAnim) end
+    UM.unlockFrame._clearAnchorLineAnim = function()
+        wipe(anchorLineAnim)
+        UM.PointVisuals.TrimConnections(0)
+    end
 
     -- Click-to-deselect is handled by toggle behavior on movers themselves
     -- (clicking the selected mover again deselects it), so no full-screen catcher is needed -- world interaction (targeting, camera) stays unblocked.

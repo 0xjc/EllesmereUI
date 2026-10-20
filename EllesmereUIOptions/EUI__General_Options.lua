@@ -2700,6 +2700,15 @@ initFrame:SetScript("OnEvent", function(self)
 
         _, h = W:Spacer(parent, y, 20);  y = y - h
 
+        _, h = W:SectionHeader(parent, "UNLOCK MODE", y);  y = y - h
+        _, h = W:DualRow(parent, y,
+            { type="toggle", text="Point Anchor Handles",
+              tooltip="Show nine source points after clicking Anchor in Unlock Mode. Choose a source point, then a target point. Turning this off hides the handles and preserves saved point anchors.",
+              getValue=function() return EllesmereUIDB and EllesmereUIDB.unlockPointHandles == true end,
+              setValue=function(v) EllesmereUI.SetPointAnchorHandles(v) end },
+            EllesmereUI.BlankRowCfg()); y = y - h
+        _, h = W:Spacer(parent, y, 20); y = y - h
+
         _, h = W:SectionHeader(parent, "COMBAT", y);  y = y - h
 
         _, h = W:DualRow(parent, y,
