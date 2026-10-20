@@ -879,22 +879,15 @@ local function InstallProcGlowHooks()
     _procGlowHooksInstalled = true
 end
 
--- Ordinary reanchors use overlay events; seed only new or changed identities.
--- Login has no stamps, and BuildAllCDMBars invalidates them via _cdmResGen.
+-- Reconcile once after claims change, including login with a proc already up.
 local function ScanExistingProcGlows()
-    local gen = ns._cdmResGen
     for _, icons in pairs(cdmBarIcons) do
         for _, icon in ipairs(icons) do
             local fd = _getFD(icon)
             local ids = fd and GetProcSpellIDs(icon, fd)
-            if ids and (fd.procGlowReconcileCooldownID ~= fd.procGlowCooldownID
-                or fd.procGlowReconcileGen ~= gen) then
+            if ids then
                 local isActive = ReadProcGlowState(fd, ids)
-                if isActive ~= nil then
-                    SetProcGlowState(icon, isActive)
-                    fd.procGlowReconcileCooldownID = fd.procGlowCooldownID
-                    fd.procGlowReconcileGen = gen
-                end
+                if isActive ~= nil then SetProcGlowState(icon, isActive) end
             end
         end
     end
