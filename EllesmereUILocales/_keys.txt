@@ -634,6 +634,10 @@ Height
 Height matched to %1$s. Unmatch in Unlock Mode to edit.
 Height matched to %1$s. Unmatch to edit.
 Hex#
+Hidden in %1$s
+Hidden in %1$s (Shift Icons)
+Hidden outside %1$s
+Hidden outside %1$s (Shift Icons)
 Hide
 Hide Inactive Glows (%d)
 Hide Item Transforms

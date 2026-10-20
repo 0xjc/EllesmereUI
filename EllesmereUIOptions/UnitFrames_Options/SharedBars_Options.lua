@@ -491,8 +491,8 @@ function ns.UFO_BuildHealthBarSection(parent, y, ctx)
     -- Dark Mode: disable all Bar Color + Bar Background controls (the flat dark
     -- health bar ignores fill/background colors).
     if not EllesmereUI._prebuilding then
-    AddDarkModeBlock(sharedHealthColorRow._leftRegion)
-    AddDarkModeBlock(sharedHealthColorRow._rightRegion)
+    AddDarkModeBlock(sharedHealthColorRow._leftRegion, SDB)
+    AddDarkModeBlock(sharedHealthColorRow._rightRegion, SDB)
     end
 
     -- Row 3: Smooth Health Bars + Bar Opacity
@@ -502,7 +502,7 @@ function ns.UFO_BuildHealthBarSection(parent, y, ctx)
           getValue=function() return SVal("smoothBars", false) end,
           setValue=function(v) SSet("smoothBars", v) end },
         { type="slider", text="Fill Opacity", min=0, max=100, step=1,
-          disabled=function() return db.profile.darkTheme end,
+          disabled=function() return ns.UF_DarkThemeOn(SDB()) end,
           disabledTooltip="Dark Mode", requireState="disabled",
           getValue=function() return SVal("healthBarOpacity", 90) end,
           setValue=function(v)
