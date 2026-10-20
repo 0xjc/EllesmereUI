@@ -287,6 +287,7 @@ local function DataBarKit(parent)
     local function RefreshDataBar(bk)
         local f = ns.dataBarFrames and ns.dataBarFrames[bk]
         if f and f._updateFunc then f._updateFunc() end
+        ns.RefreshDataBarPreview(bk, true)
     end
 
     -- Custom Border (each data-bar section's opt-in). Its two sync links copy

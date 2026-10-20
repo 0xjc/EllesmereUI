@@ -195,6 +195,7 @@ Apply to Bar (All Specs)
 Apply to This Spell
 Apply to:
 Arcane Res
+Arcane Soul
 Are you sure you want to %1$s %2$s?
 Are you sure you want to delete \
 Are you sure you want to delete this category? All item assignments will be removed.
@@ -633,6 +634,10 @@ Height
 Height matched to %1$s. Unmatch in Unlock Mode to edit.
 Height matched to %1$s. Unmatch to edit.
 Hex#
+Hidden in %1$s
+Hidden in %1$s (Shift Icons)
+Hidden outside %1$s
+Hidden outside %1$s (Shift Icons)
 Hide
 Hide Inactive Glows (%d)
 Hide Item Transforms
