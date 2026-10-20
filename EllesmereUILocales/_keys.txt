@@ -561,6 +561,7 @@ Favor
 Favorite for This Character
 Favorites
 Feral
+Filter elements...
 Filter groups by dungeon, delve, raid boss, role and rating
 Filters
 Filters changed: search to update the list
@@ -1121,6 +1122,7 @@ Show a pulsing dot on the Patch Notes button whenever EllesmereUI updates to a n
 Show a tracked buff in this slot while it is active.
 Show in All Items
 Show in preview
+Show only the elements whose name contains every word typed here. Escape clears it.
 Show this icon only while the talents you pick are taken, or not taken.
 Showing this aura from any caster; click for your casts only.
 Showing this aura from your casts only; click for any caster.
