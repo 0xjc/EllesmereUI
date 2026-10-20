@@ -7,7 +7,7 @@ ns.PointVisuals = visuals
 local DOT_MASK = "Interface\\AddOns\\EllesmereUI\\media\\portraits\\circle_mask.tga"
 local DOT_BORDER = "Interface\\AddOns\\EllesmereUI\\media\\basics\\point_anchor_border.tga"
 visuals.idleSize, visuals.hoverSize = 8, 12
-local defaults = { point = {1, 0.2, 0.2, 1}, border = {0, 0, 0, 1}, line = {1, 0.2, 0.2, 1} }
+local defaults = { point = {1, 1, 1, 1}, border = {0, 0, 0, 1}, line = {1, 0.2, 0.2, 1} }
 local dots
 
 function EllesmereUI.GetPointAnchorColor(kind)
