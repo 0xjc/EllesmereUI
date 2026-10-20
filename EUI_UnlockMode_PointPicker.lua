@@ -80,8 +80,8 @@ ns.unlockParts.PointPicker = function(UM)
             current = button.fromSize + (button.toSize - button.fromSize) * progress
         end
         button.animation:Stop()
-        button.art:SetSize(size, size)
-        button.dot:SetVertexColor(1, 0.2, 0.2, (button.hovered or button.selected) and 1 or 0.8)
+        visuals.SizeDot(button.art, size)
+        visuals.ColorDot(button.art, (button.hovered or button.selected) and 1 or 0.8)
         if animate and math.abs(current - size) > 0.01 then
             button.fromSize, button.toSize = current, size
             button.scaleAnimation:SetScaleFrom(current / size, current / size)
@@ -159,12 +159,11 @@ ns.unlockParts.PointPicker = function(UM)
             button.idleSize, button.hoverSize = visuals.idleSize, visuals.hoverSize
             button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
             local art = visuals.CreateDot(button)
-            art:SetSize(visuals.idleSize, visuals.idleSize)
+            visuals.SizeDot(art, visuals.idleSize)
             art:SetPoint("CENTER", button, "CENTER")
             button.art = art
-            local dot = art.fill
-            dot:SetVertexColor(1, 0.2, 0.2, 0.8)
-            button.dot = dot
+            visuals.ColorDot(art, 0.8)
+            button.dot = art.fill
             button.animation = art:CreateAnimationGroup()
             button.scaleAnimation = button.animation:CreateAnimation("Scale")
             button.scaleAnimation:SetOrigin("CENTER", 0, 0)

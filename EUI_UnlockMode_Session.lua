@@ -1565,8 +1565,10 @@ local function CreateUnlockFrame()
                         local ey = y1 + (y2 - y1) * ease
                         line:SetStartPoint("BOTTOMLEFT", UIParent, x1, y1)
                         line:SetEndPoint("BOTTOMLEFT", UIParent, ex, ey)
+                        local pointR, pointG, pointB, pointA
                         if info.mode == "POINT" then
-                            line:SetVertexColor(1, 0.2, 0.2, 0.75 * ease)
+                            pointR, pointG, pointB, pointA = EllesmereUI.GetPointAnchorColor("line")
+                            line:SetVertexColor(pointR, pointG, pointB, pointA * 0.75 * ease)
                         else
                             line:SetVertexColor(1, 0.7, 0.3, 0.75 * ease)
                         end
@@ -1605,7 +1607,9 @@ local function CreateUnlockFrame()
                                     pulse:SetStartPoint("BOTTOMLEFT", UIParent, px1, py1)
                                     pulse:SetEndPoint("BOTTOMLEFT", UIParent, px2, py2)
                                     if info.mode == "POINT" then
-                                        pulse:SetVertexColor(1, 0.65, 0.65, 0.5 * fadeA)
+                                        pulse:SetVertexColor(pointR + (1 - pointR) * 0.5625,
+                                            pointG + (1 - pointG) * 0.5625,
+                                            pointB + (1 - pointB) * 0.5625, pointA * 0.5 * fadeA)
                                     else
                                         pulse:SetVertexColor(1, 0.89, 0.625, 0.5 * fadeA)
                                     end
