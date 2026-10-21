@@ -196,9 +196,8 @@ layerUpdateFrame:SetScript("OnEvent", function() EUI_Bags:ApplyWindowLayering() 
 local _bagsCharKey  -- session-constant; UpdateCurrencyDisplays is a render path
 local function BagsCharKey()
     if not _bagsCharKey then
-        local n, r = UnitName("player"), GetRealmName()
-        if not n or not r then return nil end  -- too early; do not cache a stub
-        _bagsCharKey = n .. " - " .. r
+        -- nil too early; do not cache a stub
+        _bagsCharKey = EllesmereUI.CharKey(" - ", EllesmereUIDB and EllesmereUIDB.bagCurrencyByChar)
     end
     return _bagsCharKey
 end
