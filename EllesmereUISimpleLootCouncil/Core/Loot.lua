@@ -831,11 +831,28 @@ function Loot:EnsureHandling(why)
 end
 
 
-function Loot:PushHandling(why)
+local MOST_WHISPERED = 2
+
+
+local HANDLING_WHISPER_GRACE = 8
+local whisperedAt = {}
+
+
+
+function Loot:PushHandling(why, joiners)
     if not addon.PlayerIsMasterLooter() then return end
     if not Loot.handling then return end
+    local args = { on = true, funnel = Loot.funnelArmed == true }
+    if joiners and #joiners > 0 and #joiners <= MOST_WHISPERED then
+        for _, name in ipairs(joiners) do
+            addon.Log:D("Loot", "sending handling to", tostring(name), "-", tostring(why))
+            addon.Comms:Send("handling", args, name, true)
+            whisperedAt[addon.Player:NameKey(name) or name] = GetTime()
+        end
+        return
+    end
     addon.Log:D("Loot", "re-sending handling -", tostring(why))
-    addon.Comms:Send("handling", { on = true, funnel = Loot.funnelArmed == true }, nil, true)
+    addon.Comms:Send("handling", args, nil, true)
 end
 
 
@@ -916,7 +933,7 @@ end
 
 
 
-function Loot:OnRosterChanged(why, gained, leaderChanged)
+function Loot:OnRosterChanged(why, gained, leaderChanged, joiners)
     if not IsInGroup() then
         ForgetHandling("left the group")
         if seenGroupThisLoad then ForgetDecision("left the group") end
@@ -930,7 +947,7 @@ function Loot:OnRosterChanged(why, gained, leaderChanged)
 
 
     Loot:CheckLootMaster(why)
-    if gained then Loot:PushHandling(why) end
+    if gained then Loot:PushHandling(why, joiners) end
     Loot:EnsureHandling(why)
 end
 
@@ -1070,11 +1087,17 @@ function Loot:Init()
                 "- held until the remembered Yes re-arms")
             return
         end
+        local at = whisperedAt[addon.Player:NameKey(sender) or sender]
+        if at and GetTime() - at < HANDLING_WHISPER_GRACE then
+            addon.Log:D("Loot", "handling requested by", tostring(sender),
+                "- whispered a moment ago, not again")
+            return
+        end
         addon.Log:D("Loot", "handling requested by", tostring(sender))
         addon.Comms:Send("handling", {
             on = Loot.handling and true or false,
             funnel = Loot.funnelArmed == true,
-        }, nil, true)
+        }, sender, true)
     end)
 
 
