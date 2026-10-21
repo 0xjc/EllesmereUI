@@ -6,13 +6,10 @@
 ## Author: Laxx
 ## X-License: All Rights Reserved
 ## Version: 9.6.2
-## X-SLC-Version: 0.43.80
-## X-SLC-Commit: 655f316448e0
-## X-SLC-Port-Commit: bd26233480bc
+## X-SLC-Version: 0.43.102
+## X-SLC-Commit: 24c24b6aa2d5
+## X-SLC-Port-Commit: 52539bb569f2
 ## Dependencies: EllesmereUI
-# Held back (EllesmereUI.HELD_BACK_ADDONS): load on demand, and nothing loads
-# it, so it never loads and its saved data stays untouched. Drop this to ship.
-## LoadOnDemand: 1
 ## SavedVariables: EllesmereUISimpleLootCouncilDB
 ## IconTexture: Interface\AddOns\EllesmereUI\media\eg-logo.tga
 
@@ -20,6 +17,13 @@ Edition.lua
 Core\Locale.lua
 Locale\shared.lua
 Locale\enUS.lua
+Locale\zhCN.lua
+Locale\deDE.lua
+Locale\frFR.lua
+Locale\ruRU.lua
+Locale\esES.lua
+Locale\itIT.lua
+Locale\ptBR.lua
 Core\Util.lua
 Core\Defaults.lua
 Core\SharedSaved.lua
