@@ -456,7 +456,20 @@ function Loot:SharesLootMasterGuild()
     if issecretvalue and (issecretvalue(theirs) or issecretvalue(theirRealm)) then theirs = nil end
     if not theirs then
         local known = lootMasterGuild[lootMaster]
-        if not known then return nil end
+        if not known then
+
+            if not addon.RaidTeam then return nil end
+            local member, why = addon.RaidTeam:FindMember(lootMaster)
+            if member then
+                lootMasterGuild[lootMaster] = { name = mine, realm = myRealm }
+                return true
+            end
+            if why then return nil end
+
+            local list, readable = addon.RaidTeam:GetRoster()
+            if not readable or not list or #list == 0 then return nil end
+            return false
+        end
         theirs, theirRealm = known.name, known.realm
     else
         lootMasterGuild[lootMaster] = { name = theirs, realm = theirRealm }
@@ -1009,6 +1022,9 @@ function Loot:Init()
 
     f:RegisterEvent("GUILD_PARTY_STATE_UPDATED")
 
+    f:RegisterEvent("INSTANCE_GROUP_SIZE_CHANGED")
+    f:RegisterEvent("UPDATE_INSTANCE_INFO")
+
     f:RegisterEvent("PLAYER_GUILD_UPDATE")
     f:RegisterEvent("PLAYER_ENTERING_WORLD")
     f:SetScript("OnEvent", function(_, event, arg1)
@@ -1023,6 +1039,9 @@ function Loot:Init()
 
             local _, present, required = ReadGuildParty()
             guildPresent, guildRequired = present, required
+            return
+        elseif event == "INSTANCE_GROUP_SIZE_CHANGED" or event == "UPDATE_INSTANCE_INFO" then
+            if IsInGroup() and IsInGuild() then RequestGuildPartyState() end
             return
         elseif event == "PLAYER_ENTERING_WORLD" then
             GroupChanged(true)
