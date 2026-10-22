@@ -102,10 +102,11 @@ function EllesmereUI.GetUnlockOverlapMethod()
     if db and db.unlockOverlapCycling == false then return "disabled" end
     if db and db.unlockOverlapCycling == true then
         if db.unlockOverlapModifier == "none" then return "scroll" end
+        if db.unlockOverlapModifier == "shift" then return "shiftscroll" end
         if db.unlockOverlapModifier == "control" then return "controlscroll" end
         if db.unlockOverlapModifier == "alt" then return "altscroll" end
     end
-    return "shiftscroll"
+    return "scroll"
 end
 
 -------------------------------------------------------------------------------
