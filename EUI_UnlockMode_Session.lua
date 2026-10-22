@@ -1417,6 +1417,7 @@ function ns.RequestClose(save, afterFn)
     -- Has unsaved changes -> show confirm popup
     EllesmereUI:ShowConfirmPopup({
         title = "Unsaved Changes",
+        frameLevel = (UM.moverOverlayLevel or 250) + 100,
         message = "You have unsaved position changes.\nWhat would you like to do?",
         cancelText  = "Exit Without Saving",
         confirmText = "Save & Exit",

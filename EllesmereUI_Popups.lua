@@ -527,6 +527,7 @@ function EllesmereUI:ShowConfirmPopup(opts)
     -- Force-close any widget tooltip so it doesn't linger behind the popup
     if EllesmereUI.HideWidgetTooltip then EllesmereUI.HideWidgetTooltip() end
     local popup = CreateConfirmPopup()
+    popup._dimmer:SetFrameLevel(opts.frameLevel or 100)
 
     -- Background style: flat (default) or modern Blizzard stone
     local modern = opts.modernBlizz
