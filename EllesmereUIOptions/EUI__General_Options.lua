@@ -2710,8 +2710,8 @@ initFrame:SetScript("OnEvent", function(self)
                   EllesmereUI.SetPointAnchorHandles(v)
                   EllesmereUI:RefreshPage()
               end },
-            { type="dropdown", text="Overlap Cycling Modifier",
-              tooltip="Hold this modifier and scroll over overlapping frames in Unlock Mode to cycle the top frame. None uses plain scrolling.",
+            { type="dropdown", text="Overlap Cycling",
+              tooltip="Modifier",
               disabled=function() return not (EllesmereUIDB and EllesmereUIDB.unlockOverlapCycling == true) end,
               disabledTooltip="Overlap Cycling",
               values={ none="None", shift="Shift", control="Ctrl", alt="Alt",
