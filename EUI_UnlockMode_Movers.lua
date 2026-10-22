@@ -28,9 +28,9 @@ end
 
 local function OverlapModifierDown(method)
     if method == "scroll" then return true end
-    if method == "shiftscroll" or method == "shiftarrows" then return IsShiftKeyDown() end
-    if method == "controlscroll" or method == "controlarrows" then return IsControlKeyDown() end
-    if method == "altscroll" or method == "altarrows" then return IsAltKeyDown() end
+    if method == "shiftscroll" then return IsShiftKeyDown() end
+    if method == "controlscroll" then return IsControlKeyDown() end
+    if method == "altscroll" then return IsAltKeyDown() end
     return false
 end
 
@@ -64,7 +64,7 @@ EllesmereUI.RefreshUnlockOverlapMethod = UM.UpdateMoverMouseWheel
 -- Rotate only the overlay levels; the real elements and saved layout stay put.
 local function CycleOverlappingMovers(current, delta)
     if not UM.isUnlocked or InCombatLockdown() or _mouseHeld or delta == 0
-        or not OverlapModifierDown(EllesmereUI.GetUnlockOverlapMethod()) then return end
+        or not OverlapScrollDown() then return end
     local hits = {}
     for _, m in pairs(movers) do
         if m._dragging then return end
@@ -108,17 +108,6 @@ local function CycleOverlappingMovers(current, delta)
         end
     end
     target:GetScript("OnEnter")(target)
-    return true
-end
-
-function UM.CycleOverlappingMoversWithArrow(key)
-    local method = EllesmereUI.GetUnlockOverlapMethod()
-    if method ~= "shiftarrows" and method ~= "controlarrows" and method ~= "altarrows" then return end
-    local delta
-    if key == "UP" or key == "LEFT" then delta = 1
-    elseif key == "DOWN" or key == "RIGHT" then delta = -1
-    else return end
-    return CycleOverlappingMovers(UM.hoveredMover, delta)
 end
 
 -- True while any part of a frame's rect reads secret: all of it when the frame
@@ -364,9 +353,7 @@ local function CreateMover(barKey)
     mover:SetMovable(true)
     mover:RegisterForDrag("LeftButton")
     mover:EnableMouse(true)
-    local function OnMoverWheel(_, delta)
-        if OverlapScrollDown() then CycleOverlappingMovers(mover, delta) end
-    end
+    local function OnMoverWheel(_, delta) CycleOverlappingMovers(mover, delta) end
     mover:EnableMouseWheel(OverlapScrollDown())
     mover:SetScript("OnMouseWheel", OnMoverWheel)
     mover:SetScript("OnMouseDown", function(self, button)
@@ -475,7 +462,7 @@ local function CreateMover(barKey)
     -- Store link buttons on mover so OnLeave can check if any are hovered
     mover._linkBtns = { wmBtn, hmBtn, atBtn, gdBtn }
     for _, btn in ipairs(mover._linkBtns) do
-        btn:EnableMouseWheel(OverlapModifierDown())
+        btn:EnableMouseWheel(OverlapScrollDown())
         btn:SetScript("OnMouseWheel", OnMoverWheel)
     end
 
@@ -2808,7 +2795,7 @@ local function CreateMover(barKey)
     cogBtn:SetFrameLevel(mover:GetFrameLevel() + 10)
     cogBtn:RegisterForClicks("AnyUp")
     cogBtn:EnableMouse(true)
-    cogBtn:EnableMouseWheel(OverlapModifierDown())
+    cogBtn:EnableMouseWheel(OverlapScrollDown())
     cogBtn:SetScript("OnMouseWheel", OnMoverWheel)
     cogBtn:SetSize(ACT_SZ, ACT_SZ)
     do

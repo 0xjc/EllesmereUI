@@ -1037,11 +1037,6 @@ local function SetupArrowKeyFrame()
         if not UM.isUnlocked or InCombatLockdown() then return end
         local dir = ARROW_DIRS[key]
         if not dir then return end
-        self:SetPropagateKeyboardInput(true)
-        if UM.CycleOverlappingMoversWithArrow(key) then
-            self:SetPropagateKeyboardInput(false)
-            return
-        end
         -- A selected fallback ghost answers the arrow keys with the exact
         -- same step math as movers (1 physical pixel; shift = 100).
         if not UM.selectedMover and EllesmereUI._NudgeSelectedFallbackGhost then

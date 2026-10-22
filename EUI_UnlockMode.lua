@@ -93,7 +93,11 @@ EllesmereUI._unlockModeLoaded = true
 
 function EllesmereUI.GetUnlockOverlapMethod()
     local db = EllesmereUIDB
-    if db and db.unlockOverlapMethod then return db.unlockOverlapMethod end
+    local method = db and db.unlockOverlapMethod
+    if method == "shiftarrows" then return "shiftscroll" end
+    if method == "controlarrows" then return "controlscroll" end
+    if method == "altarrows" then return "altscroll" end
+    if method then return method end
     -- Preserve explicit choices from the former toggle and modifier controls.
     if db and db.unlockOverlapCycling == false then return "disabled" end
     if db and db.unlockOverlapCycling == true then

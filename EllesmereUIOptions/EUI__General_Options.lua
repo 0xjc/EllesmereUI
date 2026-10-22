@@ -2711,12 +2711,10 @@ initFrame:SetScript("OnEvent", function(self)
                   EllesmereUI:RefreshPage()
               end },
             { type="dropdown", text="Overlap Cycling",
-              tooltip="Use the chosen scroll or arrow-key method to cycle overlapping frames in Unlock Mode.",
+              tooltip="Scroll with the chosen modifier to cycle overlapping frames in Unlock Mode.",
               values={ disabled="Disabled", scroll="Scroll", shiftscroll="Shift + Scroll",
-                  controlscroll="Ctrl + Scroll", altscroll="Alt + Scroll",
-                  shiftarrows="Shift + Arrows", controlarrows="Ctrl + Arrows", altarrows="Alt + Arrows" },
-              order={ "disabled", "scroll", "shiftscroll", "controlscroll", "altscroll",
-                  "shiftarrows", "controlarrows", "altarrows" },
+                  controlscroll="Ctrl + Scroll", altscroll="Alt + Scroll" },
+              order={ "disabled", "scroll", "shiftscroll", "controlscroll", "altscroll" },
               getValue=function() return EllesmereUI.GetUnlockOverlapMethod() end,
               setValue=function(v)
                   EllesmereUIDB = EllesmereUIDB or {}
