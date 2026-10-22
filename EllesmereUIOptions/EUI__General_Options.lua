@@ -2711,7 +2711,7 @@ initFrame:SetScript("OnEvent", function(self)
                   EllesmereUI:RefreshPage()
               end },
             { type="dropdown", text="Overlap Cycling",
-              tooltip="Modifier",
+              tooltip="Scroll with the chosen modifier to cycle overlapping frames in Unlock Mode.",
               disabled=function() return not (EllesmereUIDB and EllesmereUIDB.unlockOverlapCycling == true) end,
               disabledTooltip="Overlap Cycling",
               values={ none="None", shift="Shift", control="Ctrl", alt="Alt",
@@ -2726,6 +2726,7 @@ initFrame:SetScript("OnEvent", function(self)
               end }); y = y - h
         if not EllesmereUI._prebuilding then
             local rgn = pointAnchorRow._rightRegion
+            rgn._control._ttText = "Modifier"
             local toggle = EllesmereUI.BuildInlineToggle({
                 region = rgn, sizeRatio = 1,
                 getValue = function() return EllesmereUIDB and EllesmereUIDB.unlockOverlapCycling == true end,
