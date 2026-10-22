@@ -2711,39 +2711,23 @@ initFrame:SetScript("OnEvent", function(self)
                   EllesmereUI:RefreshPage()
               end },
             { type="dropdown", text="Overlap Cycling",
-              tooltip="Scroll with the chosen modifier to cycle overlapping frames in Unlock Mode.",
-              disabled=function() return not (EllesmereUIDB and EllesmereUIDB.unlockOverlapCycling == true) end,
-              disabledTooltip="Overlap Cycling",
-              values={ none="None", shift="Shift", control="Ctrl", alt="Alt",
-                  shiftcontrol="Shift + Ctrl", shiftalt="Shift + Alt", controlalt="Ctrl + Alt",
-                  shiftcontrolalt="Shift + Ctrl + Alt" },
-              order={ "none", "shift", "control", "alt", "shiftcontrol", "shiftalt", "controlalt", "shiftcontrolalt" },
-              getValue=function() return (EllesmereUIDB and EllesmereUIDB.unlockOverlapModifier) or "shift" end,
+              tooltip="Use the chosen scroll or arrow-key method to cycle overlapping frames in Unlock Mode.",
+              values={ disabled="Disabled", scroll="Scroll", shiftscroll="Shift + Scroll",
+                  controlscroll="Ctrl + Scroll", altscroll="Alt + Scroll",
+                  shiftarrows="Shift + Arrows", controlarrows="Ctrl + Arrows", altarrows="Alt + Arrows" },
+              order={ "disabled", "scroll", "shiftscroll", "controlscroll", "altscroll",
+                  "shiftarrows", "controlarrows", "altarrows" },
+              getValue=function() return EllesmereUI.GetUnlockOverlapMethod() end,
               setValue=function(v)
                   EllesmereUIDB = EllesmereUIDB or {}
-                  EllesmereUIDB.unlockOverlapModifier = v
-                  if EllesmereUI.RefreshUnlockOverlapModifier then EllesmereUI.RefreshUnlockOverlapModifier() end
+                  EllesmereUIDB.unlockOverlapMethod = v
+                  EllesmereUIDB.unlockOverlapModifier = nil
+                  EllesmereUIDB.unlockOverlapCycling = nil
+                  if EllesmereUI.RefreshUnlockOverlapMethod then EllesmereUI.RefreshUnlockOverlapMethod() end
               end }); y = y - h
         if not EllesmereUI._prebuilding then
             local rgn = pointAnchorRow._rightRegion
-            rgn._control._ttText = "Modifier"
-            local toggle = EllesmereUI.BuildInlineToggle({
-                region = rgn, sizeRatio = 1,
-                getValue = function() return EllesmereUIDB and EllesmereUIDB.unlockOverlapCycling == true end,
-                setValue = function(v)
-                    EllesmereUIDB = EllesmereUIDB or {}
-                    EllesmereUIDB.unlockOverlapCycling = v
-                    if EllesmereUI.RefreshUnlockOverlapModifier then EllesmereUI.RefreshUnlockOverlapModifier() end
-                end,
-                onToggle = function() EllesmereUI:RefreshPage() end,
-            })
-            toggle:ClearAllPoints()
-            PP.Point(toggle, "RIGHT", rgn, "RIGHT", -20, 0)
-            rgn._control:ClearAllPoints()
-            PP.Point(rgn._control, "RIGHT", toggle, "LEFT", -8, 0)
-            rgn._lastInline = nil
-            toggle:HookScript("OnEnter", function() EllesmereUI.ShowWidgetTooltip(toggle, "Enable Overlap Cycling") end)
-            toggle:HookScript("OnLeave", function() EllesmereUI.HideWidgetTooltip() end)
+            rgn._control._ttText = "Cycle Method"
             EllesmereUI.BuildInlineSwatches(pointAnchorRow._leftRegion, {
                 { tooltip="Connector Lines Color", hasAlpha=true,
                   getValue=function() return EllesmereUI.GetPointAnchorColor("line") end,

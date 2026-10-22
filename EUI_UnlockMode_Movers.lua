@@ -22,30 +22,35 @@ local DeselectMover, GetActionBarVisualSize, SortMoverFrameLevels = UM.DeselectM
 
 local _mouseHeld = false       -- true while left mouse button is held down anywhere
 
-local function OverlapModifierDown()
-    if not (EllesmereUIDB and EllesmereUIDB.unlockOverlapCycling == true) then return false end
-    local modifier = (EllesmereUIDB and EllesmereUIDB.unlockOverlapModifier) or "shift"
-    if modifier == "none" then return true end
-    local shift = modifier:find("shift", 1, true)
-    local control = modifier:find("control", 1, true)
-    local alt = modifier:find("alt", 1, true)
-    return (shift or control or alt) ~= nil
-        and (not shift or IsShiftKeyDown())
-        and (not control or IsControlKeyDown())
-        and (not alt or IsAltKeyDown())
+local function OverlapUsesScroll(method)
+    return method == "scroll" or method == "shiftscroll" or method == "controlscroll" or method == "altscroll"
+end
+
+local function OverlapModifierDown(method)
+    if method == "scroll" then return true end
+    if method == "shiftscroll" or method == "shiftarrows" then return IsShiftKeyDown() end
+    if method == "controlscroll" or method == "controlarrows" then return IsControlKeyDown() end
+    if method == "altscroll" or method == "altarrows" then return IsAltKeyDown() end
+    return false
+end
+
+local function OverlapScrollDown()
+    local method = EllesmereUI.GetUnlockOverlapMethod()
+    return OverlapUsesScroll(method) and OverlapModifierDown(method)
 end
 
 function UM.UpdateMoverMouseWheel()
+    local method = EllesmereUI.GetUnlockOverlapMethod()
     local active = UM.isUnlocked and UM.arrowKeyFrame and UM.arrowKeyFrame:IsShown()
-        and EllesmereUIDB and EllesmereUIDB.unlockOverlapCycling == true
+        and OverlapUsesScroll(method)
     if UM.arrowKeyFrame then
-        if active then
+        if active and method ~= "scroll" then
             UM.arrowKeyFrame:RegisterEvent("MODIFIER_STATE_CHANGED")
         else
             UM.arrowKeyFrame:UnregisterEvent("MODIFIER_STATE_CHANGED")
         end
     end
-    local enabled = active and OverlapModifierDown() or false
+    local enabled = active and OverlapModifierDown(method) or false
     for _, m in pairs(movers) do
         m:EnableMouseWheel(enabled)
         if m._linkBtns then
@@ -54,11 +59,12 @@ function UM.UpdateMoverMouseWheel()
         if m._cogBtn then m._cogBtn:EnableMouseWheel(enabled) end
     end
 end
-EllesmereUI.RefreshUnlockOverlapModifier = UM.UpdateMoverMouseWheel
+EllesmereUI.RefreshUnlockOverlapMethod = UM.UpdateMoverMouseWheel
 
 -- Rotate only the overlay levels; the real elements and saved layout stay put.
 local function CycleOverlappingMovers(current, delta)
-    if not UM.isUnlocked or InCombatLockdown() or _mouseHeld or delta == 0 or not OverlapModifierDown() then return end
+    if not UM.isUnlocked or InCombatLockdown() or _mouseHeld or delta == 0
+        or not OverlapModifierDown(EllesmereUI.GetUnlockOverlapMethod()) then return end
     local hits = {}
     for _, m in pairs(movers) do
         if m._dragging then return end
@@ -102,6 +108,17 @@ local function CycleOverlappingMovers(current, delta)
         end
     end
     target:GetScript("OnEnter")(target)
+    return true
+end
+
+function UM.CycleOverlappingMoversWithArrow(key)
+    local method = EllesmereUI.GetUnlockOverlapMethod()
+    if method ~= "shiftarrows" and method ~= "controlarrows" and method ~= "altarrows" then return end
+    local delta
+    if key == "UP" or key == "LEFT" then delta = 1
+    elseif key == "DOWN" or key == "RIGHT" then delta = -1
+    else return end
+    return CycleOverlappingMovers(UM.hoveredMover, delta)
 end
 
 -- True while any part of a frame's rect reads secret: all of it when the frame
@@ -347,8 +364,10 @@ local function CreateMover(barKey)
     mover:SetMovable(true)
     mover:RegisterForDrag("LeftButton")
     mover:EnableMouse(true)
-    local function OnMoverWheel(_, delta) CycleOverlappingMovers(mover, delta) end
-    mover:EnableMouseWheel(OverlapModifierDown())
+    local function OnMoverWheel(_, delta)
+        if OverlapScrollDown() then CycleOverlappingMovers(mover, delta) end
+    end
+    mover:EnableMouseWheel(OverlapScrollDown())
     mover:SetScript("OnMouseWheel", OnMoverWheel)
     mover:SetScript("OnMouseDown", function(self, button)
         if button == "LeftButton" then _mouseHeld = true end

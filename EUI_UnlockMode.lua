@@ -91,6 +91,19 @@ end
 if EllesmereUI._unlockModeLoaded then return end
 EllesmereUI._unlockModeLoaded = true
 
+function EllesmereUI.GetUnlockOverlapMethod()
+    local db = EllesmereUIDB
+    if db and db.unlockOverlapMethod then return db.unlockOverlapMethod end
+    -- Preserve explicit choices from the former toggle and modifier controls.
+    if db and db.unlockOverlapCycling == false then return "disabled" end
+    if db and db.unlockOverlapCycling == true then
+        if db.unlockOverlapModifier == "none" then return "scroll" end
+        if db.unlockOverlapModifier == "control" then return "controlscroll" end
+        if db.unlockOverlapModifier == "alt" then return "altscroll" end
+    end
+    return "shiftscroll"
+end
+
 -------------------------------------------------------------------------------
 --  Anchor reapply stub (pre-EnsureLoaded): lets child addons (CDM) reposition
 --  anchored elements at login before the full body loads; deferred block replaces it.
