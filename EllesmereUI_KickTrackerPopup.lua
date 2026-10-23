@@ -223,7 +223,7 @@ local function ShowKickTrackerPopup()
     local block = CreateFrame("Frame", nil, popup)
     PP.Size(block, BLOCK_W, 10)
     PP.Point(block, "TOP", desc, "BOTTOM", 0, -18)
-    local prev, blockH = nil, 0
+    local prev, bulletFS = nil, {}
     for i, text in ipairs(BULLETS) do
         local bl = popup:CreateFontString(nil, "OVERLAY")
         bl:SetFont(FONT, 14, "")
@@ -241,18 +241,18 @@ local function ShowKickTrackerPopup()
         dot:SetColorTexture(EG.r, EG.g, EG.b, 1)
         PP.Size(dot, 5, 5)
         PP.Point(dot, "TOPRIGHT", bl, "TOPLEFT", -10, -5)
-        blockH = blockH + math.ceil(bl:GetStringHeight() or 14) + ((i > 1) and 10 or 0)
+        bulletFS[i] = bl
         prev = bl
     end
 
     -- Link well: a read-only edit box holding the spotlight page's address,
     -- selected whenever it has focus, so Ctrl+C is the whole job. Typing,
-    -- pasting or cutting puts the address back and selects it again.
+    -- pasting or cutting puts the address back and selects it again. Placed
+    -- under the bullets once the popup shows (below).
     local WELL_W, WELL_H = 350, 34
     local urlWell = CreateFrame("Frame", nil, popup)
     urlWell:SetFrameLevel(popup:GetFrameLevel() + 2)
     PP.Size(urlWell, WELL_W, WELL_H)
-    PP.Point(urlWell, "TOP", block, "TOP", 0, -blockH - 18)
     local wbg = urlWell:CreateTexture(nil, "BACKGROUND")
     wbg:SetAllPoints()
     wbg:SetColorTexture(0.045, 0.035, 0.027, 1)
@@ -341,20 +341,33 @@ local function ShowKickTrackerPopup()
     footnote:SetText(isOn and EllesmereUI.L("The Kick Tracker is under Mythic+ Tools in /eui.")
         or EllesmereUI.L("Turning it on takes effect at once, no reload. The Kick Tracker is under Mythic+ Tools in /eui."))
 
+    dimmer:Show()
+
     -- Height from the laid-out text: header art and eyebrow (112), eyebrow,
     -- title and description with their gaps, the bullets, the link well and
-    -- its hint, then the buttons and footnote (82) under a 28px gap. A
-    -- translation that wraps more grows it.
-    local textH = math.ceil(eyebrow:GetStringHeight() or 13) + 6 + math.ceil(title:GetStringHeight() or 26)
-        + 10 + math.ceil(desc:GetStringHeight() or 36)
-    local wellH = 18 + WELL_H + 8 + math.ceil(hint:GetStringHeight() or 11)
-    PP.Size(popup, POPUP_W, 112 + textH + 18 + blockH + wellH + 28 + 82)
-
-    dimmer:Show()
+    -- its hint, then the buttons and footnote (82) under a 28px gap. A hidden
+    -- or never-rendered font string reports its unwrapped height (field report
+    -- 2026-10-23: a profile whose font wraps the description and the bullets
+    -- put the well and the buttons over the text), so the layout runs once
+    -- shown and again a frame later, when the strings have rendered.
+    local function Layout()
+        local blockH = 0
+        for i = 1, #bulletFS do
+            blockH = blockH + math.ceil(bulletFS[i]:GetStringHeight() or 14) + ((i > 1) and 10 or 0)
+        end
+        PP.Point(urlWell, "TOP", block, "TOP", 0, -blockH - 18)
+        local textH = math.ceil(eyebrow:GetStringHeight() or 13) + 6 + math.ceil(title:GetStringHeight() or 26)
+            + 10 + math.ceil(desc:GetStringHeight() or 36)
+        local wellH = 18 + WELL_H + 8 + math.ceil(hint:GetStringHeight() or 11)
+        PP.Size(popup, POPUP_W, 112 + textH + 18 + blockH + wellH + 28 + 82)
+    end
+    Layout()
     -- Selected from the start: the popup is modal, so the keyboard has nowhere
     -- else to be, and Ctrl+C copies the link without a click.
     C_Timer.After(0, function()
-        if dimmer:IsShown() then eb:SetFocus(); eb:HighlightText() end
+        if not dimmer:IsShown() then return end
+        Layout()
+        eb:SetFocus(); eb:HighlightText()
     end)
 end
 
@@ -448,7 +461,22 @@ loader:SetScript("OnEvent", function(self, event, addonName)
             end
             ShowKickTrackerPopup()
         end
-        C_Timer.After(0.5, TryShow)
+        -- Shown once the loading screen is down: text built behind it is never
+        -- laid out, so a popup shown 0.5 s after PLAYER_LOGIN on a login that
+        -- outlasts that (a profile with more modules on) measured its lines
+        -- unwrapped and drew the well and buttons over them (field report
+        -- 2026-10-23). The 8 s fallback covers a client that never reports it.
+        local function Go()
+            if self._go == nil then return end
+            self._go = nil
+            self:UnregisterEvent("LOADING_SCREEN_DISABLED")
+            C_Timer.After(0.5, TryShow)
+        end
+        self._go = Go
+        self:RegisterEvent("LOADING_SCREEN_DISABLED")
+        C_Timer.After(8, Go)
+    elseif event == "LOADING_SCREEN_DISABLED" then
+        if self._go then self._go() end
     end
 end)
 

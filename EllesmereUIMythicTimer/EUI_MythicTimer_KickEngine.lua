@@ -1451,7 +1451,7 @@ local LIVE_EVENTS = {
     "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_CHANNEL_STOP", "UNIT_SPELLCAST_EMPOWER_STOP",
     "DAMAGE_METER_COMBAT_SESSION_UPDATED", "DAMAGE_METER_CURRENT_SESSION_UPDATED", "DAMAGE_METER_RESET",
     "GROUP_ROSTER_UPDATE", "PLAYER_SPECIALIZATION_CHANGED", "TRAIT_CONFIG_UPDATED", "SPELLS_CHANGED",
-    "ADDON_RESTRICTION_STATE_CHANGED", "PLAYER_REGEN_ENABLED", "CHALLENGE_MODE_START",
+    "ADDON_RESTRICTION_STATE_CHANGED", "PLAYER_REGEN_ENABLED", "CHALLENGE_MODE_START", -- guardrails-allow: combat-deferral by Ellesmere: the engine's combat-end edge (specs from the meter rows, stale talent re-reads, the next inspect), live only while a display subscribes and dropped at Deactivate; a recurring listener, not a one-shot deferral
     "PLAYER_ENTERING_WORLD",
 }
 

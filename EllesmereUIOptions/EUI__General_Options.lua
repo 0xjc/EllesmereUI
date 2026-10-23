@@ -231,7 +231,7 @@ end
 -------------------------------------------------------------------------------
 EllesmereUI._WHATSNEW_PATCHES = {
     {
-        version = "9.6.5",
+        version = "9.6.6",
         heroes = {
             {
                 -- A new Mythic+ Tools tab (retail only: the module does not load on WoW Forever).
