@@ -1115,7 +1115,7 @@ initFrame:SetScript("OnEvent", function(self)
             -- (No tab idle-fade section: the per-tab fade layer was removed
             -- 2026-07-20 -- Blizzard's own tab alpha machinery always won and
             -- the setting visibly did nothing. Tabs fade with the chat panel
-            -- via the dock; see the tab-alpha note in EllesmereUIChat.lua.)
+            -- via the dock; see _ApplyAlpha in EUI_Chat_Visibility.lua.)
 
             _, h = W:SectionHeader(parent, "BORDER", y); y = y - h
             _, h = W:DualRow(parent, y,
