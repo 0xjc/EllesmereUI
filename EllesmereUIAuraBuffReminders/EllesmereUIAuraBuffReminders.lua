@@ -6,7 +6,7 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 -------------------------------------------------------------------------------
 
 local ADDON_NAME = ...
-if not (EllesmereUI and EllesmereUI._ModuleNS and EllesmereUI._Pool) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring
+if not (EllesmereUI and EllesmereUI._ModuleNS and EllesmereUI.NewInternals and EllesmereUI._Pool) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring
 EllesmereUI._ModuleNS[ADDON_NAME] = select(2, ...)  -- LOD options files read this module ns via the registry
 
 local EABR = EllesmereUI.Lite.NewAddon("EllesmereUIAuraBuffReminders")
@@ -424,7 +424,7 @@ local NON_SECRET_SPELL_IDS = {
 -- broken: true while an EUI_AuraBuffReminders_*.lua file loads; a file that
 -- fails leaves it set, and the files behind it return at their first lines.
 local ns = select(2, ...)
-ns._abrInternals = {
+EllesmereUI.NewInternals(ns, "_abrInternals", {
     _B = _B, AURA_SCAN_LIMIT = AURA_SCAN_LIMIT, CacheInstanceInfo = CacheInstanceInfo,
     CursorAttachActive = CursorAttachActive, DEFAULT_TEXT_COLOR = DEFAULT_TEXT_COLOR, EABR = EABR,
     EnsureGlowModeMigrated = EnsureGlowModeMigrated, GetPlayerClass = GetPlayerClass,
@@ -443,22 +443,9 @@ ns._abrInternals = {
     iconAnchorSetters = {},
     combatAnchorSetters = {},
     cursorAnchorSetters = {},
-    broken = false,
-}
--- Set<Name> hands a new value to every copy registered in <name>Setters.
-for setter, listName in pairs({
+}, {
     SetDB = "dbSetters", SetInCombat = "inCombatSetters", SetCachedOutline = "outlineSetters",
     SetHuntersMarkNeeded = "huntersMarkSetters", SetPanelOpen = "panelOpenSetters",
     SetIconAnchor = "iconAnchorSetters", SetCombatAnchor = "combatAnchorSetters",
     SetCursorAnchor = "cursorAnchorSetters",
-}) do
-    local list = ns._abrInternals[listName]
-    ns._abrInternals[setter] = function(v)
-        for i = 1, #list do list[i](v) end
-    end
-end
--- A re-import of a name this table lacks fails where the part file loads,
--- not later as a nil upvalue inside one of its functions.
-setmetatable(ns._abrInternals, { __index = function(_, k)
-    error("ns._abrInternals has no entry " .. tostring(k), 2)
-end })
+})
