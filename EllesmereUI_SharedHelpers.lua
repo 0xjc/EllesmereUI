@@ -3,7 +3,8 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --  EllesmereUI_SharedHelpers.lua
 --  Frame data store, third-party skin registry, Edit Mode-safe anchoring and
 --  frame placers, Blizzard cast bar ownership and suppression, and small
---  shared helpers (Swiftmend, level colors, faction art). Loads right after
+--  shared helpers (Swiftmend, level colors, faction art, split-module guard
+--  tables). Loads right after
 --  EllesmereUI_VisibilityRules.lua.
 -------------------------------------------------------------------------------
 local EllesmereUI = _G.EllesmereUI
@@ -880,5 +881,43 @@ function EllesmereUI.SetFactionArt(tex, style, faction, badgeFile)
         tex:SetTexture(name)
         local c = art.coords
         if c then tex:SetTexCoord(c[1], c[2], c[3], c[4]) else tex:SetTexCoord(0, 1, 0, 1) end
+    end
+end
+
+-------------------------------------------------------------------------------
+--  Guard table of a split module: the main file's names that its part files
+--  re-import. setters maps Set<Name> to a list in t; Set<Name>(v) hands v to
+--  every function in that list, and a function added to the list after a
+--  Set<Name> call gets the last value at once. broken starts false unless t
+--  carries a last chain. Reading a name the table lacks raises at the reader.
+-------------------------------------------------------------------------------
+do
+    local function NewFanOut(list)
+        local has, cur = false, nil
+        setmetatable(list, { __newindex = function(l, i, fn)
+            rawset(l, i, fn)
+            if has then fn(cur) end
+        end })
+        return function(v)
+            has, cur = true, v
+            for i = 1, #list do list[i](v) end
+        end
+    end
+
+    function EllesmereUI.NewInternals(ns, field, t, setters)
+        if setters then
+            for setter, listName in pairs(setters) do
+                local list = t[listName]
+                if type(list) ~= "table" then
+                    error("ns." .. field .. ": " .. setter .. " has no list " .. tostring(listName), 2)
+                end
+                t[setter] = NewFanOut(list)
+            end
+        end
+        if t.last == nil then t.broken = false end
+        ns[field] = setmetatable(t, { __index = function(_, k)
+            error("ns." .. field .. " has no entry " .. tostring(k), 2)
+        end })
+        return ns[field]
     end
 end
