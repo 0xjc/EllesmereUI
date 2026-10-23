@@ -1014,6 +1014,18 @@ local function SetupArrowKeyFrame()
     UM.arrowKeyFrame:SetPropagateKeyboardInput(true)
     UM.arrowKeyFrame:Hide()
 
+    -- Keep scrolling passing through until the cycling modifier matches.
+    UM.arrowKeyFrame:SetScript("OnShow", function(self)
+        UM.UpdateMoverMouseWheel()
+    end)
+    UM.arrowKeyFrame:SetScript("OnHide", function(self)
+        self:UnregisterEvent("MODIFIER_STATE_CHANGED")
+        UM.UpdateMoverMouseWheel()
+    end)
+    UM.arrowKeyFrame:SetScript("OnEvent", function()
+        UM.UpdateMoverMouseWheel()
+    end)
+
     local ARROW_DIRS = {
         UP    = { 0,  1 },
         DOWN  = { 0, -1 },
@@ -1022,7 +1034,7 @@ local function SetupArrowKeyFrame()
     }
 
     UM.arrowKeyFrame:SetScript("OnKeyDown", function(self, key)
-        if not UM.isUnlocked then return end
+        if not UM.isUnlocked or InCombatLockdown() then return end
         local dir = ARROW_DIRS[key]
         if not dir then return end
         -- A selected fallback ghost answers the arrow keys with the exact
@@ -1136,6 +1148,8 @@ end
 local function SortMoverFrameLevels()
     if not UM.unlockFrame then return end
     local BASE = UM.unlockFrame:GetFrameLevel() + 20
+    -- A mover's border, labels, links and cog occupy levels through +12.
+    local STEP = 16
     local sorted = {}
     for key, m in pairs(movers) do
         local area = (m:GetWidth() or 100) * (m:GetHeight() or 100)
@@ -1144,11 +1158,34 @@ local function SortMoverFrameLevels()
     -- Largest area first -> lowest frame level
     table.sort(sorted, function(a, b) return a.area > b.area end)
     for i, entry in ipairs(sorted) do
-        local lvl = BASE + i
+        local lvl = BASE + i * STEP
         entry.mover._baseLevel = lvl
-        entry.mover._raisedLevel = lvl + #sorted + 5
+        entry.mover._raisedLevel = lvl + (#sorted + 1) * STEP
+        entry.mover._cycleLowered = nil
         entry.mover:SetFrameLevel(lvl)
+        if entry.mover._cogBtn then entry.mover._cogBtn:SetFrameLevel(lvl + 10) end
     end
+    -- Leave room above hovered movers (+100) and their point handles (+40).
+    UM.moverOverlayLevel = math.max(250, BASE + (2 * #sorted + 1) * STEP + 160)
+    if UM.moverOverlays then
+        -- Parents are registered first; update them before their child menus.
+        for _, frame in ipairs(UM.moverOverlays) do
+            frame:SetFrameLevel(UM.moverOverlayLevel + frame._moverOverlayOffset)
+        end
+    end
+    local confirm = _G.EUIConfirmDimmer
+    if confirm and confirm:IsShown() then confirm:SetFrameLevel(UM.moverOverlayLevel + 100) end
+end
+
+-- Menus and anchor ghosts follow the stack when late registrations re-sort it.
+function UM.SetMoverOverlayLevel(frame, offset)
+    offset = offset or 0
+    UM.moverOverlays = UM.moverOverlays or {}
+    if frame._moverOverlayOffset == nil then
+        UM.moverOverlays[#UM.moverOverlays + 1] = frame
+    end
+    frame._moverOverlayOffset = offset
+    frame:SetFrameLevel((UM.moverOverlayLevel or 250) + offset)
 end
 
 -------------------------------------------------------------------------------

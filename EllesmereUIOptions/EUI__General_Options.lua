@@ -2701,28 +2701,46 @@ initFrame:SetScript("OnEvent", function(self)
         _, h = W:Spacer(parent, y, 20);  y = y - h
 
         _, h = W:SectionHeader(parent, "UNLOCK MODE", y);  y = y - h
-        _, h = W:DualRow(parent, y,
-            { type="toggle", text="Point Anchor Handles",
+        local pointAnchorRow
+        pointAnchorRow, h = W:DualRow(parent, y,
+            { type="toggle", text="Point Anchoring",
               tooltip="Show nine source points after clicking Anchor in Unlock Mode. Choose a source point, then a target point. Turning this off hides the handles and preserves saved point anchors.",
               getValue=function() return EllesmereUIDB and EllesmereUIDB.unlockPointHandles == true end,
               setValue=function(v)
                   EllesmereUI.SetPointAnchorHandles(v)
                   EllesmereUI:RefreshPage()
               end },
-            { type="multiSwatch", text="Point Anchor Colors",
-              disabled=function() return not (EllesmereUIDB and EllesmereUIDB.unlockPointHandles == true) end,
-              disabledTooltip="Point Anchor Handles",
-              swatches = {
-                { tooltip="Connector Lines", hasAlpha=true,
+            { type="dropdown", text="Overlap Cycling",
+              tooltip="Scroll with the chosen modifier to cycle overlapping frames in Unlock Mode.",
+              values={ disabled="Disabled", scroll="Scroll", shiftscroll="Shift + Scroll",
+                  controlscroll="Ctrl + Scroll", altscroll="Alt + Scroll" },
+              order={ "disabled", "scroll", "shiftscroll", "controlscroll", "altscroll" },
+              getValue=function() return EllesmereUI.GetUnlockOverlapMethod() end,
+              setValue=function(v)
+                  EllesmereUIDB = EllesmereUIDB or {}
+                  EllesmereUIDB.unlockOverlapMethod = v
+                  EllesmereUIDB.unlockOverlapModifier = nil
+                  EllesmereUIDB.unlockOverlapCycling = nil
+                  if EllesmereUI.RefreshUnlockOverlapMethod then EllesmereUI.RefreshUnlockOverlapMethod() end
+              end }); y = y - h
+        if not EllesmereUI._prebuilding then
+            local rgn = pointAnchorRow._rightRegion
+            rgn._control._ttText = "Cycle Method"
+            EllesmereUI.BuildInlineSwatches(pointAnchorRow._leftRegion, {
+                { tooltip="Connector Lines Color", hasAlpha=true,
                   getValue=function() return EllesmereUI.GetPointAnchorColor("line") end,
                   setValue=function(r,g,b,a) EllesmereUI.SetPointAnchorColor("line",r,g,b,a) end },
-                { tooltip="Border", hasAlpha=true,
+                { tooltip="Border Color", hasAlpha=true,
                   getValue=function() return EllesmereUI.GetPointAnchorColor("border") end,
                   setValue=function(r,g,b,a) EllesmereUI.SetPointAnchorColor("border",r,g,b,a) end },
-                { tooltip="Point", hasAlpha=true,
+                { tooltip="Point Color", hasAlpha=true,
                   getValue=function() return EllesmereUI.GetPointAnchorColor("point") end,
                   setValue=function(r,g,b,a) EllesmereUI.SetPointAnchorColor("point",r,g,b,a) end },
-              } }); y = y - h
+            }, {
+                disabled=function() return not (EllesmereUIDB and EllesmereUIDB.unlockPointHandles == true) end,
+                disabledTooltip="Point Anchoring",
+            })
+        end
         _, h = W:Spacer(parent, y, 20); y = y - h
 
         _, h = W:SectionHeader(parent, "COMBAT", y);  y = y - h
