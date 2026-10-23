@@ -826,7 +826,7 @@ NEW IN ELLESMEREUI
 NPC Target Color
 Name Taken
 Name the new filter.
-Nameplate Kick Icons use this to auto assign kicks when a mob is initially marked
+Nameplate Kick Icons use this to auto-assign kicks when a mob is first marked.
 Nameplate Kick Tracker
 Names:
 Nature Res
@@ -1355,7 +1355,7 @@ Trinket 2
 Tune graphics for higher FPS and clarity.
 Turn It On
 Turning it on reloads your UI. Group Finder is under UI Reskin Addons in /eui.
-Turning it on takes effect at once, no reload. The Kick Tracker is under Mythic+ Tools in /eui.
+Turning it on takes effect immediately, no reload needed. The Kick Tracker is under Mythic+ Tools in /eui.
 Two action menus can share a keybind when Assign to Spec keeps them from ever loading in the same spec.
 UI Scale Issue: Profile was made at %1$d%%, yours is %2$d%%
 UI Scale Mismatch
