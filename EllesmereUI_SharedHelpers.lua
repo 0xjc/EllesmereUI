@@ -4,8 +4,7 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --  Frame data store, third-party skin registry, Edit Mode-safe anchoring and
 --  frame placers, Blizzard cast bar ownership and suppression, and small
 --  shared helpers (Swiftmend, level colors, faction art, split-module guard
---  tables). Loads right after
---  EllesmereUI_VisibilityRules.lua.
+--  tables). Loads right after EllesmereUI_VisibilityRules.lua.
 -------------------------------------------------------------------------------
 local EllesmereUI = _G.EllesmereUI
 
@@ -888,8 +887,9 @@ end
 --  Guard table of a split module: the main file's names that its part files
 --  re-import. setters maps Set<Name> to a list in t; Set<Name>(v) hands v to
 --  every function in that list, and a function added to the list after a
---  Set<Name> call gets the last value at once. broken starts false unless t
---  carries a last chain. Reading a name the table lacks raises at the reader.
+--  Set<Name> call gets the last value at once. broken starts false (a file
+--  chain that guards on t.last ignores it). Reading a name the table lacks
+--  raises at the reader; label names the owner in that message (default "ns").
 -------------------------------------------------------------------------------
 do
     local function NewFanOut(list)
@@ -904,19 +904,20 @@ do
         end
     end
 
-    function EllesmereUI.NewInternals(ns, field, t, setters)
+    function EllesmereUI.NewInternals(ns, field, t, setters, label)
+        local name = (label or "ns") .. "." .. field
         if setters then
             for setter, listName in pairs(setters) do
                 local list = t[listName]
                 if type(list) ~= "table" then
-                    error("ns." .. field .. ": " .. setter .. " has no list " .. tostring(listName), 2)
+                    error(name .. ": " .. setter .. " has no list " .. tostring(listName), 2)
                 end
                 t[setter] = NewFanOut(list)
             end
         end
-        if t.last == nil then t.broken = false end
+        t.broken = false
         ns[field] = setmetatable(t, { __index = function(_, k)
-            error("ns." .. field .. " has no entry " .. tostring(k), 2)
+            error(name .. " has no entry " .. tostring(k), 2)
         end })
         return ns[field]
     end

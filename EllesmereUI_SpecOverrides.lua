@@ -873,5 +873,5 @@ EllesmereUI.NewInternals(EUI_NS, "_soInternals", {
     SetTeardownEditSession = "teardownSetters", SetPanelShown = "panelShownSetters",
     SetEnterDefaultView = "enterDefaultViewSetters",
     SetUpdateIndicator = "updateIndicatorSetters", SetRefreshCardsPopup = "refreshCardsSetters",
-})
+}, "EUI_NS")
 SetCombatFolders = EUI_NS._soInternals.SetCombatFolders
