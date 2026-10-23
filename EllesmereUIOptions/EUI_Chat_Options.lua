@@ -73,7 +73,9 @@ initFrame:SetScript("OnEvent", function(self)
         -- reposition banner and its Force Chat on Screen link are gone.
 
         -- -- DISPLAY -----------------------------------------------------------
-        _, h = W:SectionHeader(parent, "DISPLAY", y); y = y - h
+        local hdr
+        hdr, h = W:SectionHeader(parent, "DISPLAY", y); y = y - h
+        EllesmereUI.BuildSectionUnlockJump(hdr, { key = "ECHAT_MainChat" })
         if BS then y = BS.Note(parent, y, "chat") end
 
         -- Row 1: Visibility (one control; no mouseover for chat frames) | Lock Main Chat Size

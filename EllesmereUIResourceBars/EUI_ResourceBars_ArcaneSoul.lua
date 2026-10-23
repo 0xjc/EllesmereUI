@@ -52,6 +52,8 @@ local SUNFURY_TREE_ID = 39      -- C_ClassTalents.GetActiveHeroTalentSpec()
 local GCD_SPELL_ID    = EllesmereUI.GCD_SPELL
 local STYLE_KEY       = "erb:arcsoul121"
 local UNLOCK_KEY      = "EUI_ArcaneSoul"
+-- WoW Forever has no Arcane spec or Sunfury: the helper stays off there.
+local FOREVER         = EllesmereUI.IS_FOREVER == true
 
 local DEFAULT_POS = { point = "CENTER", relPoint = "CENTER", x = 0, y = -150 }
 
@@ -709,15 +711,15 @@ local function DemoText(fs, t, gcd)
         -- The hide rule owns thr itself: the first visible value is below it.
         local left = math.min(thr - t, thr - 0.01)
         if PhaseMode("surge") == "gcd" then
-            fs:SetText("Soul in " .. DemoGcdCount(left, gcd))
+            fs:SetFormattedText("Soul in %d", DemoGcdCount(left, gcd))
         else
-            fs:SetText(string.format("Soul in %.1f", math.floor(left * 10) / 10))
+            fs:SetFormattedText("Soul in %.1f", math.floor(left * 10) / 10)
         end
         r, g, b = PreColor()
     else
         local left = thr + SOUL_LEN - t
         if PhaseMode("soul") ~= "gcd" then
-            fs:SetText(string.format("%.1f", math.floor(left * 10) / 10))
+            fs:SetFormattedText("%.1f", math.floor(left * 10) / 10)
             r, g, b = SoulColor()
         else
             local n = DemoGcdCount(left, gcd)
@@ -725,7 +727,7 @@ local function DemoText(fs, t, gcd)
                 fs:SetText("LAST")
                 r, g, b = LastColor()
             else
-                fs:SetText(tostring(n))
+                fs:SetFormattedText("%d", n)
                 r, g, b = SoulColor()
             end
         end
@@ -773,7 +775,7 @@ end
 
 local function EnabledForClass()
     local p = P()
-    return (p and p.enabled and S.class == "MAGE") and true or false
+    return (p and p.enabled and S.class == "MAGE" and not FOREVER) and true or false
 end
 
 local function GateOK()
@@ -985,7 +987,7 @@ end
 -------------------------------------------------------------------------------
 
 function ns.AS_MakeUnlockElement(MK)
-    if not MK or S.class ~= "MAGE" then return nil end
+    if not MK or S.class ~= "MAGE" or FOREVER then return nil end
 
     if not S.unlockHooked and EllesmereUI and EllesmereUI.RegisterUnlockModeListener then
         S.unlockHooked = true

@@ -76,6 +76,10 @@ function ns._appendDisplayPresetKeys(t)
         "leftSlotSize", "leftSlotXOffset", "leftSlotYOffset", "leftSlotRaiseStrata",
         "toprightSlotSize", "toprightSlotXOffset", "toprightSlotYOffset", "toprightSlotGrowth", "toprightSlotRaiseStrata",
         "topleftSlotSize", "topleftSlotXOffset", "topleftSlotYOffset", "topleftSlotGrowth", "topleftSlotRaiseStrata",
+        -- Core Positions chains: the order of a slot's elements (a string) and their spacing.
+        "topSlotOrder", "rightSlotOrder", "leftSlotOrder", "toprightSlotOrder", "topleftSlotOrder", "bottomSlotOrder",
+        "topSlotElementSpacing", "rightSlotElementSpacing", "leftSlotElementSpacing",
+        "toprightSlotElementSpacing", "topleftSlotElementSpacing", "bottomSlotElementSpacing",
         "textSlotTopSize", "textSlotTopXOffset", "textSlotTopYOffset", "textSlotTopStrata",
         "textSlotRightSize", "textSlotRightXOffset", "textSlotRightYOffset", "textSlotRightStrata",
         "textSlotLeftSize", "textSlotLeftXOffset", "textSlotLeftYOffset", "textSlotLeftStrata",

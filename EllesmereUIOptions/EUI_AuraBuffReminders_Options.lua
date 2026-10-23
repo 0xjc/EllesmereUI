@@ -1235,6 +1235,7 @@ initFrame:SetScript("OnEvent", function(self)
         -----------------------------------------------------------------------
         local coreSection
         coreSection, h = W:SectionHeader(parent, SECTION_CORE, y);  y = y - h
+        EllesmereUI.BuildSectionUnlockJump(coreSection, { key = "EABR_Reminders" })
 
         -- Row 1: Enable Reminders | Scale
         local row1

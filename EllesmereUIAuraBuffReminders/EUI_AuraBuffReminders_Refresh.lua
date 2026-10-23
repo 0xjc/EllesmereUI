@@ -713,7 +713,7 @@ local function Refresh()
                             f = cursorActiveIcons[#cursorActiveIcons]
                         else
                             combatIdx = combatIdx + 1
-                            ShowCombatIcon(combatIdx, m)
+                            ShowCombatIcon(m)
                             f = combatActiveIcons[#combatActiveIcons]
                         end
                         if f and not m.isEating then

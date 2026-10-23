@@ -5,8 +5,9 @@ local f = assert(io.open(path, "rb"))
 local src = f:read("*a")
 f:close()
 local start = assert(src:find("%-%-  Guard table of a split module"), "helper block not found")
-EllesmereUI = {}
+EllesmereUI, EUI_NS = {}, {}
 assert(loadstring(src:sub(start), "=NewInternals"))()
+assert(EUI_NS.NewInternals == EllesmereUI.NewInternals)
 
 local ns, a, b = {}, nil, nil
 local I = EllesmereUI.NewInternals(ns, "_t", {

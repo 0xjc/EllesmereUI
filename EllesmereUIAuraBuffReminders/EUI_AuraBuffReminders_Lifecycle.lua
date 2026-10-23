@@ -32,6 +32,7 @@ local SHAMAN_SHIELDS, WARLOCK_PETS = I.SHAMAN_SHIELDS, I.WARLOCK_PETS
 local WEAPON_ENCHANT_CHOICES = I.WEAPON_ENCHANT_CHOICES
 local WEAPON_ENCHANT_ITEMS, _dismissedUntilLoad = I.WEAPON_ENCHANT_ITEMS, I._dismissedUntilLoad
 local defaults, GLOW_VIEW, combatIconPool = I.defaults, I.GLOW_VIEW, I.combatIconPool
+local receiverIconPool = I.receiverIconPool
 local GetStrata, HideCombatIcons = I.GetStrata, I.HideCombatIcons
 local HideCursorIcons, ICON_SIZE, iconPool = I.HideCursorIcons, I.ICON_SIZE, I.iconPool
 local HideAllIcons, RequestRefresh = I.HideAllIcons, I.RequestRefresh
@@ -262,6 +263,7 @@ function EABR:OnEnable()
         combatAnchor:SetFrameStrata(strata)
         for _, btn in pairs(iconPool) do btn:SetFrameStrata(strata) end
         for _, f in pairs(combatIconPool) do f:SetFrameStrata(strata) end
+        for _, f in pairs(receiverIconPool) do f:SetFrameStrata(strata) end
         if EABR._providerCastBtn and not InCombatLockdown() then
             EABR._providerCastBtn:SetFrameStrata(strata)
         end

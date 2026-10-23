@@ -2413,6 +2413,7 @@ local FULL_EXPORT_EXCLUDED = {
     chatTellMuted         = true,
     groupFinderApps       = true,
     questWatchChars       = true,
+    cdmRepopulatePending  = true,
 }
 
 --- Builds a full-account export string, or nil.

@@ -207,6 +207,8 @@ local FOLDER_BLACKLIST = {
     EllesmereUILoadoutManager    = true,
     -- Its settings are look and search filters, not spec choices.
     EllesmereUIGroupFinder       = true,
+    -- Its settings live in a store of its own outside the profiles.
+    EllesmereUISimpleLootCouncil = true,
     -- Minimap + Chat + CooldownManager ARE override-eligible; their
     -- spell/engine-coupled settings are excluded per-path via
     -- SETTING_BLACKLIST below (CDM spell data itself lives OUTSIDE the profile
@@ -840,7 +842,7 @@ end
 -- fails leaves it set, and the files behind it return at their first lines.
 local _, EUI_NS = ...
 EUI_NS = EUI_NS.__euiCoreNS or EUI_NS  -- standalone builds: the core's own table (EllesmereUI.lua)
-EllesmereUI.NewInternals(EUI_NS, "_soInternals", {
+EUI_NS.NewInternals(EUI_NS, "_soInternals", {
     ACCENT_B = ACCENT_B, ACCENT_G = ACCENT_G, ACCENT_R = ACCENT_R,
     BlacklistedFKey = BlacklistedFKey, CLASS_COORDS = CLASS_COORDS, CLASS_ORDER = CLASS_ORDER,
     ConflictSpec = ConflictSpec, CurrentSpecID = CurrentSpecID, DBFor = DBFor,
