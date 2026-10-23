@@ -429,7 +429,7 @@ local function BuildStyle(isBuff, cfg)
 
     -- Custom icon shape (Square/Circle/Hexagon/etc, same media set as Action Bars
     -- and Unit Frames' detached portraits). ns.PORTRAIT_MASKS/BORDERS/MASK_INSETS are
-    -- exposed by EllesmereUIUnitFrames.lua (same addon/ns); AuraKit itself lives in a
+    -- exposed by EUI_UnitFrames_Portrait.lua (same addon/ns); AuraKit itself lives in a
     -- separate TOC and never touches ns, so resolved paths travel through style.*.
     local shape = cfg.iconShape
     if PabShapeActive(shape) then
