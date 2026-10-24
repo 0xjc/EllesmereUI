@@ -88,6 +88,9 @@ function EAB_VTABLE.BuildPagingConditions(barKey, pagingConfig, defaultPage)
         if EAB_VTABLE.GetVehicleBarIndex then
             parts[#parts + 1] = "[vehicleui][possessbar] " .. EAB_VTABLE.GetVehicleBarIndex()
         end
+        if EAB_VTABLE.GetTempShapeshiftBarIndex then
+            parts[#parts + 1] = "[shapeshift] " .. EAB_VTABLE.GetTempShapeshiftBarIndex()
+        end
     end
     if not noModTarget then
         for _, state in ipairs(PG.modifier) do
@@ -170,6 +173,9 @@ local function GetClassPagingConditions()
     end
     if EAB_VTABLE.GetVehicleBarIndex then
         conditions = conditions .. "[vehicleui][possessbar] " .. EAB_VTABLE.GetVehicleBarIndex() .. "; "
+    end
+    if EAB_VTABLE.GetTempShapeshiftBarIndex then
+        conditions = conditions .. "[shapeshift] " .. EAB_VTABLE.GetTempShapeshiftBarIndex() .. "; "
     end
 
     -- Manual page switching (pages 2-6): [bar:N] responds to the internal page set by
