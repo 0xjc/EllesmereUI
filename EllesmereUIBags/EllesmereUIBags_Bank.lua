@@ -1687,23 +1687,23 @@ local EXP_KEY_EMPTY   = -1000
 local function GetExpansionBucketKeyAndLabel(itemLink)
     local expID = GetItemExpansionIDFromLink(itemLink)
     if expID == nil then
-        return EXP_KEY_UNKNOWN, (UNKNOWN or "Unknown")
+        return EXP_KEY_UNKNOWN, (UNKNOWN or EUI.L("Unknown"))
     end
     local id = tonumber(expID)
     if id == nil then
-        return EXP_KEY_UNKNOWN, (UNKNOWN or "Unknown")
+        return EXP_KEY_UNKNOWN, (UNKNOWN or EUI.L("Unknown"))
     end
     -- Classic-era sentinel from some clients / items
     if id == 254 or id == 255 then
-        local name = _G["EXPANSION_NAME0"] or "Classic"
+        local name = _G["EXPANSION_NAME0"] or EUI.L("Classic")
         return 0, name
     end
     local name = _G["EXPANSION_NAME" .. id]
     if name and name ~= "" then
         return id, name
     end
-    if id == 11 then return id, "Midnight" end
-    return id, "Expansion " .. tostring(id)
+    if id == 11 then return id, EUI.L("Midnight") end
+    return id, EUI.L("Unknown") .. " " .. tostring(id)
 end
 
 -- Sub-bucket by item subclass: Recipe/Profession subclasses are the professions
