@@ -214,7 +214,7 @@ local function GetExpansionBucketKeyAndLabel(itemLink)
     end
     -- Classic-era sentinel from some clients / items
     if id == 254 or id == 255 then
-        local name = _G["EXPANSION_NAME0"]         if not name or name == "" then name = EUI.L("Classic") end
+        local name = _G["EXPANSION_NAME0"] or EUI.L("Classic")
         return 0, name
     end
     local name = _G["EXPANSION_NAME" .. id]
