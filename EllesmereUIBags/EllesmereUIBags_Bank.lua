@@ -1702,8 +1702,8 @@ local function GetExpansionBucketKeyAndLabel(itemLink)
     if name and name ~= "" then
         return id, name
     end
-    if id == 11 then return id, "Midnight" end
-    return id, "Expansion " .. tostring(id)
+    if id == 11 then return id, EUI.L("Midnight") end
+    return id, EUI.L("Unknown") .. " " .. tostring(id)
 end
 
 -- Sub-bucket by item subclass: Recipe/Profession subclasses are the professions
