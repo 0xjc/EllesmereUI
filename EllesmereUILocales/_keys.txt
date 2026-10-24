@@ -464,7 +464,7 @@ Dodge
 Done
 Double-click a group listing to instantly sign up without pressing the Sign Up button. Hold Shift to keep the dialog open, e.g. to type a signup note.
 Dps
-Drag a bar to move it into another group
+Drag a bar to reorder it or move it into another group
 Drag to Reorder
 Drag to Reorder Bars
 Drag to Reorder Groups

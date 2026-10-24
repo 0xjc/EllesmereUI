@@ -1035,6 +1035,7 @@ L["Disabling queue popup reskin requires a UI reload to restore Blizzard's defau
 L["Divides a cooldown-tracking bar into one recovery section per ability charge. The timer shows the next charge's cooldown."] = "將冷卻追蹤條依技能充能次數切分為多個恢復區塊。計時器將顯示下一次充能的冷卻時間。"
 L["Do you want to continue?"]      = "要繼續嗎？"
 L["Drag a bar to move it into another group"] = "拖曳快捷列以將其移動到另一個群組"
+L["Drag a bar to reorder it or move it into another group"] = "拖曳追蹤條可在群組內排序，或移到其他群組"
 L["Drag to Reorder Bars"]          = "拖曳以重新排列進度條"
 L["Drag to Reorder. Click to add custom glows, active/cooldown state effects and more."] = "拖曳以重新排序。點擊可加入自訂發光、啟用／冷卻狀態效果等。"
 L["Drag to Reorder. Click to override display settings and add custom effects per icon."] = "拖曳以重新排序。點擊以覆蓋顯示設定並為每個圖示新增自訂效果。"
