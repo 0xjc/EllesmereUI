@@ -180,6 +180,20 @@ function EUI_Bags:ApplyWindowLayering()
     if sf and not self._assignSelectMode and not self._pinSelectMode then
         sf:SetFrameStrata(strata)
     end
+    -- ContainerFrameItemButtonTemplate hardcodes frameLevel="10" in Blizzard's XML, so it
+    -- never tracks the wrapper frames (slotParent/scroll child/etc.) cascading down from
+    -- self's level above. Re-pin every pooled icon above self's (just-updated) level, since
+    -- they were only pinned relative to self's level at their own creation time.
+    local I = ns._bagsInternals
+    local lvl = self:GetFrameLevel() + 50
+    for _, btn in pairs(I.itemSlots) do
+        btn:SetFrameLevel(lvl)
+    end
+    local reagentLvl = EUI_BagsReagent:GetFrameLevel() + 50
+    for _, btn in pairs(I.reagentSlots) do
+        btn:SetFrameLevel(reagentLvl)
+    end
+    if ns.ResyncListRowLevels then ns.ResyncListRowLevels() end
     local bank = _G.EUI_BankFrame
     if bank and bank.ApplyWindowLayering then bank:ApplyWindowLayering() end
 end

@@ -162,6 +162,9 @@ local function GetOrCreateReagentSlot(idx)
     local slotParent = CreateFrame("Frame", nil, EUI_BagsReagent)
     slotParent:SetSize(SLOT_SIZE, SLOT_SIZE)
     local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")
+    -- ContainerFrameItemButtonTemplate hardcodes frameLevel="10" in Blizzard's XML (never
+    -- tracks ancestors), so force it back above the window (see GetOrCreateSlot).
+    btn:SetFrameLevel(EUI_BagsReagent:GetFrameLevel() + 50)
     btn:SetAllPoints(slotParent)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")

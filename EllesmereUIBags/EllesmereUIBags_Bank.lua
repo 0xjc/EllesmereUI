@@ -1053,6 +1053,12 @@ function EUI_Bank:ApplyWindowLayering()
     _purchaseBtnWarband:SetFrameStrata(strata)
     _purchaseBtnChar:SetFrameLevel(sidebar:GetFrameLevel() + 20)
     _purchaseBtnWarband:SetFrameLevel(sidebar:GetFrameLevel() + 20)
+    -- _bankSlots' buttons are pinned above self at creation (GetOrCreateBankSlot); re-pin
+    -- every already-built one too, since self's level above just changed.
+    local lvl = self:GetFrameLevel() + 50
+    for _, btn in pairs(self._bankSlots) do
+        btn:SetFrameLevel(lvl)
+    end
 end
 
 -- Sidebar header: "Tabs" label + collapse arrow
@@ -1454,6 +1460,9 @@ local function GetOrCreateBankSlot(idx)
     local slotParent = CreateFrame("Frame", nil, EUI_Bank)
     slotParent:SetSize(SLOT_SIZE, SLOT_SIZE)
     local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")
+    -- ContainerFrameItemButtonTemplate hardcodes frameLevel="10" in Blizzard's XML (never
+    -- tracks ancestors), so force it back above the window (see GetOrCreateSlot in Grid.lua).
+    btn:SetFrameLevel(EUI_Bank:GetFrameLevel() + 50)
     btn:SetAllPoints(slotParent)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")

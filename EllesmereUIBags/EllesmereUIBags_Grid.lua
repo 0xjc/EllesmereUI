@@ -78,6 +78,11 @@ local function GetOrCreateSlot(idx)
     local slotParent = CreateFrame("Frame", nil, EUI_Bags)
     slotParent:SetSize(SLOT_SIZE, SLOT_SIZE)
     local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")
+    -- ContainerFrameItemButtonTemplate hardcodes frameLevel="10" in Blizzard's XML, so it
+    -- never tracks its ancestors' levels. At High strata self:SetFrameLevel(100) cascades
+    -- down through slotParent, leaving btn's fixed ~10 below its own wrapper -- the wrapper
+    -- then wins mouse hit-testing over the button. Force it back above the window.
+    btn:SetFrameLevel(EUI_Bags:GetFrameLevel() + 50)
     btn:SetAllPoints(slotParent)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")

@@ -206,6 +206,9 @@ function ns.CreateListRow(host)
     if InCombatLockdown() then return nil end
     local slotParent = CreateFrame("Frame", nil, host)
     local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")
+    -- ContainerFrameItemButtonTemplate hardcodes frameLevel="10" in Blizzard's XML (never
+    -- tracks ancestors), so force it back above the window (see GetOrCreateSlot in Grid.lua).
+    btn:SetFrameLevel(host:GetFrameLevel() + 50)
     btn:SetAllPoints(slotParent)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")
@@ -806,6 +809,19 @@ function ns.ListPaintJunk(btn, info)
     local q = info.quality or 1
     btn._lvIcon:SetDesaturated(info.isLocked or (BP().bagDesaturateJunkItems == true
         and (q == 0 or EUI_CategoryManager:IsJunk(info.itemID, q))) or false)
+end
+
+-- ContainerFrameItemButtonTemplate's fixed frameLevel="10" (see GetOrCreateSlot in Grid.lua)
+-- is stamped at row creation using the host's level at that time; re-stamp every pooled row
+-- (across every host: EUI_Bags and EUI_Bank share this row pool) whenever a host's own level
+-- changes later (ApplyWindowLayering), so already-built rows don't fall behind their window.
+function ns.ResyncListRowLevels()
+    for host, rows in pairs(_hostRows) do
+        local lvl = host:GetFrameLevel() + 50
+        for _, btn in ipairs(rows) do
+            btn:SetFrameLevel(lvl)
+        end
+    end
 end
 
 -- Empty bag slot row (OneBag / MultiBag); clicking or dropping an item
