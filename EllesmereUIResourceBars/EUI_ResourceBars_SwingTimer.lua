@@ -990,13 +990,15 @@ local function TagText(row, cfg)
 end
 
 -- Slot tag, with the queued attack's name on the Main Hand row while one is queued.
+-- Written only when the slot text or the queued attack changed: RefreshRows runs
+-- this for every row on each weapon and attack speed change.
 local function ApplyRowTag(row, cfg)
     local def = row._def
-    if S.queued and QueueRow(def, cfg) then
-        row._tag:SetText(def.tag .. " - " .. S.queued.name)
-    else
-        row._tag:SetText(TagText(row, cfg))
-    end
+    local q = S.queued and QueueRow(def, cfg) and S.queued.name or false
+    local base = q and def.tag or TagText(row, cfg)
+    if base == row._tagBase and q == row._tagQueued then return end
+    row._tagBase, row._tagQueued = base, q
+    row._tag:SetText(q and (base .. " - " .. q) or base)
 end
 
 -- Which on-next-swing attack is queued right now (its S.queueSpells entry), or

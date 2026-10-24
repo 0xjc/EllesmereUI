@@ -9691,7 +9691,7 @@ L["Wowhead Link Settings"] = "Configurações do Link do Wowhead"
 L["Wowhead Link"] = "Link do Wowhead"
 L["Wowhead Quest Links"] = "Links de Missões do Wowhead"
 L["Nameplate Icon"] = "Ícone da placa de nome"
-L["Nameplate Kick Icons use this to auto assign kicks when a mob is initially marked"] = "Os ícones de interrupção da placa de nome usam isto para atribuir automaticamente as interrupções quando um monstro é marcado pela primeira vez"
+L["Nameplate Kick Icons use this to auto-assign kicks when a mob is first marked."] = "Os ícones de interrupção da placa de nome usam isto para atribuir automaticamente as interrupções quando um monstro é marcado pela primeira vez"
 L["Dismiss this warning"] = "Dispensar este aviso"
 
 -- == Unlock Mode Point Anchors / Fishing Skill ===============================
@@ -9718,7 +9718,7 @@ L["Scroll with the chosen modifier to cycle overlapping frames in Unlock Mode."]
 
 -- == Kick Tracker / Mythic+ Tools / Cast Bars / Threat Meter ==================
 L["A bar per group member with their kick's cooldown, read from their talents"] = "Uma barra para cada membro do grupo com a recarga da interrupção dele, lida dos talentos"
-L["A row per group member with an interrupt: its icon, their name on a bar in their class color, and the seconds left while it is on cooldown."] = "Uma fileira para cada membro do grupo com uma interrupção: o ícone dela, o nome da pessoa em uma barra na cor da classe e os segundos restantes enquanto ela está em recarga."
+L["A row per group member with an interrupt: the interrupt's icon, their name on a bar in their class color, and the seconds left while it is on cooldown."] = "Uma fileira para cada membro do grupo com uma interrupção: o ícone dela, o nome da pessoa em uma barra na cor da classe e os segundos restantes enquanto ela está em recarga."
 L["Adds a divider between each icon and its bar."] = "Adiciona um divisor entre cada ícone e sua barra."
 L["An icon with its cooldown beside the enemy each player kicked"] = "Um ícone com a recarga ao lado do inimigo que cada jogador interrompeu"
 L["Behind each row: a darkened version of the member's class color, or one custom color."] = "Atrás de cada fileira: uma versão escurecida da cor de classe do membro, ou uma cor personalizada."
@@ -9767,8 +9767,8 @@ L["Space between the elements sharing this slot. Follows the slot's Spacing unti
 L["Tells the party your focus marker at ready checks."] = "Informa ao grupo o seu marcador de foco nas confirmações de pronto."
 L["The cooldown swipe, a border in the kicker's class color, and greying the icon while the interrupt is on cooldown."] = "O giro de recarga, uma borda na cor da classe de quem interrompeu e o ícone em cinza enquanto a interrupção está em recarga."
 L["The dark sweep over the icon that clears as the interrupt comes back."] = "O giro escuro sobre o ícone que some conforme a interrupção volta a ficar disponível."
-L["The icon's border in the kicker's class color; black when the kicker is hidden."] = "A borda do ícone na cor da classe de quem interrompeu; preta quando essa pessoa está oculta."
-L["The icons draw over every other nameplate, so an overlapping plate never hides one. Off, an icon stays inside its own nameplate, behind any plate that covers it."] = "Os ícones são desenhados sobre todas as outras placas de nome, então uma placa sobreposta nunca esconde um deles. Desativado, o ícone fica dentro da própria placa de nome, atrás de qualquer placa que o cubra."
+L["The icon's border in the kicker's class color; black when the game hides the kicker's class."] = "A borda do ícone na cor da classe de quem interrompeu; preta quando essa pessoa está oculta."
+L["The icons draw over every other nameplate, so an overlapping plate never hides one. When off, an icon stays inside its own nameplate, behind any plate that covers it."] = "Os ícones são desenhados sobre todas as outras placas de nome, então uma placa sobreposta nunca esconde um deles. Desativado, o ícone fica dentro da própria placa de nome, atrás de qualquer placa que o cubra."
 L["The interrupt's icon at the end of the row."] = "O ícone da interrupção no fim da fileira."
 L["The interrupt's icon, the member's name, the seconds left on the interrupt and the raid marker of the enemy they interrupted."] = "O ícone da interrupção, o nome do membro, os segundos restantes da interrupção e o marcador de raide do inimigo que ele interrompeu."
 L["The kicker's interrupt icon, their spec icon or their class icon. A kick the tracker cannot place on a member shows no icon."] = "O ícone da interrupção de quem interrompeu, o ícone da especialização ou o ícone da classe. Uma interrupção que o rastreador não consegue atribuir a um membro não mostra ícone."
@@ -9779,15 +9779,15 @@ L["The raid marker of the enemy the member interrupted, beside their row while t
 L["The seconds left on the interrupt, on the right of its row."] = "Os segundos restantes da interrupção, à direita da fileira."
 L["The seconds left on the kicker's interrupt."] = "Os segundos restantes da interrupção de quem interrompeu."
 L["The side of the nameplate the icon sits on."] = "O lado da placa de nome em que o ícone fica."
-L["The tracker runs in Mythic and Mythic+ dungeons and arenas only; untick one to leave it out there."] = "O rastreador funciona somente em masmorras Míticas e Mítica+ e em arenas; desmarque uma opção para desativá-lo ali."
+L["The tracker runs in Mythic and Mythic+ dungeons and arenas only; untick one to turn it off there."] = "O rastreador funciona somente em masmorras Míticas e Mítica+ e em arenas; desmarque uma opção para desativá-lo ali."
 L["This option requires the EllesmereUI Frame Source."] = "Esta opção requer a Fonte do Quadro do EllesmereUI."
 L["Timer"] = "Cronômetro"
 L["Timer Position"] = "Posição do Cronômetro"
-L["Turning it on takes effect at once, no reload. The Kick Tracker is under Mythic+ Tools in /eui."] = "Ao ativá-lo, o efeito é imediato, sem recarregar. O Rastreador de Interrupções fica em Ferramentas Mítica+ no /eui."
+L["Turning it on takes effect immediately, no reload needed. The Kick Tracker is under Mythic+ Tools in /eui."] = "Ao ativá-lo, o efeito é imediato, sem recarregar. O Rastreador de Interrupções fica em Ferramentas Mítica+ no /eui."
 L["Use at your own risk: Blizzard restrictions can keep custom spells from working fully."] = "Use por sua conta e risco: restrições da Blizzard podem impedir que feitiços personalizados funcionem totalmente."
 L["Which way the rows stack."] = "Em que direção as fileiras se empilham."
-L["Who in the group kicked each enemy and when their interrupt comes back, read from Blizzard's own damage meter (which must be on). Others' cooldowns follow their class, spec and talents, read before a key starts, yours your own talents."] = "Quem do grupo interrompeu cada inimigo e quando a interrupção volta, lido do medidor de dano da própria Blizzard (que precisa estar ativado). As recargas dos outros seguem a classe, a especialização e os talentos, lidos antes de a chave começar; as suas seguem os seus próprios talentos."
-L["Your own row, its cooldown from your own talents."] = "Sua própria fileira, com a recarga conforme os seus talentos."
+L["Who in the group kicked each enemy and when their interrupt comes back, read from Blizzard's own damage meter (which must be on). Others' cooldowns follow their class, spec and talents, read before a key starts; yours follow your own talents."] = "Quem do grupo interrompeu cada inimigo e quando a interrupção volta, lido do medidor de dano da própria Blizzard (que precisa estar ativado). As recargas dos outros seguem a classe, a especialização e os talentos, lidos antes de a chave começar; as suas seguem os seus próprios talentos."
+L["Adds your own row, with its cooldown read from your talents."] = "Sua própria fileira, com a recarga conforme os seus talentos."
 L["Adds a copyable Wowhead link to the right-click menu of quests in the quest tracker and quest log."] = "Adiciona um link do Wowhead copiável ao menu de clique direito das missões no rastreador e no diário de missões."
 
 -- == Simple Loot Council ======================================================

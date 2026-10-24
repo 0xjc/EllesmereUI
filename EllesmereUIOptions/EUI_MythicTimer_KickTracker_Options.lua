@@ -149,7 +149,7 @@ local ICON_EFFECTS = {
     { key = "swipe", label = "Cooldown Swipe",
       tooltip = "The dark sweep over the icon that clears as the interrupt comes back." },
     { key = "classBorder", label = "Class Color Border",
-      tooltip = "The icon's border in the kicker's class color; black when the kicker isn't known." },
+      tooltip = "The icon's border in the kicker's class color; black when the game hides the kicker's class." },
     { key = "desaturate", label = "Desaturate on Cooldown",
       tooltip = "Grey the icon while the kicker's interrupt is on cooldown." },
 }
@@ -229,6 +229,21 @@ ns._KT_BuildPage = function(pageName, parent, yOffset)
 
     EllesmereUI:SetContentHeader(ns._KT_HeaderBuilder)
     parent._showRowDivider = true
+
+    -- The experimental notice between the header preview and the settings, in
+    -- the empty-selection warning's red. The page wrapper is a pool host, so a
+    -- rebuild hands this font string back instead of making a new one.
+    if not EllesmereUI._prebuilding then
+        local pad = EllesmereUI.CONTENT_PAD
+        local warn = EllesmereUI.MakeFont(parent, 15, nil, 1, 0.4, 0.4)
+        warn:SetJustifyH("CENTER")
+        warn:SetWordWrap(true)
+        warn:SetSpacing(4)
+        warn:SetWidth(parent:GetWidth() - pad * 2)
+        warn:SetText(EllesmereUI.L("Like all current kick trackers, this feature is experimental and may stop working if\nBlizzard decides to hotfix the workaround that makes this possible."))
+        EllesmereUI.PP.Point(warn, "TOPLEFT", parent, "TOPLEFT", pad, y - 10)
+        y = y - 10 - math.ceil(warn:GetStringHeight()) - 2
+    end
 
     _, h = W:SectionHeader(parent, "KICK TRACKER", y); y = y - h
 

@@ -63,9 +63,10 @@ end
 
 -- Auto-paging opt-outs for MainBar. Returns noForm, noSky: suppress implicit bonusbar
 -- swaps for forms/stealth/stance (bonusbar 1-4) and skyriding (bonusbar 5). Does NOT
--- cover vehicle/override/possess -- those replace abilities outright, so suppressing
--- them would leave no way to use the vehicle. Only ever true for MainBar, the only bar
--- the engine drives off bonusbar and the only one with these toggles.
+-- cover vehicle/override/possess or a temporary transformation's bar -- those replace
+-- abilities outright, so suppressing them would leave no way to use them. Only ever
+-- true for MainBar, the only bar the engine drives off bonusbar and the only one with
+-- these toggles.
 function EAB_VTABLE.GetAutoPagingOptOuts(barKey)
     if barKey ~= "MainBar" then return false, false end
     local bs = EAB and EAB.db and EAB.db.profile and EAB.db.profile.bars.MainBar
@@ -166,8 +167,10 @@ local function GetClassPagingConditions()
     local noForm, noSky = EAB_VTABLE.GetAutoPagingOptOuts("MainBar")
     local conditions = ""
 
-    -- Override bar (soft vehicle/quest abilities) and possess bar: remap bar
-    -- 1 to those slots so our buttons stay visible and keybinds work.
+    -- Override bar (soft vehicle/quest abilities), possess bar and a temporary
+    -- transformation's bar ([shapeshift], e.g. a quest that turns you into a
+    -- creature): remap bar 1 to those slots so our buttons stay visible and
+    -- keybinds work, in Blizzard's own order (ActionBarController_UpdateAll).
     if EAB_VTABLE.GetOverrideBarIndex then
         conditions = conditions .. "[overridebar] " .. EAB_VTABLE.GetOverrideBarIndex() .. "; "
     end
