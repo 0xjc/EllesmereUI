@@ -221,8 +221,8 @@ local function GetExpansionBucketKeyAndLabel(itemLink)
     if name and name ~= "" then
         return id, name
     end
-    if id == 11 then return id, "Midnight" end
-    return id, "Expansion " .. tostring(id)
+    if id == 11 then return id, EUI.L("Midnight") end
+    return id, EUI.L("Unknown") .. " " .. tostring(id)
 end
 
 local function BuildExpansionBuckets(itemList)
@@ -232,7 +232,7 @@ local function BuildExpansionBuckets(itemList)
         if data.itemLink then
             local _, _, _, ilvl = GetItemInfo(data.itemLink)
             if ilvl and ilvl >= 180 then
-                sk, label = 11, GetExpansionName(11)
+                sk, label = 11, EUI.L("Midnight")
             end
         end
         if not sk then
