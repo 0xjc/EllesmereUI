@@ -206,15 +206,15 @@ end
 local function GetExpansionBucketKeyAndLabel(itemLink)
     local expID = GetItemExpansionIDFromLink(itemLink)
     if expID == nil then
-        return -999, (UNKNOWN or "Unknown")
+        return -999, (UNKNOWN or EUI.L("Unknown"))
     end
     local id = tonumber(expID)
     if id == nil then
-        return -999, (UNKNOWN or "Unknown")
+        return -999, (UNKNOWN or EUI.L("Unknown"))
     end
     -- Classic-era sentinel from some clients / items
     if id == 254 or id == 255 then
-        local name = _G["EXPANSION_NAME0"] or "Classic"
+        local name = _G["EXPANSION_NAME0"]         if not name or name == "" then name = EUI.L("Classic") end
         return 0, name
     end
     local name = _G["EXPANSION_NAME" .. id]
@@ -232,7 +232,7 @@ local function BuildExpansionBuckets(itemList)
         if data.itemLink then
             local _, _, _, ilvl = GetItemInfo(data.itemLink)
             if ilvl and ilvl >= 180 then
-                sk, label = 11, "Midnight"
+                sk, label = 11, GetExpansionName(11)
             end
         end
         if not sk then
