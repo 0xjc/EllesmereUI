@@ -1687,15 +1687,15 @@ local EXP_KEY_EMPTY   = -1000
 local function GetExpansionBucketKeyAndLabel(itemLink)
     local expID = GetItemExpansionIDFromLink(itemLink)
     if expID == nil then
-        return EXP_KEY_UNKNOWN, (UNKNOWN or "Unknown")
+        return EXP_KEY_UNKNOWN, (UNKNOWN or EUI.L("Unknown"))
     end
     local id = tonumber(expID)
     if id == nil then
-        return EXP_KEY_UNKNOWN, (UNKNOWN or "Unknown")
+        return EXP_KEY_UNKNOWN, (UNKNOWN or EUI.L("Unknown"))
     end
     -- Classic-era sentinel from some clients / items
     if id == 254 or id == 255 then
-        local name = _G["EXPANSION_NAME0"] or "Classic"
+        local name = _G["EXPANSION_NAME0"]         if not name or name == "" then name = EUI.L("Classic") end
         return 0, name
     end
     local name = _G["EXPANSION_NAME" .. id]
