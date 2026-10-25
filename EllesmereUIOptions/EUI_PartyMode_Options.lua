@@ -692,6 +692,18 @@ do
                   EllesmereUIDB.partyModeAfkCornerSize = v
               end }
         );  y = y - h
+
+        _, h = W:DualRow(parent, y,
+            { type="slider", text="Logo Size", min=0.5, max=3.0, step=0.05,
+              tooltip="Scales the logo and its text. Applies the next time the AFK screen shows.",
+              disabled=AfkOff, disabledTooltip="Bouncing Logo When AFK",
+              getValue=function() return (EllesmereUIDB and EllesmereUIDB.partyModeAfkScale) or 1 end,
+              setValue=function(v)
+                  if not EllesmereUIDB then EllesmereUIDB = {} end
+                  EllesmereUIDB.partyModeAfkScale = v
+              end },
+            EllesmereUI.BlankRowCfg()
+        );  y = y - h
         if not EllesmereUI._prebuilding then
             local function CornerOff() return AfkOff() or not EllesmereUIDB.partyModeAfkCorner end
             EllesmereUI.BuildInlineCog(cornerRow._leftRegion, {
@@ -760,6 +772,7 @@ do
                 EllesmereUIDB.partyModeAfkCorner = nil
                 EllesmereUIDB.partyModeAfkCornerSize = nil
                 EllesmereUIDB.partyModeAfkCornerSecs = nil
+                EllesmereUIDB.partyModeAfkScale = nil
                 EllesmereUIDB.partyModeAfkFlip = nil
                 EllesmereUIDB.partyModeAfkFlipSpeed = nil
             end

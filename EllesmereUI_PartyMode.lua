@@ -901,7 +901,7 @@ end
 do
 local LOGO_TEX  = "Interface\\AddOns\\EllesmereUI\\media\\logo-full.tga"
 local LOGO_SIZE = 96
-local BOX_W, BOX_H = 160, LOGO_SIZE + 34
+local boxW, boxH = 160, LOGO_SIZE + 34
 local DIM_ALPHA = 0.75
 
 local afkEvents = CreateFrame("Frame")
@@ -965,7 +965,7 @@ local function Place()
 end
 
 local function NextLeg()
-    local maxX, maxY = overlay:GetWidth() - BOX_W, overlay:GetHeight() - BOX_H
+    local maxX, maxY = overlay:GetWidth() - boxW, overlay:GetHeight() - boxH
     if maxX <= 0 or maxY <= 0 then return end
     x = math.max(0, math.min(x, maxX))
     y = math.max(0, math.min(y, maxY))
@@ -1013,10 +1013,8 @@ local function Build()
     end)
 
     box = CreateFrame("Frame", nil, overlay)
-    box:SetSize(BOX_W, BOX_H)
     logo = box:CreateTexture(nil, "ARTWORK")
     logo:SetTexture(LOGO_TEX)
-    logo:SetSize(LOGO_SIZE, LOGO_SIZE)
     logo:SetPoint("TOP")
     spin = logo:CreateAnimationGroup()
     spin:SetLooping("REPEAT")
@@ -1039,7 +1037,6 @@ local function Build()
     flipOut:SetOrder(2)
 
     word = box:CreateFontString(nil, "ARTWORK")
-    word:SetFont(EllesmereUI.GetFontPath(), 22, "")
     word:SetPoint("BOTTOM")
     word:SetText("EllesmereUI")
 
@@ -1081,13 +1078,23 @@ local function ApplySpin()
     end
 end
 
+-- Logo Size scales the emblem, the wordmark and the box they bounce in.
+local function ApplySize()
+    local sc = (EllesmereUIDB and EllesmereUIDB.partyModeAfkScale) or 1
+    boxW, boxH = 160 * sc, (LOGO_SIZE + 34) * sc
+    box:SetSize(boxW, boxH)
+    logo:SetSize(LOGO_SIZE * sc, LOGO_SIZE * sc)
+    word:SetFont(EllesmereUI.GetFontPath(), math.floor(22 * sc + 0.5), "")
+end
+
 local function ShowAfk()
     if not overlay then Build() end
     ApplySpin()
     if overlay:IsShown() then return end
+    ApplySize()
     overlay:Show()
-    x = math_random() * math.max(overlay:GetWidth() - BOX_W, 0)
-    y = math_random() * math.max(overlay:GetHeight() - BOX_H, 0)
+    x = math_random() * math.max(overlay:GetWidth() - boxW, 0)
+    y = math_random() * math.max(overlay:GetHeight() - boxH, 0)
     dx = math_random() < 0.5 and -1 or 1
     dy = math_random() < 0.5 and -1 or 1
     Place()
