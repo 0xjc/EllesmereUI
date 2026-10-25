@@ -185,23 +185,13 @@ function EUI_Bags:ApplyWindowLayering()
     self:RepinIconLevels()
 end
 
--- ContainerFrameItemButtonTemplate hardcodes frameLevel="10" in Blizzard's XML, so it
--- never tracks the wrapper frames (slotParent/scroll child/etc.) cascading down from
--- self's level above. Re-pin every pooled icon above self's (or EUI_BagsReagent's)
--- current level, whenever that changes -- not just from ApplyWindowLayering, but also
--- from a bare self:Raise() (OnMouseDown/OnShow), which can move self's level independent
--- of the strata setting.
+-- Item buttons hold fixed levels (ns.PinItemButton): re-pin them after anything that
+-- can move a window's level, the layering above and every Raise
 function EUI_Bags:RepinIconLevels()
     local I = ns._bagsInternals
-    local lvl = self:GetFrameLevel() + 9
-    for _, btn in pairs(I.itemSlots) do
-        ns.PinItemButtonLevel(btn, lvl)
-    end
-    local reagentLvl = EUI_BagsReagent:GetFrameLevel() + 9
-    for _, btn in pairs(I.reagentSlots) do
-        ns.PinItemButtonLevel(btn, reagentLvl)
-    end
-    if ns.ResyncListRowLevels then ns.ResyncListRowLevels() end
+    ns.PinItemPool(I.itemSlots, self, "_slotPinLevel")
+    ns.PinItemPool(I.reagentSlots, EUI_BagsReagent, "_slotPinLevel")
+    ns.ResyncListRowLevels()
 end
 layerUpdateFrame:SetScript("OnEvent", function() EUI_Bags:ApplyWindowLayering() end)
 

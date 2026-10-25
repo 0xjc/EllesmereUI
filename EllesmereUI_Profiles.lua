@@ -2387,6 +2387,8 @@ end
 --                         filters and auto-track moved
 --    mailAltRoster        the Mail card's Alt List: every character recorded
 --    mailAltHidden        and the ones its Shown Characters leaves out
+--    raidHoroscope        Party Mode's Should I Raid Tonight?: each
+--                         character's birthday
 --  (The upgrade-calc and gold blobs are what PRIVATE_ADDON_KEYS strips from
 --  normal strings, at their current top-level homes. The three legacy gold
 --  keys stay listed: until Bags or DataBars loads and absorbs them they are
@@ -2415,6 +2417,7 @@ local FULL_EXPORT_EXCLUDED = {
     cdmRepopulatePending  = true,
     mailAltRoster         = true,
     mailAltHidden         = true,
+    raidHoroscope         = true,
 }
 
 --- Builds a full-account export string, or nil.

@@ -162,9 +162,7 @@ local function GetOrCreateReagentSlot(idx)
     local slotParent = CreateFrame("Frame", nil, EUI_BagsReagent)
     slotParent:SetSize(SLOT_SIZE, SLOT_SIZE)
     local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")
-    -- ContainerFrameItemButtonTemplate hardcodes frameLevel="10" in Blizzard's XML (never
-    -- tracks ancestors), so force it back above the window (see GetOrCreateSlot).
-    ns.PinItemButtonLevel(btn, EUI_BagsReagent:GetFrameLevel() + 9)
+    ns.PinItemButton(btn, EUI_BagsReagent)
     btn:SetAllPoints(slotParent)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")
@@ -215,6 +213,7 @@ local function GetOrCreateReagentSlot(idx)
     CreateInsetBorder(btn)
     SetInsetBorderColor(btn, 0.25, 0.25, 0.25, 1)
 
+    -- Text overlay: above the cooldown swipe, so counts and item levels stay visible
     local textOverlay = CreateFrame("Frame", nil, btn)
     textOverlay:SetAllPoints()
     textOverlay:SetFrameLevel(btn:GetFrameLevel() + 3)

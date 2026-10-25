@@ -23,6 +23,7 @@ do
 
     local PAGE_PARTY = "Party Mode"
     local PAGE_AFK   = "AFK"
+    local PAGE_HOROSCOPE = "Should I Raid Tonight?"
 
     ---------------------------------------------------------------------------
     --  Build the Party Mode page
@@ -599,6 +600,7 @@ do
         local W = EllesmereUI.Widgets
         local y = yOffset
         local _, h
+        parent._showRowDivider = true
 
         -------------------------------------------------------------------
         --  AFK SCREEN
@@ -683,7 +685,7 @@ do
                   EllesmereUI:RefreshPage()
               end },
             { type="slider", text="Corner Odds", min=5, max=50, step=5,
-              tooltip="How easily a bounce counts as a corner. At 50 with Logo Speed 750, about one corner a minute on any screen; lower is rarer.",
+              tooltip="How easily a bounce counts as a corner. Lower is rarer.",
               disabled=function() return AfkOff() or not EllesmereUIDB.partyModeAfkCorner end,
               disabledTooltip="Party Lights on Corner Hit",
               getValue=function() return (EllesmereUIDB and EllesmereUIDB.partyModeAfkCornerSize) or 50 end,
@@ -730,12 +732,14 @@ do
     EllesmereUI:RegisterModule("EllesmereUIPartyMode", {
         title       = "Party Mode",
         description = "Disco lights overlay for celebrations.",
-        pages       = { PAGE_PARTY, PAGE_AFK },
+        pages       = { PAGE_PARTY, PAGE_HOROSCOPE, PAGE_AFK },
         buildPage   = function(pageName, parent, yOffset)
             if pageName == PAGE_PARTY then
                 return BuildPartyModePage(pageName, parent, yOffset)
             elseif pageName == PAGE_AFK then
                 return BuildAfkPage(pageName, parent, yOffset)
+            elseif pageName == PAGE_HOROSCOPE then
+                return EllesmereUI._BuildRaidHoroscopePage(parent, yOffset)
             end
         end,
         resetScope  = "account",
@@ -775,8 +779,9 @@ do
                 EllesmereUIDB.partyModeAfkScale = nil
                 EllesmereUIDB.partyModeAfkFlip = nil
                 EllesmereUIDB.partyModeAfkFlipSpeed = nil
+                EllesmereUIDB.raidHoroscope = nil
             end
-            if EllesmereUI_UpdateAfkScreen then EllesmereUI_UpdateAfkScreen() end
+            EllesmereUI_UpdateAfkScreen()
             -- Stop random trigger timer
             EllesmereUI_StopRandomTrigger()
             -- Drop the Bloodlust and Level Up event listeners with their keys

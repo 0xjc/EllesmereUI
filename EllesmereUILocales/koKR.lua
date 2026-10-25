@@ -3831,7 +3831,7 @@ L["Use at your own risk: Blizzard restrictions can keep custom spells from worki
 L["Delete Bar"] = "바 삭제"
 L["Demonic Healthstone"] = "악마의 생명석"
 L["Desaturate Off CD"] = "재사용 대기 외 흑백"
-L["Drag a bar to move it into another group"] = "바를 드래그하여 다른 그룹으로 이동합니다"
+L["Drag a bar to reorder it or move it into another group"] = "바를 드래그하여 순서를 변경하거나 다른 그룹으로 이동합니다"
 L["Duration (seconds)"] = "지속시간 (초)"
 L["Duration Text Settings"] = "지속시간 글자 설정"
 L["e.g. 12345"] = "예: 12345"

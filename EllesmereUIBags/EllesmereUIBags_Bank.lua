@@ -1057,16 +1057,10 @@ function EUI_Bank:ApplyWindowLayering()
     self:RepinIconLevels()
 end
 
--- _bankSlots' buttons are pinned above self at creation
--- (GetOrCreateBankSlot / ns.CreateListRow); re-pin every already-built
--- one too, whenever self's own level changes -- not just from ApplyWindowLayering, but also
--- from a bare self:Raise() which can move self's level independent of the strata setting.
+-- As EUI_Bags:RepinIconLevels, for the bank's own buttons
 function EUI_Bank:RepinIconLevels()
-    local lvl = self:GetFrameLevel() + 9
-    for _, btn in pairs(self._bankSlots) do
-        ns.PinItemButtonLevel(btn, lvl)
-    end
-    if ns.ResyncListRowLevels then ns.ResyncListRowLevels() end
+    ns.PinItemPool(self._bankSlots, self, "_slotPinLevel")
+    ns.ResyncListRowLevels()
 end
 
 -- Sidebar header: "Tabs" label + collapse arrow
@@ -1468,9 +1462,7 @@ local function GetOrCreateBankSlot(idx)
     local slotParent = CreateFrame("Frame", nil, EUI_Bank)
     slotParent:SetSize(SLOT_SIZE, SLOT_SIZE)
     local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")
-    -- ContainerFrameItemButtonTemplate hardcodes frameLevel="10" in Blizzard's XML (never
-    -- tracks ancestors), so force it back above the window (see GetOrCreateSlot in Grid.lua).
-    ns.PinItemButtonLevel(btn, EUI_Bank:GetFrameLevel() + 9)
+    ns.PinItemButton(btn, EUI_Bank)
     btn:SetAllPoints(slotParent)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")

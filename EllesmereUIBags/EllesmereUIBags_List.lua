@@ -206,7 +206,7 @@ function ns.CreateListRow(host)
     if InCombatLockdown() then return nil end
     local slotParent = CreateFrame("Frame", nil, host)
     local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")
-    ns.PinItemButtonLevel(btn, host:GetFrameLevel() + 9)
+    ns.PinItemButton(btn, host)
     btn:SetAllPoints(slotParent)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")
@@ -224,8 +224,7 @@ function ns.CreateListRow(host)
         btn.Cooldown:SetHideCountdownNumbers(true)
     end
     -- Third-party overlay painters (EUI_Bags.RunItemOverlays) parent to this,
-    -- as on the grid slots: here it covers the row's icon. Not Cooldown-relative
-    -- (see ns.PinItemButtonLevel's comment in EUI_Bags_Shared.lua)
+    -- as on the grid slots: here it covers the row's icon.
     local ov = CreateFrame("Frame", nil, btn)
     ov:SetAllPoints(btn._lvIcon)
     ov:SetFrameLevel(btn:GetFrameLevel() + 3)
@@ -810,16 +809,10 @@ function ns.ListPaintJunk(btn, info)
         and (q == 0 or EUI_CategoryManager:IsJunk(info.itemID, q))) or false)
 end
 
--- ContainerFrameItemButtonTemplate's fixed frameLevel="10" (see GetOrCreateSlot in Grid.lua)
--- is stamped at row creation using the host's level at that time; re-stamp every pooled row
--- (across every host: EUI_Bags and EUI_Bank share this row pool) whenever a host's own level
--- changes later (ApplyWindowLayering), so already-built rows don't fall behind their window.
+-- Re-pins each host's rows (the bags and the bank) after its level moved (ns.PinItemPool)
 function ns.ResyncListRowLevels()
     for host, rows in pairs(_hostRows) do
-        local lvl = host:GetFrameLevel() + 9
-        for _, btn in ipairs(rows) do
-            ns.PinItemButtonLevel(btn, lvl)
-        end
+        ns.PinItemPool(rows, host, "_rowPinLevel")
     end
 end
 

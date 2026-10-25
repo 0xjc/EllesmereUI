@@ -77,8 +77,8 @@ local function GetOrCreateSlot(idx)
 
     local slotParent = CreateFrame("Frame", nil, EUI_Bags)
     slotParent:SetSize(SLOT_SIZE, SLOT_SIZE)
-    local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")   
-    ns.PinItemButtonLevel(btn, EUI_Bags:GetFrameLevel() + 9)
+    local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")
+    ns.PinItemButton(btn, EUI_Bags)
     btn:SetAllPoints(slotParent)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")
@@ -395,7 +395,7 @@ local function RenderButton(btn, data, _, col, row, startX, currentY, _, interac
         if not btn._warbankDim then
             local dimFrame = CreateFrame("Frame", nil, btn)
             dimFrame:SetAllPoints()
-            -- Matches ns.PinItemButtonLevel's formula (btn level + 6) directly
+            -- Above the text overlay (+3); ns.PinItemButton moves it with the button
             dimFrame:SetFrameLevel(btn:GetFrameLevel() + 6)
             local dim = dimFrame:CreateTexture(nil, "OVERLAY")
             dim:SetAllPoints()
