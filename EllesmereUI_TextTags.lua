@@ -164,9 +164,8 @@ local strlen = strlenutf8 or string.len
 --- and value classes used, literalChars the UTF-8 length outside the tags,
 --- unknown the bracketed text that is no bound key (left as typed, no repeats).
 --- "%" is escaped and "|" doubled: no colour or texture escape can be typed.
---- The result is cached and shared by every reader: read-only by contract.
---- transient (the popup's per-keystroke preview) reads the cache but does not
---- fill it, so typing never evicts the templates the frames draw.
+--- Cached and shared by every reader (read-only); transient (the popup's
+--- per-keystroke preview) reads the cache but never fills it.
 function TextTags.Parse(cat, template, transient)
     if type(template) ~= "string" or template == "" then return nil end
     local hit = cat.cache[template]
@@ -328,10 +327,9 @@ function TextTags.HelpText(cat, opts)
     return tconcat(lines, "\n")
 end
 
---- Completion for the tag being typed: text up to cursor (bytes before the
---- caret, as EditBox:GetCursorPosition counts) ending in "[" plus an unclosed
---- partial tag. Returns nil, or
---- (items, from, to): items { text = "hp:abr]", label (modifiers coloured),
+--- Completion for the tag being typed: text up to cursor (in bytes, as
+--- EditBox:GetCursorPosition counts) ending in "[" plus an unclosed partial
+--- tag. Returns nil, or (items, from, to): items { text = "hp:abr]", label (modifiers coloured),
 --- desc, detail = sample } in schema order, and the text[from..to] range an
 --- item replaces (a "]" right after the caret included). A bare tag name lists
 --- its variants, a partial name one entry per matching tag. An item with longer
