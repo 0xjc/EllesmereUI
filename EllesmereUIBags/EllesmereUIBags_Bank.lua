@@ -1057,11 +1057,10 @@ function EUI_Bank:ApplyWindowLayering()
     self:RepinIconLevels()
 end
 
--- _bankSlots' buttons (plus the shared list-row pool, when hosted under self) are pinned
--- above self at creation (GetOrCreateBankSlot / ns.CreateListRow); re-pin every already-built
+-- _bankSlots' buttons are pinned above self at creation
+-- (GetOrCreateBankSlot / ns.CreateListRow); re-pin every already-built
 -- one too, whenever self's own level changes -- not just from ApplyWindowLayering, but also
--- from a bare self:Raise() (OnMouseDown, the bank-open flow), which can move self's level
--- independent of the strata setting.
+-- from a bare self:Raise() which can move self's level independent of the strata setting.
 function EUI_Bank:RepinIconLevels()
     local lvl = self:GetFrameLevel() + 9
     for _, btn in pairs(self._bankSlots) do

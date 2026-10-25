@@ -180,9 +180,6 @@ function EUI_Bags:ApplyWindowLayering()
     if sf and not self._assignSelectMode and not self._pinSelectMode then
         sf:SetFrameStrata(strata)
     end
-    -- Bank's own level must be current before RepinIconLevels below re-syncs the shared
-    -- list-row pool (ns.ResyncListRowLevels reads each host's level fresh): update the
-    -- bank first, so a bank-hosted list row is never pinned against its stale level.
     local bank = _G.EUI_BankFrame
     if bank and bank.ApplyWindowLayering then bank:ApplyWindowLayering() end
     self:RepinIconLevels()

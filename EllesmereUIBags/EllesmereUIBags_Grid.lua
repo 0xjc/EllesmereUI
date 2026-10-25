@@ -77,11 +77,7 @@ local function GetOrCreateSlot(idx)
 
     local slotParent = CreateFrame("Frame", nil, EUI_Bags)
     slotParent:SetSize(SLOT_SIZE, SLOT_SIZE)
-    local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")
-    -- ContainerFrameItemButtonTemplate hardcodes frameLevel="10" in Blizzard's XML, so it
-    -- never tracks its ancestors' levels. At High strata self:SetFrameLevel(100) cascades
-    -- down through slotParent, leaving btn's fixed ~10 below its own wrapper -- the wrapper
-    -- then wins mouse hit-testing over the button. Force it back above the window.
+    local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")   
     ns.PinItemButtonLevel(btn, EUI_Bags:GetFrameLevel() + 9)
     btn:SetAllPoints(slotParent)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -399,8 +395,7 @@ local function RenderButton(btn, data, _, col, row, startX, currentY, _, interac
         if not btn._warbankDim then
             local dimFrame = CreateFrame("Frame", nil, btn)
             dimFrame:SetAllPoints()
-            -- Matches ns.PinItemButtonLevel's formula (btn level + 6) directly, so a later
-            -- re-pin (which only touches _warbankDim if it already exists) stays consistent.
+            -- Matches ns.PinItemButtonLevel's formula (btn level + 6) directly
             dimFrame:SetFrameLevel(btn:GetFrameLevel() + 6)
             local dim = dimFrame:CreateTexture(nil, "OVERLAY")
             dim:SetAllPoints()

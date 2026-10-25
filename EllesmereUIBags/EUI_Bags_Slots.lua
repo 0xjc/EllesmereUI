@@ -215,9 +215,6 @@ local function GetOrCreateReagentSlot(idx)
     CreateInsetBorder(btn)
     SetInsetBorderColor(btn, 0.25, 0.25, 0.25, 1)
 
-    -- Text overlay frame: sits above Cooldown so count/ilvl aren't covered by swipe.
-    -- Not Cooldown-relative (see ns.PinItemButtonLevel's comment in EUI_Bags_Shared.lua):
-    -- read btn's own (already-pinned) level so this tracks a later re-pin.
     local textOverlay = CreateFrame("Frame", nil, btn)
     textOverlay:SetAllPoints()
     textOverlay:SetFrameLevel(btn:GetFrameLevel() + 3)

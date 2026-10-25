@@ -206,8 +206,6 @@ function ns.CreateListRow(host)
     if InCombatLockdown() then return nil end
     local slotParent = CreateFrame("Frame", nil, host)
     local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")
-    -- ContainerFrameItemButtonTemplate hardcodes frameLevel="10" in Blizzard's XML (never
-    -- tracks ancestors), so force it back above the window (see GetOrCreateSlot in Grid.lua).
     ns.PinItemButtonLevel(btn, host:GetFrameLevel() + 9)
     btn:SetAllPoints(slotParent)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -227,8 +225,7 @@ function ns.CreateListRow(host)
     end
     -- Third-party overlay painters (EUI_Bags.RunItemOverlays) parent to this,
     -- as on the grid slots: here it covers the row's icon. Not Cooldown-relative
-    -- (see ns.PinItemButtonLevel's comment in EUI_Bags_Shared.lua): read btn's own
-    -- (already-pinned) level so this tracks a later re-pin.
+    -- (see ns.PinItemButtonLevel's comment in EUI_Bags_Shared.lua)
     local ov = CreateFrame("Frame", nil, btn)
     ov:SetAllPoints(btn._lvIcon)
     ov:SetFrameLevel(btn:GetFrameLevel() + 3)
