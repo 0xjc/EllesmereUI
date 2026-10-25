@@ -1612,7 +1612,7 @@ Unsaved Changes
 Unsaved changes
 Untested keybinds
 Up to
-Up/Down: select   Tab: insert   Esc: close
+Up/Down: select   Tab/Enter: insert   Esc: close
 Update Sync Group
 Upranked %1$s on %2$d action slots.
 Upranked %s on 1 action slot.
