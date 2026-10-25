@@ -17,24 +17,27 @@ end
 function ns.UFO_EditCustomText(prefix, db, unit, onSave, warning)
     local key = prefix .. "CustomFormat"
     local cur = db[key]
-    if type(cur) ~= "string" then cur = nil end
+    -- Stored with single pipes; the edit box holds a typed "|" doubled.
+    if type(cur) == "string" then cur = cur:gsub("|", "||") else cur = nil end
     -- 120 letters for new input; a longer stored format (import) keeps its length.
     local maxLen = math.max(120, cur and (strlenutf8 and strlenutf8(cur) or #cur) or 0)
     -- The preview in the slot's text colour, as the unit preview shows it.
     local color
+    -- Power Colored: the page's unit while it exists (boss1 for Boss),
+    -- else the player, as the unit preview shows it.
+    local function PowerColor()
+        local u = unit == "boss" and "boss1" or unit
+        local r, g, b = EllesmereUI.ResolveUnitPowerColor((u and UnitExists(u)) and u or "player")
+        return r and { r = r, g = g, b = b }
+    end
     if prefix == "powerText" then
-        -- The power text's own keys: Power Colored (player), else powerTextColor.
-        local r, g, b
-        if db.powerPercentTextPowerColor then r, g, b = EllesmereUI.ResolveUnitPowerColor("player") end
-        local tc = db.powerTextColor
-        color = (r and { r = r, g = g, b = b }) or (not db.powerPercentTextPowerColor and tc)
-            or { r = 1, g = 1, b = 1 }
+        -- The power text's own keys: Power Colored, else powerTextColor.
+        local pc = db.powerPercentTextPowerColor and PowerColor()
+        color = pc or (not db.powerPercentTextPowerColor and db.powerTextColor) or { r = 1, g = 1, b = 1 }
     elseif db[prefix .. "PowerColor"] then
-        -- The text bar's Power Colored, resolved for the player as the unit
-        -- preview does. Fixed for the popup: the bar uses it only while the
-        -- format holds a power tag.
-        local r, g, b = EllesmereUI.ResolveUnitPowerColor("player")
-        color = r and { r = r, g = g, b = b }
+        -- The text bar's Power Colored. Fixed for the popup: the bar uses it
+        -- only while the format holds a power tag.
+        color = PowerColor()
     elseif db[prefix .. "ClassColor"] then
         if unit == "player" then
             local _, cls = UnitClass("player")
@@ -93,6 +96,7 @@ function ns.UFO_CustomTextValues(values, getValue, edit)
         if icon then return icon(key) end
     end
     mo.iconSize = mo.iconSize or function() return 12 end
+    mo.iconClearScroll = true
     mo.iconColor = function(key)
         if key == "custom" then return 1, 1, 1, getValue() == "custom" and 1 or 0.75 end
         if iconColor then return iconColor(key) end
@@ -114,6 +118,37 @@ function ns.UFO_RefreshMenus(...)
         local rl = EllesmereUI._widgetRefreshList
         if rl then for ri = 1, #rl do rl[ri]() end end
     end)
+end
+
+-- The power text cog (Main and Boss): Show % for the preset formats in pctOff's
+-- complement; Custom writes its own %, so it keeps only the Name Format (WoW
+-- Forever, whose rows carry it), and only while the format shows a name.
+local PCT_TIP = "This option is only available for formats that display a percentage."
+function ns.UFO_PowerTextCog(get, set, pctOff, setShowPct)
+    local rows = ns.UF_NameFormatRows("powerText", "perpp", get, set, {
+        { type="toggle", label="Show %",
+          disabled=function() return get("powerTextFormat", "perpp") == "custom" end,
+          disabledTooltip=PCT_TIP,
+          get=function() return get("powerShowPercent", true) ~= false end,
+          set=setShowPct },
+    }, "powerTextFormat")
+    local hasName = #rows > 1
+    return {
+        title = "Power Text", rows = rows,
+        disabled = function()
+            local fmt = get("powerTextFormat", "perpp")
+            if fmt == "custom" then
+                return not (hasName and ns.UF_ContentShowsName(fmt, get("powerTextCustomFormat")))
+            end
+            return pctOff[fmt] == true
+        end,
+        disabledTooltip = function()
+            if hasName and get("powerTextFormat", "perpp") == "custom" then
+                return "This option only applies when the text shows a name."
+            end
+            return PCT_TIP
+        end,
+    }
 end
 
 -- The popup writes the format directly, so Spec Overrides needs an accessor:
@@ -176,6 +211,7 @@ function ns.UFO_BuildTextSlots(W, parent, y, opts)
             if key == "none" then return "Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-close.png" end
         end,
         iconSize = function() return 12 end,
+        iconClearScroll = true,
         iconColor = function() return 1, 0.35, 0.35, 0.75 end,
         labelColor = function(key)
             if key == "none" then return 1, 0.35, 0.35, 0.8 end
@@ -241,9 +277,12 @@ function ns.UFO_BuildTextSlots(W, parent, y, opts)
         local size = db[source .. "Size"] or db.textSize or 12
         for i = 1, #MOVE_KEYS do
             local suffix = MOVE_KEYS[i]
-            local v = db[source .. suffix]
-            if type(v) == "table" then v = CopyTable(v) end
-            db[dest .. suffix] = v
+            -- The format moves only with Custom; otherwise the destination keeps its own.
+            if suffix ~= "CustomFormat" or content == "custom" then
+                local v = db[source .. suffix]
+                if type(v) == "table" then v = CopyTable(v) end
+                db[dest .. suffix] = v
+            end
         end
         db[dest .. "Size"] = size
         if dest == "extraText" then

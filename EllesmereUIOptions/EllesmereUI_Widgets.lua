@@ -815,12 +815,12 @@ local function BuildDropdownMenu(ddBtn, menuW, order, values, getValue, setValue
             if _haveAtlas or _iconPath then
                 -- Optional, both icon kinds: .iconSize(key) -> edge length (default row
                 -- height - 8), .iconColor(key) -> r, g, b[, a] idle tint (hover: alpha 1),
-                -- .iconInset -> right inset, number or fn(key). Unset, the inset is 6 and
-                -- moves clear of the scrollbar when the menu scrolls.
+                -- .iconInset -> right inset, number or fn(key). Unset, the inset is 6;
+                -- with .iconClearScroll it moves clear of the scrollbar when the menu scrolls.
                 local icoSz = (_menuOpts and _menuOpts.iconSize and _menuOpts.iconSize(key)) or (_moItemH - 8)
                 local icoInset = _menuOpts and _menuOpts.iconInset
                 if type(icoInset) == "function" then icoInset = icoInset(key) end
-                item._icoInsetSet = icoInset ~= nil
+                item._icoClearScroll = icoInset == nil and _menuOpts and _menuOpts.iconClearScroll or nil
                 icoInset = icoInset or 6
                 if _menuOpts and _menuOpts.iconColor then
                     local cr, cg, cb, ca = _menuOpts.iconColor(key)
@@ -1001,11 +1001,11 @@ local function BuildDropdownMenu(ddBtn, menuW, order, values, getValue, setValue
         sf:EnableMouseWheel(true)
         sf:SetScrollChild(innerContainer)
         innerContainer:SetWidth(menuW)
-        -- The track below sits 4-8px in from the right: icons on the default inset
-        -- move to 10 so they clear it; an explicit .iconInset is left alone.
+        -- The track below sits 4-8px in from the right: icons of a menu with
+        -- .iconClearScroll move to 10 so they clear it; an explicit .iconInset stays.
         for i = 1, #menuItems do
             local it = menuItems[i]
-            if it._icon and not it._icoInsetSet then
+            if it._icon and it._icoClearScroll then
                 it._icon:ClearAllPoints()
                 it._icon:SetPoint("RIGHT", it, "RIGHT", -10, 0)
             end

@@ -1159,6 +1159,10 @@ function EllesmereUI:ShowInputPopup(opts)
 
         editBox:SetScript("OnEnterPressed", function()
             if popup._multiline then return end
+            -- An open suggestion list takes Enter like Tab once a row was
+            -- picked with the arrows, or when it holds a single entry.
+            local sg = popup._suggest
+            if sg and (sg.moved or #sg.items == 1) then popup._acceptSuggest(); return end
             local txt = editBox:GetText()
             if txt and (txt ~= "" or popup._allowEmpty) then
                 -- The callback before the close, as the confirm button runs it.
@@ -1327,7 +1331,7 @@ function EllesmereUI:ShowInputPopup(opts)
         local thumb = SolidTex(bar, "OVERLAY", 1, 1, 1, 0.27)
         PanelPP.Width(thumb, 3)
         local legend = MakeFont(dd, 10, nil, TEXT_DIM.r, TEXT_DIM.g, TEXT_DIM.b, TEXT_DIM.a)
-        legend:SetText(EllesmereUI.L("Up/Down: select   Tab: insert   Esc: close"))
+        legend:SetText(EllesmereUI.L("Up/Down: select   Tab/Enter: insert   Esc: close"))
         local legendDiv = SolidTex(dd, "ARTWORK", 1, 1, 1, 0.1)
         legendDiv:SetHeight(1)
         dd:Hide()
@@ -1343,7 +1347,8 @@ function EllesmereUI:ShowInputPopup(opts)
                     row._key:SetText(item.label)
                     row._desc:SetText(item.desc or "")
                     row._detail:SetText(item.detail or "")
-                    local on = sg.offset + i == sg.sel
+                    -- Marked only while Enter takes it: picked, or the one entry.
+                    local on = (sg.moved or #sg.items == 1) and sg.offset + i == sg.sel
                     if on then
                         row._sel:SetColorTexture(EGC.r, EGC.g, EGC.b, 0.18)
                         row._bar:SetColorTexture(EGC.r, EGC.g, EGC.b, 1)
@@ -1400,7 +1405,13 @@ function EllesmereUI:ShowInputPopup(opts)
         popup._stepSuggest = function(d)
             local sg = popup._suggest
             local n = #sg.items
-            sg.sel = (sg.sel - 1 + d) % n + 1
+            if sg.moved then
+                sg.sel = (sg.sel - 1 + d) % n + 1
+            else
+                -- The first arrow shows the pick: the top row on Down, the last on Up.
+                sg.moved = true
+                if d < 0 then sg.sel = n end
+            end
             if sg.sel <= sg.offset then sg.offset = sg.sel - 1
             elseif sg.sel > sg.offset + ROWS then sg.offset = sg.sel - ROWS end
             Render()
@@ -1414,12 +1425,13 @@ function EllesmereUI:ShowInputPopup(opts)
             eb:SetText(new)
             eb:SetFocus()
             eb:SetCursorPosition(sg.from - 1 + #item.text)
-            popup._updateSuggest(new)
+            -- A list reopened by the insert (longer variants) keeps the pick.
+            popup._updateSuggest(new, true)
         end
-        popup._updateSuggest = function(text)
+        popup._updateSuggest = function(text, moved)
             local items, from, to = popup._complete(text, popup._editBox:GetCursorPosition())
             if not items then popup._closeSuggest(); return end
-            popup._suggest = { items = items, from = from, to = to, sel = 1, offset = 0 }
+            popup._suggest = { items = items, from = from, to = to, sel = 1, offset = 0, moved = moved }
             Render()
         end
     end
@@ -1457,6 +1469,9 @@ function EllesmereUI:ShowInputPopup(opts)
         popup._extraBtn:SetScript("OnClick", function()
             if opts.extraButton.onClick then opts.extraButton.onClick(popup._editBox) end
         end)
+        -- Below the preview block when there is one.
+        popup._extraBtn:ClearAllPoints()
+        popup._extraBtn:SetPoint("TOP", popup._inputFrame, "BOTTOM", 0, -6 - belowH)
         popup._extraBtn:Show()
         extraH = 26
     else

@@ -47,8 +47,15 @@ local function NameFormatSources()
                     local s = p[e.unit]
                     if s and uf.GetUnitFrameSource(e.unit) == "eui" then
                         local m = ModeOf(s[e.format])
-                        all = Merge(all, m)
-                        if uf.UF_ContentShowsName(s[e.content], s[e.custom]) and (not e.btb or s.bottomTextBar) then
+                        -- A power text without Custom never names, so it does
+                        -- not count toward the fallback either.
+                        if not e.power or s[e.content] == "custom" then all = Merge(all, m) end
+                        -- A power text shows while its position is set and, under a
+                        -- stock style, Hide Power Bar leaves it (ApplyPowerPercentText).
+                        local powerShown = not e.power or ((s[e.power] or "none") ~= "none"
+                            and not (uf.UF_Blizz() and uf.UF_IsMainSettings(s) and uf.UF_StockHidesPower(s)))
+                        if uf.UF_ContentShowsName(s[e.content], s[e.custom]) and (not e.btb or s.bottomTextBar)
+                           and powerShown then
                             shown = Merge(shown, m)
                         end
                     end

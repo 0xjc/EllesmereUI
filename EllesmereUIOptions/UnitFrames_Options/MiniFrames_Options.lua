@@ -1419,17 +1419,9 @@ local function BuildMiniTextAndSize(W, parent, y, settingsTable, unitKey, enable
         -- Show % cog on Power Text (left)
         if not EllesmereUI._prebuilding then
             local rgn = pwrTextRow._leftRegion
-            EllesmereUI.BuildInlineCog(rgn, {
-                -- Custom writes its own %.
-                disabled = function() local fmt = MVal("powerTextFormat", "perpp"); return fmt == "none" or fmt == "curpp" or fmt == "custom" end,
-                disabledTooltip = "This option is only available for formats that display a percentage.",
-                title = "Power Text",
-                rows = {
-                    { type="toggle", label="Show %",
-                      get=function() return MVal("powerShowPercent", true) ~= false end,
-                      set=function(v) MSet("powerShowPercent", v) end },
-                },
-            })
+            EllesmereUI.BuildInlineCog(rgn, ns.UFO_PowerTextCog(MVal, MSet,
+                { none = true, curpp = true },
+                function(v) MSet("powerShowPercent", v) end))
         end
         -- Size + X/Y offsets cog on Text Position (right)
         if not EllesmereUI._prebuilding then

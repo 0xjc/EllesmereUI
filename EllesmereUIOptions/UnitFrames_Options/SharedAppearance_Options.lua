@@ -2478,7 +2478,8 @@ function ns.UFO_BuildTextBarSection(parent, y, ctx)
                 local v, fmt = src.btbLeftContent or "none", src.btbLeftCustomFormat
                 for _, key in ipairs(GROUP_UNIT_ORDER) do
                     local d = UNIT_DB_MAP[key]()
-                    d.btbLeftContent, d.btbLeftCustomFormat = v, fmt
+                    d.btbLeftContent = v
+                    if v == "custom" then d.btbLeftCustomFormat = fmt end
                 end
                 ReloadAndUpdate(); EllesmereUI:RefreshPage()
             end,
@@ -2502,7 +2503,8 @@ function ns.UFO_BuildTextBarSection(parent, y, ctx)
                     local v, fmt = src.btbLeftContent or "none", src.btbLeftCustomFormat
                     for _, key in ipairs(checkedKeys) do
                         local d = UNIT_DB_MAP[key]()
-                        d.btbLeftContent, d.btbLeftCustomFormat = v, fmt
+                        d.btbLeftContent = v
+                        if v == "custom" then d.btbLeftCustomFormat = fmt end
                     end
                     ReloadAndUpdate(); EllesmereUI:RefreshPage()
                 end,
@@ -2519,7 +2521,8 @@ function ns.UFO_BuildTextBarSection(parent, y, ctx)
                 local v, fmt = src.btbRightContent or "none", src.btbRightCustomFormat
                 for _, key in ipairs(GROUP_UNIT_ORDER) do
                     local d = UNIT_DB_MAP[key]()
-                    d.btbRightContent, d.btbRightCustomFormat = v, fmt
+                    d.btbRightContent = v
+                    if v == "custom" then d.btbRightCustomFormat = fmt end
                 end
                 ReloadAndUpdate(); EllesmereUI:RefreshPage()
             end,
@@ -2543,7 +2546,8 @@ function ns.UFO_BuildTextBarSection(parent, y, ctx)
                     local v, fmt = src.btbRightContent or "none", src.btbRightCustomFormat
                     for _, key in ipairs(checkedKeys) do
                         local d = UNIT_DB_MAP[key]()
-                        d.btbRightContent, d.btbRightCustomFormat = v, fmt
+                        d.btbRightContent = v
+                        if v == "custom" then d.btbRightCustomFormat = fmt end
                     end
                     ReloadAndUpdate(); EllesmereUI:RefreshPage()
                 end,
@@ -2734,7 +2738,8 @@ function ns.UFO_BuildTextBarSection(parent, y, ctx)
                 local v, fmt = src.btbCenterContent or "none", src.btbCenterCustomFormat
                 for _, key in ipairs(GROUP_UNIT_ORDER) do
                     local d = UNIT_DB_MAP[key]()
-                    d.btbCenterContent, d.btbCenterCustomFormat = v, fmt
+                    d.btbCenterContent = v
+                    if v == "custom" then d.btbCenterCustomFormat = fmt end
                 end
                 ReloadAndUpdate(); EllesmereUI:RefreshPage()
             end,
@@ -2758,7 +2763,8 @@ function ns.UFO_BuildTextBarSection(parent, y, ctx)
                     local v, fmt = src.btbCenterContent or "none", src.btbCenterCustomFormat
                     for _, key in ipairs(checkedKeys) do
                         local d = UNIT_DB_MAP[key]()
-                        d.btbCenterContent, d.btbCenterCustomFormat = v, fmt
+                        d.btbCenterContent = v
+                        if v == "custom" then d.btbCenterCustomFormat = fmt end
                     end
                     ReloadAndUpdate(); EllesmereUI:RefreshPage()
                 end,

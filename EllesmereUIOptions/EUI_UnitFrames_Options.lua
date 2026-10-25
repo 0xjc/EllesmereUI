@@ -49,8 +49,11 @@ if EllesmereUI.IS_FOREVER then
         local parsed = ns.UF_TextTags and EllesmereUI.TextTags.Parse(ns.UF_TextTags, customFmt)
         return parsed ~= nil and (parsed.has.name or parsed.has.target) == true
     end
-    function ns.UF_NameFormatRows(prefix, contentDefault, get, set, rows)
-        local contentKey, formatKey = prefix .. "Content", prefix .. "NameFormat"
+    -- contentKey: the slot's content key when it is not <prefix>Content
+    -- (the power text's powerTextFormat).
+    function ns.UF_NameFormatRows(prefix, contentDefault, get, set, rows, contentKey)
+        local formatKey = prefix .. "NameFormat"
+        contentKey = contentKey or (prefix .. "Content")
         table.insert(rows, 1, { type="dropdown", label="Name Format", values=FORMATS, order=FORMAT_ORDER,
             get=function() return get(formatKey, "full") end,
             -- First and Last is the unset default.
@@ -74,6 +77,12 @@ if EllesmereUI.IS_FOREVER then
                 slots[#slots + 1] = { unit = set[1], content = pre .. "Content", custom = pre .. "CustomFormat", format = pre .. "NameFormat",
                     btb = pre:sub(1, 3) == "btb" }
             end
+        end
+        -- The power text: a name only through a custom format, shown while
+        -- its Text Position is not None (power = that position key).
+        for _, unit in ipairs({ "player", "target", "focus", "boss", "pet" }) do
+            slots[#slots + 1] = { unit = unit, content = "powerTextFormat", custom = "powerTextCustomFormat",
+                format = "powerTextNameFormat", power = "powerPercentText" }
         end
         ns.UF_NAME_FORMAT_SLOTS = slots
     end

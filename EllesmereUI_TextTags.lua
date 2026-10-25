@@ -165,14 +165,17 @@ local strlen = strlenutf8 or string.len
 --- unknown the bracketed text that is no bound key (left as typed, no repeats).
 --- "%" is escaped and "|" doubled: no colour or texture escape can be typed.
 --- The result is cached and shared by every reader: read-only by contract.
-function TextTags.Parse(cat, template)
+--- transient (the popup's per-keystroke preview) reads the cache but does not
+--- fill it, so typing never evicts the templates the frames draw.
+function TextTags.Parse(cat, template, transient)
     if type(template) ~= "string" or template == "" then return nil end
     local hit = cat.cache[template]
     if hit then return hit end
     local fmt, literal, keys, has, reads, unknown, seen = {}, {}, {}, {}, {}, {}, {}
     local pos = 1
     while true do
-        local s, e, inner = sfind(template, "%[([%w:]+)%]", pos)
+        -- Any bracketed text: what is no bound key stays as typed and is named.
+        local s, e, inner = sfind(template, "%[([^%[%]]+)%]", pos)
         local lit = ssub(template, pos, (s or 0) - 1)
         local key = s and ResolveKey(cat, inner)
         if s and not key then
@@ -198,6 +201,7 @@ function TextTags.Parse(cat, template)
         fmt = tconcat(fmt), keys = keys, has = has, reads = reads,
         literalChars = strlen(tconcat(literal)), unknown = unknown,
     }
+    if transient then return hit end
     if cat.count >= 64 then cat.cache, cat.count = {}, 0 end
     cat.cache[template] = hit
     cat.count = cat.count + 1
@@ -208,6 +212,16 @@ end
 --  Preview, width, help
 -------------------------------------------------------------------------------
 local scratch = {}
+-- The schema's descriptions, translated once per catalog on first use (help
+-- and completion run only after ADDON_LOADED, when the locale is active).
+local function Descs(cat)
+    local d = cat.descs
+    if not d then
+        d = cat.schema.descs and cat.schema.descs() or {}
+        cat.descs = d
+    end
+    return d
+end
 local DIM, MOD, UNKNOWN = "|cff999999", "|cffffd27a", "|cffffa633"
 
 --- The parse filled with the schema's samples. mark (a colour escape such as
@@ -219,7 +233,9 @@ function TextTags.Preview(cat, parsed, mark)
     if mark then
         local unknown = parsed.unknown
         for i = 1, #unknown do
-            out = sgsub(out, sgsub(unknown[i], "%p", "%%%0"), mark .. unknown[i] .. "|r")
+            -- As it stands in fmt: "|" doubled; "%" escaped for the replacement.
+            local shown = sgsub(unknown[i], "|", "||")
+            out = sgsub(out, sgsub(shown, "%p", "%%%0"), mark .. sgsub(shown, "%%", "%%%%") .. "|r")
         end
     end
     return out
@@ -242,7 +258,7 @@ end
 --- opts (optional): examples replaces the schema's (any using an unbound key
 --- is skipped); tagNotes { tag = localized text } adds "(text)" to a tag.
 function TextTags.HelpText(cat, opts)
-    local descs = cat.schema.descs and cat.schema.descs() or {}
+    local descs = Descs(cat)
     local tagDescs, modDescs = descs.tags or {}, descs.mods or {}
     local tagNotes = opts and opts.tagNotes or {}
     local EG = EllesmereUI.ELLESMERE_GREEN
@@ -312,8 +328,9 @@ function TextTags.HelpText(cat, opts)
     return tconcat(lines, "\n")
 end
 
---- Completion for the tag being typed: text up to cursor (characters before
---- the caret) ending in "[" plus an unclosed partial tag. Returns nil, or
+--- Completion for the tag being typed: text up to cursor (bytes before the
+--- caret, as EditBox:GetCursorPosition counts) ending in "[" plus an unclosed
+--- partial tag. Returns nil, or
 --- (items, from, to): items { text = "hp:abr]", label (modifiers coloured),
 --- desc, detail = sample } in schema order, and the text[from..to] range an
 --- item replaces (a "]" right after the caret included). A bare tag name lists
@@ -328,10 +345,42 @@ function TextTags.Complete(cat, text, cursor)
     local partial = slower(ssub(before, open + 1))
     if not partial:match("^[%w:]*$") then return nil end
     local colon = sfind(partial, ":", 1, true)
-    -- The partial with its tag alias resolved, to tell "already typed in full".
-    local typed = colon and ((cat.names[ssub(partial, 1, colon - 1)] or "") .. ssub(partial, colon))
-        or cat.names[partial] or partial
-    local descs = cat.schema.descs and cat.schema.descs().keys or {}
+    -- The partial as a key (aliases resolved, any modifier order), to tell
+    -- "already typed in full".
+    local typed = ResolveKey(cat, partial) or partial
+    -- After a colon: the complete modifiers typed (done, by canonical name)
+    -- and the partial last one; a modifier that is unknown or repeated ends
+    -- the suggestions, as it does the parse.
+    local done, last = {}, nil
+    if colon then
+        local pos = colon + 1
+        while true do
+            local nx = sfind(partial, ":", pos, true)
+            if not nx then last = ssub(partial, pos); break end
+            local m = cat.mods[ssub(partial, pos, nx - 1)]
+            if not m or done[m] then return nil end
+            done[m] = true
+            pos = nx + 1
+        end
+    end
+    -- A key fits when it holds every done modifier plus one more whose name
+    -- or alias starts with last.
+    local function Fits(key)
+        local mods = {}
+        for m in key:gmatch(":(%w+)") do mods[m] = true end
+        for m in pairs(done) do
+            if not mods[m] then return false end
+        end
+        for m in pairs(mods) do
+            if not done[m] then
+                for name, canon in pairs(cat.mods) do
+                    if canon == m and ssub(name, 1, #last) == last then return true end
+                end
+            end
+        end
+        return false
+    end
+    local descs = Descs(cat).keys or {}
     local items, seen, defs = {}, {}, cat.schema.keys
     local function Add(key)
         if seen[key] then return end
@@ -355,9 +404,8 @@ function TextTags.Complete(cat, text, cursor)
             local name = names[n]
             if colon then
                 if ssub(partial, 1, colon - 1) == name then
-                    local rest = ssub(partial, colon)
                     for k = 1, #t.keys do
-                        if ssub(t.keys[k], #t.tag + 1, #t.tag + #rest) == rest then Add(t.keys[k]) end
+                        if Fits(t.keys[k]) then Add(t.keys[k]) end
                     end
                 end
             elseif partial == name then
@@ -381,11 +429,11 @@ function TextTags.PopupOpts(cat, opts, helpOpts)
     opts = opts or {}
     opts.preview = function(text)
         -- The edit box doubles a typed "|"; templates are stored with single ones.
-        local parsed = TextTags.Parse(cat, type(text) == "string" and sgsub(text, "||", "|") or text)
+        local parsed = TextTags.Parse(cat, type(text) == "string" and sgsub(text, "||", "|") or text, true)
         if not parsed then return nil, nil end
         local hint
         if #parsed.unknown > 0 then
-            hint = EllesmereUI.Lf("Unknown tags, shown as typed: %s", tconcat(parsed.unknown, ", "))
+            hint = EllesmereUI.Lf("Unknown tags, shown as typed: %s", (sgsub(tconcat(parsed.unknown, ", "), "|", "||")))
         end
         return TextTags.Preview(cat, parsed, UNKNOWN), hint
     end
