@@ -835,7 +835,7 @@ local function EnsureFocusReminderProxy()
         elseif event == "NAME_PLATE_UNIT_ADDED" then
             if _focusKickHasFocus then return end
             if not _focusKickInDungeon then return end
-            if _focusKickIsHealer then return end
+            if _focusKickNoKick then return end
             ShowFocusReminder(unit)
         elseif event == "NAME_PLATE_UNIT_REMOVED" then
             HideFocusReminder(unit)
