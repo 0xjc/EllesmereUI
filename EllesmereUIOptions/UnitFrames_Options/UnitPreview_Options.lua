@@ -639,9 +639,9 @@ function ns.UFO_BuildUnitPreview(parent, unitKey, side)
 
 
     -- Power color override for preview (takes priority over class color for power-related text)
-    local function PreviewPowerColor(fs, contentKey, usePowerColor)
+    local function PreviewPowerColor(fs, contentKey, usePowerColor, customFmt)
         if not fs or not usePowerColor then return end
-        if contentKey == "perpp" or contentKey == "curpp" or contentKey == "curmaxpp" or contentKey == "curhp_curpp" or contentKey == "perhp_perpp" then
+        if ns.UF_IsPowerContent(contentKey, customFmt) then
             local pcR, pcG, pcB = EllesmereUI.ResolveUnitPowerColor("player")
             local info = pcR and { r = pcR, g = pcG, b = pcB }
             if info then fs:SetTextColor(info.r, info.g, info.b)
@@ -1096,7 +1096,7 @@ function ns.UFO_BuildUnitPreview(parent, unitKey, side)
                 btbLeftFS:SetText(PreviewTextForContent(lc, s, "btbLeft"))
                 btbLeftFS:Show()
                 PreviewClassColor(btbLeftFS, s.btbLeftClassColor, s.btbLeftColorR, s.btbLeftColorG, s.btbLeftColorB)
-                PreviewPowerColor(btbLeftFS, lc, s.btbLeftPowerColor)
+                PreviewPowerColor(btbLeftFS, lc, s.btbLeftPowerColor, s.btbLeftCustomFormat)
             else btbLeftFS:Hide() end
 
             btbRightFS:SetFont(PREVIEW_FONT, rsz, GetUFOptOutline())
@@ -1107,7 +1107,7 @@ function ns.UFO_BuildUnitPreview(parent, unitKey, side)
                 btbRightFS:SetText(PreviewTextForContent(rc, s, "btbRight"))
                 btbRightFS:Show()
                 PreviewClassColor(btbRightFS, s.btbRightClassColor, s.btbRightColorR, s.btbRightColorG, s.btbRightColorB)
-                PreviewPowerColor(btbRightFS, rc, s.btbRightPowerColor)
+                PreviewPowerColor(btbRightFS, rc, s.btbRightPowerColor, s.btbRightCustomFormat)
             else btbRightFS:Hide() end
 
             btbCenterFS:SetFont(PREVIEW_FONT, csz, GetUFOptOutline())
@@ -1118,7 +1118,7 @@ function ns.UFO_BuildUnitPreview(parent, unitKey, side)
                 btbCenterFS:SetText(PreviewTextForContent(cc, s, "btbCenter"))
                 btbCenterFS:Show()
                 PreviewClassColor(btbCenterFS, s.btbCenterClassColor, s.btbCenterColorR, s.btbCenterColorG, s.btbCenterColorB)
-                PreviewPowerColor(btbCenterFS, cc, s.btbCenterPowerColor)
+                PreviewPowerColor(btbCenterFS, cc, s.btbCenterPowerColor, s.btbCenterCustomFormat)
             else btbCenterFS:Hide() end
 
             -- Class icon in BTB preview

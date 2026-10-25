@@ -1335,9 +1335,10 @@ initFrame:SetScript("OnEvent", function(self)
         ["curmaxpp"]     = "Power Value / Max",
         ["curhp_curpp"]  = "Health | Power Value",
         ["perhp_perpp"]  = "Health | Power %",
+        ["custom"]       = "Custom",
         ["none"]         = "None",
     }
-    local btbTextOrder = { "none", "---", "name", "perhp", "perhpnosign", "curhpshort", "healthshort", "curmaxhp", "perhpnum", "both", "perpp", "curpp", "curmaxpp", "curhp_curpp", "perhp_perpp" }
+    local btbTextOrder = { "none", "---", "custom", "---", "name", "perhp", "perhpnosign", "curhpshort", "healthshort", "curmaxhp", "perhpnum", "both", "perpp", "curpp", "curmaxpp", "curhp_curpp", "perhp_perpp" }
 
     -- Class theme portrait icons: full-size versions of the sidebar class art.
     local ICONS_PATH = "Interface\\AddOns\\EllesmereUI\\media\\icons\\"
