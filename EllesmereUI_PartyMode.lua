@@ -901,7 +901,8 @@ end
 do
 local LOGO_TEX  = "Interface\\AddOns\\EllesmereUI\\media\\logo-full.tga"
 local LOGO_SIZE = 96
-local boxW, boxH = 160, LOGO_SIZE + 34
+local BOX_W, BOX_H = 160, LOGO_SIZE + 34
+local boxW, boxH, boxScale = BOX_W, BOX_H, 1
 local DIM_ALPHA = 0.75
 
 local afkEvents = CreateFrame("Frame")
@@ -961,7 +962,7 @@ end
 
 local function Place()
     box:ClearAllPoints()
-    box:SetPoint("BOTTOMLEFT", overlay, "BOTTOMLEFT", x, y)
+    box:SetPoint("BOTTOMLEFT", overlay, "BOTTOMLEFT", x / boxScale, y / boxScale)
 end
 
 local function NextLeg()
@@ -979,7 +980,7 @@ local function NextLeg()
     anim._hitX, anim._hitY = tx <= t + 0.001, ty <= t + 0.001
     -- Corner: the leg ends on one wall with the other wall close by.
     anim._corner = math.abs(tx - ty) * s <= CornerPx(maxX, maxY)
-    slide:SetOffset(ex - x, ey - y)
+    slide:SetOffset((ex - x) / boxScale, (ey - y) / boxScale)
     slide:SetDuration(t)
     anim:Play()
 end
@@ -1013,8 +1014,10 @@ local function Build()
     end)
 
     box = CreateFrame("Frame", nil, overlay)
+    box:SetSize(BOX_W, BOX_H)
     logo = box:CreateTexture(nil, "ARTWORK")
     logo:SetTexture(LOGO_TEX)
+    logo:SetSize(LOGO_SIZE, LOGO_SIZE)
     logo:SetPoint("TOP")
     spin = logo:CreateAnimationGroup()
     spin:SetLooping("REPEAT")
@@ -1037,6 +1040,7 @@ local function Build()
     flipOut:SetOrder(2)
 
     word = box:CreateFontString(nil, "ARTWORK")
+    word:SetFont(EllesmereUI.GetFontPath(), 22, "")
     word:SetPoint("BOTTOM")
     word:SetText("EllesmereUI")
 
@@ -1078,13 +1082,13 @@ local function ApplySpin()
     end
 end
 
--- Logo Size scales the emblem, the wordmark and the box they bounce in.
+-- Logo Size scales the whole box. Positions are kept in overlay units and
+-- divided by the scale where they reach the box (its points and offsets are
+-- in its own scaled units).
 local function ApplySize()
-    local sc = (EllesmereUIDB and EllesmereUIDB.partyModeAfkScale) or 1
-    boxW, boxH = 160 * sc, (LOGO_SIZE + 34) * sc
-    box:SetSize(boxW, boxH)
-    logo:SetSize(LOGO_SIZE * sc, LOGO_SIZE * sc)
-    word:SetFont(EllesmereUI.GetFontPath(), math.floor(22 * sc + 0.5), "")
+    boxScale = (EllesmereUIDB and EllesmereUIDB.partyModeAfkScale) or 1
+    box:SetScale(boxScale)
+    boxW, boxH = BOX_W * boxScale, BOX_H * boxScale
 end
 
 local function ShowAfk()
