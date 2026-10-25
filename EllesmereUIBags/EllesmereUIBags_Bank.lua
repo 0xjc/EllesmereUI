@@ -686,6 +686,7 @@ end
 -------------------------------------------------------------------------------
 EUI_Bank:SetScript("OnMouseDown", function(self, button)
     self:Raise()
+    self:RepinIconLevels()
     if button == "LeftButton" and not BP().bankWindowLocked then
         self:StartMoving()
         self._moving = true
@@ -1053,6 +1054,13 @@ function EUI_Bank:ApplyWindowLayering()
     _purchaseBtnWarband:SetFrameStrata(strata)
     _purchaseBtnChar:SetFrameLevel(sidebar:GetFrameLevel() + 20)
     _purchaseBtnWarband:SetFrameLevel(sidebar:GetFrameLevel() + 20)
+    self:RepinIconLevels()
+end
+
+-- As EUI_Bags:RepinIconLevels, for the bank's own buttons
+function EUI_Bank:RepinIconLevels()
+    ns.PinItemPool(self._bankSlots, self, "_slotPinLevel")
+    ns.ResyncListRowLevels()
 end
 
 -- Sidebar header: "Tabs" label + collapse arrow
@@ -1454,6 +1462,7 @@ local function GetOrCreateBankSlot(idx)
     local slotParent = CreateFrame("Frame", nil, EUI_Bank)
     slotParent:SetSize(SLOT_SIZE, SLOT_SIZE)
     local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")
+    ns.PinItemButton(btn, EUI_Bank)
     btn:SetAllPoints(slotParent)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")
@@ -3229,6 +3238,7 @@ eventFrame:SetScript("OnEvent", function(_, event)
         EUI_Bank:SetScale(bankScale)
         EUI_Bank:Show()
         EUI_Bank:Raise()
+        EUI_Bank:RepinIconLevels()
         -- Controller cursor: scroll step buttons and a visible scrollbar,
         -- built only once a controller is in use.
         if EUI_Bank._padBuilt or EUI.PadInUse() then
