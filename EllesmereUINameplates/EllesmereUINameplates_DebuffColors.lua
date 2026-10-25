@@ -44,7 +44,8 @@ end
 -- holding its single debuffs, then its combos, each list in priority order
 -- (the higher entry wins), as one string so a profile copy or a per-spec
 -- override carries a class's whole list as one value:
---   "spellID:r,g,b;spellID:r,g,b/spellID+spellID:r,g,b"
+--   "spellID:r,g,b;!spellID:r,g,b/spellID+spellID:r,g,b"
+-- A "!" marks a debuff that colors while it is missing (While Missing below).
 -- Spell 0 is a debuff not chosen yet; a combo needs two to four spells. The
 -- options page edits the lists through this kit; the plates read only the
 -- player's own class.
@@ -73,7 +74,7 @@ end
 local function Num(v) return (string.format("%.4f", v):gsub("%.?0+$", "")) end
 local function ColorText(c) return Num(c.r) .. "," .. Num(c.g) .. "," .. Num(c.b) end
 
--- A saved list as fresh tables: singles = { { spell, color } },
+-- A saved list as fresh tables: singles = { { spell, color, missing } },
 -- combos = { { spells = { ids }, color } }.
 function DC.Parse(s)
     local singles, combos = {}, {}
@@ -81,8 +82,9 @@ function DC.Parse(s)
     local singlePart, comboPart = s:match("^([^/]*)/?(.*)$")
     for entry in singlePart:gmatch("[^;]+") do
         if #singles == DC.MAX_SINGLES then break end
-        local id, color = entry:match("^(%d*):?(.*)$")
-        singles[#singles + 1] = { spell = DC.SpellID(id) or 0, color = ParseColor(color, DC.SINGLE_COLOR) }
+        local miss, id, color = entry:match("^(!?)(%d*):?(.*)$")
+        singles[#singles + 1] = { spell = DC.SpellID(id) or 0, color = ParseColor(color, DC.SINGLE_COLOR),
+            missing = miss == "!" or nil }
     end
     for entry in comboPart:gmatch("[^;]+") do
         if #combos == DC.MAX_COMBOS then break end
@@ -101,7 +103,7 @@ end
 function DC.Encode(singles, combos)
     if #singles == 0 and #combos == 0 then return nil end
     local s, c = {}, {}
-    for i, e in ipairs(singles) do s[i] = e.spell .. ":" .. ColorText(e.color) end
+    for i, e in ipairs(singles) do s[i] = (e.missing and "!" or "") .. e.spell .. ":" .. ColorText(e.color) end
     for i, e in ipairs(combos) do c[i] = table.concat(e.spells, "+") .. ":" .. ColorText(e.color) end
     return table.concat(s, ";") .. "/" .. table.concat(c, ";")
 end
@@ -198,19 +200,23 @@ local function ReadConfig()
     end
     -- Declared bottom to top (a later-declared slot draws on top): the single
     -- debuffs from the end of the list up, then the combos the same way, so a
-    -- combo always wins over a single debuff. A spell listed again lower down
-    -- can never show beneath itself, so only its highest entry gets a slot.
+    -- combo always wins over a single debuff. A missing debuff wins over both
+    -- (AddMissingTint lifts it). A spell listed again lower down in the same
+    -- state can never show beneath itself, so only its highest entry gets a slot.
     local ranked, seen = {}, {}
     for _, e in ipairs(singles) do
-        if e.spell > 0 and not seen[e.spell] then
-            seen[e.spell] = true
+        local key = (e.missing and "!" or "") .. e.spell
+        if e.spell > 0 and not seen[key] then
+            seen[key] = true
             ranked[#ranked + 1] = e
         end
     end
     for i = #ranked, 1, -1 do
         local e = ranked[i]
-        c.singles[#c.singles + 1] = { spell = e.spell, color = e.color, sublevel = i == 1 and 5 or 4 }
-        parts[#parts + 1] = "s" .. e.spell .. ":" .. ColorText(e.color)
+        c.singles[#c.singles + 1] = { spell = e.spell, color = e.color,
+            sublevel = (e.missing and 7) or (i == 1 and 5) or 4, missing = e.missing }
+        parts[#parts + 1] = (e.missing and "m" or "s") .. e.spell .. ":" .. ColorText(e.color)
+        if e.missing then c.anyMissing = true end
     end
     for i = #combos, 1, -1 do
         local spells = Distinct(combos[i].spells)
@@ -265,6 +271,120 @@ local function GroupComboRuns(combos)
     return runs
 end
 
+-------------------------------------------------------------------------------
+-- While Missing: a slot only ever shows a debuff that is up, so a missing
+-- debuff reads a hidden one-aura group (its sensor) instead. The engine sizes
+-- the group's container to its element while the debuff is up and to 1x1
+-- while it is gone (AnchorUtil.ApplyFlowLayout). A clip window rides the
+-- container's right edge: past the bar's far end while the debuff is up, over
+-- the bar while it is gone, with the color drawn inside it. Nothing reads aura
+-- data or a size. The color shows only on an enemy in combat (the gate). A
+-- group builds a batch of engine buttons up front and can never be removed,
+-- so a plate keeps its kit across bundles and re-points a sensor's spell.
+-------------------------------------------------------------------------------
+local ASPECT = "DisableUntrustedLayoutScriptsTemplate"
+local SENSOR_KEY = "EUI_DEBUFF_MISSING"
+local REACH = 64   -- how far the window reaches past each bar edge (border art)
+local SPAN = 4096  -- wider than any bar plus twice the reach
+local kits = {}    -- plate -> its While Missing kit
+
+-- Open on an enemy in combat whose debuffs a spell filter may test (an
+-- assistable unit's may not: its sensor would stay empty and the color on).
+-- A mob that pulls onto you lists you for threat (its threat update) before
+-- it reads in combat, so a threat entry opens the gate too. The threat read
+-- can be secret: only its type tag is tested.
+local function SyncGate(kit)
+    local unit = kit.unit
+    local engaged = UnitAffectingCombat(unit) or type(UnitThreatSituation("player", unit)) ~= "nil"
+    local open = engaged and not UnitCanAssist("player", unit, true, true)
+    if open == kit.open then return end
+    kit.open = open
+    kit.gate:SetShown(open)
+    -- Every hit, only while closed: the fallback for a mob whose combat flag
+    -- changes with neither a flags nor a threat update.
+    if open then
+        kit.gate:UnregisterEvent("UNIT_COMBAT")
+    else
+        kit.gate:RegisterUnitEvent("UNIT_COMBAT", unit)
+    end
+end
+
+-- Only aspect-bearing frames may anchor to a container that holds a group,
+-- and the aspect is inherited at creation alone, so the windows are born in
+-- the gate (as the plate's core and arrow hosts are).
+local function Kit(plate)
+    local kit = kits[plate]
+    if kit then return kit end
+    local gate = CreateFrame("Frame", nil, plate.health, ASPECT)
+    gate:SetAllPoints(plate.health)
+    gate:EnableMouse(false)
+    gate:Hide()
+    -- The sensors draw nothing; alpha never stops the engine's layout.
+    local hider = CreateFrame("Frame", nil, plate.health)
+    hider:SetAllPoints(plate.health)
+    hider:SetAlpha(0)
+    hider:Hide()
+    kit = { health = plate.health, gate = gate, hider = hider, sensors = {}, used = 0 }
+    gate:SetScript("OnEvent", function() SyncGate(kit) end)
+    kits[plate] = kit
+    return kit
+end
+
+-- Sensor n, pointed at spell: one group of at most one aura whose element is
+-- SPAN wide and 1 tall, so its container is 1x1 or SPAN x 1.
+local function PointSensor(kit, n, spell)
+    local AK = EllesmereUI.AuraKit
+    local filter = AK.Filter(unpack(config.filterTokens))
+    local s = kit.sensors[n]
+    if not s then
+        local c = AK.CreateContainerShell(kit.hider,
+            { point = { "TOPLEFT", kit.health, "TOPLEFT", -(REACH + 1), REACH } })
+        AK.AddGroupToContainer(c, { key = SENSOR_KEY, filter = config.filterTokens, maxFrameCount = 1,
+            style = STYLE, candidateFilters = { includeSpellIDs = { [spell] = true } },
+            extraInit = function(button) button:EnableMouse(false) end,
+            layout = { elementWidth = SPAN, elementHeight = 1 } })
+        s = { container = c, spell = spell, filter = filter }
+        kit.sensors[n] = s
+    elseif s.spell ~= spell or s.filter ~= filter then
+        s.container:SetAuraGroupFilterString(SENSOR_KEY, filter)
+        s.container:SetAuraGroupCandidateFilters(SENSOR_KEY, { includeSpellIDs = { [spell] = true } })
+        s.spell, s.filter = spell, filter
+    end
+    AK.SetGroupCap(s.container, SENSOR_KEY, 1)
+    return s
+end
+
+-- Switches off the sensors the bundle just built did not use (a container
+-- whose groups are all off stops watching UNIT_AURA).
+local function ParkSensors(kit)
+    for n = kit.used + 1, #kit.sensors do
+        EllesmereUI.AuraKit.SetGroupCap(kit.sensors[n].container, SENSOR_KEY, 0)
+    end
+end
+
+local function BindKit(kit, level, unit)
+    kit.gate:SetFrameLevel(level)
+    for n = 1, kit.used do
+        local s = kit.sensors[n]
+        if s.unit ~= unit then
+            s.unit = unit
+            s.container:SetUnit(unit)
+        end
+    end
+    kit.hider:Show()
+    kit.unit, kit.open = unit, nil
+    kit.gate:RegisterUnitEvent("UNIT_FLAGS", unit)
+    kit.gate:RegisterUnitEvent("UNIT_THREAT_LIST_UPDATE", unit)
+    SyncGate(kit)
+end
+
+local function ParkKit(kit)
+    kit.unit, kit.open = nil, nil
+    kit.gate:UnregisterAllEvents()
+    kit.gate:Hide()
+    kit.hider:Hide()
+end
+
 -- A bundle a settings change replaces can never be freed (frames are permanent);
 -- releasing its containers keeps their engine slots out of AuraKit's restyle
 -- registry. Refresh runs this out of combat only.
@@ -274,6 +394,8 @@ local function ReleaseBundle(b)
         container:SetEnabled(false)
         EllesmereUI.AuraKit.ReleaseContainer(container)
     end
+    for _, window in ipairs(b.windows) do window:Hide() end
+    if b.kit then ParkKit(b.kit) end
 end
 
 -- Containers are born enabled on unit "none" and stay enabled: the holder's
@@ -301,14 +423,16 @@ local function CreateTintContainer(b, parent)
     return c
 end
 
-local function MakeTintInit(b, color, sublevel)
+-- missing: button is a missing debuff's clip window (AddMissingTint), one level
+-- up, over the target/focus/hover patterns.
+local function MakeTintInit(b, color, sublevel, missing)
     local initialized = setmetatable({}, { __mode = "k" })
     return function(button)
         if initialized[button] then return end
         initialized[button] = true
         -- Only creation-window decoration. Once owned by the aura engine, these
         -- regions may become forbidden; never read or repaint them on rebind.
-        button:SetFrameLevel(b.level)
+        button:SetFrameLevel(missing and b.level + 1 or b.level)
         button:EnableMouse(false)
         local tint = button:CreateTexture(nil, "ARTWORK", nil, sublevel)
         tint:SetTexture(b.config.texture)
@@ -330,7 +454,10 @@ end
 -- share that level draw ARTWORK). A Basic copy shares the flattened plate with
 -- the border's OVERLAY 7 strips, under which a lower sublevel sinks, so it keeps
 -- OVERLAY 7 and ranks by frame level (no other plate frame uses those levels).
-local function MakeBorderInit(b, color, sublevel)
+-- missing: button is a missing debuff's clip window (AddMissingTint, which sets
+-- its strata). Its copy goes one level over all of those, and the window, which
+-- draws the copy at its own place, takes the copy's level.
+local function MakeBorderInit(b, color, sublevel, missing)
     local initialized = setmetatable({}, { __mode = "k" })
     local rank = 0
     if not b.config.border.strata then
@@ -352,7 +479,9 @@ local function MakeBorderInit(b, color, sublevel)
         if spec.behind ~= nil then
             base = spec.behind and math.max(1, b.level - 1) or (b.level + 1)
         end
-        f:SetFrameLevel(base + spec.up + rank)
+        local level = base + spec.up + rank + (missing and 1 or 0)
+        f:SetFrameLevel(level)
+        if missing then button:SetFrameLevel(level) end
         if spec.kind == "strips" then
             f:SetIgnoreParentScale(true)
             f:SetScale(1)
@@ -396,9 +525,9 @@ end
 
 -- What a slot shows while its debuffs are up: the health fill's tint (Color
 -- Nameplate) or the border in the color (Color Border).
-local function ColorInit(b, color, sublevel)
-    if b.config.border then return MakeBorderInit(b, color, sublevel) end
-    return MakeTintInit(b, color, sublevel)
+local function ColorInit(b, color, sublevel, missing)
+    if b.config.border then return MakeBorderInit(b, color, sublevel, missing) end
+    return MakeTintInit(b, color, sublevel, missing)
 end
 
 local function AddTintSlot(b, container, key, spell, initialize)
@@ -448,13 +577,37 @@ local function AddComboRun(b, container, key, run)
     end))
 end
 
+-- A missing debuff's color: a window over its sensor, made in declaration order
+-- so a higher missing debuff draws over a lower one. Two anchors and a width (a
+-- single point and a size draws displaced inside the plate, see PlaceArrow):
+-- the left edge rides the sensor's right edge; the sensor is 1 tall either way.
+-- A tint goes one level over the tints, with the target/focus/hover patterns,
+-- and on top of them by sublevel (ReadConfig), so it wins over every other
+-- color; the border's own strips still draw over it. A border copy has to beat
+-- that border: its window leaves the flattened plate for MEDIUM (where a
+-- custom border, the text and the icons draw) at the copy's level.
+local function AddMissingTint(b, kit, single)
+    kit.used = kit.used + 1
+    local s = PointSensor(kit, kit.used, single.spell)
+    local window = CreateFrame("Frame", nil, kit.gate)
+    local border = b.config.border
+    if border then window:SetFrameStrata(border.strata or "MEDIUM") end
+    window:SetClipsChildren(true)
+    window:SetPoint("TOPLEFT", s.container, "TOPRIGHT", 0, 0)
+    window:SetPoint("BOTTOMLEFT", s.container, "BOTTOMRIGHT", 0, -SPAN)
+    window:SetWidth(SPAN)
+    ColorInit(b, single.color, single.sublevel, true)(window)
+    b.windows[#b.windows + 1] = window
+end
+
 -- The tints share one frame level (the target/focus/hover patterns sit one
 -- level up), so a later-declared slot draws on top: ReadConfig orders them.
 local function CreateBundle(plate)
     local b = {
         config = config,
         fill = plate.health:GetStatusBarTexture(), mask = plate._absorbMask,
-        level = plate.health:GetFrameLevel(), containers = {},
+        level = plate.health:GetFrameLevel(), containers = {}, windows = {},
+        kit = config.anyMissing and Kit(plate) or nil,
     }
     -- Tint shares the fill's frame level; EUI's text, target/focus patterns,
     -- border and absorb effects keep their own higher layers.
@@ -464,10 +617,19 @@ local function CreateBundle(plate)
     b.holder:EnableMouse(false)
     b.holder:Hide()
     local root = CreateTintContainer(b, b.holder)
-    for i, single in ipairs(config.singles) do
-        AddTintSlot(b, root, "EUI_DEBUFF_COLOR_" .. i, single.spell,
-            ColorInit(b, single.color, single.sublevel))
+    if b.kit then
+        b.kit.used = 0
+        b.kit.gate:SetFrameLevel(b.level)
     end
+    for i, single in ipairs(config.singles) do
+        if single.missing then
+            AddMissingTint(b, b.kit, single)
+        else
+            AddTintSlot(b, root, "EUI_DEBUFF_COLOR_" .. i, single.spell,
+                ColorInit(b, single.color, single.sublevel))
+        end
+    end
+    if b.kit then ParkSensors(b.kit) end
     for i, run in ipairs(config.comboRuns) do
         AddComboRun(b, root, "EUI_DEBUFF_COMBO_" .. i, run)
     end
@@ -481,6 +643,7 @@ local function Attach(plate, unit)
     -- holder; a nested container inherits its secure AuraButton's restrictions.
     b.level = plate.health:GetFrameLevel()
     b.holder:SetFrameLevel(b.level)
+    if b.kit then BindKit(b.kit, b.level, unit) end
     BindBundle(b, unit)
 end
 
@@ -488,7 +651,9 @@ end
 -- keep their binding (see BindBundle).
 local function Detach(plate)
     local b = bundles[plate]
-    if b then b.holder:Hide() end
+    if not b then return end
+    b.holder:Hide()
+    if b.kit then ParkKit(b.kit) end
 end
 
 local function EnsureWorker()

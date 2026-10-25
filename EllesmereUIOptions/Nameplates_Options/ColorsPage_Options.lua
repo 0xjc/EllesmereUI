@@ -198,6 +198,11 @@ function ns.NP_BuildDebuffColorsOptions(parent, y)
         if cell.kind == "combo" then return EllesmereUI.Lf("%1$d. Combo", cell.n) end
         return EllesmereUI.Lf("%1$d. Debuff", cell.n)
     end
+    -- Whether a debuff colors while it is missing instead of while it is up.
+    local function MissingOf(cell)
+        local e = Read(cell.class)[cell.n]
+        return e ~= nil and e.missing == true
+    end
     local function FullLabel(cell)
         if cell.kind == "combo" then
             return EllesmereUI.Lf("%1$s Combo %2$d", NAME[cell.class], cell.n)
@@ -208,13 +213,15 @@ function ns.NP_BuildDebuffColorsOptions(parent, y)
         local e = Read(cell.class)[cell.n]
         return e and e.spell or 0
     end
-    -- A spell another debuff of the class already holds: picking it again
-    -- would only duplicate that row, so its menu item is greyed with the
-    -- reason and Custom Spell... refuses it (the arrows move a debuff).
+    -- A spell another debuff of the class already holds in the same state
+    -- (the row's own unless missing is given): picking it again would only
+    -- duplicate that row, so its menu item is greyed with the reason and
+    -- Custom Spell... refuses it (the arrows move a debuff).
     local IN_USE = "Already in use. Use the arrows to reorder."
-    local function HeldElsewhere(cell, id)
+    local function HeldElsewhere(cell, id, missing)
+        if missing == nil then missing = MissingOf(cell) end
         for n, e in ipairs((Read(cell.class))) do
-            if n ~= cell.n and e.spell == id then return true end
+            if n ~= cell.n and e.spell == id and (e.missing == true) == missing then return true end
         end
         return false
     end
@@ -232,6 +239,14 @@ function ns.NP_BuildDebuffColorsOptions(parent, y)
         if not e or e.spell == id then return end
         e.spell = id
         Write(cell.class, singles, combos, rgn)
+        EllesmereUI:RefreshPage()
+    end
+    local function SetMissing(cell, missing)
+        local singles, combos = Read(cell.class)
+        local e = singles[cell.n]
+        if not e or (e.missing == true) == missing then return end
+        e.missing = missing or nil
+        Write(cell.class, singles, combos, cell.rgn)
         EllesmereUI:RefreshPage()
     end
     local function Move(cell, dir)
@@ -405,8 +420,20 @@ function ns.NP_BuildDebuffColorsOptions(parent, y)
         down:SetPoint("LEFT", up, "RIGHT", 0, 0)
     end
 
-    local SINGLE_TIP = "Higher in the list wins when several are up."
-    local COMBO_TIP = "Combos win over single debuffs; higher in the list wins."
+    local SINGLE_TIP = "Missing debuffs win over every other color; otherwise higher in the list wins."
+    local COMBO_TIP = "Missing debuffs win over combos; combos win over applied debuffs; higher in the list wins."
+    local STATE_ORDER = { "applied", "missing" }
+    local STATE_VALUES = { applied = "Applied", missing = "Missing",
+        _menuOpts = {
+            onItemHover = function(key, item)
+                if key == "missing" then
+                    EllesmereUI.ShowWidgetTooltip(item, "Colors enemies in combat that do not have this debuff.")
+                end
+            end,
+            onItemLeave = function() EllesmereUI.HideWidgetTooltip() end,
+        } }
+    local STATE_TAKEN = { applied = "Another row already colors this debuff while it is applied.",
+        missing = "Another row already colors this debuff while it is missing." }
 
     -- A debuff: its spell menu (Remove, Custom Spell..., the class's presets,
     -- then its custom spells) with its color inline. The custom tail follows
@@ -495,6 +522,23 @@ function ns.NP_BuildDebuffColorsOptions(parent, y)
             end,
             tooltip=SINGLE_TIP }
     end
+    -- Applied / Missing: a dropdown beside the spell's (the color swatch
+    -- chains left of it). The state a same-spell row already holds is greyed.
+    local function StateDropdown(rgn, cell)
+        local dd = EllesmereUI.BuildDropdownControl(rgn, 90, rgn:GetFrameLevel() + 3, STATE_VALUES, STATE_ORDER,
+            function() return MissingOf(cell) and "missing" or "applied" end,
+            function(v) SetMissing(cell, v == "missing") end,
+            function(key)
+                local id, missing = SpellOf(cell), key == "missing"
+                if id > 0 and missing ~= MissingOf(cell) and HeldElsewhere(cell, id, missing) then
+                    return STATE_TAKEN[key]
+                end
+                return false
+            end)
+        PP.Point(dd, "RIGHT", rgn._lastInline or rgn._control, "LEFT", -8, 0)
+        rgn._lastInline = dd
+        EllesmereUI.RegisterWidgetRefresh(dd._refreshLabel)
+    end
     local function SingleChrome(rgn, cell)
         ReorderArrows(rgn, cell)
         -- The menu rebuilds only when its custom spells change.
@@ -505,6 +549,7 @@ function ns.NP_BuildDebuffColorsOptions(parent, y)
         end
         Sync()
         EllesmereUI.RegisterWidgetRefresh(Sync)
+        StateDropdown(rgn, cell)
         EllesmereUI.BuildInlineSwatches(rgn, { {
             tooltip = "Debuff Color",
             getValue = function()
