@@ -3321,6 +3321,16 @@ function EllesmereUI.ImportProfile(importStr, profileName)
     end
 
     if payload.type == "full" then
+        -- Spec Overrides: close any edit session or Default view and sync the
+        -- current-spec values with live edits before current/merged are built
+        -- (as SwitchProfile does), so an import over the active profile's own
+        -- name never banks live state into the imported stores.
+        if EllesmereUI.SpecOverrides_CloseEditSessions then
+            EllesmereUI.SpecOverrides_CloseEditSessions()
+        end
+        if EllesmereUI.SpecOverrides_HarvestCurrent then
+            EllesmereUI.SpecOverrides_HarvestCurrent()
+        end
         -- WoW Forever: the one-time buff clear runs on the payload itself, before
         -- the merge copy and the raw re-apply below (EllesmereUI_Migration.lua).
         if EllesmereUI.FvBW then EllesmereUI.FvBW.ProcessProfile(payload.data, "import") end
@@ -3627,12 +3637,11 @@ function EllesmereUI.ImportProfile(importStr, profileName)
         -- every anchor / width-match the user had set on the old profile since it was
         -- last saved (they survived only inside the imported profile, so deleting it
         -- lost them for good). This is the reported "bars lose their anchors and width
-        -- match after import" bug. Spec Overrides: sync the outgoing profile's
-        -- current-spec values with live edits before the imported profile takes over.
-        if EllesmereUI.SpecOverrides_HarvestCurrent then
-            EllesmereUI.SpecOverrides_HarvestCurrent()
-        end
-        local outgoing = db.profiles[db.activeProfile or "Default"]
+        -- match after import" bug. Importing over the active profile's own name:
+        -- merged is already installed under it, so the snapshot would bank the
+        -- live layout over the imported one.
+        local outgoingName = db.activeProfile or "Default"
+        local outgoing = outgoingName ~= profileName and db.profiles[outgoingName]
         if outgoing and EllesmereUIDB then
             outgoing.unlockLayout = SnapshotUnlockLayout()
         end
