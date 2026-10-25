@@ -9850,3 +9850,27 @@ L["Stagger value can only be percent based"] = "O valor de Cambaleio só pode se
 L["This option can't be used while the Unit Frames player cast bar shows its icon on the portrait."] = "Esta opção não pode ser usada enquanto a barra de lançamento do jogador nos Quadros de unidade exibir seu ícone no retrato."
 L["Your group's interrupts on the enemy nameplates themselves: who kicked what, who is ready next and where the next kick should land. It keeps working inside Mythic+ keys."] = "As interrupções do seu grupo nas próprias placas de nome dos inimigos: quem interrompeu o quê, quem estará pronto em seguida e onde a próxima interrupção deve cair. Continua funcionando dentro de chaves Mítica+."
 L["fishing skill"] = "perícia de pesca"
+
+-- == Blizzard Skin: Mail Alt List =============================================
+L["%1$d of %2$d"] = "%1$d de %2$d"
+L["ALT LIST"] = "LISTA DE ALTS"
+L["Alt List"] = "Lista de Alts"
+L["Click to mail, right-click for options."] = "Clique para enviar por correio, clique direito para ver as opções."
+L["Forgets a deleted or moved character."] = "Esquece um personagem excluído ou transferido."
+L["Hides it until ticked again in Shown Characters."] = "Oculta o personagem até ser marcado novamente em Personagens Exibidos."
+L["Ignore This Character"] = "Ignorar Este Personagem"
+L["Last Played"] = "Jogado Recentemente"
+L["Lists your alts beside Send Mail."] = "Lista seus alts ao lado de Enviar Correio."
+L["Log into your other characters to list them here."] = "Entre com seus outros personagens para listá-los aqui."
+L["Max Characters Shown"] = "Máximo de Personagens Exibidos"
+L["Minimum Level"] = "Nível Mínimo"
+L["Only Warbound items can be mailed to this character."] = "Somente itens vinculados ao Bando de Guerra podem ser enviados por correio a este personagem."
+L["Remove %s from the Alt List? It comes back when you next log into it."] = "Remover %s da Lista de Alts? O personagem volta quando você entrar com ele novamente."
+L["Show Alt List"] = "Mostrar Lista de Alts"
+L["Shown Characters"] = "Personagens Exibidos"
+L["Untick a character to leave it off the list."] = "Desmarque um personagem para deixá-lo fora da lista."
+L["Your other characters are hidden by Shown Characters or Minimum Level."] = "Seus outros personagens estão ocultos por Personagens Exibidos ou Nível Mínimo."
+
+-- == Mythic+ Timer conflicts / Language ========================================
+L["%1$s conflicts with EllesmereUI's Mythic+ Timer. Turn off Enable Mythic+ Timer on the Mythic+ Timer tab of Mythic+ Tools, or disable %1$s."] = "%1$s entra em conflito com o Cronômetro Mítica+ da EllesmereUI. Desative Ativar Cronômetro Mítica+ na aba Cronômetro Mítica+ de Ferramentas Mítica+, ou desative %1$s."
+L["Needs the game client set to English or to this language."] = "Requer que o cliente do jogo esteja em inglês ou neste idioma."
