@@ -72,10 +72,25 @@ function ns.UFO_BuildTextSlots(W, parent, y, opts)
         if type(cur) ~= "string" then cur = nil end
         -- 120 letters for new input; a longer stored format (import) keeps its length.
         local maxLen = math.max(120, cur and (strlenutf8 and strlenutf8(cur) or #cur) or 0)
-        -- Preview, unknown-tag hint and tag help come from the engine's catalog.
+        -- The preview in the slot's text colour, as the unit preview shows it.
+        local db, color = opts.db(), nil
+        if db[s.key .. "ClassColor"] then
+            if opts.unit == "player" then
+                local _, cls = UnitClass("player")
+                color = cls and (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)[cls]
+            else
+                color = { r = 0.9, g = 0.3, b = 0.3 }
+            end
+        else
+            color = { r = db[s.key .. "ColorR"] or 1, g = db[s.key .. "ColorG"] or 1, b = db[s.key .. "ColorB"] or 1 }
+        end
+        -- Preview, suggestions, unknown-tag hint and tag help come from the engine's catalog.
         local popupOpts = {
             title = EllesmereUI.L("Custom Text"),
-            message = EllesmereUI.L("Tags in brackets, the rest is shown as typed. Example: [hp:abr] | [hp:pct]%"),
+            message = EllesmereUI.L("Tags in brackets, the rest is shown as typed.") .. "\n"
+                .. EllesmereUI.L("Example: [hp:abr] | [hp:pct]%"),
+            messageSize = 11,
+            previewColor = color,
             placeholder = "[name] - [hp:pct]%",
             initialText = (not warning and cur) or "",
             maxLetters = maxLen,
@@ -93,7 +108,7 @@ function ns.UFO_BuildTextSlots(W, parent, y, opts)
         }
         if ns.UF_TextTags then
             EllesmereUI.TextTags.PopupOpts(ns.UF_TextTags, popupOpts, {
-                notes = { EllesmereUI.L("[hp] and [hp:abr] read DEAD or OFFLINE for a dead or offline unit.") },
+                tagNotes = { hp = EllesmereUI.L("shows DEAD or OFFLINE") },
             })
         end
         EllesmereUI:ShowInputPopup(popupOpts)

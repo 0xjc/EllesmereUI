@@ -57,12 +57,13 @@ TextTags.UNIT = {
         ["group"]          = { reads = "roster", width = 10, sample = "3" },
     },
     -- Built on demand: the active locale is resolved only at ADDON_LOADED.
-    -- Tags without modifiers share one help line and need no description.
     descs = function()
         return {
             tags = {
                 hp = EllesmereUI.L("Health"), pp = EllesmereUI.L("Power"),
                 absorb = EllesmereUI.L("Absorb shield"), healabsorb = EllesmereUI.L("Heal absorb"),
+                name = EllesmereUI.L("Unit name"), target = EllesmereUI.L("Name of the unit's target"),
+                level = EllesmereUI.L("Unit level"), group = EllesmereUI.L("Raid group number"),
             },
             mods = {
                 abr = EllesmereUI.L("Abbreviated (132 K)"),
@@ -224,65 +225,61 @@ function TextTags.EstimateWidth(cat, parsed, override)
 end
 
 --- The info text for the popup: syntax, one line per bound tag with its
---- modifiers, the modifier legend, aliases, and examples with their result.
+--- aliases and modifiers, the modifier legend, and examples with their result.
 --- opts (optional): examples replaces the schema's (any using an unbound key
---- is skipped); notes are extra localized lines appended at the end.
+--- is skipped); tagNotes { tag = localized text } adds "(text)" to a tag.
 function TextTags.HelpText(cat, opts)
     local descs = cat.schema.descs and cat.schema.descs() or {}
     local tagDescs, modDescs = descs.tags or {}, descs.mods or {}
+    local tagNotes = opts and opts.tagNotes or {}
     local EG = EllesmereUI.ELLESMERE_GREEN
     local head = EllesmereUI.HexColor(EG.r, EG.g, EG.b)
+    local orWord = " " .. DIM .. EllesmereUI.L("or") .. "|r "
     local order = cat.schema.mods
-    local lines = { DIM .. EllesmereUI.L("Tags in [brackets], add modifiers with a colon, in any order.") .. "|r", "" }
-    lines[#lines + 1] = head .. EllesmereUI.L("Tags") .. "|r"
-    local plain, used, aliases = {}, {}, {}
+    local lines = {
+        head .. EllesmereUI.L("Syntax") .. "|r",
+        DIM .. EllesmereUI.L("Tags in [brackets], add modifiers with a colon, in any order.") .. "|r",
+        "", head .. EllesmereUI.L("Tags") .. "|r",
+    }
+    local used = {}
     for i = 1, #cat.tags do
         local t, mods = cat.tags[i], {}
         for k = 1, #t.keys do
-            local key = t.keys[k]
             for m = 1, #order do
-                if not mods[order[m]] and sfind(key .. ":", ":" .. order[m] .. ":", 1, true) then
-                    mods[order[m]] = true
-                    used[order[m]] = true
-                end
+                if sfind(t.keys[k] .. ":", ":" .. order[m] .. ":", 1, true) then mods[order[m]] = true end
             end
         end
-        local list = {}
-        for m = 1, #order do
-            if mods[order[m]] then list[#list + 1] = order[m] end
-        end
-        if #list == 0 then
-            plain[#plain + 1] = "[" .. t.tag .. "]"
-        else
-            local desc = tagDescs[t.tag]
-            lines[#lines + 1] = "[" .. t.tag .. "]" .. (desc and ("  " .. DIM .. desc .. "|r") or "")
-                .. "  " .. MOD .. tconcat(list, " ") .. "|r"
-        end
+        local names, list = { "[" .. t.tag .. "]" }, {}
         if t.aliases then
-            for a = 1, #t.aliases do aliases[#aliases + 1] = "[" .. t.aliases[a] .. "] = [" .. t.tag .. "]" end
+            for a = 1, #t.aliases do names[#names + 1] = "[" .. t.aliases[a] .. "]" end
         end
+        for m = 1, #order do
+            if mods[order[m]] then
+                list[#list + 1] = order[m]
+                used[order[m]] = true
+            end
+        end
+        local desc = tagDescs[t.tag]
+        if desc and tagNotes[t.tag] then desc = desc .. " (" .. tagNotes[t.tag] .. ")" end
+        lines[#lines + 1] = tconcat(names, orWord) .. (desc and ("  " .. DIM .. desc .. "|r") or "")
+            .. (#list > 0 and ("  " .. MOD .. tconcat(list, " ") .. "|r") or "")
     end
-    if #plain > 0 then lines[#lines + 1] = tconcat(plain, " ") end
-    local legend = false
+    local modAliases = cat.schema.modAliases or {}
+    local first = true
     for m = 1, #order do
         local mod = order[m]
         if used[mod] then
-            if not legend then
-                legend = true
+            if first then
+                first = false
                 lines[#lines + 1] = ""
                 lines[#lines + 1] = head .. EllesmereUI.L("Modifiers") .. "|r"
             end
-            lines[#lines + 1] = MOD .. mod .. "|r" .. (modDescs[mod] and ("  " .. DIM .. modDescs[mod] .. "|r") or "")
+            local line = MOD .. mod .. "|r"
+            for alias, target in pairs(modAliases) do
+                if target == mod then line = line .. orWord .. MOD .. alias .. "|r" end
+            end
+            lines[#lines + 1] = line .. (modDescs[mod] and ("  " .. DIM .. modDescs[mod] .. "|r") or "")
         end
-    end
-    local modAliases = cat.schema.modAliases
-    if modAliases then
-        for alias, mod in pairs(modAliases) do
-            if used[mod] then aliases[#aliases + 1] = alias .. " = " .. mod end
-        end
-    end
-    if #aliases > 0 then
-        lines[#lines + 1] = DIM .. EllesmereUI.Lf("Also accepted: %s", tconcat(aliases, ", ")) .. "|r"
     end
     local examples = opts and opts.examples or cat.schema.examples
     local shown = 0
@@ -297,18 +294,61 @@ function TextTags.HelpText(cat, opts)
             lines[#lines + 1] = sgsub(examples[i], "|", "||") .. "  " .. DIM .. "->  " .. TextTags.Preview(cat, parsed) .. "|r"
         end
     end
-    local notes = opts and opts.notes
-    if notes and #notes > 0 then
-        lines[#lines + 1] = ""
-        for i = 1, #notes do lines[#lines + 1] = DIM .. notes[i] .. "|r" end
-    end
     return tconcat(lines, "\n")
+end
+
+--- Completion for the tag being typed: text up to cursor (characters before
+--- the caret) ending in "[" plus an unclosed partial tag. Returns nil, or
+--- (items, from, to): items { text = "hp:abr]", label = "hp:abr" } in schema
+--- order, and the text[from..to] range an item replaces (a "]" right after the
+--- caret included). A bare tag name lists its variants, a partial name one
+--- entry per matching tag.
+function TextTags.Complete(cat, text, cursor)
+    if type(text) ~= "string" then return nil end
+    local before = ssub(text, 1, cursor)
+    local open = before:match(".*()%[")
+    if not open then return nil end
+    local partial = slower(ssub(before, open + 1))
+    if not partial:match("^[%w:]*$") then return nil end
+    local items, seen = {}, {}
+    local function Add(key)
+        if seen[key] then return end
+        seen[key] = true
+        items[#items + 1] = { text = key .. "]", label = key }
+    end
+    local colon = sfind(partial, ":", 1, true)
+    for i = 1, #cat.tags do
+        local t = cat.tags[i]
+        local names = { t.tag }
+        if t.aliases then
+            for a = 1, #t.aliases do names[#names + 1] = t.aliases[a] end
+        end
+        for n = 1, #names do
+            local name = names[n]
+            if colon then
+                if ssub(partial, 1, colon - 1) == name then
+                    local rest = ssub(partial, colon)
+                    for k = 1, #t.keys do
+                        if ssub(t.keys[k], #t.tag + 1, #t.tag + #rest) == rest then Add(t.keys[k]) end
+                    end
+                end
+            elseif partial == name then
+                for k = 1, #t.keys do Add(t.keys[k]) end
+            elseif ssub(name, 1, #partial) == partial then
+                Add(t.keys[1])
+            end
+        end
+    end
+    if #items == 0 then return nil end
+    local to = cursor
+    if ssub(text, cursor + 1, cursor + 1) == "]" then to = cursor + 1 end
+    return items, open + 1, to
 end
 
 --- Fills the options of EllesmereUI:ShowInputPopup for a template field and
 --- returns them: preview (the sample line and a hint naming unknown tags),
---- infoTooltip (the help text, built on hover) and infoTooltipOpts. helpOpts
---- goes to TextTags.HelpText.
+--- previewLabel, complete (tag suggestions), infoTooltip (the help text, built
+--- on hover) and infoTooltipOpts. helpOpts goes to TextTags.HelpText.
 function TextTags.PopupOpts(cat, opts, helpOpts)
     opts = opts or {}
     opts.preview = function(text)
@@ -319,9 +359,11 @@ function TextTags.PopupOpts(cat, opts, helpOpts)
         if #parsed.unknown > 0 then
             hint = EllesmereUI.Lf("Unknown tags, shown as typed: %s", tconcat(parsed.unknown, ", "))
         end
-        return DIM .. EllesmereUI.L("Preview") .. "|r  " .. TextTags.Preview(cat, parsed, UNKNOWN), hint
+        return TextTags.Preview(cat, parsed, UNKNOWN), hint
     end
+    opts.previewLabel = EllesmereUI.L("Preview")
+    opts.complete = function(text, cursor) return TextTags.Complete(cat, text, cursor) end
     opts.infoTooltip = function() return TextTags.HelpText(cat, helpOpts) end
-    opts.infoTooltipOpts = { width = 360, justify = "LEFT", anchorPoint = "TOPLEFT", anchorTo = "TOPRIGHT", anchorX = 8 }
+    opts.infoTooltipOpts = { width = 360, justify = "LEFT", anchorPoint = "TOPRIGHT", anchorTo = "TOPLEFT", anchorX = -8 }
     return opts
 end
