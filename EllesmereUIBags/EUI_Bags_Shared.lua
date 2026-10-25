@@ -75,6 +75,17 @@ ns.CreateInsetBorder = CreateInsetBorder
 ns.SetBagFont = SetBagFont
 ns.SetInsetBorderColor = SetInsetBorderColor
 
+-- Pins an item button's frame level and, if they already exist, its 
+-- overlay frames along with it: _textOverlay (count/item level/
+-- keystone text) and _warbankDim (Grid-only). Both overlays are separate sibling
+-- frames stacked on top of btn, so they must be re-pinned every time btn's level
+-- changes or they fall behind it. Call on every creation and every later re-pin.
+function ns.PinItemButtonLevel(btn, level)
+    btn:SetFrameLevel(level)
+    if btn._textOverlay then btn._textOverlay:SetFrameLevel(level + 3) end
+    if btn._warbankDim then btn._warbankDim:SetFrameLevel(level + 6) end
+end
+
 -- Flat look for a ContainerFrameItemButtonTemplate slot, plus the text overlay
 -- (above the cooldown swipe) with Count, ItemLevelText and BindTypeText.
 -- Methods only: writing properties onto Blizzard template sub-objects taints.
@@ -138,7 +149,7 @@ function ns.SkinItemButton(btn, opts)
 
     local textOverlay = CreateFrame("Frame", nil, btn)
     textOverlay:SetAllPoints()
-    textOverlay:SetFrameLevel((btn.Cooldown and btn.Cooldown:GetFrameLevel() or btn:GetFrameLevel()) + 2)
+    textOverlay:SetFrameLevel(btn:GetFrameLevel() + 3)
     btn._textOverlay = textOverlay
 
     local fontPath = GetFont()
