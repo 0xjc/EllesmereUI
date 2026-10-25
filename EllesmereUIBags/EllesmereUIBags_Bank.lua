@@ -686,6 +686,7 @@ end
 -------------------------------------------------------------------------------
 EUI_Bank:SetScript("OnMouseDown", function(self, button)
     self:Raise()
+    self:RepinIconLevels()
     if button == "LeftButton" and not BP().bankWindowLocked then
         self:StartMoving()
         self._moving = true
@@ -1053,6 +1054,19 @@ function EUI_Bank:ApplyWindowLayering()
     _purchaseBtnWarband:SetFrameStrata(strata)
     _purchaseBtnChar:SetFrameLevel(sidebar:GetFrameLevel() + 20)
     _purchaseBtnWarband:SetFrameLevel(sidebar:GetFrameLevel() + 20)
+    self:RepinIconLevels()
+end
+
+-- _bankSlots' buttons are pinned above self at creation
+-- (GetOrCreateBankSlot / ns.CreateListRow); re-pin every already-built
+-- one too, whenever self's own level changes -- not just from ApplyWindowLayering, but also
+-- from a bare self:Raise() which can move self's level independent of the strata setting.
+function EUI_Bank:RepinIconLevels()
+    local lvl = self:GetFrameLevel() + 9
+    for _, btn in pairs(self._bankSlots) do
+        ns.PinItemButtonLevel(btn, lvl)
+    end
+    if ns.ResyncListRowLevels then ns.ResyncListRowLevels() end
 end
 
 -- Sidebar header: "Tabs" label + collapse arrow
@@ -1454,6 +1468,9 @@ local function GetOrCreateBankSlot(idx)
     local slotParent = CreateFrame("Frame", nil, EUI_Bank)
     slotParent:SetSize(SLOT_SIZE, SLOT_SIZE)
     local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")
+    -- ContainerFrameItemButtonTemplate hardcodes frameLevel="10" in Blizzard's XML (never
+    -- tracks ancestors), so force it back above the window (see GetOrCreateSlot in Grid.lua).
+    ns.PinItemButtonLevel(btn, EUI_Bank:GetFrameLevel() + 9)
     btn:SetAllPoints(slotParent)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")
@@ -3229,6 +3246,7 @@ eventFrame:SetScript("OnEvent", function(_, event)
         EUI_Bank:SetScale(bankScale)
         EUI_Bank:Show()
         EUI_Bank:Raise()
+        EUI_Bank:RepinIconLevels()
         -- Controller cursor: scroll step buttons and a visible scrollbar,
         -- built only once a controller is in use.
         if EUI_Bank._padBuilt or EUI.PadInUse() then

@@ -206,6 +206,7 @@ function ns.CreateListRow(host)
     if InCombatLockdown() then return nil end
     local slotParent = CreateFrame("Frame", nil, host)
     local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")
+    ns.PinItemButtonLevel(btn, host:GetFrameLevel() + 9)
     btn:SetAllPoints(slotParent)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")
@@ -223,10 +224,11 @@ function ns.CreateListRow(host)
         btn.Cooldown:SetHideCountdownNumbers(true)
     end
     -- Third-party overlay painters (EUI_Bags.RunItemOverlays) parent to this,
-    -- as on the grid slots: here it covers the row's icon.
+    -- as on the grid slots: here it covers the row's icon. Not Cooldown-relative
+    -- (see ns.PinItemButtonLevel's comment in EUI_Bags_Shared.lua)
     local ov = CreateFrame("Frame", nil, btn)
     ov:SetAllPoints(btn._lvIcon)
-    ov:SetFrameLevel((btn.Cooldown and btn.Cooldown:GetFrameLevel() or btn:GetFrameLevel()) + 2)
+    ov:SetFrameLevel(btn:GetFrameLevel() + 3)
     btn._textOverlay = ov
     btn._cells = {}
     local list = _hostRows[host]
@@ -806,6 +808,19 @@ function ns.ListPaintJunk(btn, info)
     local q = info.quality or 1
     btn._lvIcon:SetDesaturated(info.isLocked or (BP().bagDesaturateJunkItems == true
         and (q == 0 or EUI_CategoryManager:IsJunk(info.itemID, q))) or false)
+end
+
+-- ContainerFrameItemButtonTemplate's fixed frameLevel="10" (see GetOrCreateSlot in Grid.lua)
+-- is stamped at row creation using the host's level at that time; re-stamp every pooled row
+-- (across every host: EUI_Bags and EUI_Bank share this row pool) whenever a host's own level
+-- changes later (ApplyWindowLayering), so already-built rows don't fall behind their window.
+function ns.ResyncListRowLevels()
+    for host, rows in pairs(_hostRows) do
+        local lvl = host:GetFrameLevel() + 9
+        for _, btn in ipairs(rows) do
+            ns.PinItemButtonLevel(btn, lvl)
+        end
+    end
 end
 
 -- Empty bag slot row (OneBag / MultiBag); clicking or dropping an item
