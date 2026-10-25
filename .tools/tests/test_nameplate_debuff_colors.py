@@ -88,7 +88,13 @@ function methods:SetAlpha(alpha) Mutable(self); states[self].alpha = alpha end
 function UIState(obj) return states[obj] end
 function methods:EnableMouse(value) Mutable(self); states[self].mouse = value end
 function methods:SetVertexColor(...) Mutable(self); states[self].color = {...} end
-function methods:AddMaskTexture(mask) Mutable(self); states[self].mask = mask end
+-- .mask: the first mask (the bar's); .masks: all of them.
+function methods:AddMaskTexture(mask)
+    Mutable(self)
+    local s = states[self]
+    s.mask, s.masks = s.mask or mask, s.masks or {}
+    s.masks[#s.masks + 1] = mask
+end
 function methods:Hide() Mutable(self); states[self].shown = false end
 function methods:Show() Mutable(self); states[self].shown = true end
 function methods:IsShown() error("addon inspected engine-owned visibility") end
@@ -119,14 +125,13 @@ function methods:SetTexture(value, wrapH, wrapV)
     Mutable(self); states[self].texture = value; states[self].wrap = { wrapH, wrapV }
 end
 function methods:SetShown(v) Mutable(self); states[self].shown = v and true or false end
-function methods:SetClipsChildren(v) Mutable(self); states[self].clips = v end
 function methods:RegisterUnitEvent(event, unit) states[self].events[event] = unit end
 function methods:UnregisterAllEvents() states[self].events = {} end
--- Aura groups (a missing debuff's sensor). As in the live engine, a group
--- builds a batch of ten buttons up front, and its container is laid out from
--- its element while an aura is up and at 1x1 while none is (layoutWidth).
+-- Aura groups (a missing debuff's sensor): ten buttons up front, as live, and
+-- the container laid out from the element while an aura is up, else 1 wide.
 local GROUP_BATCH = 10
 local New
+function methods:CreateMaskTexture() Mutable(self); return New("MaskTexture", self) end
 function methods:AddAuraGroup(key, filter, spec)
     assert(states[self].kind == "AuraContainer")
     assert(filter == "HARMFUL|PLAYER" or filter == "HARMFUL")
@@ -148,11 +153,14 @@ function methods:SetAuraGroupEnabled(key, v) Group(self, key).enabled = v end
 function methods:SetAuraGroupMaxFrameCount(key, n) Group(self, key).max = n end
 function methods:SetAuraGroupFilterString(key, filter) Group(self, key).filter = filter end
 function methods:SetAuraGroupCandidateFilters(key, cf) Group(self, key).ids = cf.includeSpellIDs end
--- A mob's combat flag and the player's place on its threat list, per token.
-mobCombat, mobThreat = {}, {}
+-- A mob's combat flag and its threat list (who -> situation), per token.
+mobCombat, mobThreat, mobFriend = {}, {}, {}
 function UnitAffectingCombat(unit) return mobCombat[unit] == true end
-function UnitThreatSituation(_, unit) return mobThreat[unit] end
-function UnitCanAssist() return false end
+function UnitThreatSituation(who, unit) return mobThreat[unit] and mobThreat[unit][who] end
+groupRaid, groupSize = false, 0
+function IsInRaid() return groupRaid end
+function GetNumGroupMembers() return groupSize end
+function UnitCanAssist(_, unit) return mobFriend[unit] == true end
 function EllesmereUI.LayoutSecretBorderEdges(edges, owner, edge, aL, aT, aR, aB)
     for key, tx in pairs(edges) do
         Mutable(tx)
@@ -275,22 +283,46 @@ local function UpdateEngine()
     end
 end
 function Auras(unit, auras) unitAuras[unit] = auras; UpdateEngine() end
--- A missing debuff's clip window shows its color while the container its left
--- edge rides is laid out 1 wide (no aura); otherwise it sits past the bar.
-local function WindowOpen(window)
-    local point = states[window].points[1]
-    local c = point and point[2]
-    assert(c and states[c].kind == "AuraContainer" and point[1] == "TOPLEFT" and point[3] == "TOPRIGHT",
-        "a clip window does not ride its sensor's right edge")
-    return states[c].layoutWidth == 1
+-- A missing debuff's host: a frame of the gate (the frame with the events).
+local function IsHost(frame)
+    local parent = states[frame].parent
+    return parent and states[parent].scripts.OnEvent ~= nil
 end
--- A drawing's rank when its owner can show it: a slot button's by Rank below,
--- an open missing window's over every slot's (later made, higher).
+-- A missing debuff's drawing shows while its mask covers the bar: the sensor
+-- container the mask's left edge rides is 1 wide (no aura). Outside its rect a
+-- mask only hides when it clamps to black (the default repeats its edge). A
+-- border copy's own mask takes all points of the sensor's.
+local function MaskOpen(piece)
+    for _, m in ipairs(states[piece].masks or {}) do
+        local s = states[m]
+        if s and s.wrap then
+            assert(s.wrap[1] == "CLAMPTOBLACKADDITIVE" and s.wrap[2] == "CLAMPTOBLACKADDITIVE",
+                "a sensor mask repeats its edge past its rect")
+        end
+        if s and s.anchor then
+            assert(states[s.anchor].kind == "MaskTexture", "a copy's mask does not match its sensor's")
+            s = states[s.anchor]
+        end
+        local point = s and s.points[1]
+        if point then
+            assert(point[1] == "TOPLEFT" and point[3] == "TOPRIGHT" and states[point[2]].kind == "AuraContainer",
+                "a mask does not ride its sensor's right edge")
+            -- An 8px mask fades in over half a texel: kept to 32px of the margin.
+            assert(s.width / 16 <= 32 and -s.points[2][5] / 16 <= 32, "a sensor mask fades over the bar")
+            return states[point[2]].layoutWidth == 1
+        end
+    end
+end
+-- A drawing's rank when it can show: a slot button's by Rank below; a missing
+-- debuff's over every slot's: a tint by its sublevel (all on the bar's level),
+-- a border copy by its frame's level.
 local Rank
-local function OwnerRank(drawing)
-    local owner = states[drawing].parent
-    if states[owner].kind == "AuraButton" then return Rank(drawing) end
-    if states[owner].clips and WindowOpen(owner) then return string.format("2:%08d", states[owner].made) end
+local function DrawRank(drawing, piece)
+    local s = states[drawing]
+    if states[s.parent].kind == "AuraButton" then return Rank(drawing) end
+    if IsHost(s.parent) and MaskOpen(piece or drawing) then
+        return string.format("2:%04d", piece and s.level or s.sublevel + 8)
+    end
 end
 -- Draw order: buttons are born in declaration order (a nested container's
 -- slots inside its button's init), so a tint ranks by its slot path from the
@@ -307,8 +339,7 @@ function Rank(tex)
     end
     return (#path > 1 and "1:" or "0:") .. table.concat(path, ".")
 end
--- Color Nameplate: the top visible tint (a texture right in a slot button or
--- in an open missing window).
+-- Color Nameplate: the top visible tint (in a slot button or a missing host).
 function Paint(plate)
     UpdateEngine()
     local chosen, best
@@ -317,7 +348,7 @@ function Paint(plate)
         if state.color and Visible(tex) then
             local parent = tex
             while parent and parent ~= plate.health do parent = states[parent].parent end
-            local rank = parent and OwnerRank(tex)
+            local rank = parent and DrawRank(tex)
             if rank and (not best or rank > best) then chosen, best = state, rank end
         end
     end
@@ -351,12 +382,13 @@ function BorderPaint(plate)
     local chosen, best
     for _, f in ipairs(frames) do
         local state = states[f]
-        local owner = state.parent
-        if state.kind == "Frame" and owner and Visible(f)
-            and (states[owner].kind == "AuraButton" or states[owner].clips) then
-            local parent = f
+        if state.kind == "Frame" and state.parent and Visible(f) then
+            local parent, piece = f, nil
             while parent and parent ~= plate.health do parent = states[parent].parent end
-            local rank = parent and OwnerRank(f)
+            for _, tex in ipairs(textures) do
+                if states[tex].parent == f then piece = tex; break end
+            end
+            local rank = parent and piece and DrawRank(f, piece)
             if rank and (not best or rank > best) then chosen, best = f, rank end
         end
     end
@@ -920,10 +952,8 @@ assert(pxReapply.fn == nil, "Color Nameplate stayed in the pixel re-apply")
 AssertColor(p, 1, .43, .04)
 assert(not BorderPaint(p), "Color Nameplate drew a border")
 
--- While Missing: a "!" debuff colors a plate while the debuff is absent, on an
--- enemy in combat or one that lists you for threat (a body pull's threat update
--- comes first), over every other color. Its sensor is one hidden group; its
--- clip window covers the bar only while the group's container is 1 wide.
+-- While Missing: a "!" debuff colors an enemy in combat (or one that lists you
+-- for threat) while the debuff is absent, over every other color.
 local function GateOf(plate)
     for _, f in ipairs(frames) do
         local s = UIState(f)
@@ -950,30 +980,45 @@ local group = sensors[1].groups.EUI_DEBUFF_MISSING
 assert(group and group.max == 1 and group.width > 1 and group.height == 1 and group.ids[1079])
 assert(GateOf(q).events.UNIT_FLAGS == "nameplate7" and GateOf(q).events.UNIT_THREAT_LIST_UPDATE == "nameplate7")
 AssertColor(q, nil, nil, nil, "an idle mob showed the missing color")
-assert(GateOf(q).events.UNIT_COMBAT == "nameplate7", "a closed gate does not listen for the first hit")
 mobCombat.nameplate7 = true
 FireEvent("UNIT_FLAGS")
-AssertColor(q, .8, .2, .1, "a mob in combat without the debuff was not colored")
-assert(not GateOf(q).events.UNIT_COMBAT, "an open gate kept listening to every hit")
-local window = UIState(Paint(q).parent)
-assert(window.clips and window.level == UIState(q.health).level + 1,
-    "the missing tint is not one level over the tints and patterns")
+AssertColor(q, nil, nil, nil, "a mob fighting only strangers showed the missing color")
+mobThreat.nameplate7 = { player = 0 }
+FireEvent("UNIT_THREAT_LIST_UPDATE")
+AssertColor(q, .8, .2, .1, "a mob fighting you without the debuff was not colored")
+mobFriend.nameplate7 = true
+FireEvent("UNIT_FLAGS")
+AssertColor(q, nil, nil, nil, "an assistable unit showed the missing color")
+mobFriend.nameplate7 = nil
+FireEvent("UNIT_FLAGS")
+local tint = Paint(q)
+assert(tint.layer == "OVERLAY" and tint.sublevel == -4 and #tint.masks == 2,
+    "the missing tint is not OVERLAY -4 through the bar's and its sensor's masks")
+-- The border sits one level up: a higher level draws over it whatever the sublevel.
+assert(UIState(tint.parent).level == UIState(q.health).level, "the missing tint rose over the border's level")
 Auras("nameplate7", {{ id=1079, mine=true }})
 AssertColor(q, nil, nil, nil, "the missing color stayed while the debuff was up")
 Auras("nameplate7", {{ id=1079, mine=false }})
 AssertColor(q, .8, .2, .1, "someone else's debuff counted as yours")
 Auras("nameplate7", {})
-mobCombat.nameplate7 = nil
+mobThreat.nameplate7 = nil
 FireEvent("UNIT_THREAT_LIST_UPDATE")
 AssertColor(q, nil, nil, nil, "a mob out of combat kept the missing color")
--- A body pull: the threat entry opens the gate before the combat flag does.
-mobThreat.nameplate7 = 0
+-- Your pet or anyone in your group counts; a party token past the group is never read.
+for _, case in ipairs({ { false, 0, "pet" }, { false, 3, "party2" }, { true, 10, "raid10" } }) do
+    groupRaid, groupSize = case[1], case[2]
+    mobThreat.nameplate7 = { [case[3]] = 1 }
+    FireEvent("UNIT_THREAT_LIST_UPDATE")
+    AssertColor(q, .8, .2, .1, "a mob fighting " .. case[3] .. " was not colored")
+end
+groupRaid, groupSize, mobThreat.nameplate7 = false, 3, { party3 = 1 }
 FireEvent("UNIT_THREAT_LIST_UPDATE")
-AssertColor(q, .8, .2, .1, "a threat entry did not open the gate")
-mobThreat.nameplate7, mobCombat.nameplate7 = nil, true
+AssertColor(q, nil, nil, nil, "a party token past the group counted")
+groupSize, mobThreat.nameplate7 = 0, { player = 0 }
+FireEvent("UNIT_THREAT_LIST_UPDATE")
 
--- Over every other color: a combo, and an applied debuff listed higher. List
--- order counts among missing debuffs; a spell may be listed once per state.
+-- Over a combo and a higher applied debuff; list order among missing debuffs;
+-- a spell once per state.
 profile.debuffColorsDRUID = "155722:" .. MORANGE .. ";!1079:" .. MRED .. "/155722+164815:" .. MGREEN
 ns.DebuffColors_Refresh()
 Auras("nameplate7", {{ id=155722, mine=true }, { id=164815, mine=true }})
@@ -986,8 +1031,10 @@ profile.debuffColorsDRUID = "!164812:" .. MGREEN .. ";!1079:" .. MRED .. "/"
 ns.DebuffColors_Refresh()
 Auras("nameplate7", {})
 AssertColor(q, .1, .88, .32, "the higher missing debuff did not win")
+assert(Paint(q).sublevel == -4, "the top missing debuff is not on the top sublevel")
 Auras("nameplate7", {{ id=164812, mine=true }})
 AssertColor(q, .8, .2, .1)
+assert(Paint(q).sublevel == -5, "the next missing debuff is not one sublevel down")
 profile.debuffColorsDRUID = "1079:" .. MORANGE .. ";!1079:" .. MRED .. "/"
 ns.DebuffColors_Refresh()
 Auras("nameplate7", {})
@@ -995,8 +1042,7 @@ AssertColor(q, .8, .2, .1)
 Auras("nameplate7", {{ id=1079, mine=true }})
 AssertColor(q, 1, .43, .04, "the same spell's applied row did not show once it landed")
 
--- A plate keeps its sensors across rebuilds (groups can never be removed): a
--- new list re-points them, and the ones it does not use are switched off.
+-- Sensors are kept across rebuilds, re-pointed, and switched off when unused.
 local before = #SensorsOf(q)
 assert(before == 2)
 profile.debuffColorsDRUID = "!164815:" .. MRED .. "/"
@@ -1020,41 +1066,39 @@ assert(not next(GateOf(q).events), "a parked gate kept its events")
 Auras("nameplate7", {})
 AssertColor(q, nil, nil, nil, "a parked plate showed the missing color")
 ns.plates.nameplate7, ns.plates.nameplate8 = nil, q
-mobCombat.nameplate8 = true
+mobThreat.nameplate8 = { player = 0 }
 ns.DebuffColors_Attach(q, "nameplate8")
 AssertColor(q, .8, .2, .1, "a reused plate did not watch its new mob")
 Auras("nameplate8", {{ id=164815, mine=true }})
 AssertColor(q, nil)
 
--- No missing debuff listed: no gate listens to anything.
 profile.debuffColorsDRUID = "164815:" .. MORANGE .. "/"
 ns.DebuffColors_Refresh()
-assert(Watching("UNIT_FLAGS") == 0 and Watching("UNIT_THREAT_LIST_UPDATE") == 0
-    and Watching("UNIT_COMBAT") == 0, "a list without missing debuffs kept the combat gates")
+assert(Watching("UNIT_FLAGS") == 0 and Watching("UNIT_THREAT_LIST_UPDATE") == 0 and Watching("UNIT_COMBAT") == 0,
+    "a list without missing debuffs kept the combat gates")
 
--- Color Border: the copy beats every other copy and the plate's own border. Its
--- clip window draws it at the window's own place, so the window leaves the
--- flattened plate for MEDIUM at the copy's level: Basic one over the combos'
--- copies, a custom border one over the other copies.
-profile.debuffColorsDRUID = "!164815:" .. MRED .. "/"
+-- Color Border: a missing copy ranks one level over every other copy per
+-- missing row (the higher row on top), through its sensor's mask.
+profile.debuffColorsDRUID = "!164812:" .. MGREEN .. ";!164815:" .. MRED .. "/"
 profile.debuffColorsBorder = true
 border.custom, border.basic = false, true
 ns.DebuffColors_Refresh()
 Auras("nameplate8", {})
+f, pieces = AssertBorder(q, .1, .88, .32, "the higher missing copy did not win")
+assert(f.level == UIState(q.health).level + 6 and #pieces[1].masks == 1, "a Basic missing copy is not over the combos'")
+assert(UIState(UIState(pieces[1].masks[1]).parent) == f, "a missing copy's mask is not on its own frame")
+Auras("nameplate8", {{ id=164812, mine=true }})
 f = AssertBorder(q, .8, .2, .1)
-local w = UIState(f.parent)
-assert(w.clips and w.strata == "MEDIUM" and w.level == f.level and f.level == UIState(q.health).level + 5,
-    "a Basic missing copy is not over every copy in MEDIUM")
-Auras("nameplate8", {{ id=164815, mine=true }})
+assert(f.level == UIState(q.health).level + 5)
+Auras("nameplate8", {{ id=164812, mine=true }, { id=164815, mine=true }})
 AssertBorder(q, nil)
 border.custom = true
 profile.customBorderTexture, profile.customBorderSize = "solid", 2
+profile.debuffColorsDRUID = "!164815:" .. MRED .. "/"
 ns.DebuffColors_Refresh()
 Auras("nameplate8", {})
 f = AssertBorder(q, .8, .2, .1)
-w = UIState(f.parent)
-assert(f.strata == "MEDIUM" and w.strata == "MEDIUM" and w.level == f.level
-    and f.level == CustomBorderLevel(q, false, true) + 2, "a custom missing copy is not one over the copies")
+assert(f.strata == "MEDIUM" and f.level == CustomBorderLevel(q, false, true) + 2, "a custom missing copy is not over the copies")
 border.custom = false
 profile.debuffColorsBorder = false
 profile.debuffColorsDRUID = nil
@@ -1392,7 +1436,7 @@ for _, rgn in ipairs({ uiRows[2].frame._leftRegion, uiRows[2].frame._rightRegion
     local tc = rgn._label.textColor
     assert(rgn._label.fontSize == 12 and tc and tc[1] == 1 and tc[4] == .41, "a column title is not a header")
 end
-local SINGLE_TIP = "Missing debuffs win over every other color; otherwise higher in the list wins."
+local SINGLE_TIP = "Missing debuffs color enemies fighting you or your group and win over every other debuff color; otherwise higher in the list wins."
 local COMBO_TIP = "Missing debuffs win over combos; combos win over applied debuffs; higher in the list wins."
 assert(uiRows[2][1].tooltip == SINGLE_TIP and uiRows[2][2].tooltip == COMBO_TIP)
 assert(uiRows[3][1].text == "1. Debuff" and uiRows[3][2].text == "+ Add Combo")
@@ -1462,10 +1506,8 @@ assert(not u1.cfg.disabledValues("1079") and not u1.cfg.disabledValues("164812")
     and not u1.cfg.disabledValues("custom") and not u1.cfg.disabledValues("remove"),
     "a free spell or an action is greyed")
 
--- Applied / Missing: a dropdown right beside each debuff's spell menu, the
--- color swatch chained left of it. Missing saves a "!" ahead of the spell and
--- needs no page rebuild. A spell may sit once per state: the state a same-spell
--- row already holds is greyed with the reason, and its spell menu stays open.
+-- Applied / Missing beside each spell menu: Missing saves a "!" in place, and a
+-- spell sits once per state.
 local st1, st2 = uiStates[u1.rgn], uiStates[u2.rgn]
 assert(st1 and st2, "a debuff row has no Applied / Missing dropdown")
 assert(#st1.order == 2 and st1.order[1] == "applied" and st1.order[2] == "missing"
@@ -1487,9 +1529,8 @@ assert(uiNotified[#uiNotified] == u2.rgn, "the switched row did not report the w
 assert(not u1.cfg.disabledValues("155722"), "a spell held only in the other state is greyed")
 u1.cfg.setValue("155722")
 assert(profile.debuffColorsDRUID == "155722:0.2,0.3,0.4;!155722:1,0.43,0.04/")
-assert(st1.disabled("missing") == "Another row already colors this debuff while it is missing."
-    and st2.disabled("applied") == "Another row already colors this debuff while it is applied.",
-    "a state a same-spell row holds is pickable")
+local TAKEN = "Another row already uses this debuff this way."
+assert(st1.disabled("missing") == TAKEN and st2.disabled("applied") == TAKEN, "a state a same-spell row holds is pickable")
 assert(not st1.disabled("applied") and not st2.disabled("missing"), "a row's own state is greyed")
 u1.cfg.setValue("1079")
 st2.set("applied")

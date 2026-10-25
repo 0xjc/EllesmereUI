@@ -200,21 +200,24 @@ local function ReadConfig()
     end
     -- Declared bottom to top (a later-declared slot draws on top): the single
     -- debuffs from the end of the list up, then the combos the same way, so a
-    -- combo always wins over a single debuff. A missing debuff wins over both
-    -- (AddMissingTint lifts it). A spell listed again lower down in the same
-    -- state can never show beneath itself, so only its highest entry gets a slot.
-    local ranked, seen = {}, {}
+    -- combo always wins over a single debuff. Missing debuffs draw over both, on
+    -- OVERLAY -4 down to -8 by list order (under the bar's shade, hash line,
+    -- border and target/focus/hover stripes). A spell listed again lower down in
+    -- the same state can never show beneath itself, so only its highest entry
+    -- gets a slot.
+    local ranked, seen, missing = {}, {}, 0
     for _, e in ipairs(singles) do
         local key = (e.missing and "!" or "") .. e.spell
         if e.spell > 0 and not seen[key] then
             seen[key] = true
             ranked[#ranked + 1] = e
+            if e.missing then missing = missing + 1; e.sublevel = math.max(-8, -3 - missing) end
         end
     end
     for i = #ranked, 1, -1 do
         local e = ranked[i]
         c.singles[#c.singles + 1] = { spell = e.spell, color = e.color,
-            sublevel = (e.missing and 7) or (i == 1 and 5) or 4, missing = e.missing }
+            sublevel = e.sublevel or (i == 1 and 5) or 4, missing = e.missing }
         parts[#parts + 1] = (e.missing and "m" or "s") .. e.spell .. ":" .. ColorText(e.color)
         if e.missing then c.anyMissing = true end
     end
@@ -272,98 +275,97 @@ local function GroupComboRuns(combos)
 end
 
 -------------------------------------------------------------------------------
--- While Missing: a slot only ever shows a debuff that is up, so a missing
--- debuff reads a hidden one-aura group (its sensor) instead. The engine sizes
--- the group's container to its element while the debuff is up and to 1x1
--- while it is gone (AnchorUtil.ApplyFlowLayout). A clip window rides the
--- container's right edge: past the bar's far end while the debuff is up, over
--- the bar while it is gone, with the color drawn inside it. Nothing reads aura
--- data or a size. The color shows only on an enemy in combat (the gate). A
--- group builds a batch of engine buttons up front and can never be removed,
--- so a plate keeps its kit across bundles and re-points a sensor's spell.
+-- While Missing: a slot only shows a debuff that is up, so a missing debuff
+-- reads a hidden one-aura group (its sensor). The engine lays the group's
+-- container out at 1x1 while the debuff is absent and SPAN wide while it is up
+-- (AnchorUtil.ApplyFlowLayout); a mask on the container's right edge covers
+-- the bar only in the first case, and the color draws through it. Groups can
+-- never be removed, so a plate keeps its sensors and re-points them.
 -------------------------------------------------------------------------------
-local ASPECT = "DisableUntrustedLayoutScriptsTemplate"
 local SENSOR_KEY = "EUI_DEBUFF_MISSING"
-local REACH = 64   -- how far the window reaches past each bar edge (border art)
-local SPAN = 4096  -- wider than any bar plus twice the reach
-local kits = {}    -- plate -> its While Missing kit
+local REACH = 96   -- past each bar edge, for border art
+-- The mask's size and the sensor's width while up (past the widest bar, the
+-- Health Bar Width slider's max of 250, plus twice REACH). An 8px texture stretched this far fades over its outer 32px,
+-- so border art up to 64px past the bar draws at full strength.
+local SPAN = 512
+local kits = {}    -- plate -> { gate, hider, sensors, used, unit, open }
 
--- Open on an enemy in combat whose debuffs a spell filter may test (an
--- assistable unit's may not: its sensor would stay empty and the color on).
--- A mob that pulls onto you lists you for threat (its threat update) before
--- it reads in combat, so a threat entry opens the gate too. The threat read
--- can be secret: only its type tag is tested.
+-- Whether you, your pet or anyone in your group is on the mob's threat list (a
+-- mob fighting only strangers is not). Only the type tag is read: the value
+-- can be secret.
+local function Engaged(unit)
+    if type(UnitThreatSituation("player", unit)) ~= "nil" or type(UnitThreatSituation("pet", unit)) ~= "nil" then
+        return true
+    end
+    local raid = IsInRaid()
+    for i = 1, GetNumGroupMembers() - (raid and 0 or 1) do
+        if type(UnitThreatSituation((raid and "raid" or "party") .. i, unit)) ~= "nil" then return true end
+    end
+    return false
+end
+
+-- Shown on an engaged enemy: an assistable unit's debuffs cannot be spell-filtered.
 local function SyncGate(kit)
-    local unit = kit.unit
-    local engaged = UnitAffectingCombat(unit) or type(UnitThreatSituation("player", unit)) ~= "nil"
-    local open = engaged and not UnitCanAssist("player", unit, true, true)
-    if open == kit.open then return end
-    kit.open = open
-    kit.gate:SetShown(open)
-    -- Every hit, only while closed: the fallback for a mob whose combat flag
-    -- changes with neither a flags nor a threat update.
-    if open then
-        kit.gate:UnregisterEvent("UNIT_COMBAT")
-    else
-        kit.gate:RegisterUnitEvent("UNIT_COMBAT", unit)
+    local open = not UnitCanAssist("player", kit.unit, true, true) and Engaged(kit.unit)
+    if open ~= kit.open then
+        kit.open = open
+        kit.gate:SetShown(open)
     end
 end
 
--- Only aspect-bearing frames may anchor to a container that holds a group,
--- and the aspect is inherited at creation alone, so the windows are born in
--- the gate (as the plate's core and arrow hosts are).
 local function Kit(plate)
     local kit = kits[plate]
     if kit then return kit end
-    local gate = CreateFrame("Frame", nil, plate.health, ASPECT)
+    -- Only aspect-bearing objects may anchor to a container that holds a group,
+    -- and the aspect is inherited at creation: the masks are born in the gate.
+    local gate = CreateFrame("Frame", nil, plate.health, "DisableUntrustedLayoutScriptsTemplate")
     gate:SetAllPoints(plate.health)
-    gate:EnableMouse(false)
     gate:Hide()
-    -- The sensors draw nothing; alpha never stops the engine's layout.
     local hider = CreateFrame("Frame", nil, plate.health)
     hider:SetAllPoints(plate.health)
     hider:SetAlpha(0)
     hider:Hide()
-    kit = { health = plate.health, gate = gate, hider = hider, sensors = {}, used = 0 }
+    kit = { gate = gate, hider = hider, sensors = {}, used = 0 }
     gate:SetScript("OnEvent", function() SyncGate(kit) end)
     kits[plate] = kit
     return kit
 end
 
--- Sensor n, pointed at spell: one group of at most one aura whose element is
--- SPAN wide and 1 tall, so its container is 1x1 or SPAN x 1.
+-- Sensor n, pointed at spell. Its mask takes two anchors and a width: a single
+-- point and a size draws displaced inside the plate (see PlaceArrow).
 local function PointSensor(kit, n, spell)
     local AK = EllesmereUI.AuraKit
-    local filter = AK.Filter(unpack(config.filterTokens))
+    local filter, ids = AK.Filter(unpack(config.filterTokens)), { includeSpellIDs = { [spell] = true } }
     local s = kit.sensors[n]
     if not s then
-        local c = AK.CreateContainerShell(kit.hider,
-            { point = { "TOPLEFT", kit.health, "TOPLEFT", -(REACH + 1), REACH } })
+        local c = AK.CreateContainerShell(kit.hider, { point = { "TOPLEFT", kit.hider, "TOPLEFT", -(REACH + 1), REACH } })
         AK.AddGroupToContainer(c, { key = SENSOR_KEY, filter = config.filterTokens, maxFrameCount = 1,
-            style = STYLE, candidateFilters = { includeSpellIDs = { [spell] = true } },
-            extraInit = function(button) button:EnableMouse(false) end,
-            layout = { elementWidth = SPAN, elementHeight = 1 } })
-        s = { container = c, spell = spell, filter = filter }
+            style = STYLE, candidateFilters = ids, layout = { elementWidth = SPAN, elementHeight = 1 },
+            extraInit = function(button) button:EnableMouse(false) end })
+        local mask = kit.gate:CreateMaskTexture()
+        mask:SetTexture(WHITE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        mask:SetPoint("TOPLEFT", c, "TOPRIGHT", 0, 0)
+        mask:SetPoint("BOTTOMLEFT", c, "BOTTOMRIGHT", 0, 1 - SPAN)
+        mask:SetWidth(SPAN)
+        s = { container = c, mask = mask, n = n }
         kit.sensors[n] = s
     elseif s.spell ~= spell or s.filter ~= filter then
         s.container:SetAuraGroupFilterString(SENSOR_KEY, filter)
-        s.container:SetAuraGroupCandidateFilters(SENSOR_KEY, { includeSpellIDs = { [spell] = true } })
-        s.spell, s.filter = spell, filter
+        s.container:SetAuraGroupCandidateFilters(SENSOR_KEY, ids)
     end
+    s.spell, s.filter = spell, filter
     AK.SetGroupCap(s.container, SENSOR_KEY, 1)
     return s
 end
 
--- Switches off the sensors the bundle just built did not use (a container
--- whose groups are all off stops watching UNIT_AURA).
+-- Sensors the bundle did not use are switched off (no UNIT_AURA work).
 local function ParkSensors(kit)
     for n = kit.used + 1, #kit.sensors do
         EllesmereUI.AuraKit.SetGroupCap(kit.sensors[n].container, SENSOR_KEY, 0)
     end
 end
 
-local function BindKit(kit, level, unit)
-    kit.gate:SetFrameLevel(level)
+local function BindKit(kit, unit)
     for n = 1, kit.used do
         local s = kit.sensors[n]
         if s.unit ~= unit then
@@ -394,8 +396,10 @@ local function ReleaseBundle(b)
         container:SetEnabled(false)
         EllesmereUI.AuraKit.ReleaseContainer(container)
     end
-    for _, window in ipairs(b.windows) do window:Hide() end
-    if b.kit then ParkKit(b.kit) end
+    if b.kit then
+        b.host:Hide()
+        ParkKit(b.kit)
+    end
 end
 
 -- Containers are born enabled on unit "none" and stay enabled: the holder's
@@ -423,23 +427,24 @@ local function CreateTintContainer(b, parent)
     return c
 end
 
--- missing: button is a missing debuff's clip window (AddMissingTint), one level
--- up, over the target/focus/hover patterns.
-local function MakeTintInit(b, color, sublevel, missing)
+-- sensor: a missing debuff's; its tint draws on OVERLAY through the sensor's
+-- mask, on the bar's level (one higher draws over the border).
+local function MakeTintInit(b, color, sublevel, sensor)
     local initialized = setmetatable({}, { __mode = "k" })
     return function(button)
         if initialized[button] then return end
         initialized[button] = true
         -- Only creation-window decoration. Once owned by the aura engine, these
         -- regions may become forbidden; never read or repaint them on rebind.
-        button:SetFrameLevel(missing and b.level + 1 or b.level)
+        button:SetFrameLevel(b.level)
         button:EnableMouse(false)
-        local tint = button:CreateTexture(nil, "ARTWORK", nil, sublevel)
+        local tint = button:CreateTexture(nil, sensor and "OVERLAY" or "ARTWORK", nil, sublevel)
         tint:SetTexture(b.config.texture)
         tint:SetVertexColor(color.r, color.g, color.b, 1)
         tint:SetPoint("TOPLEFT", b.fill, "TOPLEFT", 0, 0)
         tint:SetPoint("BOTTOMRIGHT", b.fill, "BOTTOMRIGHT", 0, 0)
         if b.mask then tint:AddMaskTexture(b.mask) end
+        if sensor then tint:AddMaskTexture(sensor.mask) end
     end
 end
 
@@ -454,14 +459,13 @@ end
 -- share that level draw ARTWORK). A Basic copy shares the flattened plate with
 -- the border's OVERLAY 7 strips, under which a lower sublevel sinks, so it keeps
 -- OVERLAY 7 and ranks by frame level (no other plate frame uses those levels).
--- missing: button is a missing debuff's clip window (AddMissingTint, which sets
--- its strata). Its copy goes one level over all of those, and the window, which
--- draws the copy at its own place, takes the copy's level.
-local function MakeBorderInit(b, color, sublevel, missing)
+-- sensor: a missing debuff's; its copy ranks over all of those, through a copy of
+-- the sensor's mask on its own frame (it may draw on another strata).
+local function MakeBorderInit(b, color, sublevel, sensor)
     local initialized = setmetatable({}, { __mode = "k" })
     local rank = 0
     if not b.config.border.strata then
-        rank = (sublevel == 7 and 2) or (sublevel == 5 and 1) or 0
+        rank = (sensor and 2) or (sublevel == 7 and 2) or (sublevel == 5 and 1) or 0
         sublevel = 7
     end
     return function(button)
@@ -479,9 +483,12 @@ local function MakeBorderInit(b, color, sublevel, missing)
         if spec.behind ~= nil then
             base = spec.behind and math.max(1, b.level - 1) or (b.level + 1)
         end
-        local level = base + spec.up + rank + (missing and 1 or 0)
-        f:SetFrameLevel(level)
-        if missing then button:SetFrameLevel(level) end
+        f:SetFrameLevel(base + spec.up + rank + (sensor and sensor.n or 0))
+        local mask = sensor and f:CreateMaskTexture()
+        if mask then
+            mask:SetTexture(WHITE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+            mask:SetAllPoints(sensor.mask)
+        end
         if spec.kind == "strips" then
             f:SetIgnoreParentScale(true)
             f:SetScale(1)
@@ -500,6 +507,7 @@ local function MakeBorderInit(b, color, sublevel, missing)
                 tx:SetPoint(p1, f, p1, 0, y1)
                 tx:SetPoint(p2, f, p2, 0, y2)
                 if width then tx:SetWidth(width) else tx:SetHeight(height) end
+                if mask then tx:AddMaskTexture(mask) end
             end
             Strip("TOPLEFT", 0, "TOPRIGHT", 0, nil, t)
             Strip("BOTTOMLEFT", 0, "BOTTOMRIGHT", 0, nil, t)
@@ -514,6 +522,7 @@ local function MakeBorderInit(b, color, sublevel, missing)
                 tx:SetTexture(spec.path, true, true)
                 tx:SetTexCoord(unpack(coords))
                 tx:SetVertexColor(color.r, color.g, color.b, 1)
+                if mask then tx:AddMaskTexture(mask) end
                 edges[key] = tx
             end
             local edge, aL, aT, aR, aB = EllesmereUI.SecretBorderGeometry(f, spec.size, spec.tex,
@@ -525,9 +534,9 @@ end
 
 -- What a slot shows while its debuffs are up: the health fill's tint (Color
 -- Nameplate) or the border in the color (Color Border).
-local function ColorInit(b, color, sublevel, missing)
-    if b.config.border then return MakeBorderInit(b, color, sublevel, missing) end
-    return MakeTintInit(b, color, sublevel, missing)
+local function ColorInit(b, color, sublevel, sensor)
+    if b.config.border then return MakeBorderInit(b, color, sublevel, sensor) end
+    return MakeTintInit(b, color, sublevel, sensor)
 end
 
 local function AddTintSlot(b, container, key, spell, initialize)
@@ -577,36 +586,13 @@ local function AddComboRun(b, container, key, run)
     end))
 end
 
--- A missing debuff's color: a window over its sensor, made in declaration order
--- so a higher missing debuff draws over a lower one. Two anchors and a width (a
--- single point and a size draws displaced inside the plate, see PlaceArrow):
--- the left edge rides the sensor's right edge; the sensor is 1 tall either way.
--- A tint goes one level over the tints, with the target/focus/hover patterns,
--- and on top of them by sublevel (ReadConfig), so it wins over every other
--- color; the border's own strips still draw over it. A border copy has to beat
--- that border: its window leaves the flattened plate for MEDIUM (where a
--- custom border, the text and the icons draw) at the copy's level.
-local function AddMissingTint(b, kit, single)
-    kit.used = kit.used + 1
-    local s = PointSensor(kit, kit.used, single.spell)
-    local window = CreateFrame("Frame", nil, kit.gate)
-    local border = b.config.border
-    if border then window:SetFrameStrata(border.strata or "MEDIUM") end
-    window:SetClipsChildren(true)
-    window:SetPoint("TOPLEFT", s.container, "TOPRIGHT", 0, 0)
-    window:SetPoint("BOTTOMLEFT", s.container, "BOTTOMRIGHT", 0, -SPAN)
-    window:SetWidth(SPAN)
-    ColorInit(b, single.color, single.sublevel, true)(window)
-    b.windows[#b.windows + 1] = window
-end
-
 -- The tints share one frame level (the target/focus/hover patterns sit one
 -- level up), so a later-declared slot draws on top: ReadConfig orders them.
 local function CreateBundle(plate)
     local b = {
         config = config,
         fill = plate.health:GetStatusBarTexture(), mask = plate._absorbMask,
-        level = plate.health:GetFrameLevel(), containers = {}, windows = {},
+        level = plate.health:GetFrameLevel(), containers = {},
         kit = config.anyMissing and Kit(plate) or nil,
     }
     -- Tint shares the fill's frame level; EUI's text, target/focus patterns,
@@ -619,11 +605,13 @@ local function CreateBundle(plate)
     local root = CreateTintContainer(b, b.holder)
     if b.kit then
         b.kit.used = 0
-        b.kit.gate:SetFrameLevel(b.level)
+        b.host = CreateFrame("Frame", nil, b.kit.gate)
+        b.host:SetAllPoints(b.kit.gate)
     end
     for i, single in ipairs(config.singles) do
         if single.missing then
-            AddMissingTint(b, b.kit, single)
+            b.kit.used = b.kit.used + 1
+            ColorInit(b, single.color, single.sublevel, PointSensor(b.kit, b.kit.used, single.spell))(b.host)
         else
             AddTintSlot(b, root, "EUI_DEBUFF_COLOR_" .. i, single.spell,
                 ColorInit(b, single.color, single.sublevel))
@@ -643,7 +631,7 @@ local function Attach(plate, unit)
     -- holder; a nested container inherits its secure AuraButton's restrictions.
     b.level = plate.health:GetFrameLevel()
     b.holder:SetFrameLevel(b.level)
-    if b.kit then BindKit(b.kit, b.level, unit) end
+    if b.kit then BindKit(b.kit, unit) end
     BindBundle(b, unit)
 end
 
