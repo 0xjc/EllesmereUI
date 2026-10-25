@@ -916,8 +916,8 @@ end
 --          infoTooltipOpts go to ShowWidgetTooltip, anchored to the popup frame.
 --          preview(text) returns a preview line (under the input, below previewLabel,
 --          in previewColor) and a hint line. complete(text, cursor) returns
---          items { text, label }, from, to: suggestions under the input, Tab takes
---          the first. messageSize sets the message font size.
+--          items { text, label, detail }, from, to: a suggestion list under the input
+--          (Up/Down select, Tab inserts, Esc closes it). messageSize sets the message size.
 -------------------------------------------------------------------------------
 function EllesmereUI:ShowInputPopup(opts)
     if not self._inputPopup then
@@ -1062,16 +1062,14 @@ function EllesmereUI:ShowInputPopup(opts)
             if popup._preview then popup._updatePreview(text) end
             if popup._complete then popup._updateSuggest(text) end
         end)
-        -- Tab takes the first suggestion (opts.complete).
-        editBox:SetScript("OnTabPressed", function(self)
-            local sg = popup._suggest
-            if not sg then return end
-            local text = self:GetText() or ""
-            local item = sg.items[1]
-            local new = text:sub(1, sg.from - 1) .. item.text .. text:sub(sg.to + 1)
-            self:SetText(new)
-            self:SetCursorPosition(sg.from - 1 + #item.text)
-            popup._updateSuggest(new)
+        -- Suggestion list keys (opts.complete): Up/Down move the selection, Tab
+        -- inserts it. Same arrow handling as the panel's global search box.
+        editBox:SetScript("OnTabPressed", function()
+            if popup._suggest then popup._acceptSuggest() end
+        end)
+        editBox:SetScript("OnArrowPressed", function(_, key)
+            if not popup._suggest then return end
+            if key == "UP" then popup._stepSuggest(-1) elseif key == "DOWN" then popup._stepSuggest(1) end
         end)
         popup._editBox = editBox
 
@@ -1172,6 +1170,8 @@ function EllesmereUI:ShowInputPopup(opts)
             end
         end)
         editBox:SetScript("OnEscapePressed", function()
+            -- An open suggestion list closes first.
+            if popup._suggest then popup._closeSuggest(); return end
             dimmer:Hide()
             if popup._onCancel then popup._onCancel() end
         end)
@@ -1249,20 +1249,16 @@ function EllesmereUI:ShowInputPopup(opts)
         end
     end
     popup._msg:SetFont(EllesmereUI.EXPRESSWAY, opts.messageSize or 12, "")
-    -- Optional suggestion line (opts.complete) and preview block (opts.preview)
-    -- under the input, centred: one line each at a fixed height, so typing
-    -- never re-lays out the popup.
+    -- Optional preview block under the input (opts.preview), centred, one line
+    -- each at a fixed height so typing never re-lays out the popup; the
+    -- suggestion list (opts.complete) floats over it.
     local belowH = 0
-    popup._preview, popup._complete, popup._suggest = opts.preview, opts.complete, nil
+    popup._preview, popup._complete = opts.preview, opts.complete
     if (opts.preview or opts.complete) and not popup._previewValue then
         local inputW = popup._inputFrame:GetWidth()
-        local suggest = MakeFont(popup, 11, nil, 1, 1, 1, 1)
-        suggest:SetPoint("TOPLEFT", popup._inputFrame, "BOTTOMLEFT", 0, -6)
-        suggest:SetWidth(inputW)
-        suggest:SetJustifyH("LEFT")
-        suggest:SetWordWrap(false)
         local div = SolidTex(popup, "ARTWORK", 1, 1, 1, 0.1)
         PanelPP.Size(div, inputW, 1)
+        PanelPP.Point(div, "TOP", popup._inputFrame, "BOTTOM", 0, -10)
         local label = MakeFont(popup, 10, nil, TEXT_DIM.r, TEXT_DIM.g, TEXT_DIM.b, TEXT_DIM.a)
         label:SetPoint("TOP", div, "BOTTOM", 0, -6)
         local value = MakeFont(popup, 12, nil, 1, 1, 1, 1)
@@ -1275,49 +1271,131 @@ function EllesmereUI:ShowInputPopup(opts)
         hint:SetWidth(popup:GetWidth() - 40)
         hint:SetJustifyH("CENTER")
         hint:SetWordWrap(false)
-        popup._previewDiv, popup._previewLabelFS, popup._previewValue = div, label, value
-        popup._suggestLabel, popup._hintLabel = suggest, hint
+        popup._previewDiv, popup._previewLabelFS, popup._previewValue, popup._hintLabel = div, label, value, hint
         popup._updatePreview = function(text)
             local line, note = popup._preview(text)
             value:SetText(line or "")
             hint:SetText(note or "")
         end
-        local dim = EllesmereUI.HexColor(TEXT_DIM.r, TEXT_DIM.g, TEXT_DIM.b)
+
+        -- Suggestion list: up to ROWS entries (the window follows the
+        -- selection), each with the sample on the right, and a key legend.
+        local ROWS, ROW_H = 6, 16
+        local dd = CreateFrame("Frame", nil, popup)
+        dd:SetFrameLevel(popup:GetFrameLevel() + 20)
+        dd:SetPoint("TOPLEFT", popup._inputFrame, "BOTTOMLEFT", 0, -2)
+        dd:SetWidth(inputW)
+        dd:EnableMouse(true)
+        SolidTex(dd, "BACKGROUND", 0.04, 0.035, 0.03, 0.97):SetAllPoints()
+        MakeBorder(dd, 1, 1, 1, 0.2)
+        local rows = {}
+        for i = 1, ROWS do
+            local row = CreateFrame("Button", nil, dd)
+            row:SetHeight(ROW_H)
+            row:SetPoint("TOPLEFT", dd, "TOPLEFT", 1, -1 - (i - 1) * ROW_H)
+            row:SetPoint("TOPRIGHT", dd, "TOPRIGHT", -1, -1 - (i - 1) * ROW_H)
+            row._sel = SolidTex(row, "BACKGROUND", 1, 1, 1, 0.18)
+            row._sel:SetAllPoints()
+            row._bar = SolidTex(row, "ARTWORK", 1, 1, 1, 1)
+            row._bar:SetPoint("TOPLEFT"); row._bar:SetPoint("BOTTOMLEFT")
+            PanelPP.Width(row._bar, 2)
+            row._key = MakeFont(row, 11, nil, 1, 1, 1, 0.9)
+            row._key:SetPoint("LEFT", row, "LEFT", 8, 0)
+            row._detail = MakeFont(row, 11, nil, TEXT_DIM.r, TEXT_DIM.g, TEXT_DIM.b, TEXT_DIM.a)
+            row._detail:SetPoint("RIGHT", row, "RIGHT", -8, 0)
+            row:SetScript("OnClick", function(self)
+                local sg = popup._suggest
+                if sg then sg.sel = sg.offset + self._index; popup._acceptSuggest() end
+            end)
+            rows[i] = row
+        end
+        local legend = MakeFont(dd, 10, nil, TEXT_DIM.r, TEXT_DIM.g, TEXT_DIM.b, TEXT_DIM.a)
+        legend:SetText(EllesmereUI.L("Up/Down: select   Tab: insert   Esc: close"))
+        local legendDiv = SolidTex(dd, "ARTWORK", 1, 1, 1, 0.1)
+        legendDiv:SetHeight(1)
+        dd:Hide()
+        popup._suggestDD = dd
+
+        local function Render()
+            local sg, EGC = popup._suggest, EllesmereUI.ELLESMERE_GREEN
+            local n = math.min(#sg.items, ROWS)
+            for i = 1, ROWS do
+                local row, item = rows[i], sg.items[sg.offset + i]
+                if i <= n and item then
+                    row._index = i
+                    row._key:SetText(item.label)
+                    row._detail:SetText(item.detail or "")
+                    local on = sg.offset + i == sg.sel
+                    if on then
+                        row._sel:SetColorTexture(EGC.r, EGC.g, EGC.b, 0.18)
+                        row._bar:SetColorTexture(EGC.r, EGC.g, EGC.b, 1)
+                    end
+                    row._sel:SetShown(on)
+                    row._bar:SetShown(on)
+                    row:Show()
+                else
+                    row:Hide()
+                end
+            end
+            legendDiv:ClearAllPoints()
+            legendDiv:SetPoint("TOPLEFT", dd, "TOPLEFT", 1, -1 - n * ROW_H)
+            legendDiv:SetPoint("TOPRIGHT", dd, "TOPRIGHT", -1, -1 - n * ROW_H)
+            legend:ClearAllPoints()
+            legend:SetPoint("TOPLEFT", legendDiv, "BOTTOMLEFT", 7, -4)
+            dd:SetHeight(n * ROW_H + 21)
+            dd:Show()
+        end
+        -- A click outside the list closes it (the panel search's pattern):
+        -- listened to only while the list is shown.
+        local clickOff = CreateFrame("Frame")
+        clickOff:SetScript("OnEvent", function()
+            if not dd:IsMouseOver() and not popup._editBox:IsMouseOver() then popup._closeSuggest() end
+        end)
+        dd:SetScript("OnShow", function() clickOff:RegisterEvent("GLOBAL_MOUSE_DOWN") end)
+        dd:SetScript("OnHide", function() clickOff:UnregisterEvent("GLOBAL_MOUSE_DOWN") end)
+
+        popup._closeSuggest = function()
+            popup._suggest = nil
+            dd:Hide()
+        end
+        popup._stepSuggest = function(d)
+            local sg = popup._suggest
+            local n = #sg.items
+            sg.sel = (sg.sel - 1 + d) % n + 1
+            if sg.sel <= sg.offset then sg.offset = sg.sel - 1
+            elseif sg.sel > sg.offset + ROWS then sg.offset = sg.sel - ROWS end
+            Render()
+        end
+        popup._acceptSuggest = function()
+            local sg, eb = popup._suggest, popup._editBox
+            local item = sg.items[sg.sel]
+            local text = eb:GetText() or ""
+            local new = text:sub(1, sg.from - 1) .. item.text .. text:sub(sg.to + 1)
+            popup._closeSuggest()
+            eb:SetText(new)
+            eb:SetFocus()
+            eb:SetCursorPosition(sg.from - 1 + #item.text)
+            popup._updateSuggest(new)
+        end
         popup._updateSuggest = function(text)
             local items, from, to = popup._complete(text, popup._editBox:GetCursorPosition())
-            if not items then
-                popup._suggest = nil
-                suggest:SetText("")
-                return
-            end
-            popup._suggest = { items = items, from = from, to = to }
-            local EG = EllesmereUI.ELLESMERE_GREEN
-            local parts = { EllesmereUI.HexColor(EG.r, EG.g, EG.b) .. items[1].label .. "|r" .. dim }
-            for i = 2, math.min(#items, 6) do parts[#parts + 1] = items[i].label end
-            if #items > 6 then parts[#parts + 1] = "..." end
-            suggest:SetText(table.concat(parts, "  ") .. "   (Tab)|r")
+            if not items then popup._closeSuggest(); return end
+            popup._suggest = { items = items, from = from, to = to, sel = 1, offset = 0 }
+            Render()
         end
     end
     if popup._previewValue then
-        local pv, cp = opts.preview ~= nil, opts.complete ~= nil
+        local pv = opts.preview ~= nil
         popup._previewDiv:SetShown(pv)
         popup._previewLabelFS:SetShown(pv)
         popup._previewValue:SetShown(pv)
         popup._hintLabel:SetShown(pv)
-        popup._suggestLabel:SetShown(cp)
-        popup._suggestLabel:SetText("")
-        popup._previewDiv:ClearAllPoints()
-        if cp then
-            PanelPP.Point(popup._previewDiv, "TOP", popup._suggestLabel, "BOTTOM", 0, -8)
-            belowH = 19
-        else
-            PanelPP.Point(popup._previewDiv, "TOP", popup._inputFrame, "BOTTOM", 0, -10)
-        end
+        popup._closeSuggest()
         if pv then
             popup._previewLabelFS:SetText(opts.previewLabel or "")
             local c = opts.previewColor
             popup._previewValue:SetTextColor(c and c.r or 1, c and c.g or 1, c and c.b or 1, 1)
-            belowH = belowH + 56
+            belowH = 56
         end
     end
     local initText = opts.initialText or ""

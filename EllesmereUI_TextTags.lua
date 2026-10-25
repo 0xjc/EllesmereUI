@@ -301,10 +301,10 @@ end
 
 --- Completion for the tag being typed: text up to cursor (characters before
 --- the caret) ending in "[" plus an unclosed partial tag. Returns nil, or
---- (items, from, to): items { text = "hp:abr]", label = "hp:abr" } in schema
---- order, and the text[from..to] range an item replaces (a "]" right after the
---- caret included). A bare tag name lists its variants, a partial name one
---- entry per matching tag.
+--- (items, from, to): items { text = "hp:abr]", label (modifiers coloured),
+--- detail = sample } in schema order, and the text[from..to] range an item
+--- replaces (a "]" right after the caret included). A bare tag name lists its
+--- variants, a partial name one entry per matching tag.
 function TextTags.Complete(cat, text, cursor)
     if type(text) ~= "string" then return nil end
     local before = ssub(text, 1, cursor)
@@ -312,11 +312,12 @@ function TextTags.Complete(cat, text, cursor)
     if not open then return nil end
     local partial = slower(ssub(before, open + 1))
     if not partial:match("^[%w:]*$") then return nil end
-    local items, seen = {}, {}
+    local items, seen, defs = {}, {}, cat.schema.keys
     local function Add(key)
         if seen[key] then return end
         seen[key] = true
-        items[#items + 1] = { text = key .. "]", label = key }
+        local label = sgsub(key, "^(%w+)(:.+)$", "%1" .. MOD .. "%2|r")
+        items[#items + 1] = { text = key .. "]", label = label, detail = defs[key].sample }
     end
     local colon = sfind(partial, ":", 1, true)
     for i = 1, #cat.tags do
