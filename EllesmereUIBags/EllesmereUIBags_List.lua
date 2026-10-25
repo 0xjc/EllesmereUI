@@ -208,7 +208,7 @@ function ns.CreateListRow(host)
     local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")
     -- ContainerFrameItemButtonTemplate hardcodes frameLevel="10" in Blizzard's XML (never
     -- tracks ancestors), so force it back above the window (see GetOrCreateSlot in Grid.lua).
-    btn:SetFrameLevel(host:GetFrameLevel() + 50)
+    ns.PinItemButtonLevel(btn, host:GetFrameLevel() + 9)
     btn:SetAllPoints(slotParent)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")
@@ -226,10 +226,12 @@ function ns.CreateListRow(host)
         btn.Cooldown:SetHideCountdownNumbers(true)
     end
     -- Third-party overlay painters (EUI_Bags.RunItemOverlays) parent to this,
-    -- as on the grid slots: here it covers the row's icon.
+    -- as on the grid slots: here it covers the row's icon. Not Cooldown-relative
+    -- (see ns.PinItemButtonLevel's comment in EUI_Bags_Shared.lua): read btn's own
+    -- (already-pinned) level so this tracks a later re-pin.
     local ov = CreateFrame("Frame", nil, btn)
     ov:SetAllPoints(btn._lvIcon)
-    ov:SetFrameLevel((btn.Cooldown and btn.Cooldown:GetFrameLevel() or btn:GetFrameLevel()) + 2)
+    ov:SetFrameLevel(btn:GetFrameLevel() + 3)
     btn._textOverlay = ov
     btn._cells = {}
     local list = _hostRows[host]
@@ -817,9 +819,9 @@ end
 -- changes later (ApplyWindowLayering), so already-built rows don't fall behind their window.
 function ns.ResyncListRowLevels()
     for host, rows in pairs(_hostRows) do
-        local lvl = host:GetFrameLevel() + 50
+        local lvl = host:GetFrameLevel() + 9
         for _, btn in ipairs(rows) do
-            btn:SetFrameLevel(lvl)
+            ns.PinItemButtonLevel(btn, lvl)
         end
     end
 end

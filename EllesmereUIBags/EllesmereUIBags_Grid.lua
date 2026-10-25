@@ -82,7 +82,7 @@ local function GetOrCreateSlot(idx)
     -- never tracks its ancestors' levels. At High strata self:SetFrameLevel(100) cascades
     -- down through slotParent, leaving btn's fixed ~10 below its own wrapper -- the wrapper
     -- then wins mouse hit-testing over the button. Force it back above the window.
-    btn:SetFrameLevel(EUI_Bags:GetFrameLevel() + 50)
+    ns.PinItemButtonLevel(btn, EUI_Bags:GetFrameLevel() + 9)
     btn:SetAllPoints(slotParent)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")
@@ -399,7 +399,9 @@ local function RenderButton(btn, data, _, col, row, startX, currentY, _, interac
         if not btn._warbankDim then
             local dimFrame = CreateFrame("Frame", nil, btn)
             dimFrame:SetAllPoints()
-            dimFrame:SetFrameLevel((btn._textOverlay and btn._textOverlay:GetFrameLevel() or btn:GetFrameLevel()) + 3)
+            -- Matches ns.PinItemButtonLevel's formula (btn level + 6) directly, so a later
+            -- re-pin (which only touches _warbankDim if it already exists) stays consistent.
+            dimFrame:SetFrameLevel(btn:GetFrameLevel() + 6)
             local dim = dimFrame:CreateTexture(nil, "OVERLAY")
             dim:SetAllPoints()
             dim:SetColorTexture(0, 0, 0, 0.75)

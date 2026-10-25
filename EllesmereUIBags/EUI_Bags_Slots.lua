@@ -164,7 +164,7 @@ local function GetOrCreateReagentSlot(idx)
     local btn = CreateFrame("ItemButton", nil, slotParent, "ContainerFrameItemButtonTemplate")
     -- ContainerFrameItemButtonTemplate hardcodes frameLevel="10" in Blizzard's XML (never
     -- tracks ancestors), so force it back above the window (see GetOrCreateSlot).
-    btn:SetFrameLevel(EUI_BagsReagent:GetFrameLevel() + 50)
+    ns.PinItemButtonLevel(btn, EUI_BagsReagent:GetFrameLevel() + 9)
     btn:SetAllPoints(slotParent)
     btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
     btn:RegisterForDrag("LeftButton")
@@ -215,10 +215,12 @@ local function GetOrCreateReagentSlot(idx)
     CreateInsetBorder(btn)
     SetInsetBorderColor(btn, 0.25, 0.25, 0.25, 1)
 
-    -- Text overlay frame: sits above Cooldown so count/ilvl aren't covered by swipe
+    -- Text overlay frame: sits above Cooldown so count/ilvl aren't covered by swipe.
+    -- Not Cooldown-relative (see ns.PinItemButtonLevel's comment in EUI_Bags_Shared.lua):
+    -- read btn's own (already-pinned) level so this tracks a later re-pin.
     local textOverlay = CreateFrame("Frame", nil, btn)
     textOverlay:SetAllPoints()
-    textOverlay:SetFrameLevel((btn.Cooldown and btn.Cooldown:GetFrameLevel() or btn:GetFrameLevel()) + 2)
+    textOverlay:SetFrameLevel(btn:GetFrameLevel() + 3)
     btn._textOverlay = textOverlay
 
     local countFS = btn.Count

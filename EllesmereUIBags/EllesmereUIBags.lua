@@ -180,22 +180,31 @@ function EUI_Bags:ApplyWindowLayering()
     if sf and not self._assignSelectMode and not self._pinSelectMode then
         sf:SetFrameStrata(strata)
     end
-    -- ContainerFrameItemButtonTemplate hardcodes frameLevel="10" in Blizzard's XML, so it
-    -- never tracks the wrapper frames (slotParent/scroll child/etc.) cascading down from
-    -- self's level above. Re-pin every pooled icon above self's (just-updated) level, since
-    -- they were only pinned relative to self's level at their own creation time.
-    local I = ns._bagsInternals
-    local lvl = self:GetFrameLevel() + 50
-    for _, btn in pairs(I.itemSlots) do
-        btn:SetFrameLevel(lvl)
-    end
-    local reagentLvl = EUI_BagsReagent:GetFrameLevel() + 50
-    for _, btn in pairs(I.reagentSlots) do
-        btn:SetFrameLevel(reagentLvl)
-    end
-    if ns.ResyncListRowLevels then ns.ResyncListRowLevels() end
+    -- Bank's own level must be current before RepinIconLevels below re-syncs the shared
+    -- list-row pool (ns.ResyncListRowLevels reads each host's level fresh): update the
+    -- bank first, so a bank-hosted list row is never pinned against its stale level.
     local bank = _G.EUI_BankFrame
     if bank and bank.ApplyWindowLayering then bank:ApplyWindowLayering() end
+    self:RepinIconLevels()
+end
+
+-- ContainerFrameItemButtonTemplate hardcodes frameLevel="10" in Blizzard's XML, so it
+-- never tracks the wrapper frames (slotParent/scroll child/etc.) cascading down from
+-- self's level above. Re-pin every pooled icon above self's (or EUI_BagsReagent's)
+-- current level, whenever that changes -- not just from ApplyWindowLayering, but also
+-- from a bare self:Raise() (OnMouseDown/OnShow), which can move self's level independent
+-- of the strata setting.
+function EUI_Bags:RepinIconLevels()
+    local I = ns._bagsInternals
+    local lvl = self:GetFrameLevel() + 9
+    for _, btn in pairs(I.itemSlots) do
+        ns.PinItemButtonLevel(btn, lvl)
+    end
+    local reagentLvl = EUI_BagsReagent:GetFrameLevel() + 9
+    for _, btn in pairs(I.reagentSlots) do
+        ns.PinItemButtonLevel(btn, reagentLvl)
+    end
+    if ns.ResyncListRowLevels then ns.ResyncListRowLevels() end
 end
 layerUpdateFrame:SetScript("OnEvent", function() EUI_Bags:ApplyWindowLayering() end)
 
