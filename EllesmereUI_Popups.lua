@@ -912,7 +912,9 @@ end
 --  Usage:  EllesmereUI:ShowInputPopup({ title, message, placeholder, confirmText, cancelText, onConfirm, onCancel })
 --          onConfirm receives the entered text as its first argument. A copy box for
 --          a link: initialText + selectText (starts selected) + hideCancel (one button).
---          infoTooltip (string or function) adds a hover info badge beside the title.
+--          infoTooltip (string or function) adds a hover info badge beside the title;
+--          infoTooltipOpts go to ShowWidgetTooltip, anchored to the popup frame.
+--          preview(text) returns a preview line and a hint line shown under the input.
 -------------------------------------------------------------------------------
 function EllesmereUI:ShowInputPopup(opts)
     if not self._inputPopup then
@@ -970,7 +972,7 @@ function EllesmereUI:ShowInputPopup(opts)
             infoIco:SetVertexColor(1, 1, 1, 1)
             if self._tip then
                 self._tipShown = true
-                EllesmereUI.ShowWidgetTooltip(self, self._tip)
+                EllesmereUI.ShowWidgetTooltip(self._tipOpts and popup or self, self._tip, self._tipOpts)
             end
         end)
         local function InfoLeave(self)
@@ -1055,6 +1057,7 @@ function EllesmereUI:ShowInputPopup(opts)
                 local count = strlenutf8 and strlenutf8(text) or #text
                 popup._countLabel:SetText(count .. "/" .. popup._maxCount)
             end
+            if popup._preview then popup._updatePreview(text) end
         end)
         popup._editBox = editBox
 
@@ -1177,6 +1180,7 @@ function EllesmereUI:ShowInputPopup(opts)
 
     popup._title:SetText(EllesmereUI.L(opts.title or "Enter Name"))
     popup._info._tip = opts.infoTooltip
+    popup._info._tipOpts = opts.infoTooltipOpts
     popup._info:SetShown(opts.infoTooltip ~= nil)
     popup._msg:SetText(EllesmereUI.L(opts.message or ""))
     popup._placeholder:SetText(EllesmereUI.L(opts.placeholder or "Enter name..."))
@@ -1229,8 +1233,36 @@ function EllesmereUI:ShowInputPopup(opts)
             popup._countLabel:SetPoint("LEFT", popup._inputFrame, "RIGHT", 8, 0)
         end
     end
+    -- Optional preview and hint lines under the input (opts.preview): one line
+    -- each at a fixed height, so typing never re-lays out the popup.
+    local previewH = 0
+    popup._preview = opts.preview
+    if opts.preview and not popup._previewLabel then
+        local pv = MakeFont(popup, 11, nil, 1, 1, 1, 0.8)
+        pv:SetPoint("TOP", popup._inputFrame, "BOTTOM", 0, -10)
+        pv:SetWidth(popup:GetWidth() - 40)
+        pv:SetJustifyH("CENTER")
+        pv:SetWordWrap(false)
+        local hint = MakeFont(popup, 10, nil, 1, 0.65, 0.2, 0.85)
+        hint:SetPoint("TOP", pv, "BOTTOM", 0, -4)
+        hint:SetWidth(popup:GetWidth() - 40)
+        hint:SetJustifyH("CENTER")
+        hint:SetWordWrap(false)
+        popup._previewLabel, popup._hintLabel = pv, hint
+        popup._updatePreview = function(text)
+            local line, note = popup._preview(text)
+            pv:SetText(line or "")
+            hint:SetText(note or "")
+        end
+    end
+    if popup._previewLabel then
+        popup._previewLabel:SetShown(opts.preview ~= nil)
+        popup._hintLabel:SetShown(opts.preview ~= nil)
+        if opts.preview then previewH = 34 end
+    end
     local initText = opts.initialText or ""
     popup._editBox:SetText(initText)
+    if opts.preview then popup._updatePreview(initText) end
     if popup._maxCount then
         local count = strlenutf8 and strlenutf8(initText) or #initText
         popup._countLabel:SetText(count .. "/" .. popup._maxCount)
@@ -1258,7 +1290,7 @@ function EllesmereUI:ShowInputPopup(opts)
     local warnH = 0
     if opts.warning and opts.warning ~= "" then
         popup._warnLabel:ClearAllPoints()
-        popup._warnLabel:SetPoint("TOP", popup._inputFrame, "BOTTOM", 0, -18)
+        popup._warnLabel:SetPoint("TOP", popup._inputFrame, "BOTTOM", 0, -18 - previewH)
         popup._warnLabel:SetText(opts.warning)
         popup._warnLabel:Show()
         warnH = 24
@@ -1274,7 +1306,7 @@ function EllesmereUI:ShowInputPopup(opts)
         if opts.warning and opts.warning ~= "" then
             popup._scaleWarnLabel:SetPoint("TOP", popup._warnLabel, "BOTTOM", 0, -14)
         else
-            popup._scaleWarnLabel:SetPoint("TOP", popup._inputFrame, "BOTTOM", 0, -18)
+            popup._scaleWarnLabel:SetPoint("TOP", popup._inputFrame, "BOTTOM", 0, -18 - previewH)
         end
         popup._scaleWarnLabel:SetText(EllesmereUI.L(opts.scaleWarning))
         popup._scaleWarnLabel:Show()
@@ -1284,7 +1316,7 @@ function EllesmereUI:ShowInputPopup(opts)
         popup._scaleWarnLabel:Hide()
     end
 
-    popup:SetHeight(194 + math.max(0, (opts.inputHeight or 28) - 28) + extraH + warnH + scaleWarnH)
+    popup:SetHeight(194 + math.max(0, (opts.inputHeight or 28) - 28) + extraH + warnH + scaleWarnH + previewH)
 
     popup._cancelBtn:SetScript("OnClick", function()
         popup._dimmer:Hide()

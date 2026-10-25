@@ -281,7 +281,8 @@ end
 function TextTags.PopupOpts(cat, opts, helpOpts)
     opts = opts or {}
     opts.preview = function(text)
-        local parsed = TextTags.Parse(cat, text)
+        -- The edit box doubles a typed "|"; templates are stored with single ones.
+        local parsed = TextTags.Parse(cat, type(text) == "string" and sgsub(text, "||", "|") or text)
         if not parsed then return nil, nil end
         local hint
         if #parsed.unknown > 0 then
