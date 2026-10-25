@@ -5,11 +5,6 @@ if not ns then return end
 local MOVE_KEYS = { "X", "Y", "WidthPct", "ClassColor", "ColorR", "ColorG", "ColorB",
     "NameFormat", "TargetSep", "TargetPrefix", "TargetSepColor", "TargetSepClassColor", "CustomFormat" }
 
--- Hover text for the Custom popup: the engine catalog's tag help.
-local function CustomTagTooltip()
-    return ns.UF_TextTags and EllesmereUI.TextTags.HelpText(ns.UF_TextTags) or ""
-end
-
 -- False for content a slot keeps to itself: "none", and "custom", whose format
 -- is stored per slot, so several slots may use it and none is picked for them.
 function ns.UF_IsUniqueContent(v)
@@ -77,13 +72,14 @@ function ns.UFO_BuildTextSlots(W, parent, y, opts)
         if type(cur) ~= "string" then cur = nil end
         -- 120 letters for new input; a longer stored format (import) keeps its length.
         local maxLen = math.max(120, cur and (strlenutf8 and strlenutf8(cur) or #cur) or 0)
-        EllesmereUI:ShowInputPopup({
+        -- Preview, unknown-tag hint and tag help come from the engine's catalog.
+        local popupOpts = {
             title = EllesmereUI.L("Custom Text"),
             message = EllesmereUI.L("Tags in brackets, the rest is shown as typed. Example: [hp:abr] | [hp:pct]%"),
             placeholder = "[name] - [hp:pct]%",
             initialText = (not warning and cur) or "",
             maxLetters = maxLen,
-            infoTooltip = CustomTagTooltip,
+            showCount = true,
             warning = warning,
             onConfirm = function(txt)
                 -- Stored with single pipes; the engine escapes them for display.
@@ -94,7 +90,13 @@ function ns.UFO_BuildTextSlots(W, parent, y, opts)
                 Notify(s.key)
                 s.cfg.setValue("custom")
             end,
-        })
+        }
+        if ns.UF_TextTags then
+            EllesmereUI.TextTags.PopupOpts(ns.UF_TextTags, popupOpts, {
+                notes = { EllesmereUI.L("[hp] and [hp:abr] read DEAD or OFFLINE for a dead or offline unit.") },
+            })
+        end
+        EllesmereUI:ShowInputPopup(popupOpts)
     end
     for i = 1, #slots do
         local s = slots[i]
