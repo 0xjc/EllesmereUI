@@ -1238,8 +1238,11 @@ function EllesmereUI:ShowInputPopup(opts)
     local previewH = 0
     popup._preview = opts.preview
     if opts.preview and not popup._previewLabel then
-        local pv = MakeFont(popup, 11, nil, 1, 1, 1, 0.8)
-        pv:SetPoint("TOP", popup._inputFrame, "BOTTOM", 0, -10)
+        local div = SolidTex(popup, "ARTWORK", 1, 1, 1, 0.1)
+        PanelPP.Size(div, popup._inputFrame:GetWidth(), 1)
+        PanelPP.Point(div, "TOP", popup._inputFrame, "BOTTOM", 0, -10)
+        local pv = MakeFont(popup, 12, nil, 1, 1, 1, 1)
+        pv:SetPoint("TOP", div, "BOTTOM", 0, -8)
         pv:SetWidth(popup:GetWidth() - 40)
         pv:SetJustifyH("CENTER")
         pv:SetWordWrap(false)
@@ -1248,7 +1251,7 @@ function EllesmereUI:ShowInputPopup(opts)
         hint:SetWidth(popup:GetWidth() - 40)
         hint:SetJustifyH("CENTER")
         hint:SetWordWrap(false)
-        popup._previewLabel, popup._hintLabel = pv, hint
+        popup._previewLabel, popup._hintLabel, popup._previewDiv = pv, hint, div
         popup._updatePreview = function(text)
             local line, note = popup._preview(text)
             pv:SetText(line or "")
@@ -1258,7 +1261,13 @@ function EllesmereUI:ShowInputPopup(opts)
     if popup._previewLabel then
         popup._previewLabel:SetShown(opts.preview ~= nil)
         popup._hintLabel:SetShown(opts.preview ~= nil)
-        if opts.preview then previewH = 34 end
+        popup._previewDiv:SetShown(opts.preview ~= nil)
+        if opts.preview then
+            -- The value in the accent colour; the preview's own escapes colour the rest.
+            local EG = EllesmereUI.ELLESMERE_GREEN
+            popup._previewLabel:SetTextColor(EG.r, EG.g, EG.b, 1)
+            previewH = 44
+        end
     end
     local initText = opts.initialText or ""
     popup._editBox:SetText(initText)
