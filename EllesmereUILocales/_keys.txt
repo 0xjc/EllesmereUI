@@ -1176,7 +1176,6 @@ Reposition freely with
 Reposition this element with Shift+Click and Drag.
 Reposition this element within Blizzard Edit Mode
 Reputation
-Required
 Reset
 Reset %1$s
 Reset %1$s to its default position and zoom and reload your UI?
