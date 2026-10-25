@@ -587,7 +587,7 @@ local function HelpSections(dev)
                     or addon.Locale.Format(
                         T["simulated run; a count of 1-%d draws at random from %d classic raid items, no argument gives 3; a link is attributed to its boss and difficulty from the Adventure Guide and its upgrade track, 'from' overrides (any case, partial name)"],
                         addon.TestLoot.MAX, addon.TestLoot:Count()) },
-                { T["grouptest [on / off]"], T["allow a session in a party (nothing automatic)"] },
+                { T["activetest / at [on / off]"], T["allow a session solo or in a party (nothing automatic)"] },
                 { T["ftest [<count>]"], addon.Locale.Format(
                     T["simulated run of 1-%d items from %d rare dungeon boss drops that WoW: Forever serves; no argument gives 3"],
                     addon.TestLoot.MAX, addon.TestLoot:DungeonCount()), devTools = true },
@@ -602,6 +602,7 @@ local function HelpSections(dev)
                 { "coins", T["recent bonus-roll results"], retailOnly = true, devTools = true },
                 { "guild", T["the guild-group gate"], devTools = true },
                 { "names", T["what the name APIs return here"], devTools = true },
+                { "localecheck", T["which locale files loaded"], devTools = true },
                 { T["item <link>"], T["why the funnel takes an item"], devTools = true },
                 { "set", T["equipped set facts"], devTools = true },
                 { "taint", T["blocked-action counts"], devTools = true },
@@ -689,7 +690,7 @@ local DEV_COMMANDS = {
     ping = true, comms = true, snapshotsize = true, perf = true, stress = true,
     ftest = true, fakecoins = true, pseudo = true, debug = true, names = true,
     taint = true, show = true, boss = true, coins = true, guild = true,
-    item = true, why = true, set = true,
+    item = true, why = true, set = true, localecheck = true,
 }
 
 
@@ -1780,29 +1781,32 @@ SlashCmdList["SIMPLELOOTCOUNCIL"] = function(input)
         end
 
 
-    elseif cmd == "grouptest" then
+    elseif cmd == "activetest" or cmd == "at" then
         local arg = (input:match("^%S+%s*(.*)$") or ""):lower():match("^%s*(%S*)")
-        if not IsInGroup() or IsInRaid() then
+        if IsInRaid() then
             if addon.GroupTestActive() then addon.SetGroupTest(false) end
-            Print(T["/slc grouptest needs a party: it is for a group that is not a raid."])
+            Print(T["/slc activetest needs a party or no group: a raid is already active."])
             return
         end
         if not addon.PlayerIsMasterLooter() then
-            Print(T["only the Loot Master can turn the group test on or off."])
+            Print(T["only the Loot Master can turn the active test on or off."])
             return
         end
         local on
         if arg == "on" then on = true
         elseif arg == "off" then on = false
         else on = not addon.GroupTestActive() end
+        local grouped = IsInGroup()
         if on then
             addon.SetGroupTest(true)
-            addon.Loot:SetHandling(true)
-            Print(T["group test is on: sessions work in this party. Nothing starts by itself. /slc grouptest off turns it off."])
+            if grouped then addon.Loot:SetHandling(true)
+            else addon.Loot:ApplyHandling(true, addon.Player:GetFullName("player"), false, true) end
+            Print(T["active test is on: sessions work here. Nothing starts by itself. /slc activetest off turns it off."])
         else
-            addon.Loot:SetHandling(false)
+            if grouped then addon.Loot:SetHandling(false)
+            else addon.Loot:ApplyHandling(false, addon.Player:GetFullName("player"), false, true) end
             addon.SetGroupTest(false)
-            Print(T["group test is off."])
+            Print(T["active test is off."])
         end
 
 
@@ -2011,6 +2015,11 @@ SlashCmdList["SIMPLELOOTCOUNCIL"] = function(input)
                 remaining and addon.Locale.Format(T["%dm left"],
                     math.floor(remaining / 60)) or T["no timer"]))
         end
+
+    elseif cmd == "localecheck" then
+        local files, count = addon.Locale.Loaded()
+        Print(("client locale %s  files run: %s  strings installed: %d"):format(
+            addon.Locale.clientLocale, table.concat(files, ", "), count))
 
 
     elseif cmd == "names" then

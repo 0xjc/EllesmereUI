@@ -19,6 +19,7 @@ local rows = {}
 
 local bagPanel, bagHost, bagEmpty, bagTitle, bagHint
 local FitEmpty
+local bagHostY, bagHintBase
 local bagScroll, bagContent
 local bagRows, bagHeaders = {}, {}
 local bagCache, bagCacheAt
@@ -262,6 +263,13 @@ function QueueFrame:RefreshBags()
         or T["Only the Loot Master can add mid-run"])
 
 
+    local hintHeight = bagHint:GetStringHeight()
+    if type(hintHeight) == "number" and not addon.IsSecret(hintHeight) and hintHeight > 0 then
+        local extra = math.max(0, math.ceil(hintHeight) - bagHintBase)
+        P.Point(bagHost, "TOPLEFT", bagPanel, "TOPLEFT", bagHost.slcX, bagHostY - extra)
+    end
+
+
 
     local shown, headers, y = 0, 0, 0
     for _, section in ipairs(sections) do
@@ -365,6 +373,13 @@ local function PaintQueue()
     local items = addon.Session:GetItems()
     local running = addon.Session:IsRunning()
     local shown = #items
+
+
+    local host = QueueFrame.host
+    if host and host.SetCount then
+        host.SetCount(addon.Locale.Format(
+            addon.Locale.Plural{ one = "%d ITEM", other = "%d ITEMS" }, shown, shown))
+    end
 
     for i = 1, shown do
         local item = items[i]
@@ -575,6 +590,7 @@ end
 
 local function Build(host)
     frame = host.pane
+    QueueFrame.host = host
     local inset = host.railInset
 
 
@@ -599,8 +615,10 @@ local function Build(host)
         L.Above(holder, parent)
         P.Point(holder, "TOPLEFT", parent, "TOPLEFT", x, y)
         P.Point(holder, "BOTTOMRIGHT", parent, "BOTTOMRIGHT", -inset, inset)
+        holder.slcX, bagHostY = x, y
         return holder, 0
     end)
+    bagHintBase = math.ceil(bagHint:GetStringHeight() or 0)
 
 
 

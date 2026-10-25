@@ -5,6 +5,7 @@ if EUI_CLIENT_BLOCKED then return end
 
 
 local ADDON_NAME = "EllesmereUISimpleLootCouncil"
+local MODULE_DESC = "Loot council voting for your raid, synced over addon messages."
 local ns = EllesmereUI._ModuleNS[ADDON_NAME]
 if not ns then return end
 
@@ -23,7 +24,7 @@ initFrame:SetScript("OnEvent", function(self)
         local PAGE_INERT = "General"
         EllesmereUI:RegisterModule(ADDON_NAME, {
             title       = "Simple Loot Council",
-            description = "Loot council voting for your raid, synced over addon messages.",
+            description = MODULE_DESC,
             pages       = { PAGE_INERT },
             buildPage   = function(pageName, parent, yOffset)
                 if pageName ~= PAGE_INERT then return end
@@ -380,7 +381,19 @@ initFrame:SetScript("OnEvent", function(self)
         end
     end
 
-    local bannerTitle, bannerTexture, bannerVersion, bannerLive
+
+    local function FindText(frame, depth, text)
+        for _, region in ipairs({ frame:GetRegions() }) do
+            if region.GetText and region:GetText() == text then return region end
+        end
+        if depth == 0 then return nil end
+        for _, child in ipairs({ frame:GetChildren() }) do
+            local found = FindText(child, depth - 1, text)
+            if found then return found end
+        end
+    end
+
+    local bannerTitle, bannerTexture, bannerVersion, bannerCredit
 
 
 
@@ -391,20 +404,35 @@ initFrame:SetScript("OnEvent", function(self)
         EllesmereUI.PanelPP.Size(tag, math.ceil(width) + TAG_PAD * 2, TAG_H)
     end
 
+    local STANDALONE_URL = "https://www.curseforge.com/wow/addons/simplelootcouncil"
 
 
-    local function RefreshHeaderTags()
-        local slc = SLC()
-        if not (slc and bannerLive) then return end
-        local tags, S = slc.UI.OptionsSchema.Row("statusTags"), slc.Style
-        local live = bannerVersion:IsShown() and tags.live()
-        bannerLive:SetShown(live)
-        if live then
-            local _, liveTone, liveLines = tags.liveTooltip()
-            bannerLive.Label:SetText(S.Colorize(S.color[liveTone], tags.liveText))
-            bannerLive.tip = table.concat(liveLines, "\n")
-            bannerLive:SetTone(S.color[liveTone])
-            FitTag(bannerLive)
+
+    local linkMeasure
+    local function WidenLinkPopup(url)
+        local host = EllesmereUI.OverlayParent and EllesmereUI.OverlayParent() or UIParent
+        for _, popup in ipairs({ host:GetChildren() }) do
+            local box = popup._eb
+            if box and popup:IsShown() and box.GetText and box:GetText() == url then
+                if not linkMeasure then
+                    linkMeasure = UIParent:CreateFontString(nil, "OVERLAY")
+                    linkMeasure:SetFontObject(GameFontHighlight)
+                end
+                linkMeasure:SetText(url)
+                local width = linkMeasure:GetStringWidth()
+                if type(width) ~= "number" or (issecretvalue and issecretvalue(width)) then return end
+                local boxW, popW = box:GetWidth(), popup:GetWidth()
+                box:SetWidth(math.max(boxW, math.ceil(width) + 24))
+                popup:SetWidth(math.max(popW, math.ceil(width) + 64))
+                if not popup._slcWidened then
+                    popup._slcWidened = true
+                    popup:HookScript("OnHide", function()
+                        box:SetWidth(boxW)
+                        popup:SetWidth(popW)
+                    end)
+                end
+                return
+            end
         end
     end
 
@@ -446,25 +474,37 @@ initFrame:SetScript("OnEvent", function(self)
             bannerVersion:SetPoint("BOTTOMLEFT", bannerTexture, "BOTTOMRIGHT", 12, 4)
         end
         bannerVersion:SetText("v" .. tostring(slc.VERSION))
+        if not bannerCredit then
+            local header = bannerTitle:GetParent()
+            local desc = FindText(main, 6, EllesmereUI.L(MODULE_DESC))
+            bannerCredit = header:CreateFontString(nil, "OVERLAY")
+            local file = EllesmereUI.FONT_FILES and EllesmereUI.FONT_FILES["Avant Garde"]
+            local path, size, flags
+            if desc then path, size, flags = desc:GetFont() end
+            path = path or EllesmereUI.GetFontPath() or "Fonts\\FRIZQT__.TTF"
+            if file and EllesmereUI.MEDIA_PATH then path = EllesmereUI.MEDIA_PATH .. "fonts\\" .. file end
+            bannerCredit:SetFont(path, size or 14, flags)
+            if desc then
+                local r, g, b = desc:GetTextColor()
+                bannerCredit:SetTextColor(r, g, b, 1)
+            end
+            bannerCredit:SetJustifyH("RIGHT")
 
-        if not bannerLive then
-            bannerLive = StyledTag(bannerTitle:GetParent(), 60, function(button)
-                local tags = SLC() and SLC().UI.OptionsSchema.Row("statusTags")
-                if tags and tags.clickLive(button) then Invalidate() end
-            end, _G.CreateFrame)
-            EllesmereUI.PanelPP.Point(bannerLive, "LEFT", bannerVersion, "RIGHT", 12, 0)
+
+            bannerCredit:SetPoint("BOTTOMRIGHT", header, "TOPRIGHT", -103, -130)
+            bannerCredit:SetText(EllesmereUI.L("Developed in partnership with Laxx"))
         end
+        if bannerCredit then bannerCredit:Show() end
         ApplyBanner(slc)
         bannerTexture:Show()
         bannerVersion:Show()
         bannerTitle:SetAlpha(0)
-        RefreshHeaderTags()
     end
 
     local function HideBanner()
         if bannerTexture then bannerTexture:Hide() end
         if bannerVersion then bannerVersion:Hide() end
-        if bannerLive then bannerLive:Hide() end
+        if bannerCredit then bannerCredit:Hide() end
         if bannerTitle then bannerTitle:SetAlpha(1) end
     end
 
@@ -549,6 +589,34 @@ initFrame:SetScript("OnEvent", function(self)
         local T, Format = slc.Locale.Text, slc.Locale.Format
         local refreshes = {}
         local function OnRefresh(fn) refreshes[#refreshes + 1] = fn end
+
+
+
+        if not prebuild then
+            local link = CreateFrame("Button", nil, parent)
+            link._isSpacer = true
+            link:SetSize(parent:GetWidth(), 20)
+            link:SetPoint("TOP", parent, "TOP", 0, y - 15)
+            local text = link:CreateFontString(nil, "OVERLAY")
+            text:SetFont(EllesmereUI.GetFontPath() or "Fonts\\FRIZQT__.TTF", 15, "")
+            text:SetTextColor(1, 1, 1, 0.75)
+            text:SetPoint("TOP", link, "TOP", 0, 0)
+            text:SetText(EllesmereUI.L("Friends not running EUI? Download the standalone version here!"))
+
+            local width = text.GetStringWidth and text:GetStringWidth()
+            if type(width) == "number" and not (issecretvalue and issecretvalue(width)) then
+                link:SetSize(width + 4, 20)
+            end
+            link:SetScript("OnEnter", function() text:SetTextColor(1, 1, 1, 1) end)
+            link:SetScript("OnLeave", function() text:SetTextColor(1, 1, 1, 0.75) end)
+            link:SetScript("OnClick", function(self)
+                if EllesmereUI.ShowLinkPopup then
+                    EllesmereUI.ShowLinkPopup(STANDALONE_URL, self)
+                    WidenLinkPopup(STANDALONE_URL)
+                end
+            end)
+        end
+        y = y - 32
 
 
         local covers = {}
@@ -679,7 +747,6 @@ initFrame:SetScript("OnEvent", function(self)
 
         local withStatus = pageName == PAGE_LOOT
         local withTools = pageName == PAGE_DATA
-        if not prebuild then OnRefresh(RefreshHeaderTags) end
 
 
 
@@ -757,6 +824,29 @@ initFrame:SetScript("OnEvent", function(self)
                 FitTag(activeTag)
 
                 activeTag:SetShown(title == statusTags.activeText)
+            end)
+
+
+
+            local liveTag = StyledTag(block, 60, function(button)
+                if statusTags.clickLive(button) then Invalidate() end
+            end)
+            liveTag:Hide()
+            OnRefresh(function()
+                local live = statusTags.live()
+                liveTag:SetShown(live)
+                if not live then return end
+                local _, tone, lines = statusTags.liveTooltip()
+                liveTag.Label:SetText(S.Colorize(S.color[tone], statusTags.liveText))
+                liveTag.tip = table.concat(lines, "\n")
+                liveTag:SetTone(S.color[tone])
+                FitTag(liveTag)
+                liveTag:ClearAllPoints()
+                if activeTag:IsShown() then
+                    PP.Point(liveTag, "LEFT", activeTag, "RIGHT", 8, 0)
+                else
+                    PP.Point(liveTag, "TOPLEFT", block, "TOPLEFT", 16, -12)
+                end
             end)
 
 
@@ -1343,7 +1433,7 @@ initFrame:SetScript("OnEvent", function(self)
 
     EllesmereUI:RegisterModule(ADDON_NAME, {
         title       = "Simple Loot Council",
-        description = "Loot council voting for your raid, synced over addon messages.",
+        description = MODULE_DESC,
         pages       = PAGES,
         buildPage   = function(pageName, parent, yOffset)
             if PAGE_SECTIONS[pageName] then return BuildSettingsPage(pageName, parent, yOffset) end

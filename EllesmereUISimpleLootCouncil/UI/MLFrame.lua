@@ -2162,38 +2162,42 @@ local function PaintFeatured(item)
 end
 
 
-
 function CM.PaintLive()
     local state = addon.Session:HasEnded() and "ended"
         or addon.Session:IsRunning() and "live" or "idle"
-    local response = CM.tab == "response"
-    local key = state .. (response and "r" or "")
-    if CM.liveKey == key then return end
-    CM.liveKey = key
+    if CM.liveKey == state then return end
+    CM.liveKey = state
     local text = state ~= "idle" and (state == "ended" and T["ENDED"] or T["LIVE"]) or nil
-    local color = state == "ended" and S.color.textMuted or S.color.good
-    if response then
-        local chip = CM.liveChip
-        if text then
-            chip:SetChipColor(color)
-            chip:SetText(text)
-        end
-        chip:SetShown(text ~= nil)
-    else
-        CM.liveChip:Hide()
-        frame:SetTag(text, color)
-    end
+    frame:SetTag(text, state == "ended" and S.color.textMuted or S.color.good)
+end
+
+
+
+
+function CM.ShowCount()
+    local chip = CM.countChip
+    if not chip then return end
+    local text = CM.counts and CM.counts[CM.tab]
+    if text == "" then text = nil end
+    if CM.countText == text then return end
+    CM.countText = text
+    if text then chip:SetText(addon.Locale.Upper(text)) end
+    chip:SetShown(text ~= nil)
+    P.Size(frame.Badge, math.max(CM.countSlot, text and math.ceil(chip:GetWidth()) or 0), nil)
+    if frame.ClampTitle then P.AfterLayout(frame.ClampTitle) end
+end
+
+function CM.SetCount(key, text)
+    CM.counts = CM.counts or {}
+    CM.counts[key] = text
+    if CM.tab == key then CM.ShowCount() end
 end
 
 
 
 local function PaintTallies(items, item, full)
-    local badge = #items > 0 and addon.Locale.Format(T["ITEM %d OF %d"],
-        math.min(selectedSession, #items), #items) or T["NO ITEMS"]
-    if CM.badge ~= badge then
-        CM.badge = badge
-        frame.Badge:SetText(badge)
-    end
+    CM.SetCount("council", #items > 0 and addon.Locale.Format(T["%d of %d"],
+        math.min(selectedSession, #items), #items) or nil)
     CM.PaintLive()
 
 
@@ -2461,15 +2465,16 @@ function CM.Build()
 
     local strip = frame.Badge:GetParent()
     timerText = S.Label(strip, S.fontNum, "RIGHT")
-    timerText:SetPoint("RIGHT", frame.Badge, "LEFT", -S.size.GAP, 0)
+    timerText:SetPoint("RIGHT", frame.Badge, "LEFT", -S.size.GAP, -1)
     timerLabel = S.Label(strip, S.fontHeading, "RIGHT")
     timerLabel:SetPoint("RIGHT", timerText, "LEFT", -6, 0)
 
-    CM.liveChip = S.Chip(frame.Tag:GetParent(), "", S.color.good,
+    CM.countChip = S.Chip(frame.Tag:GetParent(), "", S.color.textMuted,
         { height = frame.Tag:GetHeight(), font = S.fontTag,
             padding = frame.TagPadding or 9, square = true })
-    CM.liveChip:SetPoint("LEFT", frame.Title, "RIGHT", S.size.TAG_GAP, -1)
-    CM.liveChip:Hide()
+    CM.countChip:SetPoint("RIGHT", frame.Close, "LEFT", -S.size.GAP, -1)
+    CM.countChip:Hide()
+    CM.countSlot = frame.Badge:GetWidth()
 
     footer = S.FooterBar(frame)
 
@@ -2808,6 +2813,7 @@ function CM.Build()
         railWidth = RAIL_W, railGap = RAIL_GAP, railInset = 14,
         railBottom = S.size.FOOTER_H + CM.RAIL_GAP_V,
         mainWidth = WindowWidth(CM.active) - S.size.PAD * 2 - RAIL_W - RAIL_GAP,
+        SetCount = function(text) CM.SetCount("queue", text) end,
         AddButton = function(button, rightAlign, atEdge)
             footer:Add(button, rightAlign, atEdge)
             CM.queueButtons[#CM.queueButtons + 1] = button
@@ -2928,15 +2934,8 @@ end
 function CM.PlaceTimer(response)
     timerLabel:ClearAllPoints()
     timerText:ClearAllPoints()
-    frame.Tag:ClearAllPoints()
-    if response then
 
-        frame.Tag:SetPoint("RIGHT", frame.Close, "LEFT", -S.size.GAP, -1)
-    else
-        frame.Tag:SetPoint("LEFT", frame.Title, "RIGHT", S.size.TAG_GAP, -1)
-    end
-
-    timerText:SetPoint("RIGHT", frame.Badge, "LEFT", -S.size.GAP, 0)
+    timerText:SetPoint("RIGHT", frame.Badge, "LEFT", -S.size.GAP, -1)
     timerLabel:SetPoint("RIGHT", timerText, "LEFT", -6, 0)
 end
 
@@ -2958,7 +2957,7 @@ function CM.BuildResponse(content)
         pane = CM.responsePane,
         IsActive = function() return frame:IsShown() and CM.tab == "response" end,
         IsCompact = function() return CM.active and true or false end,
-        SetCount = function(text) frame:SetTag(text) end,
+        SetCount = function(text) CM.SetCount("response", text) end,
 
 
 
@@ -3019,10 +3018,9 @@ function CM.ShowTab(key)
         rollButton:Hide()
         menuHint:Hide()
     end
-
-    if response then frame:SetTag(nil) end
-    CM.liveKey = nil
+    CM.liveKey, CM.countText = nil, nil
     CM.PaintLive()
+    CM.ShowCount()
     for _, button in ipairs(CM.queueButtons) do button:SetShown(queue) end
     CM.responseButton:SetShown(response)
 

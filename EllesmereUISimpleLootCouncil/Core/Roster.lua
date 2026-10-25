@@ -360,13 +360,17 @@ end
 
 
 
-local groupTest = false
+local groupTest
+local function GroupShape()
+    if IsInRaid() then return nil end
+    return IsInGroup() and "party" or "solo"
+end
 function addon.GroupTestActive()
-    if groupTest and (not IsInGroup() or IsInRaid()) then groupTest = false end
-    return groupTest
+    if groupTest and groupTest ~= GroupShape() then groupTest = nil end
+    return groupTest ~= nil
 end
 function addon.SetGroupTest(on)
-    groupTest = on and true or false
+    groupTest = on and GroupShape() or nil
 end
 
 function addon.PlayerIsMasterLooter()

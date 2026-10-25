@@ -859,7 +859,7 @@ local function Build()
 
     local strip = frame.Badge:GetParent()
     timerText = S.Label(strip, S.fontNum, "RIGHT")
-    timerText:SetPoint("RIGHT", frame.Tag, "LEFT", -S.size.GAP, 0)
+    timerText:SetPoint("RIGHT", frame.Tag, "LEFT", -S.size.GAP, -1)
     timerLabel = S.Label(strip, S.fontHeading, "RIGHT")
     timerLabel:SetPoint("RIGHT", timerText, "LEFT", -6, 0)
 

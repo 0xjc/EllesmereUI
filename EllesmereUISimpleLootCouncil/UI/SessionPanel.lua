@@ -253,7 +253,7 @@ local function FitColumns(parent)
 
 
     local responseHead = Widest(T["RESPONSE"], 0)
-    if responseHead > 0 then RESPONSE_W = responseHead end
+    if responseHead > 0 then RESPONSE_W = math.max(RESPONSE_W, responseHead) end
     WINNER_W   = Widest(T["AWARDED"],  WINNER_W)
 
 

@@ -1657,8 +1657,7 @@ local WINDOW_ALPHA = EUI.RESKIN.CTX_ALPHA
 
 local TAB_GAP, TAB_PAD, TAB_LINE = 6, 30, 14
 local TAB_HOVER = { 1, 1, 1, 0.86 }
-local TAB_GLOW_RINGS = { { radius = 1, alpha = 1 }, { radius = 2, alpha = 1 }, { radius = 3, alpha = 0.8 }, { radius = 4, alpha = 0.6 },
-    { radius = 5, alpha = 0.4 }, { radius = 6, alpha = 0.2 } }
+local TAB_GLOW_RINGS = { { radius = 1, alpha = 1 }, { radius = 2, alpha = 0.8 }, { radius = 3, alpha = 0.4 } }
 
 
 local function PulseChime(tab)
@@ -1903,8 +1902,12 @@ function S.Window(globalName, key, width, height, title, options)
     badgeFontH = badgeFontH or 11
     local badge = S.Label(strip, badgeFont, "RIGHT")
     P.Point(badge, "RIGHT", close, "LEFT", -size.GAP, 0)
+
+
+
+    local slot = key == "ml" and 73 or 90
     P.Size(badge,
-        math.max(90, math.ceil(90 * badgeFontH / 11)),
+        math.max(slot, math.ceil(slot * badgeFontH / 11)),
         math.max(size.CLOSE, math.ceil(size.CLOSE * badgeFontH / 11)))
     f.Badge = badge
 
