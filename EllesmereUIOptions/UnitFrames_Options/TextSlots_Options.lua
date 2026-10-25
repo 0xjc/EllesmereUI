@@ -22,7 +22,14 @@ function ns.UFO_EditCustomText(prefix, db, unit, onSave, warning)
     local maxLen = math.max(120, cur and (strlenutf8 and strlenutf8(cur) or #cur) or 0)
     -- The preview in the slot's text colour, as the unit preview shows it.
     local color
-    if db[prefix .. "PowerColor"] then
+    if prefix == "powerText" then
+        -- The power text's own keys: Power Colored (player), else powerTextColor.
+        local r, g, b
+        if db.powerPercentTextPowerColor then r, g, b = EllesmereUI.ResolveUnitPowerColor("player") end
+        local tc = db.powerTextColor
+        color = (r and { r = r, g = g, b = b }) or (not db.powerPercentTextPowerColor and tc)
+            or { r = 1, g = 1, b = 1 }
+    elseif db[prefix .. "PowerColor"] then
         -- The text bar's Power Colored, resolved for the player as the unit
         -- preview does. Fixed for the popup: the bar uses it only while the
         -- format holds a power tag.
@@ -91,6 +98,22 @@ function ns.UFO_CustomTextValues(values, getValue, edit)
         if iconColor then return iconColor(key) end
     end
     return v
+end
+
+-- For a dropdown whose selection keeps the page: rebuilds the given regions'
+-- menus once the list has closed, for Custom's pencil to follow the selection.
+-- The widget refresh is the menu's own deferred one, which Custom's popup path
+-- never reaches: without it colour swatches and cogs keep the previous state.
+function ns.UFO_RefreshMenus(...)
+    local n, rgns = select("#", ...), { ... }
+    C_Timer.After(0, function()
+        for i = 1, n do
+            local dd = rgns[i] and rgns[i]._control
+            if dd and dd._invalidateMenu then dd._invalidateMenu() end
+        end
+        local rl = EllesmereUI._widgetRefreshList
+        if rl then for ri = 1, #rl do rl[ri]() end end
+    end)
 end
 
 -- The popup writes the format directly, so Spec Overrides needs an accessor:

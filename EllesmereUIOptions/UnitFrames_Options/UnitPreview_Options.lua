@@ -2722,7 +2722,9 @@ function ns.UFO_BuildUnitPreview(parent, unitKey, side)
                 local ppSuffix = (s.powerShowPercent == false) and "" or "%"
                 local ppCurFake = ns.AbbreviateNumbers(18200)
                 local ppTxt
-                if ppFmt == "smart" then
+                if ppFmt == "custom" then
+                    ppTxt = PreviewTextForContent("custom", s, "powerText")
+                elseif ppFmt == "smart" then
                     ppTxt = ppPctRaw .. ppSuffix  -- preview always shows percent for smart
                 elseif ppFmt == "curpp" then
                     ppTxt = ppCurFake

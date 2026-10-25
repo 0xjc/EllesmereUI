@@ -2145,21 +2145,10 @@ function ns.UFO_BuildTextBarSection(parent, y, ctx)
 
     -- Custom on each slot opens the text slots' format popup; its format is
     -- the slot's own, so it is never cleared from the other slots. A selection
-    -- keeps the page, so the three menus are rebuilt once the list has closed,
-    -- for Custom's pencil to follow the selection. The widget refresh is the
-    -- menu's own deferred one, which Custom's popup path never reaches: without
-    -- it the colour swatches and cog keep the state of the previous content.
+    -- keeps the page, so all three menus follow it.
     local function RefreshBtbMenus()
-        C_Timer.After(0, function()
-            local t, c = sharedBtbTextRow, sharedBtbCenterRow
-            local rgns = { t and t._leftRegion, t and t._rightRegion, c and c._leftRegion }
-            for i = 1, 3 do
-                local dd = rgns[i] and rgns[i]._control
-                if dd and dd._invalidateMenu then dd._invalidateMenu() end
-            end
-            local rl = EllesmereUI._widgetRefreshList
-            if rl then for ri = 1, #rl do rl[ri]() end end
-        end)
+        local t, c = sharedBtbTextRow, sharedBtbCenterRow
+        ns.UFO_RefreshMenus(t and t._leftRegion, t and t._rightRegion, c and c._leftRegion)
     end
     local function SetBtbLeft(v)
         SSet("btbLeftContent", v)

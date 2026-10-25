@@ -1391,6 +1391,8 @@ function ns.UFO_BuildPowerBarSection(parent, y, ctx)
     local ppTextOrder = { "none", "---", "left", "right", "center" }
     local ppFmtValues = { ["none"]="None", ["smart"]="Smart Text", ["curpp"]="Power Value", ["curmaxpp"]="Power Value / Max", ["perpp"]="Power %", ["both"]="Value | %" }
     local ppFmtOrder = { "none", "smart", "curpp", "curmaxpp", "perpp", "both" }
+    -- Power Text alone offers Custom; Form Power Text keeps the lists above.
+    local ppTextFmtOrder = { "none", "---", "custom", "---", "smart", "curpp", "curmaxpp", "perpp", "both" }
 
     -- Row 1: Bar Height + Bar Position. Under a stock style the track fixes
     -- the bar's height and place: the height slot is Hide Power Bar instead
@@ -1558,31 +1560,45 @@ function ns.UFO_BuildPowerBarSection(parent, y, ctx)
 
     -- Row 2: Power Text (format) + Fill Opacity
     local sharedPowerRow2
+    local function SetPowerTextFormat(v)
+        SSet("powerTextFormat", v)
+        -- Auto-set position to center if user picks a format while position is "none"
+        if v ~= "none" and SVal("powerPercentText", "none") == "none" then
+            SSet("powerPercentText", "center")
+        end
+        -- If format is "none", clear position too
+        if v == "none" then SSet("powerPercentText", "none") end
+        ReloadAndUpdate(); UpdatePreview()
+        EllesmereUI:RefreshPage()
+        -- The page stays, so the menu is rebuilt for Custom's pencil.
+        ns.UFO_RefreshMenus(sharedPowerRow2 and sharedPowerRow2._leftRegion)
+    end
+    local ppTextFmtValues = ns.UFO_CustomTextValues(ppFmtValues,
+        function() return SVal("powerTextFormat", "perpp") end,
+        function()
+            ns.UFO_EditCustomText("powerText", SDB(), optState.selectedUnit,
+                function() SetPowerTextFormat("custom") end)
+        end)
     sharedPowerRow2, h = W:DualRow(parent, y,
-        { type="dropdown", text="Power Text", values=ppFmtValues, order=ppFmtOrder,
+        { type="dropdown", text="Power Text", values=ppTextFmtValues, order=ppTextFmtOrder,
           getValue=function() return SVal("powerTextFormat", "perpp") end,
-          setValue=function(v)
-              SSet("powerTextFormat", v)
-              -- Auto-set position to center if user picks a format while position is "none"
-              if v ~= "none" and SVal("powerPercentText", "none") == "none" then
-                  SSet("powerPercentText", "center")
-              end
-              -- If format is "none", clear position too
-              if v == "none" then SSet("powerPercentText", "none") end
-              ReloadAndUpdate(); UpdatePreview()
-              EllesmereUI:RefreshPage()
-          end },
+          setValue=SetPowerTextFormat },
         { type="slider", text="Fill Opacity", min=0, max=100, step=1,
           getValue=function() return SVal("powerBarOpacity", 100) end,
           setValue=function(v)
               SSet("powerBarOpacity", v)
               UpdatePreview()
           end });  y = y - h
+    if not EllesmereUI._prebuilding then
+        ns.UFO_AddCustomFormatAccessor(sharedPowerRow2._leftRegion, "Power Text", "powerText",
+            SVal("powerTextFormat", "perpp"), SDB, function() ReloadAndUpdate(); UpdatePreview() end)
+    end
     -- Cogwheel on Power Text for Show % toggle
     if not EllesmereUI._prebuilding then
         local fmtRgn = sharedPowerRow2._leftRegion
         EllesmereUI.BuildInlineCog(fmtRgn, {
-            disabled = function() local fmt = SVal("powerTextFormat", "perpp"); return fmt == "none" or fmt == "curpp" or fmt == "curmaxpp" end,
+            -- Custom writes its own %.
+            disabled = function() local fmt = SVal("powerTextFormat", "perpp"); return fmt == "none" or fmt == "curpp" or fmt == "curmaxpp" or fmt == "custom" end,
             disabledTooltip = "This option is only available for formats that display a percentage.",
             title = "Power Text",
             rows = {
@@ -1602,14 +1618,21 @@ function ns.UFO_BuildPowerBarSection(parent, y, ctx)
             region  = rgn,
             tooltip = "Apply Power Text Format to all Frames",
             onClick = function()
-                local v = UNIT_DB_MAP[optState.selectedUnit]().powerTextFormat or "perpp"
-                for _, key in ipairs(GROUP_UNIT_ORDER) do UNIT_DB_MAP[key]().powerTextFormat = v end
+                local src = UNIT_DB_MAP[optState.selectedUnit]()
+                local v, fmt = src.powerTextFormat or "perpp", src.powerTextCustomFormat
+                for _, key in ipairs(GROUP_UNIT_ORDER) do
+                    local d = UNIT_DB_MAP[key]()
+                    d.powerTextFormat, d.powerTextCustomFormat = v, fmt
+                end
                 ReloadAndUpdate(); EllesmereUI:RefreshPage()
             end,
             isSynced = function()
-                local v = UNIT_DB_MAP[optState.selectedUnit]().powerTextFormat or "perpp"
+                local src = UNIT_DB_MAP[optState.selectedUnit]()
+                local v, fmt = src.powerTextFormat or "perpp", src.powerTextCustomFormat or ""
                 for _, key in ipairs(GROUP_UNIT_ORDER) do
-                    if (UNIT_DB_MAP[key]().powerTextFormat or "perpp") ~= v then return false end
+                    local d = UNIT_DB_MAP[key]()
+                    if (d.powerTextFormat or "perpp") ~= v then return false end
+                    if v == "custom" and (d.powerTextCustomFormat or "") ~= fmt then return false end
                 end
                 return true
             end,
@@ -1619,8 +1642,12 @@ function ns.UFO_BuildPowerBarSection(parent, y, ctx)
                 elementLabels = SHORT_LABELS,
                 getCurrentKey = function() return optState.selectedUnit end,
                 onApply       = function(checkedKeys)
-                    local v = UNIT_DB_MAP[optState.selectedUnit]().powerTextFormat or "perpp"
-                    for _, key in ipairs(checkedKeys) do UNIT_DB_MAP[key]().powerTextFormat = v end
+                    local src = UNIT_DB_MAP[optState.selectedUnit]()
+                    local v, fmt = src.powerTextFormat or "perpp", src.powerTextCustomFormat
+                    for _, key in ipairs(checkedKeys) do
+                        local d = UNIT_DB_MAP[key]()
+                        d.powerTextFormat, d.powerTextCustomFormat = v, fmt
+                    end
                     ReloadAndUpdate(); EllesmereUI:RefreshPage()
                 end,
             },
