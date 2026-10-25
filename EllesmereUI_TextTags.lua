@@ -70,6 +70,19 @@ TextTags.UNIT = {
                 max = EllesmereUI.L("Maximum instead of current"),
                 pct = EllesmereUI.L("Percent, number only"),
             },
+            -- Short, for the suggestion list.
+            keys = {
+                ["hp"] = EllesmereUI.L("Current health"), ["hp:abr"] = EllesmereUI.L("Current, abbreviated"),
+                ["hp:max"] = EllesmereUI.L("Maximum health"), ["hp:max:abr"] = EllesmereUI.L("Maximum, abbreviated"),
+                ["hp:pct"] = EllesmereUI.L("Health percent"),
+                ["pp"] = EllesmereUI.L("Current power"), ["pp:abr"] = EllesmereUI.L("Current, abbreviated"),
+                ["pp:max"] = EllesmereUI.L("Maximum power"), ["pp:max:abr"] = EllesmereUI.L("Maximum, abbreviated"),
+                ["pp:pct"] = EllesmereUI.L("Power percent"),
+                ["absorb"] = EllesmereUI.L("Absorb shield"), ["absorb:abr"] = EllesmereUI.L("Absorb, abbreviated"),
+                ["healabsorb"] = EllesmereUI.L("Heal absorb"), ["healabsorb:abr"] = EllesmereUI.L("Heal absorb, abbreviated"),
+                ["name"] = EllesmereUI.L("Unit name"), ["target"] = EllesmereUI.L("Target's name"),
+                ["level"] = EllesmereUI.L("Unit level"), ["group"] = EllesmereUI.L("Raid group"),
+            },
         }
     end,
     examples = { "[hp:max:abr]", "[name] [hp:pct]%", "[hp:abr] | [pp]/[pp:max]" },
@@ -302,9 +315,11 @@ end
 --- Completion for the tag being typed: text up to cursor (characters before
 --- the caret) ending in "[" plus an unclosed partial tag. Returns nil, or
 --- (items, from, to): items { text = "hp:abr]", label (modifiers coloured),
---- detail = sample } in schema order, and the text[from..to] range an item
---- replaces (a "]" right after the caret included). A bare tag name lists its
---- variants, a partial name one entry per matching tag.
+--- desc, detail = sample } in schema order, and the text[from..to] range an
+--- item replaces (a "]" right after the caret included). A bare tag name lists
+--- its variants, a partial name one entry per matching tag. An item with longer
+--- variants inserts without "]" (its variants are listed next), unless it is
+--- already typed in full.
 function TextTags.Complete(cat, text, cursor)
     if type(text) ~= "string" then return nil end
     local before = ssub(text, 1, cursor)
@@ -312,14 +327,24 @@ function TextTags.Complete(cat, text, cursor)
     if not open then return nil end
     local partial = slower(ssub(before, open + 1))
     if not partial:match("^[%w:]*$") then return nil end
+    local colon = sfind(partial, ":", 1, true)
+    -- The partial with its tag alias resolved, to tell "already typed in full".
+    local typed = colon and ((cat.names[ssub(partial, 1, colon - 1)] or "") .. ssub(partial, colon))
+        or cat.names[partial] or partial
+    local descs = cat.schema.descs and cat.schema.descs().keys or {}
     local items, seen, defs = {}, {}, cat.schema.keys
     local function Add(key)
         if seen[key] then return end
         seen[key] = true
+        local open = false
+        if key ~= typed then
+            for k = 1, #cat.keys do
+                if ssub(cat.keys[k], 1, #key + 1) == key .. ":" then open = true; break end
+            end
+        end
         local label = sgsub(key, "^(%w+)(:.+)$", "%1" .. MOD .. "%2|r")
-        items[#items + 1] = { text = key .. "]", label = label, detail = defs[key].sample }
+        items[#items + 1] = { text = open and key or (key .. "]"), label = label, desc = descs[key], detail = defs[key].sample }
     end
-    local colon = sfind(partial, ":", 1, true)
     for i = 1, #cat.tags do
         local t = cat.tags[i]
         local names = { t.tag }

@@ -916,7 +916,7 @@ end
 --          infoTooltipOpts go to ShowWidgetTooltip, anchored to the popup frame.
 --          preview(text) returns a preview line (under the input, below previewLabel,
 --          in previewColor) and a hint line. complete(text, cursor) returns
---          items { text, label, detail }, from, to: a suggestion list under the input
+--          items { text, label, desc, detail }, from, to: a suggestion list under the input
 --          (Up/Down select, Tab inserts, Esc closes it). messageSize sets the message size.
 -------------------------------------------------------------------------------
 function EllesmereUI:ShowInputPopup(opts)
@@ -1279,12 +1279,13 @@ function EllesmereUI:ShowInputPopup(opts)
         end
 
         -- Suggestion list: up to ROWS entries (the window follows the
-        -- selection), each with the sample on the right, and a key legend.
+        -- selection), each with its description and the sample on the right,
+        -- and a key legend.
         local ROWS, ROW_H = 6, 16
         local dd = CreateFrame("Frame", nil, popup)
         dd:SetFrameLevel(popup:GetFrameLevel() + 20)
-        dd:SetPoint("TOPLEFT", popup._inputFrame, "BOTTOMLEFT", 0, -2)
-        dd:SetWidth(inputW)
+        dd:SetPoint("TOP", popup._inputFrame, "BOTTOM", 0, -2)
+        dd:SetWidth(popup:GetWidth() - 40)
         dd:EnableMouse(true)
         SolidTex(dd, "BACKGROUND", 0.04, 0.035, 0.03, 0.97):SetAllPoints()
         MakeBorder(dd, 1, 1, 1, 0.2)
@@ -1303,6 +1304,11 @@ function EllesmereUI:ShowInputPopup(opts)
             row._key:SetPoint("LEFT", row, "LEFT", 8, 0)
             row._detail = MakeFont(row, 11, nil, TEXT_DIM.r, TEXT_DIM.g, TEXT_DIM.b, TEXT_DIM.a)
             row._detail:SetPoint("RIGHT", row, "RIGHT", -8, 0)
+            row._desc = MakeFont(row, 11, nil, TEXT_DIM.r, TEXT_DIM.g, TEXT_DIM.b, TEXT_DIM.a)
+            row._desc:SetPoint("LEFT", row, "LEFT", 104, 0)
+            row._desc:SetPoint("RIGHT", row._detail, "LEFT", -8, 0)
+            row._desc:SetJustifyH("LEFT")
+            row._desc:SetWordWrap(false)
             row:SetScript("OnClick", function(self)
                 local sg = popup._suggest
                 if sg then sg.sel = sg.offset + self._index; popup._acceptSuggest() end
@@ -1324,6 +1330,7 @@ function EllesmereUI:ShowInputPopup(opts)
                 if i <= n and item then
                     row._index = i
                     row._key:SetText(item.label)
+                    row._desc:SetText(item.desc or "")
                     row._detail:SetText(item.detail or "")
                     local on = sg.offset + i == sg.sel
                     if on then
