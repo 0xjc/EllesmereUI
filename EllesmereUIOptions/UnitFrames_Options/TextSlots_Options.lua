@@ -48,11 +48,13 @@ function ns.UFO_BuildTextSlots(W, parent, y, opts)
     local byKey, cells, targets = {}, {}, {}
     local textValues = CopyTable(opts.values)
     -- Remove in the house BAD red with the close X at the row's right edge: 12px,
-    -- at the list delete buttons' 0.75 alpha; both brighten on hover.
+    -- at the list delete buttons' 0.75 alpha; both brighten on hover. Custom
+    -- gets the house edit pencil in white (per slot below).
     textValues.none = "Remove"
     textValues._menuOpts = {
         icon = function(key)
             if key == "none" then return "Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-close.png" end
+            if key == "custom" then return "Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-edit.png" end
         end,
         iconSize = function() return 12 end,
         iconColor = function() return 1, 0.35, 0.35, 0.75 end,
@@ -119,6 +121,12 @@ function ns.UFO_BuildTextSlots(W, parent, y, opts)
         if textValues.custom then
             local v = CopyTable(textValues)
             v.custom = { text = "Custom", action = function() EditCustom(s) end }
+            -- The pencil at full alpha while Custom is this slot's content; a
+            -- selection rebuilds the page, so the menu is read fresh.
+            v._menuOpts.iconColor = function(key)
+                if key ~= "custom" then return 1, 0.35, 0.35, 0.75 end
+                return 1, 1, 1, s.cfg.getValue() == "custom" and 1 or 0.75
+            end
             s.cfg.values = v
         else
             s.cfg.values = textValues
