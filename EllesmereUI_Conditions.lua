@@ -256,7 +256,7 @@ function EllesmereUI.Conditions_Recheck()
     end
     -- An open unlock session never survives a layout-owner change (same rule
     -- as spec changes): discard-close first, then transition.
-    if EllesmereUI._unlockModeActive and EllesmereUI.ForceCloseUnlockDiscard then
+    if EllesmereUI._unlockModeSessionActive and EllesmereUI.ForceCloseUnlockDiscard then
         EllesmereUI.ForceCloseUnlockDiscard()
     end
     local handler = EllesmereUI.SpecOverrides_CondTransition

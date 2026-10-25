@@ -1117,7 +1117,7 @@ function EllesmereUI.ApplyProfileData(profileData)
     -- An open unlock session's snapshots and pending edits belong to the
     -- OUTGOING data about to be replaced: discard-close before the wipe
     -- (mirrors SwitchProfile / spec changes / condition flips).
-    if EllesmereUI._unlockModeActive and EllesmereUI.ForceCloseUnlockDiscard then
+    if EllesmereUI._unlockModeSessionActive and EllesmereUI.ForceCloseUnlockDiscard then
         EllesmereUI.ForceCloseUnlockDiscard()
     end
 
@@ -3916,7 +3916,7 @@ function EllesmereUI.SwitchProfile(name)
     -- and condition flips): its movers, snapshots, and pending edits all belong to the
     -- OUTGOING profile's stores -- committing or harvesting them after the swap would
     -- write them into the WRONG profile's layers and snapshots. Discard-close first.
-    if EllesmereUI._unlockModeActive and EllesmereUI.ForceCloseUnlockDiscard then
+    if EllesmereUI._unlockModeSessionActive and EllesmereUI.ForceCloseUnlockDiscard then
         EllesmereUI.ForceCloseUnlockDiscard()
     end
 
