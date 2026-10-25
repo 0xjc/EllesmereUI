@@ -581,30 +581,40 @@ function ns.UFO_BuildUnitPreview(parent, unitKey, side)
         elseif content == "group" then
             return "3"
         elseif content == "custom" then
-            -- Live twin: ns.ContentToZone's custom branch. Each known tag takes
-            -- the sample of the content key that draws the same value.
+            -- Live twin: ns.ContentToZone's custom branch, the engine's parse
+            -- filled with one sample per schema key.
             local str = prefix and s and s[prefix .. "CustomFormat"]
-            if type(str) ~= "string" or str == "" or not ns.UF_ParseCustomFormat then return "" end
-            -- The engine's parsed format, filled with one sample per piece key.
-            local fmt, keys = ns.UF_ParseCustomFormat(str)
-            local vals = {}
+            local parsed = ns.UF_TextTags and EllesmereUI.TextTags.Parse(ns.UF_TextTags, str)
+            if not parsed then return "" end
+            local keys, vals = parsed.keys, {}
             local maxHP = UnitHealthMax("player") or 1
-            local pct = optState._previewHealthPct or 0.70
+            local curHP = math.floor(maxHP * (optState._previewHealthPct or 0.70))
+            local maxPP = UnitPowerMax("player") or 100
+            local ppPct = optState._previewPowerPct or 0.85
+            local curPP = math.floor(maxPP * ppPct)
             for i = 1, #keys do
                 local key, v = keys[i]
                 if key == "name" then v = _pvName()
-                elseif key == "tgtname" then v = "Target"
+                elseif key == "target" then v = "Target"
                 elseif key == "group" then v = "3"
-                elseif key == "level" or key == "curpp" or key == "absorbshort" or key == "healabsorbshort" then
-                    v = PreviewTextForContent(key, s, prefix)
-                elseif key == "maxpp" then v = ns.AbbreviateNumbers(UnitPowerMax("player") or 100)
-                elseif key == "perpp" then v = tostring(math.floor((optState._previewPowerPct or 0.85) * 100))
-                elseif key == "maxhpshort" then v = _pvAbbrev(maxHP)
-                elseif key == "perhp" then v = _pvPct(pct)
-                else v = _pvAbbrev(math.floor(maxHP * pct)) end
+                elseif key == "level" then v = PreviewTextForContent("level", s, prefix)
+                elseif key == "hp" then v = tostring(curHP)
+                elseif key == "hp:abr" then v = _pvAbbrev(curHP)
+                elseif key == "hp:max" then v = tostring(maxHP)
+                elseif key == "hp:max:abr" then v = _pvAbbrev(maxHP)
+                elseif key == "hp:pct" then v = _pvPct(optState._previewHealthPct or 0.70)
+                elseif key == "pp" then v = tostring(curPP)
+                elseif key == "pp:abr" then v = ns.AbbreviateNumbers(curPP)
+                elseif key == "pp:max" then v = tostring(maxPP)
+                elseif key == "pp:max:abr" then v = ns.AbbreviateNumbers(maxPP)
+                elseif key == "pp:pct" then v = tostring(math.floor(ppPct * 100))
+                elseif key == "absorb" then v = PreviewTextForContent("absorb", s, prefix)
+                elseif key == "absorb:abr" then v = PreviewTextForContent("absorbshort", s, prefix)
+                elseif key == "healabsorb" then v = PreviewTextForContent("healabsorb", s, prefix)
+                else v = PreviewTextForContent("healabsorbshort", s, prefix) end
                 vals[i] = v
             end
-            return string.format(fmt, unpack(vals, 1, #keys))
+            return string.format(parsed.fmt, unpack(vals, 1, #keys))
         else
             return ""
         end

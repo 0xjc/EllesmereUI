@@ -43,11 +43,11 @@ end
 if EllesmereUI.IS_FOREVER then
     local HAS_NAME = { name = true, levelname = true, namelevel = true, nametotarget = true, targetname = true }
     local FORMATS, FORMAT_ORDER = EllesmereUI.NAME_FORMAT_VALUES, EllesmereUI.NAME_FORMAT_ORDER
-    -- A custom format shows a name when its parse holds a name piece.
+    -- A custom format shows a name when its parse holds a name tag.
     function ns.UF_ContentShowsName(content, customFmt)
         if content ~= "custom" then return HAS_NAME[content] or false end
-        local has = ns.UF_CustomFormatHas
-        return has ~= nil and (has(customFmt, "name") or has(customFmt, "tgtname"))
+        local parsed = ns.UF_TextTags and EllesmereUI.TextTags.Parse(ns.UF_TextTags, customFmt)
+        return parsed ~= nil and (parsed.has.name or parsed.has.target) == true
     end
     function ns.UF_NameFormatRows(prefix, contentDefault, get, set, rows)
         local contentKey, formatKey = prefix .. "Content", prefix .. "NameFormat"

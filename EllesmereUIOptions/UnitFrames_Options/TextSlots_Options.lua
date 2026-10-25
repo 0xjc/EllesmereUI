@@ -5,26 +5,9 @@ if not ns then return end
 local MOVE_KEYS = { "X", "Y", "WidthPct", "ClassColor", "ColorR", "ColorG", "ColorB",
     "NameFormat", "TargetSep", "TargetPrefix", "TargetSepColor", "TargetSepClassColor", "CustomFormat" }
 
--- Hover text for the Custom popup, in the engine's tag order. Built on hover so
--- the active locale applies; literal L() calls keep the keys extractable.
+-- Hover text for the Custom popup: the engine catalog's tag help.
 local function CustomTagTooltip()
-    local desc = {
-        name = EllesmereUI.L("Unit name"), level = EllesmereUI.L("Unit level"),
-        target = EllesmereUI.L("Name of the unit's target"),
-        hp = EllesmereUI.L("Current health, abbreviated (DEAD / OFFLINE)"),
-        maxhp = EllesmereUI.L("Maximum health, abbreviated"), hppct = EllesmereUI.L("Health percent, number only"),
-        pp = EllesmereUI.L("Current power, abbreviated"), maxpp = EllesmereUI.L("Maximum power, abbreviated"),
-        pppct = EllesmereUI.L("Power percent, number only"), absorb = EllesmereUI.L("Absorb shield, abbreviated"),
-        healabsorb = EllesmereUI.L("Heal absorb, abbreviated"), group = EllesmereUI.L("Raid group number"),
-    }
-    local lines = { EllesmereUI.L("Available tags:"), "" }
-    local list = ns.UF_CUSTOM_TAG_LIST or {}
-    for i = 1, #list do
-        local tag = list[i][1]
-        -- A tag without a description here is listed bare.
-        lines[#lines + 1] = desc[tag] and ("[" .. tag .. "]  " .. desc[tag]) or ("[" .. tag .. "]")
-    end
-    return table.concat(lines, "\n")
+    return ns.UF_TextTags and EllesmereUI.TextTags.HelpText(ns.UF_TextTags) or ""
 end
 
 -- False for content a slot keeps to itself: "none", and "custom", whose format
@@ -37,8 +20,10 @@ end
 function ns.UF_CoreTextRows(prefix, contentDefault, get, set, rows)
     rows = ns.UF_NameFormatRows(prefix, contentDefault, get, set, rows)
     local content = get(prefix .. "Content", contentDefault)
+    local parsed = content == "custom" and ns.UF_TextTags
+        and EllesmereUI.TextTags.Parse(ns.UF_TextTags, get(prefix .. "CustomFormat"))
     local hasLevel = content == "level" or content == "levelname" or content == "namelevel"
-        or (content == "custom" and ns.UF_CustomFormatHas and ns.UF_CustomFormatHas(get(prefix .. "CustomFormat"), "level"))
+        or (parsed and parsed.has.level)
     if not hasLevel then return rows end
     rows[#rows + 1] = { type="toggle", label="Level Text: Difficulty Color",
         tooltip="Colors level text by difficulty, from grey (trivial) through green, yellow and orange to red (5+ levels above you).",
@@ -94,8 +79,8 @@ function ns.UFO_BuildTextSlots(W, parent, y, opts)
         local maxLen = math.max(120, cur and (strlenutf8 and strlenutf8(cur) or #cur) or 0)
         EllesmereUI:ShowInputPopup({
             title = EllesmereUI.L("Custom Text"),
-            message = EllesmereUI.L("Tags in brackets, the rest is shown as typed. Example: [hp] | [hppct]%"),
-            placeholder = "[name] - [hppct]%",
+            message = EllesmereUI.L("Tags in brackets, the rest is shown as typed. Example: [hp:abr] | [hp:pct]%"),
+            placeholder = "[name] - [hp:pct]%",
             initialText = (not warning and cur) or "",
             maxLetters = maxLen,
             infoTooltip = CustomTagTooltip,

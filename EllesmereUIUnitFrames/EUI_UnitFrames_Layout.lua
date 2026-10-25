@@ -175,23 +175,19 @@ local ufTextWidths = {
     absorb      = 38,  -- "12.3 K"
     level       = 24,  -- "80" / "??"
 }
--- customFmt: the slot's <prefix>CustomFormat, read for content "custom" only.
--- From the engine's parse (unknown tags are literal text there): level 24,
--- other tags 38 like a short value, each literal char 5. Names count 0 like
--- the Name content, except on the right slot (isRight), whose estimate cuts
--- the left text: there a name weighs 80 so a long target name is not overlapped.
-local CUSTOM_TAG_WIDTH = { name = 0, tgtname = 0, level = 24 }
+-- customFmt: the slot's <prefix>CustomFormat, read for content "custom" only,
+-- estimated from the schema widths. Names count 0 like the Name content, except
+-- on the right slot (isRight), whose estimate cuts the left text: there a name
+-- keeps the schema's width so a long target name is not overlapped.
+local function NoNameWidth(key)
+    if key == "name" or key == "target" then return 0 end
+end
 local function EstimateUFTextWidth(content, customFmt, isRight)
     if content == "custom" then
-        local parse = I.ParseCustomFormat
-        if type(customFmt) ~= "string" or not parse then return UF_TEXT_PADDING end
-        local def = parse(customFmt)
-        local keys, w = def[2], def[4] * 5
-        for i = 1, #keys do
-            local k = keys[i]
-            w = w + ((isRight and (k == "name" or k == "tgtname")) and 80 or CUSTOM_TAG_WIDTH[k] or 38)
-        end
-        return w + UF_TEXT_PADDING
+        local TT, cat = EllesmereUI.TextTags, ns.UF_TextTags
+        local parsed = cat and TT.Parse(cat, customFmt)
+        if not parsed then return UF_TEXT_PADDING end
+        return TT.EstimateWidth(cat, parsed, not isRight and NoNameWidth or nil) + UF_TEXT_PADDING
     end
     return (ufTextWidths[content] or 0) + UF_TEXT_PADDING
 end
