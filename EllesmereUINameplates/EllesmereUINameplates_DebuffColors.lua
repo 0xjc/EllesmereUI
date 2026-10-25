@@ -51,7 +51,7 @@ end
 -- player's own class.
 -------------------------------------------------------------------------------
 local DC = {
-    MAX_SINGLES = 10, MAX_COMBOS = 5, MAX_COMBO_SPELLS = 4,
+    MAX_SINGLES = 10, MAX_MISSING = 5, MAX_COMBOS = 5, MAX_COMBO_SPELLS = 4,
     SINGLE_COLOR = { r = 1.00, g = 0.43, b = 0.04 },
     COMBO_COLOR = { r = 0.10, g = 0.88, b = 0.32 },
 }
@@ -202,16 +202,16 @@ local function ReadConfig()
     -- debuffs from the end of the list up, then the combos the same way, so a
     -- combo always wins over a single debuff. Missing debuffs draw over both, on
     -- OVERLAY -4 down to -8 by list order (under the bar's shade, hash line,
-    -- border and target/focus/hover stripes). A spell listed again lower down in
-    -- the same state can never show beneath itself, so only its highest entry
-    -- gets a slot.
+    -- border and target/focus/hover stripes): one sublevel each, so at most
+    -- MAX_MISSING. A spell listed again lower down in the same state can never
+    -- show beneath itself, so only its highest entry gets a slot.
     local ranked, seen, missing = {}, {}, 0
     for _, e in ipairs(singles) do
         local key = (e.missing and "!" or "") .. e.spell
-        if e.spell > 0 and not seen[key] then
+        if e.spell > 0 and not seen[key] and not (e.missing and missing == DC.MAX_MISSING) then
             seen[key] = true
             ranked[#ranked + 1] = e
-            if e.missing then missing = missing + 1; e.sublevel = math.max(-8, -3 - missing) end
+            if e.missing then missing = missing + 1; e.sublevel = -3 - missing end
         end
     end
     for i = #ranked, 1, -1 do
@@ -284,22 +284,30 @@ end
 -------------------------------------------------------------------------------
 local SENSOR_KEY = "EUI_DEBUFF_MISSING"
 local REACH = 96   -- past each bar edge, for border art
--- The mask's size and the sensor's width while up (past the widest bar, the
--- Health Bar Width slider's max of 250, plus twice REACH). An 8px texture stretched this far fades over its outer 32px,
--- so border art up to 64px past the bar draws at full strength.
+-- The mask's size and the sensor's width while up: past the widest bar (the
+-- Health Bar Width slider's max, 250) plus twice REACH. An 8px texture
+-- stretched this far fades over its outer 32px, so border art up to 64px past
+-- the bar draws at full strength.
 local SPAN = 512
 local kits = {}    -- plate -> { gate, hider, sensors, used, unit, open }
+local engagers     -- you, your group and the pets out; nil after a roster or pet change
 
--- Whether you, your pet or anyone in your group is on the mob's threat list (a
--- mob fighting only strangers is not). Only the type tag is read: the value
--- can be secret.
+-- Whether an engager is on the mob's threat list (a mob fighting only
+-- strangers is not). Only the type tag is read: the value can be secret.
 local function Engaged(unit)
-    if type(UnitThreatSituation("player", unit)) ~= "nil" or type(UnitThreatSituation("pet", unit)) ~= "nil" then
-        return true
+    if not engagers then
+        engagers = { "player", UnitExists("pet") and "pet" or nil }
+        local prefix = IsInRaid() and "raid" or "party"
+        for i = 1, GetNumGroupMembers() - (prefix == "raid" and 0 or 1) do
+            local who, pet = prefix .. i, prefix .. "pet" .. i
+            if not UnitIsUnit(who, "player") then
+                engagers[#engagers + 1] = who
+                if UnitExists(pet) then engagers[#engagers + 1] = pet end
+            end
+        end
     end
-    local raid = IsInRaid()
-    for i = 1, GetNumGroupMembers() - (raid and 0 or 1) do
-        if type(UnitThreatSituation((raid and "raid" or "party") .. i, unit)) ~= "nil" then return true end
+    for _, who in ipairs(engagers) do
+        if type(UnitThreatSituation(who, unit)) ~= "nil" then return true end
     end
     return false
 end
@@ -650,10 +658,21 @@ local function EnsureWorker()
     worker:Hide()
     -- PLAYER_REGEN_ENABLED, held only while a combat-deferred refresh waits;
     -- DISPLAY_SIZE_CHANGED, held only while border strips are built (they are
-    -- sized in physical pixels, so a resolution change redraws them).
-    worker:SetScript("OnEvent", function(self, event)
+    -- sized in physical pixels, so a resolution change redraws them);
+    -- GROUP_ROSTER_UPDATE and UNIT_PET (yours or your group's), held only while
+    -- a Missing row exists (who counts as engaged).
+    worker:SetScript("OnEvent", function(self, event, unit)
         if event == "DISPLAY_SIZE_CHANGED" then
             ns.DebuffColors_RequestRefresh()
+            return
+        elseif event == "UNIT_PET" and unit ~= "player"
+            and not (unit or ""):find("^party%d") and not (unit or ""):find("^raid%d") then
+            return
+        elseif event == "GROUP_ROSTER_UPDATE" or event == "UNIT_PET" then
+            engagers = nil
+            for _, kit in pairs(kits) do
+                if kit.unit then SyncGate(kit) end
+            end
             return
         end
         self:UnregisterEvent("PLAYER_REGEN_ENABLED")
@@ -704,6 +723,14 @@ function ns.DebuffColors_Refresh()
     local border = config and config.any and config.border
     EllesmereUI.RegisterPxReapply(DC, (border and border.kind == "slices")
         and ns.DebuffColors_RequestRefresh or nil)
+    engagers = nil
+    for _, event in ipairs({ "GROUP_ROSTER_UPDATE", "UNIT_PET" }) do
+        if config and config.any and config.anyMissing then
+            EnsureWorker():RegisterEvent(event)
+        elseif worker then
+            worker:UnregisterEvent(event)
+        end
+    end
     if border and border.kind == "strips" then
         EnsureWorker():RegisterEvent("DISPLAY_SIZE_CHANGED")
     elseif worker then

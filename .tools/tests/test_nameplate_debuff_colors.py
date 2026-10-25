@@ -160,6 +160,9 @@ function UnitThreatSituation(who, unit) return mobThreat[unit] and mobThreat[uni
 groupRaid, groupSize = false, 0
 function IsInRaid() return groupRaid end
 function GetNumGroupMembers() return groupSize end
+unitsOut = {}
+function UnitExists(unit) return unitsOut[unit] == true end
+function UnitIsUnit(a, b) return a == b end
 function UnitCanAssist(_, unit) return mobFriend[unit] == true end
 function EllesmereUI.LayoutSecretBorderEdges(edges, owner, edge, aL, aT, aR, aB)
     for key, tx in pairs(edges) do
@@ -429,9 +432,9 @@ function Watching(event)
     end
     return n
 end
-function FireEvent(event)
+function FireEvent(event, ...)
     for _, frame in ipairs(frames) do
-        if states[frame].events[event] then states[frame].scripts.OnEvent(frame, event) end
+        if states[frame].events[event] then states[frame].scripts.OnEvent(frame, event, ...) end
     end
 end
 -- Where the plate's own custom border draws, as the nameplate module places
@@ -1004,17 +1007,27 @@ Auras("nameplate7", {})
 mobThreat.nameplate7 = nil
 FireEvent("UNIT_THREAT_LIST_UPDATE")
 AssertColor(q, nil, nil, nil, "a mob out of combat kept the missing color")
--- Your pet or anyone in your group counts; a party token past the group is never read.
-for _, case in ipairs({ { false, 0, "pet" }, { false, 3, "party2" }, { true, 10, "raid10" } }) do
+-- Your pet, your group and their pets count; a roster or pet change re-checks
+-- every plate; a party token past the group is never read.
+unitsOut = { pet = true, partypet1 = true }
+for _, case in ipairs({ { false, 0, "pet" }, { false, 3, "party2" }, { false, 3, "partypet1" }, { true, 10, "raid10" } }) do
     groupRaid, groupSize = case[1], case[2]
     mobThreat.nameplate7 = { [case[3]] = 1 }
-    FireEvent("UNIT_THREAT_LIST_UPDATE")
+    FireEvent("GROUP_ROSTER_UPDATE")
     AssertColor(q, .8, .2, .1, "a mob fighting " .. case[3] .. " was not colored")
 end
 groupRaid, groupSize, mobThreat.nameplate7 = false, 3, { party3 = 1 }
-FireEvent("UNIT_THREAT_LIST_UPDATE")
+FireEvent("GROUP_ROSTER_UPDATE")
 AssertColor(q, nil, nil, nil, "a party token past the group counted")
-groupSize, mobThreat.nameplate7 = 0, { player = 0 }
+groupSize, mobThreat.nameplate7 = 0, { pet = 1 }
+FireEvent("GROUP_ROSTER_UPDATE")
+AssertColor(q, .8, .2, .1, "a mob fighting your pet was not colored")
+unitsOut = {}
+FireEvent("UNIT_PET", "arena1")
+AssertColor(q, .8, .2, .1, "a stranger's pet change re-checked the plates")
+FireEvent("UNIT_PET", "player")
+AssertColor(q, nil, nil, nil, "a dismissed pet still counted")
+mobThreat.nameplate7 = { player = 0 }
 FireEvent("UNIT_THREAT_LIST_UPDATE")
 
 -- Over a combo and a higher applied debuff; list order among missing debuffs;
@@ -1072,9 +1085,21 @@ AssertColor(q, .8, .2, .1, "a reused plate did not watch its new mob")
 Auras("nameplate8", {{ id=164815, mine=true }})
 AssertColor(q, nil)
 
+-- One sublevel per missing debuff: past MAX_MISSING, lower ones get no sensor.
+profile.debuffColorsDRUID = "!1:" .. MRED .. ";!2:" .. MRED .. ";!3:" .. MRED .. ";!4:" .. MRED
+    .. ";!5:" .. MRED .. ";!6:" .. MRED .. "/"
+ns.DebuffColors_Refresh()
+local live = 0
+for _, s in ipairs(SensorsOf(q)) do
+    if s.groups.EUI_DEBUFF_MISSING.max == 1 then live = live + 1 end
+end
+assert(live == 5, "a sixth missing debuff got a sensor (" .. live .. ")")
+assert(Watching("GROUP_ROSTER_UPDATE") == 1 and Watching("UNIT_PET") == 1, "roster and pet changes are not watched once")
+
 profile.debuffColorsDRUID = "164815:" .. MORANGE .. "/"
 ns.DebuffColors_Refresh()
-assert(Watching("UNIT_FLAGS") == 0 and Watching("UNIT_THREAT_LIST_UPDATE") == 0 and Watching("UNIT_COMBAT") == 0,
+assert(Watching("UNIT_FLAGS") == 0 and Watching("UNIT_THREAT_LIST_UPDATE") == 0 and Watching("UNIT_COMBAT") == 0
+    and Watching("GROUP_ROSTER_UPDATE") == 0 and Watching("UNIT_PET") == 0,
     "a list without missing debuffs kept the combat gates")
 
 -- Color Border: a missing copy ranks one level over every other copy per
@@ -1535,6 +1560,26 @@ assert(not st1.disabled("applied") and not st2.disabled("missing"), "a row's own
 u1.cfg.setValue("1079")
 st2.set("applied")
 assert(profile.debuffColorsDRUID == "1079:0.2,0.3,0.4;155722:1,0.43,0.04/" and not st2.disabled("missing"))
+local saved = profile.debuffColorsDRUID
+profile.debuffColorsDRUID = "1079:0.2,0.3,0.4;155722:1,0.43,0.04;!1:1,1,1;!2:1,1,1;!3:1,1,1;!4:1,1,1;!5:1,1,1/"
+assert(st1.disabled("missing") == "Up to 5 debuffs can be Missing.", "a sixth row could pick Missing")
+-- Only chosen debuffs count; a Missing row over the cap greys its spells with the reason.
+profile.debuffColorsDRUID = "1079:0.2,0.3,0.4;155722:1,0.43,0.04;!1:1,1,1;!2:1,1,1;!3:1,1,1;!4:1,1,1;!0:1,1,1/"
+assert(not st1.disabled("missing"), "an unchosen Missing row counted toward the cap")
+profile.debuffColorsDRUID = "!0:0.2,0.3,0.4;155722:1,0.43,0.04;!1:1,1,1;!2:1,1,1;!3:1,1,1;!4:1,1,1;!5:1,1,1/"
+assert(u1.cfg.disabledValues("164812") == "Up to 5 debuffs can be Missing.", "a sixth Missing row could pick a spell")
+assert(not u1.cfg.disabledValues("remove"), "the cap greyed an action")
+local before = #uiErrors
+u1.cfg.values.custom.action()
+uiPopup.onConfirm("33333")
+assert(#uiErrors == before + 1 and uiErrors[#uiErrors] == "Up to 5 debuffs can be Missing."
+    and profile.debuffColorsDRUID:sub(1, 3) == "!0:", "Custom Spell... gave a sixth Missing row a spell")
+uiErrors[#uiErrors] = nil
+-- A list saved past the cap: the rows the plates keep stay editable.
+profile.debuffColorsDRUID = "!1079:0.2,0.3,0.4;!155722:1,0.43,0.04;!1:1,1,1;!2:1,1,1;!3:1,1,1;!4:1,1,1/"
+assert(not u1.cfg.disabledValues("164812") and not u2.cfg.disabledValues("164812"),
+    "a Missing row the plates keep was greyed")
+profile.debuffColorsDRUID = saved
 
 -- Custom spells: Custom Spell... only adds (an empty popup, its own label
 -- never changes); each added spell joins every menu of its class, a second
