@@ -198,16 +198,23 @@ end
 -- One pass over the minimap trackers, for those that are no auras there:
 -- whether Find Treasure is up (it stacks with any other tracking) and whether
 -- another spell tracking is (a class one: the gathering ones are already ruled
--- out by their aura when this runs, and those share one slot with it).
+-- out by their aura when this runs, and those share one slot with it). The
+-- answer is kept until the tracking can have changed (EABR._fvTrackDirty):
+-- MINIMAP_UPDATE_TRACKING, a learned spell, a loading screen, and every new
+-- registration of that event, since nothing is heard while it is off.
 function EABR.FvTrackingState()
-    local treasure, class = false, false
-    for i = 1, C_Minimap.GetNumTrackingTypes() do
-        local info = C_Minimap.GetTrackingInfo(i)
-        if info and info.active and info.type == "spell" then
-            if info.spellID == EABR.FIND_TREASURE then treasure = true else class = true end
+    if EABR._fvTrackDirty ~= false then
+        EABR._fvTrackDirty = false
+        local treasure, class = false, false
+        for i = 1, C_Minimap.GetNumTrackingTypes() do
+            local info = C_Minimap.GetTrackingInfo(i)
+            if info and info.active and info.type == "spell" then
+                if info.spellID == EABR.FIND_TREASURE then treasure = true else class = true end
+            end
         end
+        EABR._fvTreasureUp, EABR._fvClassUp = treasure, class
     end
-    return treasure, class
+    return EABR._fvTreasureUp, EABR._fvClassUp
 end
 
 -- A cast-on-click reminder for a WoW Forever tracking spell (gathering, Find
@@ -223,25 +230,33 @@ end
 -- WoW Forever collector: the Camp Benefits campfire buff, Well Fed (any food
 -- buff: the shared Well Fed name, or one of EABR.FOOD_BUFFS), the gathering
 -- and Find Treasure trackers, the user's spell groups
--- (EABR.CollectForeverGroups) and custom spell IDs, absence only (no
--- expiry thresholds). A custom ID counts as
--- up while any spell of its rank family is (EABR.ForeverFamily). Entries are
--- display-only textures carrying the spell for the tooltip; presence goes
--- through PlayerHasAuraByID, so combat falls back to the pre-pull snapshot
--- exactly like the Auras section. Camp Benefits and Well Fed are skipped under
--- the aura lock and in PvP. The one-slot id table, the cached families and the
--- dismiss-key memo keep the pass allocation-free.
+-- (EABR.CollectForeverGroups) and custom spell IDs, absence only (no expiry
+-- thresholds). A custom ID counts as up while any spell of its rank family is
+-- (EABR.ForeverFamily). Entries are display-only textures carrying the spell
+-- for the tooltip, except the two trackers, whose click casts the spell;
+-- presence goes through PlayerHasAuraByID, so combat falls back to the
+-- pre-pull snapshot exactly like the Auras section. Camp Benefits, Well Fed and
+-- the trackers are skipped in combat and in PvP. The one-slot id table, the
+-- cached families, the kept minimap answer and the dismiss-key memo keep the
+-- pass allocation-free.
 function EABR.CollectForever(missing, inInstance, inPvP, restricted)
     local fo = db.profile.forever
-    if not fo then return end
-    EABR.FvSyncTrackingEvent((fo.gather == true and fo.gatherClassTrack ~= false) or fo.treasure == true)
-    if not EABR.SectionShows(fo.whereToShow, inInstance) then return end
+    local shows = fo and EABR.SectionShows(fo.whereToShow, inInstance)
+    -- Class trackers and Find Treasure are read from the minimap, whose event
+    -- is listened to only while a reminder that reads it can show.
+    EABR.FvSyncTrackingEvent(shows and not inPvP
+        and ((fo.gather == true and fo.gatherClassTrack ~= false) or fo.treasure == true) or false)
+    if not shows then return end
     local open = not inPvP and not restricted
+    -- Out of combat under the aura lock a secret aura reads absent, so an aura
+    -- reminder shows only while none of its spells is secret (combat reads the
+    -- pre-pull snapshot instead).
+    local auraLock = not restricted and EllesmereUI.AuraKit.AurasRestricted()
     local ids = EABR._foreverIDs
     if not ids then ids = {}; EABR._foreverIDs = ids end
     if fo.camp ~= false and open then
         ids[1] = EABR.CAMP_BENEFITS
-        if not PlayerHasAuraByID(ids) then
+        if not PlayerHasAuraByID(ids) and not (auraLock and not EABR.FvRanksReadable(ids)) then
             local e = AcquireEntry()
             e.mode = "texture"; e.spellID = EABR.CAMP_BENEFITS
             e.texture = Tex(EABR.CAMP_BENEFITS)
@@ -255,8 +270,10 @@ function EABR.CollectForever(missing, inInstance, inPvP, restricted)
     -- the common case (a tracker up) skips the rest; class trackers are no
     -- auras there, so the minimap is asked only once a tracker is known.
     local scanned, treasureUp, classUp
-    if fo.gather and open and not PlayerHasAuraByID(EABR.GATHER_TRACKING) then
-        local list, id = EABR.GATHER_TRACKING, nil
+    local list = EABR.GATHER_TRACKING
+    if fo.gather and open and not PlayerHasAuraByID(list)
+       and not (auraLock and not EABR.FvRanksReadable(list)) then
+        local id
         for i = 1, #list do
             if Known(list[i]) then id = list[i] break end
         end
@@ -295,10 +312,6 @@ function EABR.CollectForever(missing, inInstance, inPvP, restricted)
     if not custom then return end
     local keys = EABR._foreverKeys
     if not keys then keys = {}; EABR._foreverKeys = keys end
-    -- Out of combat under the aura lock a secret aura reads absent, so a custom
-    -- spell shows only while none of its ranks is secret (combat reads the
-    -- pre-pull snapshot instead).
-    local auraLock = not restricted and EllesmereUI.AuraKit and EllesmereUI.AuraKit.AurasRestricted()
     for i = 1, #custom do
         local id = custom[i]
         local fam = EABR.ForeverFamily(id)
@@ -518,6 +531,13 @@ function EABR.CollectForeverRaidBuffs(missing, playerClass, inInstance)
     EABR.FvSyncGroupWatch(watch, roster)
 end
 
+-- WoW Forever: what a pass that shows nothing stands down (the Raid Buffs group
+-- watch and the minimap tracking event); the next pass that can show re-arms both.
+function EABR.FvStandDown()
+    EABR.FvSyncGroupWatch(nil, false)
+    EABR.FvSyncTrackingEvent(false)
+end
+
 local function Refresh()
     SetCachedOutline(nil)
     EABR._nextDurationRefreshTime = nil
@@ -526,11 +546,12 @@ local function Refresh()
     -- TRAIT_CONFIG_UPDATED, ...) can fire DURING loading before OnEnable runs; a reminder created then via GetOrCreateIcon gets a nil parent and renders oversized forever (scale 1.0, not UIParent scale -- pooled buttons are never re-parented). Wait for the anchor; OnEnable fires its own refresh.
     if not iconAnchor then return end
     -- WoW Forever: the returns below show nothing, so the Raid Buffs group
-    -- watch stands down with them; the event that ends each state (panel
-    -- close, vehicle exit, alive, rest ended) refreshes and re-arms it.
+    -- watch and the tracking event stand down with them (EABR.FvStandDown);
+    -- the event that ends each state (panel close, vehicle exit, alive, rest
+    -- ended) refreshes and re-arms them.
     if euiPanelOpen then
         HideCombatIcons(); HideAllIcons()
-        if EABR.FOREVER then EABR.FvSyncGroupWatch(nil, false) end
+        if EABR.FOREVER then EABR.FvStandDown() end
         return
     end
 
@@ -542,7 +563,7 @@ local function Refresh()
         else
             HideAllIcons()
         end
-        if EABR.FOREVER then EABR.FvSyncGroupWatch(nil, false) end
+        if EABR.FOREVER then EABR.FvStandDown() end
         return
     end
 
@@ -550,13 +571,13 @@ local function Refresh()
     -- always stay hidden, independent of every "Where to Show" setting.
     if UnitIsDeadOrGhost("player") then
         HideCombatIcons(); HideCursorIcons(); HideAllIcons()
-        if EABR.FOREVER then EABR.FvSyncGroupWatch(nil, false) end
+        if EABR.FOREVER then EABR.FvStandDown() end
         return
     end
     if IsResting() then
         HideCombatIcons(); HideCursorIcons()
         if InCombat() then FadeOutSecureIcons() else HideAllIcons() end
-        if EABR.FOREVER then EABR.FvSyncGroupWatch(nil, false) end
+        if EABR.FOREVER then EABR.FvStandDown() end
         return
     end
 
@@ -586,13 +607,13 @@ local function Refresh()
     local restricted = inCombat or inKeystone
 
     -- WoW Forever: its Raid Buffs and the one Forever section stand in for the
-    -- four collectors below (reminders off: the Raid Buffs group watch stands down).
+    -- four collectors below (reminders off: their watch and event stand down).
     if EABR.FOREVER then
         if remindersOn then
             EABR.CollectForeverRaidBuffs(missing, playerClass, inInstance)
             EABR.CollectForever(missing, inInstance, inPvP, restricted)
         else
-            EABR.FvSyncGroupWatch(nil, false)
+            EABR.FvStandDown()
         end
     end
 

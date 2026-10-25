@@ -32,7 +32,12 @@ EABR.WELL_FED = 19705
 EABR.FOOD_BUFFS = { 18192, 18194, 22730, 25661, 18125, 18141 }
 
 local _B = {}  -- beacon state table, populated later
-local Known = function(id) return id and (IsPlayerSpell(id) or IsSpellKnown(id)) end
+-- The two spellbook checks Blizzard's IsPlayerSpell / IsSpellKnown wrap, called
+-- directly: those globals exist only while the loadDeprecationFallbacks CVar is on.
+local Known = function(id)
+    return id and (C_SpellBook.IsSpellKnown(id)
+        or C_SpellBook.IsSpellInSpellBook(id, Enum.SpellBookSpellBank.Player, false))
+end
 local _eabrInCombat = false
 local InCombat = function() return _eabrInCombat or (InCombatLockdown and InCombatLockdown()) end
 -- Whether important buffs ride the cursor right now: Attach Important Buffs to

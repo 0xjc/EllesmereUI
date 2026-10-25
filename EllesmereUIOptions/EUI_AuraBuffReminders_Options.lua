@@ -1711,8 +1711,7 @@ initFrame:SetScript("OnEvent", function(self)
             local gatherRow
             gatherRow, h = W:DualRow(parent, y,
                 { type="toggle", text="Gathering Tracking",
-                  tooltip="Reminds you when Find Herbs or Find Minerals is known but neither is active. Click the reminder to cast it.",
-                  -- Off by default.
+                  tooltip="Reminds you when no gathering tracking is on.",
                   getValue=function() local f = FDB(); return f and f.gather == true end,
                   setValue=function(v)
                       local f = FDB(); if not f then return end; f.gather = v
@@ -1720,8 +1719,7 @@ initFrame:SetScript("OnEvent", function(self)
                       EllesmereUI:RefreshPage()
                   end },
                 { type="toggle", text=_G._EABR_SpellName(2481, "Find Treasure"),
-                  tooltip="Dwarf racial: reminds you when Find Treasure is known but not active. Click the reminder to cast it.",
-                  -- Off by default.
+                  tooltip="Reminds Dwarves when Find Treasure is off.",
                   getValue=function() local f = FDB(); return f and f.treasure == true end,
                   setValue=function(v)
                       local f = FDB(); if not f then return end; f.treasure = v
@@ -1736,7 +1734,6 @@ initFrame:SetScript("OnEvent", function(self)
                     disabledTooltip = "Gathering Tracking",
                     rows = {
                         { type="toggle", label="Ignore If Class Tracking Is Active",
-                          tooltip="Gathering and class tracking cannot be active together: when on, an active class tracking (Track Beasts, Sense Undead, Sense Demons...) also hides the reminder.",
                           get=function() local f = FDB(); return not f or f.gatherClassTrack ~= false end,
                           set=function(v) local f = FDB(); if f then f.gatherClassTrack = v; RefreshAll() end end },
                     },
