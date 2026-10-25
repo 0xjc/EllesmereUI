@@ -2088,6 +2088,7 @@ local _bankListGripCfg = setmetatable({
     end,
 }, { __index = _bankGripCfg })
 
+local BuildBankSidebar  -- defined further down
 function EUI_Bank:RefreshBank()
     if not EUI_Bank:IsVisible() then return end
     NotifyBankTypeForTSM()
