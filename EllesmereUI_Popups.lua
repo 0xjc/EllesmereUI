@@ -1279,8 +1279,9 @@ function EllesmereUI:ShowInputPopup(opts)
         end
 
         -- Suggestion list: up to ROWS entries (the window follows the
-        -- selection), each with its description and the sample on the right,
-        -- and a key legend.
+        -- selection or the mouse wheel), each with its description and the
+        -- sample on the right, a scrollbar when more entries exist, and a key
+        -- legend.
         local ROWS, ROW_H = 6, 16
         local dd = CreateFrame("Frame", nil, popup)
         dd:SetFrameLevel(popup:GetFrameLevel() + 20)
@@ -1315,6 +1316,16 @@ function EllesmereUI:ShowInputPopup(opts)
             end)
             rows[i] = row
         end
+        -- Scrollbar in the house look (AttachSmoothScrollbar's alphas), sized
+        -- to the row window, on its own frame so it draws above the rows.
+        local bar = CreateFrame("Frame", nil, dd)
+        bar:SetFrameLevel(dd:GetFrameLevel() + 5)
+        bar:SetPoint("TOPRIGHT", dd, "TOPRIGHT", -2, -2)
+        PanelPP.Size(bar, 3, ROWS * ROW_H - 2)
+        local track = SolidTex(bar, "ARTWORK", 1, 1, 1, 0.02)
+        track:SetAllPoints()
+        local thumb = SolidTex(bar, "OVERLAY", 1, 1, 1, 0.27)
+        PanelPP.Width(thumb, 3)
         local legend = MakeFont(dd, 10, nil, TEXT_DIM.r, TEXT_DIM.g, TEXT_DIM.b, TEXT_DIM.a)
         legend:SetText(EllesmereUI.L("Up/Down: select   Tab: insert   Esc: close"))
         local legendDiv = SolidTex(dd, "ARTWORK", 1, 1, 1, 0.1)
@@ -1344,6 +1355,18 @@ function EllesmereUI:ShowInputPopup(opts)
                     row:Hide()
                 end
             end
+            local total = #sg.items
+            local more = total > ROWS
+            track:SetShown(more)
+            thumb:SetShown(more)
+            if more then
+                local trackH = ROWS * ROW_H - 2
+                local thumbH = math.max(12, trackH * ROWS / total)
+                thumb:SetHeight(thumbH)
+                thumb:ClearAllPoints()
+                thumb:SetPoint("TOPRIGHT", track, "TOPRIGHT", 0,
+                    -math.floor((trackH - thumbH) * sg.offset / (total - ROWS) + 0.5))
+            end
             legendDiv:ClearAllPoints()
             legendDiv:SetPoint("TOPLEFT", dd, "TOPLEFT", 1, -1 - n * ROW_H)
             legendDiv:SetPoint("TOPRIGHT", dd, "TOPRIGHT", -1, -1 - n * ROW_H)
@@ -1360,6 +1383,15 @@ function EllesmereUI:ShowInputPopup(opts)
         end)
         dd:SetScript("OnShow", function() clickOff:RegisterEvent("GLOBAL_MOUSE_DOWN") end)
         dd:SetScript("OnHide", function() clickOff:UnregisterEvent("GLOBAL_MOUSE_DOWN") end)
+        -- The wheel moves the window only; the selection stays and the arrow
+        -- keys bring it back into view.
+        dd:EnableMouseWheel(true)
+        dd:SetScript("OnMouseWheel", function(_, delta)
+            local sg = popup._suggest
+            if not sg then return end
+            local off = math.max(0, math.min(#sg.items - ROWS, sg.offset - delta))
+            if off ~= sg.offset then sg.offset = off; Render() end
+        end)
 
         popup._closeSuggest = function()
             popup._suggest = nil
@@ -1402,7 +1434,7 @@ function EllesmereUI:ShowInputPopup(opts)
             popup._previewLabelFS:SetText(opts.previewLabel or "")
             local c = opts.previewColor
             popup._previewValue:SetTextColor(c and c.r or 1, c and c.g or 1, c and c.b or 1, 1)
-            belowH = 56
+            belowH = 32
         end
     end
     local initText = opts.initialText or ""
