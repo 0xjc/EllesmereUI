@@ -2420,6 +2420,41 @@ local FULL_EXPORT_EXCLUDED = {
     raidHoroscope         = true,
 }
 
+-- Root stores keyed by profile name (or character) describe the recipient's
+-- own profiles. A full import keeps them and takes from the string only the
+-- carried profile's entry: fn(own, fromString, carriedName) -> new value.
+local function KeepOwn(own) return own end
+local FULL_IMPORT_MERGE = {
+    syncedModules  = KeepOwn,
+    lastSpecByChar = KeepOwn,
+    lastNonSpecProfile = function(own, str, name)
+        if own == nil and str == name then return str end
+        return own
+    end,
+    profileKeybinds = function(own, str, name)
+        if type(own) ~= "table" then own = {} end
+        local key = type(str) == "table" and str[name]
+        if key then
+            for n, k in pairs(own) do
+                if k == key and n ~= name then return own end
+            end
+            own[name] = key
+        end
+        return own
+    end,
+    spellAssignments = function(own, str, name)
+        if type(str) ~= "table" then return own end
+        if type(own) ~= "table" then own = {} end
+        local profiles = type(own.profiles) == "table" and own.profiles or {}
+        for k, v in pairs(str) do
+            if k ~= "profiles" then own[k] = v end
+        end
+        profiles[name] = type(str.profiles) == "table" and str.profiles[name] or nil
+        own.profiles = profiles
+        return own
+    end,
+}
+
 --- Builds a full-account export string, or nil.
 function EllesmereUI.ExportFullAccountData()
     if not EllesmereUIDB then return nil end
@@ -2488,6 +2523,10 @@ function EllesmereUI.ImportFullAccountData(payload)
     if not EllesmereUI.IsFullAccountPayload(payload) then return false end
     local data = payload.data
     if type(data) ~= "table" or not EllesmereUIDB then return false end
+    -- Close any edit session or Default view and bank live edits while the stores
+    -- are still the recipient's: a later exit would bank live into the import.
+    if EllesmereUI.SpecOverrides_CloseEditSessions then EllesmereUI.SpecOverrides_CloseEditSessions() end
+    if EllesmereUI.SpecOverrides_HarvestCurrent then EllesmereUI.SpecOverrides_HarvestCurrent() end
     -- The reload is asked for first in the click (RequestReload); the client
     -- reloads only once this function has finished, so everything below lands.
     EllesmereUI.RequestReload(EllesmereUI.L("Profile Imported"), EllesmereUI.ImportReloadMessage(payload))
@@ -2514,12 +2553,19 @@ function EllesmereUI.ImportFullAccountData(payload)
     local fvSnapKey = EllesmereUI._FvSnapFlag
     local fvSnap = fvSnapKey and type(EllesmereUIDB._migrations) == "table"
         and EllesmereUIDB._migrations[fvSnapKey]
+    local own = {}
+    for k in pairs(FULL_IMPORT_MERGE) do own[k] = EllesmereUIDB[k] end
     for k, v in pairs(data) do
         if k ~= "profiles" and k ~= "profileOrder" and k ~= "activeProfile"
            and not FULL_EXPORT_EXCLUDED[k]
            and not (otherClient and (k == "spellAssignments" or k == "_tbbLinkOwner")) then
             EllesmereUIDB[k] = DeepCopy(v)
         end
+    end
+    for k, merge in pairs(FULL_IMPORT_MERGE) do
+        local str = EllesmereUIDB[k]
+        if str == own[k] then str = nil end  -- not carried, or refused above
+        EllesmereUIDB[k] = merge(own[k], str, activeName)
     end
     if fvSweep then
         if type(EllesmereUIDB._migrations) ~= "table" then EllesmereUIDB._migrations = {} end
