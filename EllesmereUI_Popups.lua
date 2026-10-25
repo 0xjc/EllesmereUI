@@ -914,8 +914,8 @@ end
 --          a link: initialText + selectText (starts selected) + hideCancel (one button).
 --          infoTooltip (string or function) adds a hover info badge left of the input;
 --          infoTooltipOpts go to ShowWidgetTooltip, anchored to the popup frame.
---          preview(text) returns a preview line (above the input, after previewLabel,
---          in previewColor) and a hint line (below it). complete(text, cursor) returns
+--          preview(text) returns a preview line (under the input, below previewLabel,
+--          in previewColor) and a hint line. complete(text, cursor) returns
 --          items { text, label }, from, to: suggestions under the input, Tab takes
 --          the first. messageSize sets the message font size.
 -------------------------------------------------------------------------------
@@ -1249,30 +1249,31 @@ function EllesmereUI:ShowInputPopup(opts)
         end
     end
     popup._msg:SetFont(EllesmereUI.EXPRESSWAY, opts.messageSize or 12, "")
-    -- Optional preview row above the input (opts.preview) and suggestion and
-    -- hint lines below it (opts.complete, opts.preview): one line each at a
-    -- fixed height, so typing never re-lays out the popup.
-    local aboveH, belowH = 0, 0
+    -- Optional suggestion line (opts.complete) and preview block (opts.preview)
+    -- under the input, centred: one line each at a fixed height, so typing
+    -- never re-lays out the popup.
+    local belowH = 0
     popup._preview, popup._complete, popup._suggest = opts.preview, opts.complete, nil
     if (opts.preview or opts.complete) and not popup._previewValue then
         local inputW = popup._inputFrame:GetWidth()
-        local div = SolidTex(popup, "ARTWORK", 1, 1, 1, 0.1)
-        PanelPP.Size(div, inputW, 1)
-        PanelPP.Point(div, "TOP", popup._msg, "BOTTOM", 0, -10)
-        local label = MakeFont(popup, 10, nil, TEXT_DIM.r, TEXT_DIM.g, TEXT_DIM.b, TEXT_DIM.a)
-        label:SetPoint("TOPLEFT", div, "BOTTOMLEFT", 0, -9)
-        local value = MakeFont(popup, 12, nil, 1, 1, 1, 1)
-        value:SetPoint("LEFT", label, "RIGHT", 6, 0)
-        value:SetPoint("RIGHT", div, "RIGHT", 0, 0)
-        value:SetJustifyH("LEFT")
-        value:SetWordWrap(false)
         local suggest = MakeFont(popup, 11, nil, 1, 1, 1, 1)
+        suggest:SetPoint("TOPLEFT", popup._inputFrame, "BOTTOMLEFT", 0, -6)
         suggest:SetWidth(inputW)
         suggest:SetJustifyH("LEFT")
         suggest:SetWordWrap(false)
+        local div = SolidTex(popup, "ARTWORK", 1, 1, 1, 0.1)
+        PanelPP.Size(div, inputW, 1)
+        local label = MakeFont(popup, 10, nil, TEXT_DIM.r, TEXT_DIM.g, TEXT_DIM.b, TEXT_DIM.a)
+        label:SetPoint("TOP", div, "BOTTOM", 0, -6)
+        local value = MakeFont(popup, 12, nil, 1, 1, 1, 1)
+        value:SetPoint("TOP", label, "BOTTOM", 0, -3)
+        value:SetWidth(popup:GetWidth() - 40)
+        value:SetJustifyH("CENTER")
+        value:SetWordWrap(false)
         local hint = MakeFont(popup, 10, nil, 1, 0.65, 0.2, 0.85)
-        hint:SetWidth(inputW)
-        hint:SetJustifyH("LEFT")
+        hint:SetPoint("TOP", value, "BOTTOM", 0, -4)
+        hint:SetWidth(popup:GetWidth() - 40)
+        hint:SetJustifyH("CENTER")
         hint:SetWordWrap(false)
         popup._previewDiv, popup._previewLabelFS, popup._previewValue = div, label, value
         popup._suggestLabel, popup._hintLabel = suggest, hint
@@ -1305,27 +1306,19 @@ function EllesmereUI:ShowInputPopup(opts)
         popup._hintLabel:SetShown(pv)
         popup._suggestLabel:SetShown(cp)
         popup._suggestLabel:SetText("")
-        popup._hintLabel:ClearAllPoints()
-        popup._suggestLabel:ClearAllPoints()
-        popup._suggestLabel:SetPoint("TOPLEFT", popup._inputFrame, "BOTTOMLEFT", 0, -6)
+        popup._previewDiv:ClearAllPoints()
         if cp then
-            popup._hintLabel:SetPoint("TOPLEFT", popup._suggestLabel, "BOTTOMLEFT", 0, -4)
+            PanelPP.Point(popup._previewDiv, "TOP", popup._suggestLabel, "BOTTOM", 0, -8)
             belowH = 19
         else
-            popup._hintLabel:SetPoint("TOPLEFT", popup._inputFrame, "BOTTOMLEFT", 0, -6)
+            PanelPP.Point(popup._previewDiv, "TOP", popup._inputFrame, "BOTTOM", 0, -10)
         end
         if pv then
             popup._previewLabelFS:SetText(opts.previewLabel or "")
             local c = opts.previewColor
             popup._previewValue:SetTextColor(c and c.r or 1, c and c.g or 1, c and c.b or 1, 1)
-            aboveH, belowH = 32, belowH + 18
+            belowH = belowH + 56
         end
-    end
-    popup._inputFrame:ClearAllPoints()
-    if aboveH > 0 then
-        popup._inputFrame:SetPoint("TOP", popup._previewDiv, "BOTTOM", 0, -33)
-    else
-        popup._inputFrame:SetPoint("TOP", popup._msg, "BOTTOM", 0, -12)
     end
     local initText = opts.initialText or ""
     popup._editBox:SetText(initText)
@@ -1383,7 +1376,7 @@ function EllesmereUI:ShowInputPopup(opts)
         popup._scaleWarnLabel:Hide()
     end
 
-    popup:SetHeight(194 + math.max(0, (opts.inputHeight or 28) - 28) + extraH + warnH + scaleWarnH + aboveH + belowH)
+    popup:SetHeight(194 + math.max(0, (opts.inputHeight or 28) - 28) + extraH + warnH + scaleWarnH + belowH)
 
     popup._cancelBtn:SetScript("OnClick", function()
         popup._dimmer:Hide()

@@ -87,9 +87,9 @@ function ns.UFO_BuildTextSlots(W, parent, y, opts)
         -- Preview, suggestions, unknown-tag hint and tag help come from the engine's catalog.
         local popupOpts = {
             title = EllesmereUI.L("Custom Text"),
-            message = EllesmereUI.L("Tags in brackets, the rest is shown as typed.") .. "\n"
-                .. EllesmereUI.L("Example: [hp:abr] | [hp:pct]%"),
-            messageSize = 11,
+            message = EllesmereUI.L("Tags in [brackets] show live values, other text stays as typed.") .. "\n"
+                .. EllesmereUI.L("Type [ for suggestions, the (i) lists every tag."),
+            messageSize = 10,
             previewColor = color,
             placeholder = "[name] - [hp:pct]%",
             initialText = (not warning and cur) or "",

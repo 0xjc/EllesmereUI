@@ -591,7 +591,6 @@ Every item you middle-clicked away can show in the Junk Items window again.
 Every look but the one in use reloads the UI once to apply. Each module can be switched separately later.
 Everything
 Everything here applies only while a controller is connected and WoW's gamepad mode is on.
-Example: [hp:abr] | [hp:pct]%
 Examples
 Exclude This Spell
 Exile's Reach
@@ -1374,8 +1373,8 @@ Syntax
 THE STARS ARE WAITING
 Tabs
 Tags
+Tags in [brackets] show live values, other text stays as typed.
 Tags in [brackets], add modifiers with a colon, in any order.
-Tags in brackets, the rest is shown as typed.
 Talent Conditions: %1$s
 Talent Points: %s
 Talent changes are blocked during this encounter.
@@ -1569,6 +1568,7 @@ Turn It On
 Turning it on reloads your UI. Group Finder is under UI Reskin Addons in /eui.
 Turning it on takes effect immediately, no reload needed. The Kick Tracker is under Mythic+ Tools in /eui.
 Two action menus can share a keybind when Assign to Spec keeps them from ever loading in the same spec.
+Type [ for suggestions, the (i) lists every tag.
 UI Scale Issue: Profile was made at %1$d%%, yours is %2$d%%
 UI Scale Mismatch
 Unavailable in combat

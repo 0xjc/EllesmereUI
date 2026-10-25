@@ -291,7 +291,9 @@ function TextTags.HelpText(cat, opts)
                 lines[#lines + 1] = head .. EllesmereUI.L("Examples") .. "|r"
             end
             shown = shown + 1
-            lines[#lines + 1] = sgsub(examples[i], "|", "||") .. "  " .. DIM .. "->  " .. TextTags.Preview(cat, parsed) .. "|r"
+            -- Modifiers in their legend colour; "|" doubled before any colour escape is added.
+            local shownText = sgsub(sgsub(examples[i], "|", "||"), "%[(%w+)(:[%w:]+)%]", "[%1" .. MOD .. "%2|r]")
+            lines[#lines + 1] = shownText .. "  " .. DIM .. "=  " .. TextTags.Preview(cat, parsed) .. "|r"
         end
     end
     return tconcat(lines, "\n")
