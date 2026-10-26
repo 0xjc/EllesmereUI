@@ -1612,6 +1612,7 @@ Unsaved Changes
 Unsaved changes
 Untested keybinds
 Up to
+Up to %1$d debuffs can be Missing.
 Up/Down: select   Tab/Enter: insert   Esc: close
 Update Sync Group
 Upranked %1$s on %2$d action slots.
