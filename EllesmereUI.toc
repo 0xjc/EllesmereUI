@@ -51,6 +51,7 @@ EllesmereUI_Panel.lua
 EllesmereUI_VisibilityRules.lua
 EllesmereUI_SharedHelpers.lua
 EllesmereUI_Popups.lua
+EllesmereUI_TextTags.lua
 EllesmereUI_Colors.lua
 EllesmereUI_Fonts.lua
 EllesmereUI_ProfileSync.lua
