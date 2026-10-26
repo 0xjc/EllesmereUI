@@ -3298,18 +3298,22 @@ eventFrame:SetScript("OnEvent", function(_, event)
         end
         EUI_Bank._autoOpenedBags = false
 
-    elseif event == "BANK_TABS_CHANGED" or event == "BANK_TAB_SETTINGS_UPDATED"
-        or event == "PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED" then
+    elseif event == "BANK_TABS_CHANGED" or event == "BANK_TAB_SETTINGS_UPDATED" then
         if EUI_Bank:IsVisible() then
             local prevCount = #_allTabs
             DiscoverBankTabs()
             ScheduleBankRefresh()
             -- Server may not have slot data ready yet for a newly purchased tab.
-            -- Poll until tab count changes or we give up after 5 seconds.
-            if #_allTabs == prevCount then
+            -- Poll until tab count changes or we give up after 300 frames. Only a
+            -- purchase changes the count, and one reused frame serves every poll.
+            if event == "BANK_TABS_CHANGED" and #_allTabs == prevCount then
+                local poller = EUI_Bank._tabPoller
+                if not poller then
+                    poller = CreateFrame("Frame")
+                    EUI_Bank._tabPoller = poller
+                end
                 local attempts = 0
-                local poller = CreateFrame("Frame")
-                poller:SetScript("OnUpdate", function(self, elapsed)
+                poller:SetScript("OnUpdate", function(self)
                     attempts = attempts + 1
                     if attempts % 6 ~= 0 then return end -- ~0.1s per check
                     if not EUI_Bank:IsVisible() or attempts > 300 then
@@ -3325,7 +3329,8 @@ eventFrame:SetScript("OnEvent", function(_, event)
             end
         end
 
-    elseif event == "BAG_UPDATE" or event == "PLAYERBANKSLOTS_CHANGED" then
+    elseif event == "BAG_UPDATE" or event == "PLAYERBANKSLOTS_CHANGED"
+        or event == "PLAYER_ACCOUNT_BANK_TAB_SLOTS_CHANGED" then
         if EUI_Bank:IsVisible() then
             ScheduleBankRefresh()
         end
