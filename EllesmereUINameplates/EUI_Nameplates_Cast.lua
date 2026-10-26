@@ -811,7 +811,7 @@ function NameplateFrame:UNIT_CLASSIFICATION_CHANGED()
 end
 function NameplateFrame:UNIT_THREAT_LIST_UPDATE()
     self:UpdateHealthColor()
-    -- An aggro change often moves the target: the target texts follow.
+    -- An aggro change often moves the target: the target texts follow (throttled).
     if ns._npTgtTexts then self:RefreshTargetTexts() end
 end
 -- Faction badge: faction and PvP flag changes. The tap-state repaint rides the
@@ -823,12 +823,12 @@ function NameplateFrame:UNIT_SPELLCAST_START()
     self._castDirtyFull = true
     self:UpdateCast()
     -- A cast often turns the caster to its spell target, chained casts included.
-    if ns._npTgtTexts then self:RefreshTargetTexts() end
+    if ns._npTgtTexts then self:RefreshTargetTexts(true) end
 end
 function NameplateFrame:UNIT_SPELLCAST_CHANNEL_START()
     self._castDirtyFull = true
     self:UpdateCast()
-    if ns._npTgtTexts then self:RefreshTargetTexts() end
+    if ns._npTgtTexts then self:RefreshTargetTexts(true) end
 end
 function NameplateFrame:UNIT_SPELLCAST_DELAYED()
     -- Cast timing changed: the kick-tick geometry (min/max, positioner

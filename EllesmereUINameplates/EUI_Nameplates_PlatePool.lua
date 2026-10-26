@@ -619,7 +619,7 @@ local frameCache = CreateFramePool("Frame", UIParent, nil, nil, false, function(
         if owner and owner._npJoinCast then ns.NP_ApplyRounding(owner, "health", true) end
         -- A cast end often turns the caster back (cast starts repaint in Cast.lua).
         if owner and not self:IsShown() and ns._npTgtTexts then
-            owner:RefreshTargetTexts()
+            owner:RefreshTargetTexts(true)
         end
     end
     plate.cast:HookScript("OnShow", OnCastVisibilityChanged)

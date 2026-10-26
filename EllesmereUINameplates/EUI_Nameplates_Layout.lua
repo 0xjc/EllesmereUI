@@ -835,7 +835,9 @@ do
     }
     local CAT = TT.Bind(TT.UNIT, P)
     ns.NP_TextTags = CAT
-    local compiled = setmetatable({}, { __mode = "k" })
+    -- Weak both ways: each value points back at its key (c.parsed), which a weak-key
+    -- table alone would never let go of in Lua 5.1. Plates hold what they paint.
+    local compiled = setmetatable({}, { __mode = "kv" })
     local args = {}
     -- A slot's parsed template (nil while empty). db: a profile to read instead of the live one.
     function ns.NP_CustomParse(slotKey, db)

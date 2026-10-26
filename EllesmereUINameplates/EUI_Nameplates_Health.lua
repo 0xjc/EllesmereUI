@@ -312,14 +312,8 @@ function NameplateFrame:UpdateHealthValues()
     -- Custom texts reading health or absorbs: outside the value memo, since an
     -- absorb moves without the health. Off until a slot shows one.
     if ca and ca._cuTick then self:PaintCustomTexts("tick") end
-    -- Target texts ride the health tick too, at most every 0.2 s per plate.
-    if ns._npTgtTexts then
-        local now = GetTime()
-        if now - (self._tgtT or 0) >= 0.2 then
-            self._tgtT = now
-            self:RefreshTargetTexts()
-        end
-    end
+    -- Target texts ride the health tick too, throttled in RefreshTargetTexts.
+    if ns._npTgtTexts then self:RefreshTargetTexts(false, "tgtOnly") end
 
     -- Execute Pulse Glow gate: evaluate the execute-window curve C-side and feed the color
     -- straight into the glow textures (alpha 1 below threshold, 0 above -- never branched on in

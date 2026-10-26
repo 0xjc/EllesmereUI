@@ -623,15 +623,20 @@ function NameplateFrame:UpdateToT()
     if c then fs:SetTextColor(c.r, c.g, c.b, 1) else fs:SetTextColor(1, 1, 1, 1) end
 end
 function NameplateFrame:UNIT_TARGET()
-    self:RefreshTargetTexts()
+    self:RefreshTargetTexts(true)
 end
 -- Target of Target and the [target] custom texts. UNIT_TARGET does not arrive for
 -- every nameplate unit (seen in game) and in restricted combat the target cannot be
--- compared, so the health tick (at most every 0.2 s per plate), threat list updates
--- and cast starts / ends repaint them too, while a slot shows one.
-function NameplateFrame:RefreshTargetTexts()
+-- compared, so threat list updates, casts and the health tick repaint them too, while
+-- a slot shows one. force (UNIT_TARGET, casts: rare, a real signal) repaints now; the
+-- rest at most every 0.2 s per plate, counted from any repaint. what: the custom
+-- entries to repaint (default "tgt").
+function NameplateFrame:RefreshTargetTexts(force, what)
+    local now = GetTime()
+    if not force and now - (self._tgtT or 0) < 0.2 then return end
+    self._tgtT = now
     self:UpdateToT()
-    self:PaintCustomTexts("tgt")
+    self:PaintCustomTexts(what or "tgt")
 end
 -- Target of Target for the plate's (new) unit: UNIT_TARGET follows the token
 -- while a slot shows it or a custom text reads [target], and the text repaints.
@@ -702,11 +707,14 @@ function NameplateFrame:AddCustomText(ca, slotKey, slot)
     e.fs, e.slot, e.c = fs, slotKey, c
     e.tick = (c.reads.hp or c.reads.abs) and true or false
     e.tgt = c.reads.tgt and true or false
+    -- The health tick's target refresh skips what its own tick paint just wrote.
+    e.tgtOnly = e.tgt and not e.tick
     ca._cuN = n
     if e.tick then ca._cuTick = true end
 end
 -- Repaints the plate's custom texts: all of them (what nil), or those whose entry
--- flag what is set ("tick": reads health or absorbs; "tgt": reads [target]).
+-- flag what is set ("tick": reads health or absorbs; "tgt": reads [target];
+-- "tgtOnly": reads [target] but not health or absorbs).
 function NameplateFrame:PaintCustomTexts(what)
     local ca, unit = self._cachedHealthSlots, self.unit
     if not (ca and unit) then return end
