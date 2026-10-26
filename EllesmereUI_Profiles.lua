@@ -2884,7 +2884,7 @@ end
 function EllesmereUI.DecodeImportString(importStr)
     if not importStr or #importStr < 5 then return nil, "Invalid string" end
     -- Detect old CDM bar layout strings (format removed in 5.1.2)
-    if importStr:sub(1, 9) == "!EUICDM_" then
+    if importStr:sub(1, 8) == "!EUICDM_" then
         return nil, "This is an old CDM Bar Layout string. This format is no longer supported. Use the standard profile import instead."
     end
     if importStr:sub(1, #EXPORT_PREFIX) ~= EXPORT_PREFIX then
@@ -2955,7 +2955,7 @@ do
             onDone(nil, "Invalid string")
             return nil
         end
-        if importStr:sub(1, 9) == "!EUICDM_" then
+        if importStr:sub(1, 8) == "!EUICDM_" then
             onDone(nil, "This is an old CDM Bar Layout string. This format is no longer supported. Use the standard profile import instead.")
             return nil
         end
