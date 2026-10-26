@@ -1739,6 +1739,7 @@ or
 pick a saved instance
 right
 s
+shows DEAD
 shows DEAD or OFFLINE
 this ability
 this spec
