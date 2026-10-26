@@ -2022,7 +2022,8 @@ function _G._EUI_BuildProfilesPage(pageName, parent, yOffset)
                 confirmText = EllesmereUI.L("Save"),
                 cancelText  = EllesmereUI.L("Cancel"),
                 onConfirm   = function(name)
-                    if not name or name == "" then return end
+                    name = name and strtrim(name) or ""
+                    if name == "" then return end
                     local _, profiles = EllesmereUI.GetProfileList()
                     if profiles and profiles[name] then
                         EllesmereUI:ShowConfirmPopup({

@@ -365,14 +365,17 @@ local function EnsureAssignedSpells(barKeyE)
 end
 
 ---------------------------------------------------------------------------
---  Custom Spell ID popup (shared by ShowBuffBarPicker + ShowBuffToCDPicker). Lazily
---  builds a single global popup; each call re-binds the Add handler to the given bar.
---  withDuration adds the duration field (custom/preset buffs); onAdded(sid) runs after spellDuration/customSpellID storage.
+--  Custom Spell ID popup (ShowBuffBarPicker, ShowBuffToCDPicker, ShowSpellPicker).
+--  Lazily builds one global popup per popupName; each call re-binds the Add handler
+--  to the given bar. onAdded(sid) runs after the customSpellIDs tag is stored.
+--  withCharges (CD/utility) adds the Show Charges opt-in and rejects spells the
+--  spell list already offers. ShowSpellPicker passes its own popupName: sharing one
+--  frame across callers once decided Show Charges by whichever opened first.
 ---------------------------------------------------------------------------
-local function ShowCustomSpellIDPopup(barKey, withDuration, onAdded, hideChargeWarn)
+local function ShowCustomSpellIDPopup(barKey, onAdded, hideChargeWarn, popupName, withCharges)
     local env = ns._CDMO_OptEnv
     local FONT_PATH, GetCDMOptOutline = env.FONT_PATH, env.GetCDMOptOutline
-    local popupName = "EUI_CDM_SpellIDPopup"
+    popupName = popupName or "EUI_CDM_SpellIDPopup"
     local popup = _G[popupName]
     if not popup then
         local POPUP_W, POPUP_H = 320, 160
@@ -498,35 +501,6 @@ local function ShowCustomSpellIDPopup(barKey, withDuration, onAdded, hideChargeW
 
         editBox:SetScript("OnEscapePressed", function() dimmer:Hide() end)
 
-        local durLabel = popup:CreateFontString(nil, "OVERLAY")
-        durLabel:SetFont(FONT_PATH, 11, GetCDMOptOutline())
-        durLabel:SetPoint("TOP", editBox, "BOTTOM", 0, -32)
-        durLabel:SetTextColor(0.7, 0.7, 0.7, 0.85)
-        durLabel:SetText(EllesmereUI.L("Duration (seconds)"))
-        popup._durLabel = durLabel
-
-        local durBox = CreateFrame("EditBox", nil, popup)
-        durBox:SetSize(180, 28)
-        durBox:SetPoint("TOP", durLabel, "BOTTOM", 0, -6)
-        durBox:SetNumeric(true)
-        durBox:SetMaxLetters(5)
-        durBox:SetFont(FONT_PATH, 13, GetCDMOptOutline())
-        durBox:SetTextColor(1, 1, 1, 0.9)
-        durBox:SetJustifyH("CENTER")
-        local durBg = durBox:CreateTexture(nil, "BACKGROUND")
-        durBg:SetAllPoints(); durBg:SetColorTexture(0.060, 0.049, 0.037, 1)
-        EllesmereUI.MakeBorder(durBox, 1, 1, 1, 0.12, EllesmereUI.PP)
-        local durPlaceholder = durBox:CreateFontString(nil, "ARTWORK")
-        durPlaceholder:SetFont(FONT_PATH, 12, GetCDMOptOutline())
-        durPlaceholder:SetPoint("CENTER")
-        durPlaceholder:SetTextColor(0.5, 0.5, 0.5, 0.5)
-        durPlaceholder:SetText(EllesmereUI.L("Required"))
-        durBox:SetScript("OnTextChanged", function(self)
-            if self:GetText() == "" then durPlaceholder:Show() else durPlaceholder:Hide() end
-        end)
-        durBox:SetScript("OnEscapePressed", function() dimmer:Hide() end)
-        popup._durBox = durBox
-
         popup._dimmer = dimmer
         _G[popupName] = popup
     end
@@ -555,17 +529,7 @@ local function ShowCustomSpellIDPopup(barKey, withDuration, onAdded, hideChargeW
             SetStatus("Unknown spell ID")
             return
         end
-        local dur
-        if withDuration then
-            local durText = popup._durBox:GetText()
-            dur = tonumber(durText)
-            if not dur or dur <= 0 then
-                SetStatus("Enter a duration in seconds")
-                return
-            end
-            dur = math.floor(dur)
-        end
-        local sdChk = ns.GetBarSpellData(barKey)
+        local sdChk = barKey and ns.GetBarSpellData(barKey)
         if sdChk and sdChk.assignedSpells then
             -- Variant-aware, mirroring AddTrackedSpell's own dedup. An
             -- exact-only check lets a variant-duplicate through, which
@@ -584,18 +548,28 @@ local function ShowCustomSpellIDPopup(barKey, withDuration, onAdded, hideChargeW
                 return
             end
         end
-        if withDuration and dur then
-            local sdStore = ns.GetBarSpellData(barKey)
-            if sdStore then
-                if not sdStore.spellDurations then sdStore.spellDurations = {} end
-                sdStore.spellDurations[sid] = dur
-            end
+        -- A spell the spell list offers goes through the list: as a custom
+        -- spell its menu would write settings its icon never reads.
+        if withCharges and ns.IsCDMTrackedCooldown(sid) then
+            SetStatus("Pick this spell from the spell list")
+            return
         end
         popup._dimmer:Hide()
-        local sdTag = ns.GetBarSpellData(barKey)
+        local sdTag = barKey and ns.GetBarSpellData(barKey)
         if sdTag then
             if not sdTag.customSpellIDs then sdTag.customSpellIDs = {} end
             sdTag.customSpellIDs[sid] = true
+            -- Set/clear explicitly so a re-add with the box unchecked can't leave a
+            -- stale flag behind, and flip the runtime gate live.
+            if withCharges then
+                if popup._forceCountChecked then
+                    if not sdTag.customSpellForceCount then sdTag.customSpellForceCount = {} end
+                    sdTag.customSpellForceCount[sid] = true
+                    ns._cdmAnyCustomForceCount = true
+                elseif sdTag.customSpellForceCount then
+                    sdTag.customSpellForceCount[sid] = nil
+                end
+            end
         end
         if onAdded then onAdded(sid) end
     end
@@ -604,23 +578,44 @@ local function ShowCustomSpellIDPopup(barKey, withDuration, onAdded, hideChargeW
     popup._editBox:SetScript("OnEnterPressed", DoAdd)
     popup._editBox:SetText("")
     popup._status:SetText("")
-    if withDuration then
-        popup._baseH = 220
-        popup._durLabel:Show()
-        popup._durBox:Show()
-        popup._durBox:SetText("")
-        if popup._chargeWarn then popup._chargeWarn:Hide() end
-    else
-        popup._baseH = 164
-        popup._durLabel:Hide()
-        popup._durBox:Hide()
-        -- Buff contexts (aura-tracked) hide the CD-only charges note.
-        if popup._chargeWarn then popup._chargeWarn:SetShown(not hideChargeWarn) end
+    -- Buff contexts (aura-tracked) hide the CD-only charges note.
+    popup._chargeWarn:SetShown(not hideChargeWarn)
+    if withCharges and not popup._forceCountCheck then
+        -- "Show Charges" opt-in: a manually entered spell has no Blizzard charge
+        -- frame, but its cast count can still be shown on request.
+        local ar, ag, ab = EllesmereUI.GetAccentColor()
+        local wrap = CreateFrame("Button", nil, popup)
+        wrap:SetSize(16, 16)
+        -- Below the status line (6px under the input), clear of Add/Cancel (top at +44).
+        wrap:SetPoint("BOTTOM", popup, "BOTTOM", -46, 50)
+        local bg = wrap:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints(); bg:SetColorTexture(0.060, 0.049, 0.037, 1)
+        EllesmereUI.MakeBorder(wrap, 1, 1, 1, 0.15, EllesmereUI.PP)
+        local mark = wrap:CreateTexture(nil, "ARTWORK")
+        mark:SetPoint("CENTER"); mark:SetSize(9, 9)
+        mark:SetColorTexture(ar, ag, ab, 1)
+        local lbl = wrap:CreateFontString(nil, "OVERLAY")
+        lbl:SetFont(FONT_PATH, 11, GetCDMOptOutline())
+        lbl:SetPoint("LEFT", wrap, "RIGHT", 6, 0)
+        lbl:SetText(EllesmereUI.L("Show Charges"))
+        lbl:SetTextColor(0.8, 0.8, 0.8, 0.9)
+        wrap:SetScript("OnClick", function()
+            popup._forceCountChecked = not popup._forceCountChecked
+            mark:SetShown(popup._forceCountChecked)
+        end)
+        popup._forceCountCheck = wrap
+        popup._forceCountMark = mark
+    end
+    if popup._forceCountCheck then
+        -- Reset unchecked each open.
+        popup._forceCountChecked = false
+        popup._forceCountMark:Hide()
+        popup._forceCountCheck:SetShown(withCharges or false)
     end
     ns.PadPopupOpen(popup._dimmer, popup, popup._cancelBtn)  -- controller cursor
     popup._dimmer:Show()
     -- Sized once shown: the note's wrapped height reads right only on a shown frame.
-    popup:SetHeight(popup._baseH + popup._warnExtra())
+    popup:SetHeight(164 + popup._warnExtra())
     popup._editBox:SetFocus()
 end
 
@@ -1091,7 +1086,7 @@ local function ShowBuffBarPicker(anchorFrame, targetBarKey, onChanged)
         csItem:SetScript("OnLeave", function() csLbl:SetTextColor(tDimR, tDimG, tDimB, tDimA); csHl:SetAlpha(0) end)
         csItem:SetScript("OnClick", function()
             menu:Hide()
-            ShowCustomSpellIDPopup(targetBarKey, false, function(sid)
+            ShowCustomSpellIDPopup(targetBarKey, function(sid)
                 ns.AddTrackedSpell(targetBarKey, sid)
                 if ns.RebuildSpellRouteMap then ns.RebuildSpellRouteMap() end
                 if ns.UpdateLustListener then ns.UpdateLustListener() end
@@ -1388,7 +1383,7 @@ local function ShowBuffToCDPicker(anchorFrame, targetBarKey, onChanged, onPicked
                 onPicked(nil, nil)
                 return
             end
-            ShowCustomSpellIDPopup(targetBarKey, false, function(sid)
+            ShowCustomSpellIDPopup(targetBarKey, function(sid)
                 ns.AddBuffToCDUtilBar(targetBarKey, sid)
                 AfterAdd()
             end, true)
@@ -1971,6 +1966,7 @@ ns.CDMO_ShowAlphaPopup = ShowAlphaPopup
 ns.CDMO_ShowBuffBarPicker = ShowBuffBarPicker
 ns.CDMO_ShowBuffToCDPicker = ShowBuffToCDPicker
 ns.CDMO_ShowCustomItemIDPopup = ShowCustomItemIDPopup
+ns.CDMO_ShowCustomSpellIDPopup = ShowCustomSpellIDPopup
 ns.CDMO_ShowDurationPopup = ShowDurationPopup
 ns.CDMO_ShowEquipmentSlotPopup = ShowEquipmentSlotPopup
 ns.CDMO_ShowThresholdSecondsPopup = ShowThresholdSecondsPopup
