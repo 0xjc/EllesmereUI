@@ -624,12 +624,13 @@ function NameplateFrame:UpdateToT()
 end
 function NameplateFrame:UNIT_TARGET()
     self:UpdateToT()
+    self:PaintCustomTexts("tgt")
 end
 -- Target of Target for the plate's (new) unit: UNIT_TARGET follows the token
--- while a slot shows it, and the text repaints. Plate acquire and both
--- occupant-swap paths come here.
+-- while a slot shows it or a custom text reads [target], and the text repaints.
+-- Plate acquire and both occupant-swap paths come here.
 function NameplateFrame:SyncToT(unit)
-    if ns._npToTSlot then
+    if ns._npToTSlot or ns._npCustomTgt then
         if self._totEv ~= unit then
             self:RegisterUnitEvent("UNIT_TARGET", unit)
             self._totEv = unit
@@ -641,11 +642,86 @@ function NameplateFrame:SyncToT(unit)
     end
 end
 
+-- Custom text in one slot (slot: its HP_BAR_SLOTS entry, nil for Top): its own font
+-- string, placed and coloured like the slot's other texts, plus an entry in the
+-- plate's custom list (ca._cu) for PaintCustomTexts.
+function NameplateFrame:AddCustomText(ca, slotKey, slot)
+    local fsKey = ns.NP_CustomFSKey[slotKey]
+    local fs = self[fsKey]
+    if not fs then
+        fs = self.healthTextFrame:CreateFontString(nil, "OVERLAY")
+        self[fsKey] = fs
+    end
+    local c = ns.NP_CustomCompiled(slotKey)
+    local txOff, tyOff = GetTextSlotOffsets(slotKey)
+    local sr, sg, sb = GetTextSlotColor(slotKey)
+    fs:SetParent(ns.SlotTextHost(self, slotKey, (p and p[slotKey .. "Strata"]) or "MEDIUM"))
+    SetFSFont(fs, GetTextSlotSize(slotKey), GetNPOutline())
+    if slot then
+        self:PlaceSlotText(fs, slot, txOff, tyOff)
+        fs:SetJustifyH(slot.justify or slot.anchor)
+    else
+        fs:ClearAllPoints()
+        PP.Point(fs, "BOTTOM", self.health, "TOP", txOff, 4 + GetNameYOffset() + GetClassPowerTopPush(self) + tyOff)
+        fs:SetJustifyH("CENTER")
+    end
+    fs:SetTextColor(sr, sg, sb, 1)
+    -- Width: the bottom slots never truncate. A text naming the unit ends where the
+    -- name would (the bar left by the other bar texts, or the whole bar on Top),
+    -- scaled by Width %; any other text is boxed only below 100% (the health loop).
+    local bottom = slot and slot.bottom
+    local w = 0
+    if not bottom then
+        local wpct = (p and p[slotKey .. "WidthPct"]) or 100
+        if c and c.has.name then
+            w = math.max((slot and ns.NP_BarRestWidth(slotKey) or GetHealthBarWidth()) * wpct / 100, 20)
+        elseif wpct < 100 then
+            w = GetHealthBarWidth() * wpct / 100
+        end
+    end
+    fs:SetWidth(w)
+    local wrap = (not bottom and p and p[slotKey .. "Wrap"]) and true or false
+    fs:SetWordWrap(wrap)
+    fs:SetMaxLines(wrap and 2 or 1)
+    if w > 0 then ns.ReflowFontString(fs) end
+    fs:Show()
+    if not c then
+        fs:SetText("")
+        return
+    end
+    local n = ca._cuN + 1
+    local e = ca._cu[n]
+    if not e then e = {}; ca._cu[n] = e end
+    e.fs, e.slot, e.c = fs, slotKey, c
+    e.tick = (c.reads.hp or c.reads.abs or c.reads.tgt) and true or false
+    e.tgt = c.reads.tgt and true or false
+    ca._cuN = n
+    if e.tick then ca._cuTick = true end
+end
+-- Repaints the plate's custom texts: all of them (what nil), or those whose entry
+-- flag what is set ("tick": reads health, absorbs or [target]; "tgt": reads [target]).
+-- UNIT_TARGET does not arrive for every nameplate unit (seen in game), and in restricted
+-- combat the target cannot be compared, so [target] also rides the health tick, the
+-- threat list update and the cast bar's show / hide (PlatePool).
+function NameplateFrame:PaintCustomTexts(what)
+    local ca, unit = self._cachedHealthSlots, self.unit
+    if not (ca and unit) then return end
+    local cu = ca._cu
+    for i = 1, ca._cuN or 0 do
+        local e = cu[i]
+        if not what or e[what] then ns.NP_PaintCustom(e.fs, e.c, unit, e.slot) end
+    end
+end
+
 function NameplateFrame:ApplyHealthTextAppearance()
     self.hpText:Hide()
     self.hpNumber:Hide()
     if self.levelText then self.levelText:Hide() end
     if self.totText then self.totText:Hide() end
+    for i = 1, #ns.textSlotKeys do
+        local fs = self[ns.NP_CustomFSKey[ns.textSlotKeys[i]]]
+        if fs then fs:Hide() end
+    end
     -- Slot assignments may change element kinds: drop the value memo so the
     -- next UpdateHealthValues rewrites every slot's content.
     self._hpTxtPct, self._hpTxtCur, self._hpTxtMax = nil, nil, nil
@@ -655,6 +731,8 @@ function NameplateFrame:ApplyHealthTextAppearance()
     local ca = self._cachedHealthSlots
     -- Slot kinds may change: re-derive the lazily-computed number/combo flag.
     ca._anyNum = nil
+    if not ca._cu then ca._cu = {} end
+    ca._cuN, ca._cuTick = 0, false
     local ci = 0
 
     for si = 1, #HP_BAR_SLOTS do
@@ -726,6 +804,8 @@ function NameplateFrame:ApplyHealthTextAppearance()
             fs:SetWordWrap(lwrap)
             fs:SetMaxLines(lwrap and 2 or 1)
             fs:Show()
+        elseif element == "custom" then
+            self:AddCustomText(ca, slot.key, slot)
         end
     end
 
@@ -780,6 +860,8 @@ function NameplateFrame:ApplyHealthTextAppearance()
         fs:SetWordWrap(lwrap)
         fs:SetMaxLines(lwrap and 2 or 1)
         fs:Show()
+    elseif topElement == "custom" then
+        self:AddCustomText(ca, "textSlotTop")
     end
     ca._count = ci
     -- Per-slot health % decimal preference, resolved in this rare appearance pass and cached
@@ -812,6 +894,7 @@ function NameplateFrame:ApplyHealthTextAppearance()
         e.fs:SetMaxLines(wrap and 2 or 1)
     end
     ca._anyDecimal = anyDec
+    self:PaintCustomTexts()
 end
 
 function NameplateFrame:SetUnit(unit, nameplate)

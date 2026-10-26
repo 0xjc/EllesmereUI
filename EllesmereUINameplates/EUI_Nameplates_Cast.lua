@@ -811,6 +811,8 @@ function NameplateFrame:UNIT_CLASSIFICATION_CHANGED()
 end
 function NameplateFrame:UNIT_THREAT_LIST_UPDATE()
     self:UpdateHealthColor()
+    -- An aggro change often moves the target: [target] custom texts follow.
+    if ns._npCustomTgt then self:PaintCustomTexts("tgt") end
 end
 -- Faction badge: faction and PvP flag changes. The tap-state repaint rides the
 -- shared UNIT_FACTION handler (factionFrame), not this one.

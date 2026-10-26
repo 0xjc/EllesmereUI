@@ -55,7 +55,7 @@ function NameplateFrame:UpdateHealthValues()
             end
             self.unit = actualUnit
             unit = actualUnit
-            if ns._npToTSlot or self._totEv then self:SyncToT(actualUnit) end
+            if ns._npToTSlot or ns._npCustomTgt or self._totEv then self:SyncToT(actualUnit) end
             -- New occupant: its absorb state is unknown. Nil the lean-gate flag
             -- so this pass takes the full absorb path and re-seeds it; the
             -- cached max belongs to the old unit, drop it too.
@@ -309,6 +309,9 @@ function NameplateFrame:UpdateHealthValues()
         end
         end -- skipText
     end
+    -- Custom texts reading health, absorbs or [target]: outside the value memo, since
+    -- an absorb or a target moves without the health. Off until a slot shows one.
+    if ca and ca._cuTick then self:PaintCustomTexts("tick") end
 
     -- Execute Pulse Glow gate: evaluate the execute-window curve C-side and feed the color
     -- straight into the glow textures (alpha 1 below threshold, 0 above -- never branched on in

@@ -60,7 +60,7 @@ function NameplateFrame:UpdateName()
             ns.ClearHoverExtras(self)
             self:ApplyTarget()
             self._maxHPValid = nil
-            if ns._npToTSlot or self._totEv then self:SyncToT(actualUnit) end
+            if ns._npToTSlot or ns._npCustomTgt or self._totEv then self:SyncToT(actualUnit) end
         end
     end
     -- Standalone level renders on its own FontString and can share the plate with a
@@ -85,6 +85,8 @@ function NameplateFrame:UpdateName()
         ns.SetNameElementText(self.name, el, name, unit, slot)
         if p and p.nameRaidMarkerEnabled == true then self:RefreshNamePosition(true) end
     end
+    -- Custom texts: name, level and target follow the unit.
+    self:PaintCustomTexts()
 end
 -- Places an icon of a Core Positions slot (the raid marker, the Rare/Quest indicator, the
 -- faction badge) by the slot's own rule: centred above the bar at Top, beside the bar at
@@ -340,7 +342,9 @@ function NameplateFrame:UpdateNameWidth()
         for _, key in ipairs(ns._npBarTextKeys) do
             if key ~= nameSlot then
                 local el = GetTextSlot(key)
-                if el ~= "none" and not ns.IsNameElement(el) then
+                if el == "custom" then
+                    usedWidth = usedWidth + ns.NP_CustomWidth(key)
+                elseif el ~= "none" and not ns.IsNameElement(el) then
                     usedWidth = usedWidth + EstimateHealthTextWidth(el)
                 end
             end
