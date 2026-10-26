@@ -291,6 +291,14 @@ end
 local deserializeYieldHook
 local deserializeOps = 0
 
+-- A truncated s/n token (no delimiter, so no way to advance) flags the parse
+-- and jumps past the end, so every enclosing table loop stops. Not error():
+-- the async decode yields mid-parse, which a pcall would forbid.
+local function Malformed(str)
+    Serializer._malformed = true
+    return nil, #str + 1
+end
+
 local function DeserializeValue(str, pos)
     if deserializeYieldHook then
         deserializeOps = deserializeOps + 1
@@ -303,14 +311,14 @@ local function DeserializeValue(str, pos)
     if tag == "s" then
         -- Find the colon after the length
         local colonPos = str:find(":", pos + 1, true)
-        if not colonPos then return nil, pos end
+        if not colonPos then return Malformed(str) end
         local len = tonumber(str:sub(pos + 1, colonPos - 1))
-        if not len then return nil, pos end
+        if not len or not (len >= 0) then return Malformed(str) end  -- negative/NaN would not advance
         local val = str:sub(colonPos + 1, colonPos + len)
         return val, colonPos + len + 1
     elseif tag == "n" then
         local semi = str:find(";", pos + 1, true)
-        if not semi then return nil, pos end
+        if not semi then return Malformed(str) end
         return tonumber(str:sub(pos + 1, semi - 1)), semi + 1
     elseif tag == "T" then
         return true, pos + 1
@@ -349,7 +357,9 @@ end
 
 function Serializer.Deserialize(str)
     if not str or #str == 0 then return nil end
+    Serializer._malformed = nil
     local val, _ = DeserializeValue(str, 1)
+    if Serializer._malformed then return nil end
     return val
 end
 
