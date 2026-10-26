@@ -78,6 +78,9 @@ function EAB:OnInitialize()
         for _, info in ipairs(ns.EXTRA_BARS) do
             if info.isDataBar then ns.ApplyDataBarLayout(info.key) end
         end
+        -- Toggle keys participate by the effective mode, which an override or a
+        -- profile swap can change (defers itself in combat).
+        EAB:RebuildVisToggleBindings()
         if not InCombatLockdown() then
             RestoreBarPositions()
             -- Recalculate flyout directions now that bars are at their final

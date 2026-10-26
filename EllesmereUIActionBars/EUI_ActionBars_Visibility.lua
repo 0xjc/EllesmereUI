@@ -420,7 +420,9 @@ function EAB:RefreshRuntimeVisibility()
                     end
                 end
                 if not InCombatLockdown() then
-                    if vis ~= "in_combat" and vis ~= "out_of_combat" and not s.combatShowEnabled then
+                    -- An applied Visibility override replaces the saved combat mode.
+                    if EllesmereUI.VisOverrideValue(s)
+                       or (vis ~= "in_combat" and vis ~= "out_of_combat" and not s.combatShowEnabled) then
                         -- Only Show frames without a state-visibility driver.
                         -- Frames with a driver (any _eabLastVisStr) are managed by the driver.
                         -- Movable wrappers are ours: restore them when their hide
@@ -432,7 +434,8 @@ function EAB:RefreshRuntimeVisibility()
                         end
                     end
                     if barFrames[key] and frame == barFrames[key] then
-                        SafeEnableMouseMotionOnly(frame, not s.clickThrough or s.mouseoverEnabled)
+                        SafeEnableMouseMotionOnly(frame, not s.clickThrough or s.mouseoverEnabled
+                            or EllesmereUI.VisOverrideValue(s) == "mouseover")
                     elseif info.noManagedVisibility then
                         -- skip: Blizzard owns mouse state (e.g. QueueStatusButton)
                     elseif info.isBlizzardMovable or info.blizzOwnedVisibility then
@@ -650,7 +653,8 @@ function EAB:ToggleVisKey(key)
     for _, info in ipairs(ALL_BARS) do
         local s = self.db.profile.bars[info.key]
         if s and s.toggleVisKey == key then
-            local saved = s.barVisibility or "always"
+            -- An applied Visibility override replaces the saved mode here too.
+            local saved = EllesmereUI.VisOverrideValue(s) or s.barVisibility or "always"
             if saved == "always" or saved == "never" then
                 participants[#participants + 1] = info.key
                 -- A controller-hidden bar counts as hidden (as Never does), so
@@ -694,7 +698,7 @@ function EAB:RebuildVisToggleBindings()
         local s = self.db.profile.bars[info.key]
         local k = s and s.toggleVisKey
         if k and k ~= "" and not seen[k] then
-            local saved = s.barVisibility or "always"
+            local saved = EllesmereUI.VisOverrideValue(s) or s.barVisibility or "always"
             if saved == "always" or saved == "never" then
                 seen[k] = true
                 keys[#keys + 1] = k
