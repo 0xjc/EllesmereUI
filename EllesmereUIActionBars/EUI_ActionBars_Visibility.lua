@@ -64,7 +64,7 @@ function EAB_VTABLE.ExtraBars.ShouldShowManagedNonSecureBar(s)
     if C_PetBattles and C_PetBattles.IsInBattle and C_PetBattles.IsInBattle() then
         return false
     end
-    if s.enabled == false or s.alwaysHidden then return false end
+    if s.enabled == false or EAB.VisibilityCompat.IsNever(s) then return false end
     if EllesmereUI.CheckVisibilityOptions(s) then
         return false
     end
@@ -362,7 +362,7 @@ function EAB:RefreshRuntimeVisibility()
         local frame = barFrames[key] or (info.isDataBar and dataBarFrames[key]) or (info.isBlizzardMovable and blizzMovableHolders[key]) or (extraBarHolders[key]) or (info.visibilityOnly and _G[info.frameName])
         if frame then
             local vis = s.barVisibility or "always"
-            local isHidden = (vis == "never") or s.alwaysHidden
+            local isHidden = EAB.VisibilityCompat.IsNever(s)
             -- Runtime "Toggle Action Bar" override (keybind-driven, NOT persisted):
             -- flips a bar between always-shown and hidden without touching the saved
             -- barVisibility. Only ever set for bars whose saved mode is always/never.
@@ -887,8 +887,7 @@ function EAB:UpdateHousingVisibility()
                             -- (mode, prefixes and any [mounted] clause keep working there).
                             -- Never / always-hidden bars keep the plain hide.
                             local hideStr = "hide"
-                            if shouldHide == "combathide" and not s.alwaysHidden
-                                and (s.barVisibility or "always") ~= "never" then
+                            if shouldHide == "combathide" and not EAB.VisibilityCompat.IsNever(s) then
                                 hideStr = "[nocombat] hide; " .. BuildVisibilityString(info, s)
                             end
                             if frame._eabLastVisStr ~= hideStr then
@@ -905,7 +904,7 @@ function EAB:UpdateHousingVisibility()
                         else
                             frame:Hide()
                         end
-                    elseif not s.alwaysHidden and (s.barVisibility or "always") ~= "never" then
+                    elseif not EAB.VisibilityCompat.IsNever(s) then
                         if isSecure then
                             local newStr = BuildVisibilityString(info, s)
                             if frame._eabLastVisStr ~= newStr then

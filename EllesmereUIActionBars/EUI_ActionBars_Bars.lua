@@ -145,7 +145,7 @@ local function CreateBarFrame(info)
     -- If always-hidden or disabled, start hidden so the secure snippet hides
     -- it immediately, before combat can return after a brief reload regen.
     local s = EAB.db and EAB.db.profile.bars[key]
-    local startHidden = s and (s.alwaysHidden or s.enabled == false)
+    local startHidden = s and (EAB.VisibilityCompat.IsNever(s) or s.enabled == false)
     RegisterStateDriver(frame, "eabvis", startHidden and "hide" or "show")
 
     -- Register with the override controller so vehicle/override/petbattle
