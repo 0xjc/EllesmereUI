@@ -60,7 +60,7 @@ function NameplateFrame:UpdateName()
             ns.ClearHoverExtras(self)
             self:ApplyTarget()
             self._maxHPValid = nil
-            if ns._npToTSlot or ns._npCustomTgt or self._totEv then self:SyncToT(actualUnit) end
+            if ns._npTgtTexts or self._totEv then self:SyncToT(actualUnit) end
         end
     end
     -- Standalone level renders on its own FontString and can share the plate with a

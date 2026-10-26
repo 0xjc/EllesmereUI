@@ -202,6 +202,29 @@ local function ChainPreview(cx)
     end
 end
 
+-- Core Text slot colours by the slot's Text Coloring mode. The preview is a
+-- hostile NPC at the player's level: Hostility / Class shows the Hostile name
+-- colour, Level Difficulty that level's difficulty colour (friendly levels
+-- included, as the player stands in for the mob), Custom the slot colour.
+-- File level, so the custom text popup (DisplayLayout_Options.lua) shares it
+-- without holding a preview build. PV_LVL_COLOR is reused by every level read.
+local PV_LVL_COLOR = { r = 1, g = 1, b = 1 }
+function ns.NPO_PreviewSlotColor(slotKey)
+    local env = ns._NPO_OptEnv
+    local db, defaults = env.DB(), env.defaults
+    local mode = ns.NP_SlotColorMode(slotKey, db)
+    if mode == "class" then
+        return (db and db.enemyNameHostileColor) or defaults.hostile
+    elseif mode == "level" then
+        local r, g, b = EllesmereUI.GetLevelColor("player", UnitEffectiveLevel("player"), true)
+        if r then
+            PV_LVL_COLOR.r, PV_LVL_COLOR.g, PV_LVL_COLOR.b = r, g, b
+            return PV_LVL_COLOR
+        end
+    end
+    return (db and db[slotKey .. "Color"]) or defaults[slotKey .. "Color"]
+end
+
 --- Build the nameplate preview in the content header area: an exact 1:1
 --- replica of a real enemy nameplate (same pixel sizes, anchors, fonts,
 --- borders; no glow, no added effects).
@@ -1187,29 +1210,8 @@ local function BuildNameplatePreview(parent, parentW)
             end
         end
     end
-    -- Core Text slot colours by the slot's Text Coloring mode. The preview is a
-    -- hostile NPC at the player's level: Hostility / Class shows the Hostile name
-    -- colour, Level Difficulty that level's difficulty colour (friendly levels
-    -- included, as the player stands in for the mob), Custom the slot colour.
-    -- lvlColor is reused by every level-mode read.
-    previewGlow.lvlColor = { r = 1, g = 1, b = 1 }
-    previewGlow.slotColor = function(slotKey)
-        local db = DB()
-        local mode = ns.NP_SlotColorMode(slotKey, db)
-        if mode == "class" then
-            return (db and db.enemyNameHostileColor) or defaults.hostile
-        elseif mode == "level" then
-            local r, g, b = EllesmereUI.GetLevelColor("player", UnitEffectiveLevel("player"), true)
-            if r then
-                local c = previewGlow.lvlColor
-                c.r, c.g, c.b = r, g, b
-                return c
-            end
-        end
-        return (db and db[slotKey .. "Color"]) or defaults[slotKey .. "Color"]
-    end
-    -- The custom text popup previews in the same colour (DisplayLayout_Options.lua).
-    ns.NPO_PreviewSlotColor = previewGlow.slotColor
+    -- Core Text slot colours (file level, shared with the custom text popup).
+    previewGlow.slotColor = ns.NPO_PreviewSlotColor
 
     -- Cached position values for the health bar anchor (see health block).
     local _cachedRawBarW, _cachedXOff

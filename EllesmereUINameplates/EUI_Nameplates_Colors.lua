@@ -463,6 +463,7 @@ ns._npSlotLevelCK = {}  -- parallel: the owning slot's colour key (unreadable-le
 -- showing Target of Target (false = none; its UNIT_TARGET registration follows
 -- it) plus whether that slot is in class mode. _npToTUnits caches "<unit>target".
 -- _npCustomTgt: a custom text reads [target] (UNIT_TARGET follows it too).
+-- _npTgtTexts: either is shown, the one gate of every target-text trigger.
 ns._npBottomFS = { false, false }
 ns._npBottomUsed = false
 ns._npToTSlot = false
@@ -470,6 +471,7 @@ ns._npToTClass = false
 ns._npToTColorKey = nil
 ns._npToTUnits = {}
 ns._npCustomTgt = false
+ns._npTgtTexts = false
 do
     -- The order ApplyHealthTextAppearance lays the slots out in (bar slots, then top):
     -- the last slot writing a shared font string owns it.
@@ -532,6 +534,7 @@ do
             end
         end
         ns._npToTColorKey = ns._npToTSlot and COLOR_KEY[ns._npToTSlot] or nil
+        ns._npTgtTexts = (ns._npToTSlot or ns._npCustomTgt) and true or false
         ns._npBottomUsed = (B[1] or B[2]) and true or false
         for key, mode in pairs(owner) do
             if mode == "class" then

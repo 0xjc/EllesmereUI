@@ -65,7 +65,7 @@ function ns.NPO_EditCustomText(slotKey, onSave, warning)
     -- 120 letters for new input; a longer stored template (import) keeps its length.
     local maxLen = math.max(120, cur and (strlenutf8 and strlenutf8(cur) or #cur) or 0)
     -- The slot's colour as the nameplate preview paints it (Text Coloring mode);
-    -- the slot colour before the preview was first built.
+    -- the slot colour if the preview file did not load.
     local c = (ns.NPO_PreviewSlotColor and ns.NPO_PreviewSlotColor(slotKey))
         or env.DBVal(slotKey .. "Color") or env.defaults[slotKey .. "Color"]
     local popupOpts = {

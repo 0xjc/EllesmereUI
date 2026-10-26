@@ -623,6 +623,13 @@ function NameplateFrame:UpdateToT()
     if c then fs:SetTextColor(c.r, c.g, c.b, 1) else fs:SetTextColor(1, 1, 1, 1) end
 end
 function NameplateFrame:UNIT_TARGET()
+    self:RefreshTargetTexts()
+end
+-- Target of Target and the [target] custom texts. UNIT_TARGET does not arrive for
+-- every nameplate unit (seen in game) and in restricted combat the target cannot be
+-- compared, so the health tick (at most every 0.2 s per plate), threat list updates
+-- and cast starts / ends repaint them too, while a slot shows one.
+function NameplateFrame:RefreshTargetTexts()
     self:UpdateToT()
     self:PaintCustomTexts("tgt")
 end
@@ -630,7 +637,7 @@ end
 -- while a slot shows it or a custom text reads [target], and the text repaints.
 -- Plate acquire and both occupant-swap paths come here.
 function NameplateFrame:SyncToT(unit)
-    if ns._npToTSlot or ns._npCustomTgt then
+    if ns._npTgtTexts then
         if self._totEv ~= unit then
             self:RegisterUnitEvent("UNIT_TARGET", unit)
             self._totEv = unit
@@ -693,16 +700,13 @@ function NameplateFrame:AddCustomText(ca, slotKey, slot)
     local e = ca._cu[n]
     if not e then e = {}; ca._cu[n] = e end
     e.fs, e.slot, e.c = fs, slotKey, c
-    e.tick = (c.reads.hp or c.reads.abs or c.reads.tgt) and true or false
+    e.tick = (c.reads.hp or c.reads.abs) and true or false
     e.tgt = c.reads.tgt and true or false
     ca._cuN = n
     if e.tick then ca._cuTick = true end
 end
 -- Repaints the plate's custom texts: all of them (what nil), or those whose entry
--- flag what is set ("tick": reads health, absorbs or [target]; "tgt": reads [target]).
--- UNIT_TARGET does not arrive for every nameplate unit (seen in game), and in restricted
--- combat the target cannot be compared, so [target] also rides the health tick, the
--- threat list update and the cast bar's show / hide (PlatePool).
+-- flag what is set ("tick": reads health or absorbs; "tgt": reads [target]).
 function NameplateFrame:PaintCustomTexts(what)
     local ca, unit = self._cachedHealthSlots, self.unit
     if not (ca and unit) then return end
@@ -1022,6 +1026,7 @@ function NameplateFrame:ClearUnit()
     self:UnregisterAllEvents()
     self._factionEv = nil
     self._totEv = nil
+    self._tgtT = nil
 
     -- Classic WoW UI: blank the level in the border's plate. Plates are
     -- pooled, so a recycled one would otherwise carry the last unit's level
