@@ -386,7 +386,7 @@ function EAB.VisibilityCompat.Normalize(settings)
 end
 
 -- Effective Never for runtime gates: an applied Visibility override replaces the
--- saved mode, so a Never bar with an Always/Mouseover override is NOT hidden, and
+-- saved mode, so a Never bar with an Always override is NOT hidden, and
 -- an Always bar with a Never override is. Raw alwaysHidden/barVisibility reads stay
 -- correct only where the SHARED value is meant (sync copies, the setter itself).
 function EAB.VisibilityCompat.IsNever(s)

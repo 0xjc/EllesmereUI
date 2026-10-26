@@ -771,7 +771,7 @@ function EAB:FinishSetup()
                 _gridState._mouseoverForced = true
                 for _, info in ipairs(BAR_CONFIG) do
                     local s = EAB.db.profile.bars[info.key]
-                    if s and (s.mouseoverEnabled or EllesmereUI.VisOverrideValue(s) == "mouseover") then
+                    if s and s.mouseoverEnabled then
                         local frame = barFrames[info.key]
                         if frame then
                             StopFade(frame, 1)
@@ -1138,7 +1138,7 @@ function EAB:FinishSetup()
             _gridState._mouseoverForced = false
             for _, info in ipairs(BAR_CONFIG) do
                 local s = EAB.db.profile.bars[info.key]
-                if s and (s.mouseoverEnabled or EllesmereUI.VisOverrideValue(s) == "mouseover") then
+                if s and s.mouseoverEnabled then
                     local state = hoverStates[info.key]
                     if state and not state.isHovered then
                         EAB_VTABLE.Hover.FadeOut(info.key, state)

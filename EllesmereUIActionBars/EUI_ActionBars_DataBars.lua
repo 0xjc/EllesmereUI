@@ -399,7 +399,7 @@ function EAB_VTABLE.ExtraBars.BeginManagedDataBarUpdate(barKey)
 
     local s = EAB.db.profile.bars[barKey]
     if not s then return nil, nil end
-    if EAB.VisibilityCompat.IsNever(s) or not EAB_VTABLE.ExtraBars.ShouldShowManagedNonSecureBar(s) then
+    if not EAB_VTABLE.ExtraBars.ShouldShowManagedNonSecureBar(s) then
         if info then
             EAB_VTABLE.ExtraBars.ApplyManagedNonSecurePresentation(info, frame, s, false, true)
         else
