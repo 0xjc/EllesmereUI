@@ -291,6 +291,14 @@ end
 local deserializeYieldHook
 local deserializeOps = 0
 
+-- A truncated s/n token (no delimiter, so no way to advance) flags the parse
+-- and jumps past the end, so every enclosing table loop stops. Not error():
+-- the async decode yields mid-parse, which a pcall would forbid.
+local function Malformed(str)
+    Serializer._malformed = true
+    return nil, #str + 1
+end
+
 local function DeserializeValue(str, pos)
     if deserializeYieldHook then
         deserializeOps = deserializeOps + 1
@@ -303,14 +311,14 @@ local function DeserializeValue(str, pos)
     if tag == "s" then
         -- Find the colon after the length
         local colonPos = str:find(":", pos + 1, true)
-        if not colonPos then return nil, pos end
+        if not colonPos then return Malformed(str) end
         local len = tonumber(str:sub(pos + 1, colonPos - 1))
-        if not len then return nil, pos end
+        if not len or not (len >= 0) then return Malformed(str) end  -- negative/NaN would not advance
         local val = str:sub(colonPos + 1, colonPos + len)
         return val, colonPos + len + 1
     elseif tag == "n" then
         local semi = str:find(";", pos + 1, true)
-        if not semi then return nil, pos end
+        if not semi then return Malformed(str) end
         return tonumber(str:sub(pos + 1, semi - 1)), semi + 1
     elseif tag == "T" then
         return true, pos + 1
@@ -349,7 +357,9 @@ end
 
 function Serializer.Deserialize(str)
     if not str or #str == 0 then return nil end
+    Serializer._malformed = nil
     local val, _ = DeserializeValue(str, 1)
+    if Serializer._malformed then return nil end
     return val
 end
 
@@ -1117,7 +1127,7 @@ function EllesmereUI.ApplyProfileData(profileData)
     -- An open unlock session's snapshots and pending edits belong to the
     -- OUTGOING data about to be replaced: discard-close before the wipe
     -- (mirrors SwitchProfile / spec changes / condition flips).
-    if EllesmereUI._unlockModeActive and EllesmereUI.ForceCloseUnlockDiscard then
+    if EllesmereUI._unlockModeSessionActive and EllesmereUI.ForceCloseUnlockDiscard then
         EllesmereUI.ForceCloseUnlockDiscard()
     end
 
@@ -2420,6 +2430,41 @@ local FULL_EXPORT_EXCLUDED = {
     raidHoroscope         = true,
 }
 
+-- Root stores keyed by profile name (or character) describe the recipient's
+-- own profiles. A full import keeps them and takes from the string only the
+-- carried profile's entry: fn(own, fromString, carriedName) -> new value.
+local function KeepOwn(own) return own end
+local FULL_IMPORT_MERGE = {
+    syncedModules  = KeepOwn,
+    lastSpecByChar = KeepOwn,
+    lastNonSpecProfile = function(own, str, name)
+        if own == nil and str == name then return str end
+        return own
+    end,
+    profileKeybinds = function(own, str, name)
+        if type(own) ~= "table" then own = {} end
+        local key = type(str) == "table" and str[name]
+        if key then
+            for n, k in pairs(own) do
+                if k == key and n ~= name then return own end
+            end
+            own[name] = key
+        end
+        return own
+    end,
+    spellAssignments = function(own, str, name)
+        if type(str) ~= "table" then return own end
+        if type(own) ~= "table" then own = {} end
+        local profiles = type(own.profiles) == "table" and own.profiles or {}
+        for k, v in pairs(str) do
+            if k ~= "profiles" then own[k] = v end
+        end
+        profiles[name] = type(str.profiles) == "table" and str.profiles[name] or nil
+        own.profiles = profiles
+        return own
+    end,
+}
+
 --- Builds a full-account export string, or nil.
 function EllesmereUI.ExportFullAccountData()
     if not EllesmereUIDB then return nil end
@@ -2488,6 +2533,10 @@ function EllesmereUI.ImportFullAccountData(payload)
     if not EllesmereUI.IsFullAccountPayload(payload) then return false end
     local data = payload.data
     if type(data) ~= "table" or not EllesmereUIDB then return false end
+    -- Close any edit session or Default view and bank live edits while the stores
+    -- are still the recipient's: a later exit would bank live into the import.
+    if EllesmereUI.SpecOverrides_CloseEditSessions then EllesmereUI.SpecOverrides_CloseEditSessions() end
+    if EllesmereUI.SpecOverrides_HarvestCurrent then EllesmereUI.SpecOverrides_HarvestCurrent() end
     -- The reload is asked for first in the click (RequestReload); the client
     -- reloads only once this function has finished, so everything below lands.
     EllesmereUI.RequestReload(EllesmereUI.L("Profile Imported"), EllesmereUI.ImportReloadMessage(payload))
@@ -2514,12 +2563,19 @@ function EllesmereUI.ImportFullAccountData(payload)
     local fvSnapKey = EllesmereUI._FvSnapFlag
     local fvSnap = fvSnapKey and type(EllesmereUIDB._migrations) == "table"
         and EllesmereUIDB._migrations[fvSnapKey]
+    local own = {}
+    for k in pairs(FULL_IMPORT_MERGE) do own[k] = EllesmereUIDB[k] end
     for k, v in pairs(data) do
         if k ~= "profiles" and k ~= "profileOrder" and k ~= "activeProfile"
            and not FULL_EXPORT_EXCLUDED[k]
            and not (otherClient and (k == "spellAssignments" or k == "_tbbLinkOwner")) then
             EllesmereUIDB[k] = DeepCopy(v)
         end
+    end
+    for k, merge in pairs(FULL_IMPORT_MERGE) do
+        local str = EllesmereUIDB[k]
+        if str == own[k] then str = nil end  -- not carried, or refused above
+        EllesmereUIDB[k] = merge(own[k], str, activeName)
     end
     if fvSweep then
         if type(EllesmereUIDB._migrations) ~= "table" then EllesmereUIDB._migrations = {} end
@@ -2828,7 +2884,7 @@ end
 function EllesmereUI.DecodeImportString(importStr)
     if not importStr or #importStr < 5 then return nil, "Invalid string" end
     -- Detect old CDM bar layout strings (format removed in 5.1.2)
-    if importStr:sub(1, 9) == "!EUICDM_" then
+    if importStr:sub(1, 8) == "!EUICDM_" then
         return nil, "This is an old CDM Bar Layout string. This format is no longer supported. Use the standard profile import instead."
     end
     if importStr:sub(1, #EXPORT_PREFIX) ~= EXPORT_PREFIX then
@@ -2899,7 +2955,7 @@ do
             onDone(nil, "Invalid string")
             return nil
         end
-        if importStr:sub(1, 9) == "!EUICDM_" then
+        if importStr:sub(1, 8) == "!EUICDM_" then
             onDone(nil, "This is an old CDM Bar Layout string. This format is no longer supported. Use the standard profile import instead.")
             return nil
         end
@@ -3275,6 +3331,16 @@ function EllesmereUI.ImportProfile(importStr, profileName)
     end
 
     if payload.type == "full" then
+        -- Spec Overrides: close any edit session or Default view and sync the
+        -- current-spec values with live edits before current/merged are built
+        -- (as SwitchProfile does), so an import over the active profile's own
+        -- name never banks live state into the imported stores.
+        if EllesmereUI.SpecOverrides_CloseEditSessions then
+            EllesmereUI.SpecOverrides_CloseEditSessions()
+        end
+        if EllesmereUI.SpecOverrides_HarvestCurrent then
+            EllesmereUI.SpecOverrides_HarvestCurrent()
+        end
         -- WoW Forever: the one-time buff clear runs on the payload itself, before
         -- the merge copy and the raw re-apply below (EllesmereUI_Migration.lua).
         if EllesmereUI.FvBW then EllesmereUI.FvBW.ProcessProfile(payload.data, "import") end
@@ -3581,12 +3647,11 @@ function EllesmereUI.ImportProfile(importStr, profileName)
         -- every anchor / width-match the user had set on the old profile since it was
         -- last saved (they survived only inside the imported profile, so deleting it
         -- lost them for good). This is the reported "bars lose their anchors and width
-        -- match after import" bug. Spec Overrides: sync the outgoing profile's
-        -- current-spec values with live edits before the imported profile takes over.
-        if EllesmereUI.SpecOverrides_HarvestCurrent then
-            EllesmereUI.SpecOverrides_HarvestCurrent()
-        end
-        local outgoing = db.profiles[db.activeProfile or "Default"]
+        -- match after import" bug. Importing over the active profile's own name:
+        -- merged is already installed under it, so the snapshot would bank the
+        -- live layout over the imported one.
+        local outgoingName = db.activeProfile or "Default"
+        local outgoing = outgoingName ~= profileName and db.profiles[outgoingName]
         if outgoing and EllesmereUIDB then
             outgoing.unlockLayout = SnapshotUnlockLayout()
         end
@@ -3861,7 +3926,7 @@ function EllesmereUI.SwitchProfile(name)
     -- and condition flips): its movers, snapshots, and pending edits all belong to the
     -- OUTGOING profile's stores -- committing or harvesting them after the swap would
     -- write them into the WRONG profile's layers and snapshots. Discard-close first.
-    if EllesmereUI._unlockModeActive and EllesmereUI.ForceCloseUnlockDiscard then
+    if EllesmereUI._unlockModeSessionActive and EllesmereUI.ForceCloseUnlockDiscard then
         EllesmereUI.ForceCloseUnlockDiscard()
     end
 

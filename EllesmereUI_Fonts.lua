@@ -148,6 +148,8 @@ EllesmereUI._FONT_KEY_GLOBAL = "\1global"
 -- Dropdown sentinel for "Blizzard Default": resolves to the client's own
 -- standard UI font (STANDARD_TEXT_FONT, locale-aware) in ResolveFontName.
 EllesmereUI.BLIZZARD_FONT_KEY = "__blizzard"
+-- Captured at load: "Apply to All Game Text" overwrites STANDARD_TEXT_FONT at login.
+EllesmereUI.BLIZZARD_FONT_PATH = _G.STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
 
 function EllesmereUI.InvalidateFontCache()
     EllesmereUI._fontCacheDirty = true
@@ -188,7 +190,7 @@ local function ResolveFontName(fontName)
     -- glyph-restriction branch because STANDARD_TEXT_FONT is already
     -- locale-aware (the engine picks the right face per client language).
     if fontName == EllesmereUI.BLIZZARD_FONT_KEY then
-        return _G.STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF"
+        return EllesmereUI.BLIZZARD_FONT_PATH
     end
     -- Explicit Expressway override: bypasses the glyph-restriction mapping below.
     if fontName == EllesmereUI.EXPRESSWAY_FORCED_KEY then
@@ -607,7 +609,7 @@ function EllesmereUI.BuildFontDropdownData()
     -- Default" entry already IS the client's own font.
     local values = { ["__global"] = { text = "EUI Global Font" },
                      [EllesmereUI.BLIZZARD_FONT_KEY] = { text = "Blizzard Default",
-                         font = _G.STANDARD_TEXT_FONT or "Fonts\\FRIZQT__.TTF" } }
+                         font = EllesmereUI.BLIZZARD_FONT_PATH } }
     local order  = { "__global", EllesmereUI.BLIZZARD_FONT_KEY, "---" }
     local FONT_DIR = EllesmereUI.MEDIA_PATH .. "fonts\\"
     for _, name in ipairs(EllesmereUI.FONT_ORDER) do
