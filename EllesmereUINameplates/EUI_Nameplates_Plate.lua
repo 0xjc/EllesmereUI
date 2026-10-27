@@ -628,13 +628,35 @@ end
 -- Target of Target and the [target] custom texts. UNIT_TARGET does not arrive for
 -- every nameplate unit (seen in game) and in restricted combat the target cannot be
 -- compared, so threat list updates, casts and the health tick repaint them too, while
--- a slot shows one. force (UNIT_TARGET, casts: rare, a real signal) repaints now; the
--- rest at most every 0.2 s per plate, counted from any repaint. what: the custom
--- entries to repaint (default "tgt").
+-- a slot shows one. force (UNIT_TARGET) repaints now; the rest at most every 0.2 s per
+-- plate, counted from any repaint. A call inside that window marks the plate, and one
+-- shared flusher repaints it once the window is over (shown only while a mark waits),
+-- so the last change is never dropped. what: the custom entries to repaint (default
+-- "tgt"; "tgtOnly" from the health tick, whose own paint wrote the rest).
+ns._npTgtDirty = ns._npTgtDirty or {}
+ns._npTgtFlush = ns._npTgtFlush or CreateFrame("Frame")
+ns._npTgtFlush:Hide()
+ns._npTgtFlush:SetScript("OnUpdate", function(self)
+    local now, dirty = GetTime(), ns._npTgtDirty
+    for plate, what in pairs(dirty) do
+        if now - (plate._tgtT or 0) >= 0.2 then
+            dirty[plate] = nil
+            plate:RefreshTargetTexts(true, what)
+        end
+    end
+    if next(dirty) == nil then self:Hide() end
+end)
 function NameplateFrame:RefreshTargetTexts(force, what)
+    if not self.unit then return end
     local now = GetTime()
-    if not force and now - (self._tgtT or 0) < 0.2 then return end
+    if not force and now - (self._tgtT or 0) < 0.2 then
+        local dirty = ns._npTgtDirty
+        if dirty[self] ~= "tgt" then dirty[self] = what or "tgt" end
+        ns._npTgtFlush:Show()
+        return
+    end
     self._tgtT = now
+    ns._npTgtDirty[self] = nil
     self:UpdateToT()
     self:PaintCustomTexts(what or "tgt")
 end
@@ -1035,6 +1057,7 @@ function NameplateFrame:ClearUnit()
     self._factionEv = nil
     self._totEv = nil
     self._tgtT = nil
+    ns._npTgtDirty[self] = nil
 
     -- Classic WoW UI: blank the level in the border's plate. Plates are
     -- pooled, so a recycled one would otherwise carry the last unit's level
