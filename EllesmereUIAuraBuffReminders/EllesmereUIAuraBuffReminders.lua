@@ -336,6 +336,29 @@ function EABR.SectionShows(whereToShow, inInstance)
     return whereToShow[bucket] ~= false
 end
 
+-- Rogue, Paladin, Shaman and Pets each keep their own "Where to Show" (and,
+-- for the classes, reminder sound) in these consumables fields. A field that
+-- is not set yet reads the old shared specials value, so a profile from
+-- before the split behaves as it did until the section is edited.
+EABR.SPECIALS = {
+    ROGUE   = { where = "rogueWhereToShow",   sound = "rogueSound" },
+    PALADIN = { where = "paladinWhereToShow", sound = "paladinSound" },
+    SHAMAN  = { where = "shamanWhereToShow",  sound = "shamanSound" },
+    PET     = { where = "petWhereToShow" },
+}
+function EABR.SpecialsWhere(co, field)
+    local t = field and co[field]
+    if type(t) == "table" then return t end
+    return co.specialsWhereToShow
+end
+-- A section set to no sound stores "none" (not nil), so it never reads
+-- through to the shared value; HandleAppearSounds skips "none".
+function EABR.SpecialsSound(co, field)
+    local snd = field and co[field]
+    if snd == nil then snd = co.specialsSound end
+    return snd
+end
+
 -- Bag/equip consumable call sites share the consumables section set; the key
 -- arg is retained for call-site clarity.
 function EABR.ConsumableShows(co, key, inInstance)
