@@ -843,7 +843,7 @@ local function Build()
     compactButton.SetLabel = compactButton.SetText
     compactButton:EnableMouse(true)
     compactButton:SetFrameLevel(frame.Close:GetFrameLevel())
-    P.Point(compactButton, "RIGHT", frame.Close, "LEFT", -S.size.GAP, -1)
+    P.Point(compactButton, "RIGHT", frame.Close, "LEFT", -S.size.GAP, 0)
     compactButton:SetScript("OnMouseUp", function(self, button)
         if button == "LeftButton" and self:IsMouseOver() then
             VoterFrame:SetCompact(not addon.db.voterCompact)

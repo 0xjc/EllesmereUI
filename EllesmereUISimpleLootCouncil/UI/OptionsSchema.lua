@@ -711,6 +711,21 @@ local function Build()
                         end
                     end }),
 
+            SwitchRow("autoJoin", T["Automatically join SLC sessions?"],
+                T["Skip the question about taking part and join as soon as the Loot Master starts using Simple Loot Council. You are still told in chat. Never applies while you are the Loot Master."],
+                function() return db().raidPrompt.silence end,
+                function(v)
+                    db().raidPrompt.silence = v
+                    addon.UI.RaidPrompt:SyncSilence()
+                    if addon.UI.RaidPrompt and addon.UI.RaidPrompt.Evaluate then addon.UI.RaidPrompt:Evaluate() end
+                end),
+
+            SwitchRow("masterAutoLoot", T["Auto-loot to bags as Master Looter"],
+                T["As the group's Master Looter, a boss's whole corpse goes to your bags. In a raid, so do trash items at the loot threshold."],
+                function() return db().masterAutoLoot end,
+                function(v) db().masterAutoLoot = v end,
+                { hidden = function() return not addon.Loot.MasterLootAvailable() end }),
+
 
             Setting({ id = "guildGroupOnly", type = "dropdown", danger = true,
                 text = T["Loot funnel in which groups?"],
@@ -729,21 +744,6 @@ local function Build()
                     if value == "guild" then addon.Loot:KeepGuard() end
                     if addon.UI.RaidPrompt then addon.UI.RaidPrompt:Evaluate() end
                 end }),
-
-            SwitchRow("masterAutoLoot", T["Auto-loot to bags as Master Looter"],
-                T["As the group's Master Looter, a boss's whole corpse goes to your bags. In a raid, so do trash items at the loot threshold."],
-                function() return db().masterAutoLoot end,
-                function(v) db().masterAutoLoot = v end,
-                { hidden = function() return not addon.Loot.MasterLootAvailable() end }),
-
-            SwitchRow("autoJoin", T["Automatically join SLC sessions?"],
-                T["Skip the question about taking part and join as soon as the Loot Master starts using Simple Loot Council. You are still told in chat. Never applies while you are the Loot Master."],
-                function() return db().raidPrompt.silence end,
-                function(v)
-                    db().raidPrompt.silence = v
-                    addon.UI.RaidPrompt:SyncSilence()
-                    if addon.UI.RaidPrompt and addon.UI.RaidPrompt.Evaluate then addon.UI.RaidPrompt:Evaluate() end
-                end),
         } },
         { id = "master", title = T["Loot Master"],
             locked = OtherLootMaster, refreshOn = MASTER_EVENTS,
@@ -858,6 +858,27 @@ local function Build()
         { id = "council", title = T["Loot council"], rows = { Council(), CouncilRanks() } },
 
         { id = "voting", title = T["Council rules"], rows = {
+
+            SwitchRow("shareCouncilBags", T["View loot in council members' bags"],
+                T["Lists each council member's tradeable loot under their name, after the Loot Master's, in the Loot Queue bags panel. Queue it like your own."],
+                function() return db().shareCouncilBags end,
+                function(v)
+                    db().shareCouncilBags = v
+                    addon.Council:RequestBroadcast()
+                    addon.Callbacks:Fire("BagShareChanged")
+                    if v then addon.BagShare:Request() end
+                end,
+                { locked = LeaderLock(function() return addon.Config:CouncilBagsShared() end),
+                    refreshOn = LOCK_EVENTS }),
+            SwitchRow("hideVotes", T["Hide vote counts until you vote"],
+                T["Display guard only - every client still holds the voter list."],
+                function() return db().vote.hideVotes end,
+                function(v)
+                    db().vote.hideVotes = v
+                    addon.Council:RequestBroadcast()
+                end,
+                { locked = LeaderLock(function() return addon.Config:Vote().hideVotes end),
+                    refreshOn = LOCK_EVENTS }),
             Setting({ id = "councilMay", type = "multiselect", text = T["Council Members May Vote For:"],
                 help = T["How council members may vote."],
                 items = {
@@ -874,27 +895,6 @@ local function Build()
                 locked = LeaderLock(function() return true end),
                 lockedValue = function(key) return addon.Config:Vote()[key] and true or false end,
                 refreshOn = LOCK_EVENTS }),
-            SwitchRow("hideVotes", T["Hide vote counts until you vote"],
-                T["Display guard only - every client still holds the voter list."],
-                function() return db().vote.hideVotes end,
-                function(v)
-                    db().vote.hideVotes = v
-                    addon.Council:RequestBroadcast()
-                end,
-                { locked = LeaderLock(function() return addon.Config:Vote().hideVotes end),
-                    refreshOn = LOCK_EVENTS }),
-
-            SwitchRow("shareCouncilBags", T["View loot in council members' bags"],
-                T["Lists each council member's tradeable loot under their name, after the Loot Master's, in the Loot Queue bags panel. Queue it like your own."],
-                function() return db().shareCouncilBags end,
-                function(v)
-                    db().shareCouncilBags = v
-                    addon.Council:RequestBroadcast()
-                    addon.Callbacks:Fire("BagShareChanged")
-                    if v then addon.BagShare:Request() end
-                end,
-                { locked = LeaderLock(function() return addon.Config:CouncilBagsShared() end),
-                    refreshOn = LOCK_EVENTS }),
 
             Setting({ id = "councilQueue", type = "multiselect", exclusive = true,
                 text = T["Council members can manage the loot queue"],
@@ -944,11 +944,16 @@ local function Build()
             Setting({ id = "historyPruneDays", type = "input", numeric = true, inputWidth = 78,
                 text = T["Keep award history for (days, 0 = always)"],
                 help = T["Older entries are removed at login. Imported history is not affected. Bonus rolls are always removed after 90 days."],
-                getValue = function() return tostring(db().historyPruneDays or 0) end,
+                getValue = function()
+                    local days = tonumber(db().historyPruneDays) or 0
+
+                    return days > 0 and tostring(days) or "0"
+                end,
                 setValue = function(text)
                     local value = tonumber(text) or db().historyPruneDays or 0
 
-                    db().historyPruneDays = math.max(0, math.min(36500, math.floor(value)))
+                    value = math.max(0, math.min(36500, math.floor(value)))
+                    db().historyPruneDays = value > 0 and value or 0
                 end }),
 
             SwitchRow("wishlistEnabled", T["Use imported Wishlist and Sim data?"],

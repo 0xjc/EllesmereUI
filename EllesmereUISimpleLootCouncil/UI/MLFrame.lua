@@ -2472,7 +2472,7 @@ function CM.Build()
     CM.countChip = S.Chip(frame.Tag:GetParent(), "", S.color.textMuted,
         { height = frame.Tag:GetHeight(), font = S.fontTag,
             padding = frame.TagPadding or 9, square = true })
-    CM.countChip:SetPoint("RIGHT", frame.Close, "LEFT", -S.size.GAP, -1)
+    CM.countChip:SetPoint("RIGHT", frame.Close, "LEFT", -S.size.GAP, 0)
     CM.countChip:Hide()
     CM.countSlot = frame.Badge:GetWidth()
 

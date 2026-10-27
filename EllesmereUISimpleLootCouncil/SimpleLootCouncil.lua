@@ -639,6 +639,7 @@ local function HelpSections(dev)
             { T["session / sess"], T["your view of the run"] },
             { T["roll [ask / random / clear]"], T["rolls on unawarded items"] },
             { T["whisper / w [text]"], T["the whisper fallback"] },
+            { "raidguide", T["send the response guide to the raid"] },
             { "end", T["end the run"] },
             { "clear", T["discard the staged items"] },
             { "simc", T["SimC lines for the run's items, to copy"], retailOnly = true },
@@ -1309,6 +1310,11 @@ SlashCmdList["SIMPLELOOTCOUNCIL"] = function(input)
         end
         for _, line in ipairs(addon.Whisper:Describe(text)) do
             Print(line)
+        end
+
+    elseif cmd == "raidguide" then
+        if not addon.Whisper:SendRaidGuide() then
+            Print(T["only the Loot Master, in a group, can send the response guide to the raid."])
         end
 
     elseif cmd == "show" then

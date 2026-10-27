@@ -134,6 +134,7 @@
 %s = %s
 %s also sent you their config. Accept or decline the open offer from %s first, then ask them to send it again.
 %s and %s
+%s asked for the response guide.
 %s award changed to %s
 %s award changed to %s (%s)
 %s award to %s withdrawn
@@ -146,6 +147,7 @@
 %s can no longer be traded.\n\nIts trade window has ended. Right-click it in the list to remove it from the run.
 %s did not come to you in the loot roll, so the council cannot award it. Right-click it in the council list to remove it from the run.
 %s equipped it, which ends its trade window.
+%s has already been awarded and traded to %s.
 %s has not been looted yet.\n\nIt can be awarded once it reaches the Loot Master's bags.
 %s has not reached %s's bags yet, so it can be awarded once it does.
 %s is already recorded as a main, for %s
@@ -395,6 +397,7 @@ Everyone in the current group is listed. Not detected means no version reply has
 Everyone in your group holding this guild rank can vote. Nobody is added to the list, so a promotion grants a vote and a demotion takes it away with no edit here.
 Everyone on %q
 Everyone rolling %d
+Example: 2 %s my note [equipped item link] [equipped item link]
 Expand
 Export CSV
 Exports the combined award history for analysis.
@@ -402,7 +405,7 @@ Feb
 Fields are separated by commas. Right-click to choose another separator.
 Fields are separated by semicolons. Right-click to choose another separator.
 Fills the council's Wishlist and Sim columns from the addon chosen below.
-Format: <item number or link> <keyword> <optional note>
+Format: <item number or link> <keyword> <optional note> <optional equipped item links>
 Gay %s
 Generate roll for this player
 Generate rolls
@@ -663,6 +666,7 @@ Response
 Response %d
 Response buttons
 Response buttons: %s
+Response guide
 Restore
 Restore to run?
 Right click
@@ -690,8 +694,10 @@ SLC stays active for this raid - you were handed loot while it was in use.
 Seen in your group and stored by player id, so a rename or a realm transfer will not lose them.
 Selected ranks join your council automatically. Selections are per guild. If a rank is renamed, select its new name.
 Semicolon (;) - Excel in German, French and more
+Send as whisper
 Send config
 Send gay config
+Send to raid
 Sends your own loot council and response buttons. Each player is asked before anything of theirs is replaced.
 Sep
 Session
@@ -1070,6 +1076,7 @@ only the Loot Master can start a test
 only the Loot Master can turn Simple Loot Council on or off.
 only the Loot Master can turn the active test on or off.
 only the Loot Master can use the loot queue.
+only the Loot Master, in a group, can send the response guide to the raid.
 only the group leader can set the Loot Master
 open settings (alt. config, options)
 optional note
@@ -1117,6 +1124,7 @@ season %s, started %s
 season %s, |cffE57373start date not known|r - the raid team view counts everything until it is
 season start forgotten - the raid team view now counts everything
 season start set to %s
+send the response guide to the raid
 session / sess
 shift-click an item into the command: /slc additem <link>
 show or hide the minimap button
@@ -1191,13 +1199,14 @@ vote / v
 what a raider is told when they whisper you 'help':
 what the name APIs return here
 which locale files loaded
+whisper %s your answer for an item.
 whisper / w [text]
 whisper me your answer for an item.
 whispered
 why the funnel takes an item
+would ask whether to send the guide to the raid or by whisper:
 would record %s on session %d (%s)
 would refuse: %s
-would whisper back the guide:
 wrong armour type
 wrong weapon type
 yes
