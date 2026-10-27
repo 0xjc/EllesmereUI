@@ -70,10 +70,12 @@ local QT_DEFAULTS = {
             -- QoL
             autoAccept           = false,
             autoAcceptPreventMulti = true,
+            autoAcceptShiftEnable = false,
             autoAcceptShiftSkip  = true,
             autoAcceptIgnoreTrivial = false,
             autoAcceptIgnoreOldExpansion = false,
             autoTurnIn           = false,
+            autoTurnInShiftEnable = false,
             autoTurnInShiftSkip  = true,
             questItemHotkey      = nil,
         },

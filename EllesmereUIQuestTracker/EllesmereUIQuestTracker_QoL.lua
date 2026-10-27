@@ -62,6 +62,14 @@ local function IsIgnoredQuest(questID, isTrivial)
     return expansion ~= nil and expansion >= 0 and expansion < GetServerExpansionLevel()
 end
 
+-- Hold Shift to Enable runs the feature only while Shift is down; Hold Shift
+-- to Skip runs it only while Shift is up. prefix is "autoAccept" or "autoTurnIn".
+local function ShiftAllows(prefix)
+    if Cfg(prefix .. "ShiftEnable") then return IsShiftKeyDown() end
+    if Cfg(prefix .. "ShiftSkip") then return not IsShiftKeyDown() end
+    return true
+end
+
 local function InstallAutoQuests()
     local autoFrame = CreateFrame("Frame")
     local autoPreventNPCGUID = nil
@@ -78,7 +86,7 @@ local function InstallAutoQuests()
 
         if event == "GOSSIP_SHOW" then
             if C_GossipInfo then
-                if Cfg("autoTurnIn") and C_GossipInfo.GetActiveQuests then
+                if Cfg("autoTurnIn") and ShiftAllows("autoTurnIn") and C_GossipInfo.GetActiveQuests then
                     local active = C_GossipInfo.GetActiveQuests()
                     if active then
                         for _, quest in ipairs(active) do
@@ -90,7 +98,7 @@ local function InstallAutoQuests()
                     end
                 end
                 if Cfg("autoAccept") and C_GossipInfo.GetAvailableQuests then
-                    if Cfg("autoAcceptShiftSkip") and IsShiftKeyDown() then return end
+                    if not ShiftAllows("autoAccept") then return end
                     local available = C_GossipInfo.GetAvailableQuests()
                     if available then
                         for i = #available, 1, -1 do
@@ -131,13 +139,13 @@ local function InstallAutoQuests()
 
         if event == "QUEST_DETAIL" then
             if not Cfg("autoAccept") then return end
-            if Cfg("autoAcceptShiftSkip") and IsShiftKeyDown() then return end
+            if not ShiftAllows("autoAccept") then return end
             local questID = GetQuestID()
             if IsIgnoredQuest(questID, C_QuestLog.IsQuestTrivial(questID)) then return end
             AcceptQuest()
         elseif event == "QUEST_COMPLETE" then
             if not Cfg("autoTurnIn") then return end
-            if Cfg("autoTurnInShiftSkip") and IsShiftKeyDown() then return end
+            if not ShiftAllows("autoTurnIn") then return end
             local numChoices = GetNumQuestChoices()
             if numChoices <= 1 then
                 GetQuestReward(numChoices)
