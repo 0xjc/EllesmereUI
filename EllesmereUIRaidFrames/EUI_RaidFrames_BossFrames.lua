@@ -153,6 +153,8 @@ end
 FB.ShouldBeActive = function()
     local fb = FB.Settings()
     if not fb then return false end
+    -- Arena never has friendly bosses; an empty group there only takes room beside the party frames.
+    if ns._InArena() then return false end
     if fb.display == "always" then return true end
     if fb.display == "healers" then
         -- WoW Forever: a class that can heal counts as its healing spec.
@@ -1090,10 +1092,19 @@ do
     ev:RegisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT")
     ev:RegisterEvent("GROUP_ROSTER_UPDATE")
     ev:RegisterEvent("PLAYER_TARGET_CHANGED")
+    ev:RegisterEvent("PLAYER_ENTERING_WORLD")
     ev:SetScript("OnEvent", function(_, event)
         if not db then return end
         if event == "PLAYER_SPECIALIZATION_CHANGED" then
             ns.FB_Apply()
+        elseif event == "PLAYER_ENTERING_WORLD" then
+            -- Entering or leaving an arena flips FB.ShouldBeActive; the raid frames' zone-in pass
+            -- re-applies only while they are on screen, which they never are in arena.
+            local arena = ns._InArena()
+            if arena ~= (FB.inArena == true) then
+                FB.inArena = arena
+                ns.FB_Apply()
+            end
         elseif event == "PLAYER_REGEN_ENABLED" then
             if FB.applyDirty then FB.applyDirty = nil; ns.FB_Apply() end
             if FB.anchorDirty then FB.anchorDirty = nil; FB.Anchor() end
