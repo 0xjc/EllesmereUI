@@ -120,9 +120,12 @@ local function ApplyAll()
     -- profile swap or spec override apply changes paging settings with neither,
     -- so re-check here. Unchanged bars are skipped (see RebuildBarPaging).
     if not inCombat then
+        local rebuilt
         for barKey in pairs(EAB_VTABLE.BAR_KEY_TO_PAGE) do
-            ns.RebuildBarPaging(barKey, true)
+            if ns.RebuildBarPaging(barKey, true) then rebuilt = true end
         end
+        -- The keybind routing pass the rebuilt bars left out, once for all of them.
+        if rebuilt and _G._EAB_UpdateKeybinds then _G._EAB_UpdateKeybinds() end
         ns.RefreshPagingCycleMacros()
     end
     SetIsApplyingAll(false)

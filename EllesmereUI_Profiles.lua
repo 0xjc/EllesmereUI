@@ -357,9 +357,14 @@ end
 
 function Serializer.Deserialize(str)
     if not str or #str == 0 then return nil end
+    -- The flag is shared module state and the async decode yields mid-parse: a
+    -- decode run while another is parked keeps that one's flag as it found it.
+    local prev = Serializer._malformed
     Serializer._malformed = nil
     local val, _ = DeserializeValue(str, 1)
-    if Serializer._malformed then return nil end
+    local bad = Serializer._malformed
+    Serializer._malformed = prev
+    if bad then return nil end
     return val
 end
 
@@ -2373,11 +2378,15 @@ end
 --  FULL ACCOUNT EXPORT  (separate format, purely additive)
 --
 --  A string that carries the WHOLE central store: every account-global key
---  plus the ACTIVE profile. The recipient ends up with the exporter's entire
+--  plus the ACTIVE profile. The recipient ends up with the exporter's account
 --  setup, including everything a normal profile string deliberately refuses
 --  to carry -- HoverCast bindings, CDM spell assignments, Quality of Life
---  account settings, unlock anchors and size matches, UI scale, profile
---  keybinds, spec assignments, first-install state.
+--  account settings, unlock anchors and size matches, UI scale, spec
+--  assignments, first-install state. Stores keyed by the recipient's own
+--  profiles keep the recipient's entries and take only the carried
+--  profile's from the string (FULL_IMPORT_MERGE: profile keybinds, sync
+--  groups, last-spec records, color pull-from pointers, the other
+--  profiles' CDM spell layouts).
 --
 --  It shares NOTHING with ExportProfile / ImportProfile: no include toggles,
 --  no per-module filtering, no canonical re-keying, no store merging, no
@@ -2399,6 +2408,8 @@ end
 --    mailAltHidden        and the ones its Shown Characters leaves out
 --    raidHoroscope        Party Mode's Should I Raid Tonight?: each
 --                         character's birthday
+--    cdmCachedBarSizes    Cooldown Manager bar sizes cached per character
+--    bagCurrencyByChar    Bags' tracked currencies per character
 --  (The upgrade-calc and gold blobs are what PRIVATE_ADDON_KEYS strips from
 --  normal strings, at their current top-level homes. The three legacy gold
 --  keys stay listed: until Bags or DataBars loads and absorbs them they are
@@ -2428,17 +2439,32 @@ local FULL_EXPORT_EXCLUDED = {
     mailAltRoster         = true,
     mailAltHidden         = true,
     raidHoroscope         = true,
+    cdmCachedBarSizes     = true,
+    bagCurrencyByChar     = true,
 }
 
 -- Root stores keyed by profile name (or character) describe the recipient's
 -- own profiles. A full import keeps them and takes from the string only the
 -- carried profile's entry: fn(own, fromString, carriedName) -> new value.
 local function KeepOwn(own) return own end
+-- A pointer to one profile: the recipient's stands; the string's is taken only
+-- when the recipient has none and it names the carried profile.
+local function OwnOrCarried(own, str, name)
+    if own == nil and str == name then return str end
+    return own
+end
 local FULL_IMPORT_MERGE = {
     syncedModules  = KeepOwn,
     lastSpecByChar = KeepOwn,
-    lastNonSpecProfile = function(own, str, name)
-        if own == nil and str == name then return str end
+    lastNonSpecProfile = OwnOrCarried,
+    colorsPullFrom     = OwnOrCarried,
+    colorsSectionPullFrom = function(own, str, name)
+        if type(own) ~= "table" then own = {} end
+        if type(str) == "table" then
+            for section, p in pairs(str) do
+                if p == name and own[section] == nil then own[section] = p end
+            end
+        end
         return own
     end,
     profileKeybinds = function(own, str, name)
@@ -2533,13 +2559,13 @@ function EllesmereUI.ImportFullAccountData(payload)
     if not EllesmereUI.IsFullAccountPayload(payload) then return false end
     local data = payload.data
     if type(data) ~= "table" or not EllesmereUIDB then return false end
+    -- The reload is asked for first in the click (RequestReload); the client
+    -- reloads only once this function has finished, so everything below lands.
+    EllesmereUI.RequestReload(EllesmereUI.L("Profile Imported"), EllesmereUI.ImportReloadMessage(payload))
     -- Close any edit session or Default view and bank live edits while the stores
     -- are still the recipient's: a later exit would bank live into the import.
     if EllesmereUI.SpecOverrides_CloseEditSessions then EllesmereUI.SpecOverrides_CloseEditSessions() end
     if EllesmereUI.SpecOverrides_HarvestCurrent then EllesmereUI.SpecOverrides_HarvestCurrent() end
-    -- The reload is asked for first in the click (RequestReload); the client
-    -- reloads only once this function has finished, so everything below lands.
-    EllesmereUI.RequestReload(EllesmereUI.L("Profile Imported"), EllesmereUI.ImportReloadMessage(payload))
     local activeName = data.activeProfile or payload.profileName or "Default"
 
     -- 1) Account globals, wholesale. profiles/profileOrder/activeProfile are

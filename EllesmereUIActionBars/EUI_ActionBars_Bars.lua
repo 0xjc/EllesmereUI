@@ -189,7 +189,8 @@ end
 -- onlyIfChanged so a profile swap or spec override apply picks up the new paging
 -- settings; onlyIfChanged skips a bar whose conditions match the ones installed
 -- (frame._eabPagingConds, false = fixed page) instead of re-registering its driver
--- on every full apply. Must be called out of combat.
+-- on every full apply, and returns true for a rebuilt bar instead of running the
+-- keybind pass, which ApplyAll runs once for all of them. Must be called out of combat.
 function ns.RebuildBarPaging(barKey, onlyIfChanged)
     if InCombatLockdown() then return end
     local frame = barFrames[barKey]
@@ -256,6 +257,7 @@ function ns.RebuildBarPaging(barKey, onlyIfChanged)
     -- (waiting on UPDATE_BINDINGS could wait forever); the signature diff
     -- makes this a no-op when routing didn't change, and UpdateKeybinds
     -- re-arms itself out of combat, so calling it unconditionally is safe.
+    if onlyIfChanged then return true end
     if _G._EAB_UpdateKeybinds then _G._EAB_UpdateKeybinds() end
 end
 

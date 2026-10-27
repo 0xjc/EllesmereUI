@@ -20,7 +20,7 @@ local BAR_LOOKUP, ALL_BARS, EXTRA_BARS = ns.BAR_LOOKUP, ns.ALL_BARS, ns.EXTRA_BA
 local I = ns._internals
 local BAR_CONFIG, barFrames, _fadeAlpha = I.BAR_CONFIG, I.barFrames, I._fadeAlpha
 local dataBarFrames, extraBarHolders, blizzMovableHolders = I.dataBarFrames, I.extraBarHolders, I.blizzMovableHolders
-local hoverStates, _quickKeybindState = I.hoverStates, I._quickKeybindState
+local hoverStates, _quickKeybindState, _gridState = I.hoverStates, I._quickKeybindState, I._gridState
 local SafeEnableMouse, SafeEnableMouseMotionOnly = I.SafeEnableMouse, I.SafeEnableMouseMotionOnly
 local ShouldQuickKeybindSurfaceBar, BuildVisibilityString = I.ShouldQuickKeybindSurfaceBar, I.BuildVisibilityString
 
@@ -707,7 +707,7 @@ function EAB:RebuildVisToggleBindings()
                 -- An override change took the bar out of the toggle set: drop its
                 -- toggle state, its key may no longer be bound to undo it.
                 -- Spellbook / drag surfacing own their entries and restore them.
-                local g = I._gridState
+                local g = _gridState
                 if not ((g._sbNeverForced and g._sbNeverForced[info.key])
                         or (g._dragNeverForced and g._dragNeverForced[info.key])) then
                     self._visOverride[info.key] = nil
@@ -715,6 +715,12 @@ function EAB:RebuildVisToggleBindings()
             end
         end
     end
+    -- Every binding write fires UPDATE_BINDINGS, and _EAB_Apply runs this on each
+    -- profile swap and override change: rebind only when the key set moved.
+    -- Nothing else touches these pooled buttons' bindings.
+    local sig = table.concat(keys, "\n")
+    if sig == self._visToggleBoundSig then return end
+    self._visToggleBoundSig = sig
     -- Clear every pooled button's binding, then (re)assign one per unique key.
     self._visToggleBtnPool = self._visToggleBtnPool or {}
     for _, btn in ipairs(self._visToggleBtnPool) do
