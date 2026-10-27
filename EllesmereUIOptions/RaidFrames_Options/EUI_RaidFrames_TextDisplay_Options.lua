@@ -46,6 +46,7 @@ end
 local CustomText = {}
 do
     local EDIT_ICON = "Interface\\AddOns\\EllesmereUI\\media\\icons\\eui-edit.png"
+    CustomText.EDIT_ICON = EDIT_ICON
 
     -- The text's colour mode as the preview shows it, for the player's class and power.
     function CustomText.Color(t)
@@ -383,9 +384,11 @@ function ns.RFO_BuildTextDisplay(W, parent, y, opts)
         cells[#cells + 1] = cell
     end
 
-    -- "+ Add Text": every hidden text, the Custom texts as one entry (the next free one).
+    -- "+ Add Text": every hidden text; the Custom texts as one entry (the next free
+    -- one) on top, an action in the accent colour with the edit pencil, as in the
+    -- tile dropdowns.
     local addOrder, addValues, addText = {}, {}, {}
-    local customAdded = false
+    local customId
     local nameShown = Shown(TEXTS[1])
     for i = 1, #TEXTS do
         local t = TEXTS[i]
@@ -393,16 +396,30 @@ function ns.RFO_BuildTextDisplay(W, parent, y, opts)
         -- An attached level shows in the name tile while the name does; with the
         -- name hidden (the Top Name Bar may still use it) it can go on its own spot.
         if t.kind == "level" and ATTACH_VALUE[PosOf(t)] and nameShown then hidden = false end
-        if hidden and not (t.kind == "custom" and customAdded) then
+        if hidden and t.kind == "custom" then
+            if not customId then
+                customId = t.id
+                addValues[t.id] = { text = "Custom Text", action = function() Show(t) end }
+            end
+        elseif hidden then
             addOrder[#addOrder + 1] = t.id
-            addValues[t.id] = (t.kind == "custom") and "Custom Text" or t.label
+            addValues[t.id] = t.label
             -- An attached level placed on its own spot leaves the Top Name Bar's prefix.
             if t.kind == "level" and ATTACH_VALUE[PosOf(t)] and SVal("topNameBarEnabled", false) then
                 addValues[t.id] = "Level (moves it off the Top Name Bar)"
             end
             addText[t.id] = t
-            if t.kind == "custom" then customAdded = true end
         end
+    end
+    if customId then
+        table.insert(addOrder, 1, customId)
+        if #addOrder > 1 then table.insert(addOrder, 2, "---") end
+        addValues._menuOpts = {
+            icon = function(key) if key == customId then return CustomText.EDIT_ICON end end,
+            iconSize = function() return 12 end,
+            iconClearScroll = true,
+            iconColor = function(key) if key == customId then return 1, 1, 1, 1 end end,
+        }
     end
     local addOpen
     local addCfg = { type = "button", text = "+ Add Text", width = 220,
