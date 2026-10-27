@@ -91,6 +91,7 @@ local function CreateBarFrame(info)
         ]])
 
         RegisterStateDriver(frame, "page", pagingConditions)
+        frame._eabPagingConds = pagingConditions
     end
 
     -- Bars 2-8 (nativeActionPage) and 9-10 (customPage): buttons have static action
@@ -105,6 +106,7 @@ local function CreateBarFrame(info)
         -- page; when no conditions match, fall back to the bar's default.
         local barSettings = EAB and EAB.db and EAB.db.profile and EAB.db.profile.bars[key]
         local customPaging = barSettings and barSettings.paging
+        frame._eabPagingConds = false
         if EAB_VTABLE.HasCustomPaging(barSettings) then
             frame:SetAttributeNoHandler("_onstate-page", [[
                 local page = tonumber(newstate) or 1
@@ -115,6 +117,7 @@ local function CreateBarFrame(info)
             local conditions = EAB_VTABLE.BuildPagingConditions(key, customPaging, defaultPage)
             if conditions then
                 RegisterStateDriver(frame, "page", conditions)
+                frame._eabPagingConds = conditions
             end
         end
     end
@@ -182,8 +185,12 @@ local function CreateBarFrame(info)
 end
 
 -- Rebuild the paging state driver for a bar after settings change. Called from the
--- options panel when the user modifies paging config. Must be called out of combat.
-function ns.RebuildBarPaging(barKey)
+-- options panel when the user modifies paging config, and from ApplyAll with
+-- onlyIfChanged so a profile swap or spec override apply picks up the new paging
+-- settings; onlyIfChanged skips a bar whose conditions match the ones installed
+-- (frame._eabPagingConds, false = fixed page) instead of re-registering its driver
+-- on every full apply. Must be called out of combat.
+function ns.RebuildBarPaging(barKey, onlyIfChanged)
     if InCombatLockdown() then return end
     local frame = barFrames[barKey]
     if not frame then return end
@@ -199,12 +206,19 @@ function ns.RebuildBarPaging(barKey)
         else
             pagingConditions = GetClassPagingConditions()
         end
+        if onlyIfChanged and pagingConditions == frame._eabPagingConds then return end
+        frame._eabPagingConds = pagingConditions
         -- Force re-evaluation by unregistering first
         UnregisterStateDriver(frame, "page")
         RegisterStateDriver(frame, "page", pagingConditions)
     elseif info.nativeActionPage or info.customPage then
         local defaultPage = info.nativeActionPage or info.customPage
-        if EAB_VTABLE.HasCustomPaging(barSettings) then
+        local hasCustom = EAB_VTABLE.HasCustomPaging(barSettings)
+        local conditions = hasCustom
+            and EAB_VTABLE.BuildPagingConditions(barKey, customPaging, defaultPage) or false
+        if onlyIfChanged and conditions == frame._eabPagingConds then return end
+        frame._eabPagingConds = conditions
+        if hasCustom then
             -- Install handler if not already present
             if not frame._eabPagingInstalled then
                 frame:SetAttributeNoHandler("_onstate-page", [[
@@ -225,7 +239,6 @@ function ns.RebuildBarPaging(barKey)
                     end
                 end
             end
-            local conditions = EAB_VTABLE.BuildPagingConditions(barKey, customPaging, defaultPage)
             if conditions then
                 UnregisterStateDriver(frame, "page")
                 RegisterStateDriver(frame, "page", conditions)
