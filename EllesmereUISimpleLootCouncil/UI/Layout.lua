@@ -433,6 +433,7 @@ end
 
 
 
+
 local MULTI_W = 220
 
 function L.MultiSelect(parent, x, width, y, opts)
@@ -452,6 +453,7 @@ function L.MultiSelect(parent, x, width, y, opts)
         for _, o in ipairs(opts.options) do
             if opts.get(o.key) then chosen[#chosen + 1] = o.text end
         end
+        if opts.exclusive then return chosen[1] or "" end
         if #chosen == #opts.options and #chosen > 0 then return T["All"] end
         if #chosen == 0 then return T["None"] end
         return table.concat(chosen, ", ")
@@ -465,10 +467,15 @@ function L.MultiSelect(parent, x, width, y, opts)
         local items = {}
         for _, o in ipairs(opts.options) do
             items[#items + 1] = {
-                text = o.text, checkbox = true,
+                text = o.text, checkbox = not opts.exclusive, tooltip = o.tooltip,
                 checked = function() return opts.get(o.key) end,
                 onClick = function()
-                    opts.set(o.key, not opts.get(o.key))
+
+                    if opts.exclusive then
+                        if not opts.get(o.key) then opts.set(o.key, true) end
+                    else
+                        opts.set(o.key, not opts.get(o.key))
+                    end
                     self:Sync()
                 end,
             }

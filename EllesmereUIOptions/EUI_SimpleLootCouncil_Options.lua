@@ -162,10 +162,11 @@ initFrame:SetScript("OnEvent", function(self)
             if not LockReason() then row.setValue(value) end
             Invalidate()
         end
-        if locked or disabled then
-            local function Reason() return LockReason() or (disabled and disabled()) end
-            cfg.disabled = function() return Reason() ~= nil end
-            cfg.disabledTooltip = Reason
+
+
+        if disabled then
+            cfg.disabled = function() return disabled() ~= nil end
+            cfg.disabledTooltip = disabled
 
             cfg.rawTooltip = true
         end
@@ -175,15 +176,11 @@ initFrame:SetScript("OnEvent", function(self)
 
     local CHECKS_W = 230
     local function ChecksReason(row)
-        if row.locked then
-            local _, reason = row.locked()
-            if reason then return reason end
-        end
         if row.disabled then return row.disabled() end
         return nil
     end
     local function ChecksLock(target, row)
-        if not (row.locked or row.disabled) then return target end
+        if not row.disabled then return target end
         target.disabled = function() return ChecksReason(row) ~= nil end
         target.disabledTooltip = function() return ChecksReason(row) end
         target.rawTooltip = true
@@ -219,6 +216,8 @@ initFrame:SetScript("OnEvent", function(self)
     end
 
 
+
+
     local CHECKS_PAD = 80
     local measure
     local function ChecksWidth(items)
@@ -235,7 +234,8 @@ initFrame:SetScript("OnEvent", function(self)
         return widest + CHECKS_PAD
     end
     local function ChecksDecorator(row)
-        local items = ChecksItems(row)        local function Get(key)
+        local items = ChecksItems(row)
+        local function Get(key)
             if row.lockedValue and row.locked and select(2, row.locked()) then
                 return row.lockedValue(key)
             end
@@ -249,9 +249,11 @@ initFrame:SetScript("OnEvent", function(self)
             local dd, refresh = EllesmereUI.BuildVisOptsCBDropdown(region, width,
                 region:GetFrameLevel() + 2, items, Get,
                 function(key, value)
-                    if not ChecksReason(row) then row.setValue(key, value) end
+
+                    if not ChecksReason(row) and not (row.locked and select(2, row.locked())) and (value or not row.exclusive) then row.setValue(key, value) end
                     Invalidate()
-                end, nil, nil, nil, nil, nil, ChecksLock({ emptyLabel = "None" }, row))
+                end, nil, nil, nil, nil, nil,
+                ChecksLock({ emptyLabel = "None", noAllLabel = row.exclusive }, row))
             EllesmereUI.PanelPP.Point(dd, "RIGHT", region, "RIGHT", -20, 0)
             region._control = dd
             region._lastInline = nil
@@ -302,8 +304,67 @@ initFrame:SetScript("OnEvent", function(self)
     end
 
 
-    local function CloseSuggestions(box)
-        if EllesmereUI.ContextMenuOwner() == box then EllesmereUI.CloseContextMenu() end
+
+
+    local SUG_ROW_H = 26
+    local sugPopup
+    local function SugPaint(p)
+        for i, row in ipairs(p.rows) do
+            row.hl:SetColorTexture(1, 1, 1, i == p.selected and 0.08 or 0)
+        end
+    end
+    local function SugPopup()
+        if sugPopup then return sugPopup end
+        local p = _G.CreateFrame("Frame", nil, _G.UIParent)
+        p:SetFrameStrata("FULLSCREEN_DIALOG")
+        p:SetFrameLevel(220)
+        p:SetClampedToScreen(true)
+        p:EnableMouse(true)
+        p:Hide()
+        local bg = p:CreateTexture(nil, "BACKGROUND")
+        bg:SetAllPoints()
+        bg:SetColorTexture(0.098, 0.090, 0.082, 0.97)
+        EllesmereUI.MakeBorder(p, 1, 1, 1, 0.12)
+        p.rows, p.selected = {}, 0
+
+        local away = _G.CreateFrame("Frame")
+        away:SetScript("OnEvent", function()
+            local owner = p.owner
+            if not p:IsMouseOver() and not (owner and owner:IsMouseOver()) then p:Hide() end
+        end)
+        p:SetScript("OnShow", function() away:RegisterEvent("GLOBAL_MOUSE_DOWN") end)
+        p:SetScript("OnHide", function() away:UnregisterEvent("GLOBAL_MOUSE_DOWN") end)
+        sugPopup = p
+        return p
+    end
+    local function SugRow(p, i)
+        local row = p.rows[i]
+        if row then return row end
+        row = _G.CreateFrame("Button", nil, p)
+        row:SetHeight(SUG_ROW_H)
+        row:SetPoint("TOPLEFT", p, "TOPLEFT", 4, -4 - (i - 1) * SUG_ROW_H)
+        row:SetPoint("TOPRIGHT", p, "TOPRIGHT", -4, -4 - (i - 1) * SUG_ROW_H)
+        row.hl = row:CreateTexture(nil, "ARTWORK")
+        row.hl:SetAllPoints()
+        row.hl:SetColorTexture(1, 1, 1, 0)
+        row.label = EllesmereUI.MakeFont(row, 12, nil, 1, 1, 1)
+        row.label:SetPoint("LEFT", row, "LEFT", 8, 0)
+        row.label:SetPoint("RIGHT", row, "RIGHT", -8, 0)
+        row.label:SetJustifyH("LEFT")
+        row.label:SetWordWrap(false)
+        row:SetScript("OnEnter", function() p.selected = i SugPaint(p) end)
+        row:SetScript("OnClick", function()
+            if p.onPick and row.entry then p.onPick(row.entry) end
+        end)
+        p.rows[i] = row
+        return row
+    end
+    local function SugOpen() return sugPopup ~= nil and sugPopup:IsShown() end
+    local function CloseSuggestions()
+        if sugPopup then
+            sugPopup:Hide()
+            sugPopup.selected = 0
+        end
     end
 
 
@@ -318,6 +379,7 @@ initFrame:SetScript("OnEvent", function(self)
             addBox = _G.CreateFrame("EditBox", nil, addHolder)
             addBox:SetHeight(28)
             addBox:SetAutoFocus(false)
+            addBox:SetAltArrowKeyMode(false)
             EllesmereUI.ApplyModuleFont(addBox, EllesmereUI.EXPRESSWAY, 11, nil, "")
             addBox:SetTextColor(1, 1, 1, 0.9)
             addBox:SetJustifyH("LEFT")
@@ -331,9 +393,14 @@ initFrame:SetScript("OnEvent", function(self)
             EllesmereUI.PanelPP.Point(addButton, "LEFT", addBox, "RIGHT", 8, 0)
             local function Add() if addHandlers.add then addHandlers.add() end end
             EllesmereUI.MakeStyledButton(addButton, buttonText, 12, EllesmereUI.WB_COLOURS, Add)
-            addBox:SetScript("OnEnterPressed", Add)
+            addBox:SetScript("OnEnterPressed", function()
+                if addHandlers.enter then addHandlers.enter() else Add() end
+            end)
+            addBox:HookScript("OnArrowPressed", function(b, key)
+                if addHandlers.arrow then addHandlers.arrow(b, key) end
+            end)
             addBox:SetScript("OnEscapePressed", function(b)
-                CloseSuggestions(b)
+                CloseSuggestions()
                 b:ClearFocus()
             end)
             addBox:SetScript("OnHide", CloseSuggestions)
@@ -346,6 +413,7 @@ initFrame:SetScript("OnEvent", function(self)
         addHolder:SetAllPoints(row)
         addHolder:SetFrameLevel(row:GetFrameLevel() + 1)
         addButton:SetFrameLevel(addHolder:GetFrameLevel() + 2)
+        addBox.slcSuggest = function() return sugPopup end
         addBox:SetWidth(width)
         addBox:ClearAllPoints()
         addBox:SetPoint("LEFT", addHolder, "LEFT", 20, 0)
@@ -363,6 +431,9 @@ initFrame:SetScript("OnEvent", function(self)
     local LOGO = { path = ART .. "logo", u = 396 / 512, w = 396 }
     local LOGO_PRIDE = { path = ART .. "logo-pride", u = 398 / 512, w = 398 }
     local LOGO_H, LOGO_V = 36, 36 / 64
+
+
+    local LOGO_RULE_X = 51
     local MODULE_TITLE = "Simple Loot Council"
 
 
@@ -393,7 +464,8 @@ initFrame:SetScript("OnEvent", function(self)
         end
     end
 
-    local bannerTitle, bannerTexture, bannerVersion, bannerCredit
+    local bannerTitle, bannerTexture, bannerVersion, bannerDesc, bannerDescText, bannerDescAnchor
+    local function AccentWord(slc, word) return slc.Style.Colorize(slc.Style.color.accent, word) end
 
 
 
@@ -474,27 +546,24 @@ initFrame:SetScript("OnEvent", function(self)
             bannerVersion:SetPoint("BOTTOMLEFT", bannerTexture, "BOTTOMRIGHT", 12, 4)
         end
         bannerVersion:SetText("v" .. tostring(slc.VERSION))
-        if not bannerCredit then
-            local header = bannerTitle:GetParent()
-            local desc = FindText(main, 6, EllesmereUI.L(MODULE_DESC))
-            bannerCredit = header:CreateFontString(nil, "OVERLAY")
-            local file = EllesmereUI.FONT_FILES and EllesmereUI.FONT_FILES["Avant Garde"]
-            local path, size, flags
-            if desc then path, size, flags = desc:GetFont() end
-            path = path or EllesmereUI.GetFontPath() or "Fonts\\FRIZQT__.TTF"
-            if file and EllesmereUI.MEDIA_PATH then path = EllesmereUI.MEDIA_PATH .. "fonts\\" .. file end
-            bannerCredit:SetFont(path, size or 14, flags)
-            if desc then
-                local r, g, b = desc:GetTextColor()
-                bannerCredit:SetTextColor(r, g, b, 1)
+
+
+        if not bannerDesc then
+            bannerDesc = FindText(main, 6, EllesmereUI.L(MODULE_DESC))
+            bannerDescText = bannerDesc and bannerDesc:GetText()
+            if bannerDesc and bannerDesc.GetPoint then
+                local point, rel, relPoint, x, y = bannerDesc:GetPoint(1)
+                if point then bannerDescAnchor = { point, rel, relPoint, x or 0, y or 0 } end
             end
-            bannerCredit:SetJustifyH("RIGHT")
-
-
-            bannerCredit:SetPoint("BOTTOMRIGHT", header, "TOPRIGHT", -103, -130)
-            bannerCredit:SetText(EllesmereUI.L("Developed in partnership with Laxx"))
         end
-        if bannerCredit then bannerCredit:Show() end
+        if bannerDesc then
+            local a = bannerDescAnchor
+            if a then
+                bannerDesc:ClearAllPoints()
+                bannerDesc:SetPoint(a[1], a[2], a[3], a[4] + LOGO_RULE_X, a[5])
+            end
+            bannerDesc:SetText(EllesmereUI.L("Developed in partnership with ") .. AccentWord(slc, "Laxx"))
+        end
         ApplyBanner(slc)
         bannerTexture:Show()
         bannerVersion:Show()
@@ -504,7 +573,12 @@ initFrame:SetScript("OnEvent", function(self)
     local function HideBanner()
         if bannerTexture then bannerTexture:Hide() end
         if bannerVersion then bannerVersion:Hide() end
-        if bannerCredit then bannerCredit:Hide() end
+        if bannerDesc and bannerDescText then bannerDesc:SetText(bannerDescText) end
+        local a = bannerDescAnchor
+        if bannerDesc and a then
+            bannerDesc:ClearAllPoints()
+            bannerDesc:SetPoint(a[1], a[2], a[3], a[4], a[5])
+        end
         if bannerTitle then bannerTitle:SetAlpha(1) end
     end
 
@@ -589,35 +663,6 @@ initFrame:SetScript("OnEvent", function(self)
         local T, Format = slc.Locale.Text, slc.Locale.Format
         local refreshes = {}
         local function OnRefresh(fn) refreshes[#refreshes + 1] = fn end
-
-
-
-        if not prebuild then
-            local link = CreateFrame("Button", nil, parent)
-            link._isSpacer = true
-            link:SetSize(parent:GetWidth(), 20)
-            link:SetPoint("TOP", parent, "TOP", 0, y - 15)
-            local text = link:CreateFontString(nil, "OVERLAY")
-            text:SetFont(EllesmereUI.GetFontPath() or "Fonts\\FRIZQT__.TTF", 15, "")
-            text:SetTextColor(1, 1, 1, 0.75)
-            text:SetPoint("TOP", link, "TOP", 0, 0)
-            text:SetText(EllesmereUI.L("Friends not running EUI? Download the standalone version here!"))
-
-            local width = text.GetStringWidth and text:GetStringWidth()
-            if type(width) == "number" and not (issecretvalue and issecretvalue(width)) then
-                link:SetSize(width + 4, 20)
-            end
-            link:SetScript("OnEnter", function() text:SetTextColor(1, 1, 1, 1) end)
-            link:SetScript("OnLeave", function() text:SetTextColor(1, 1, 1, 0.75) end)
-            link:SetScript("OnClick", function(self)
-                if EllesmereUI.ShowLinkPopup then
-                    EllesmereUI.ShowLinkPopup(STANDALONE_URL, self)
-                    WidenLinkPopup(STANDALONE_URL)
-                end
-            end)
-        end
-        y = y - 32
-
 
         local covers = {}
         if not prebuild then lockCovers[pageName] = covers end
@@ -770,6 +815,7 @@ initFrame:SetScript("OnEvent", function(self)
 
         elseif prebuild then
             _, h = W:WideDualButton(parent, main.openText, main.historyText, y);  y = y - h
+            y = y - 32
         else
             _, h = W:Spacer(parent, y, 10);  y = y - h
             local cards
@@ -789,6 +835,7 @@ initFrame:SetScript("OnEvent", function(self)
 
                 if cards[1].SetPulse then cards[1]:SetPulse(main.live()) end
             end)
+
             _, h = W:Spacer(parent, y, 14);  y = y - h
 
 
@@ -804,6 +851,32 @@ initFrame:SetScript("OnEvent", function(self)
             block._skipRowDivider = true
             EllesmereUI.RowBg(block, parent)
             y = y - height
+
+
+
+            local link = CreateFrame("Button", nil, parent)
+            link._isSpacer = true
+            link:SetSize(parent:GetWidth(), 20)
+            link:SetPoint("TOP", parent, "TOP", 0, y - 15)
+            local text = link:CreateFontString(nil, "OVERLAY")
+            text:SetFont(EllesmereUI.GetFontPath() or "Fonts\\FRIZQT__.TTF", 15, "")
+            text:SetTextColor(1, 1, 1, 0.75)
+            text:SetPoint("TOP", link, "TOP", 0, 0)
+            text:SetText(EllesmereUI.L("Friends not running EUI? Download the standalone version here!"))
+
+            local width = text.GetStringWidth and text:GetStringWidth()
+            if type(width) == "number" and not (issecretvalue and issecretvalue(width)) then
+                link:SetSize(width + 4, 20)
+            end
+            link:SetScript("OnEnter", function() text:SetTextColor(1, 1, 1, 1) end)
+            link:SetScript("OnLeave", function() text:SetTextColor(1, 1, 1, 0.75) end)
+            link:SetScript("OnClick", function(self)
+                if EllesmereUI.ShowLinkPopup then
+                    EllesmereUI.ShowLinkPopup(STANDALONE_URL, self)
+                    WidenLinkPopup(STANDALONE_URL)
+                end
+            end)
+            y = y - 32
 
 
 
@@ -1096,7 +1169,7 @@ initFrame:SetScript("OnEvent", function(self)
             local box = AddBox(Row(50), math.min(260, Width() - 20 - 8 - 90 - 20), spec.addText())
 
             local function AddTyped()
-                CloseSuggestions(box)
+                CloseSuggestions()
                 local name = box:GetText():trim()
                 if name == "" then return end
 
@@ -1111,33 +1184,84 @@ initFrame:SetScript("OnEvent", function(self)
                 Invalidate()
             end
 
+
+
+            local shown = {}
+            local function Fill(b, entry)
+                local fill = spec.suggestionText(entry)
+                b:SetText(fill)
+                b:SetCursorPosition(#fill)
+                b:SetFocus()
+            end
+            local function ShowList(b)
+                CloseSuggestions()
+                if #shown == 0 then return end
+                local p = SugPopup()
+                p.owner = b
+                p.onPick = function(entry)
+                    CloseSuggestions()
+                    shown = {}
+                    Fill(b, entry)
+                end
+                for index, entry in ipairs(shown) do
+                    local row = SugRow(p, index)
+                    local name = (tostring(entry.name):gsub("|", "||"))
+                    local rank = (tostring(entry.rank or ""):gsub("|", "||"))
+                    row.entry = entry
+                    row.label:SetText(ClassText(entry.classFile, name,
+                        entry.online and S.color.text or S.color.textFaint) .. "  " .. faint .. rank .. "|r")
+                    row:Show()
+                end
+                for index = #shown + 1, #p.rows do
+                    p.rows[index].entry = nil
+                    p.rows[index]:Hide()
+                end
+                p.selected = 0
+                SugPaint(p)
+                local own, base = b:GetEffectiveScale(), _G.UIParent:GetEffectiveScale()
+                if type(own) == "number" and type(base) == "number" and base > 0 and own > 0 then
+                    p:SetScale(own / base)
+                end
+                p:SetSize(b:GetWidth(), #shown * SUG_ROW_H + 8)
+                p:ClearAllPoints()
+                p:SetPoint("TOPLEFT", b, "BOTTOMLEFT", 0, -2)
+                p:Show()
+            end
             local function Typed(b, userInput)
                 if not userInput then return end
-                CloseSuggestions(b)
+                CloseSuggestions()
+                shown = {}
                 local text = (b:GetText() or ""):trim()
 
                 if select(2, text:gsub("[^\128-\191]", "")) < SUGGEST_MIN_CHARS then return end
                 if PrideRequest(text) ~= nil then return end
-                local items = {}
-                for _, entry in ipairs(spec.suggest(text, SUGGEST_MAX)) do
-                    local name = (tostring(entry.name):gsub("|", "||"))
-                    local rank = (tostring(entry.rank or ""):gsub("|", "||"))
-                    items[#items + 1] = { noLoc = true,
-                        text = ClassText(entry.classFile, name, entry.online and S.color.text or S.color.textFaint)
-                            .. "  " .. faint .. rank .. "|r",
-                        onClick = function()
-                            local fill = spec.suggestionText(entry)
-                            b:SetText(fill)
-                            b:SetCursorPosition(#fill)
-                            b:SetFocus()
-                        end }
+                shown = spec.suggest(text, SUGGEST_MAX)
+                ShowList(b)
+            end
+            local function Arrow(_, key)
+                if not SugOpen() or #shown == 0 then return end
+                local p = sugPopup
+                if key == "UP" then
+                    p.selected = p.selected == 0 and #shown or math.max(p.selected - 1, 1)
+                elseif key == "DOWN" then
+                    p.selected = p.selected == 0 and 1 or math.min(p.selected + 1, #shown)
+                else
+                    return
                 end
-                if #items > 0 then
-                    EllesmereUI.ShowContextMenu(b, items, { below = true, minWidth = b:GetWidth(),
-                        pickOnDown = true, scaleToAnchor = true })
+                SugPaint(p)
+            end
+            local function Enter()
+                local entry = SugOpen() and shown[sugPopup.selected]
+                if entry then
+                    CloseSuggestions()
+                    shown = {}
+                    Fill(box, entry)
+                else
+                    AddTyped()
                 end
             end
             addHandlers.add, addHandlers.typed = AddTyped, Typed
+            addHandlers.arrow, addHandlers.enter = Arrow, Enter
 
 
 
@@ -1281,10 +1405,6 @@ initFrame:SetScript("OnEvent", function(self)
                 rule:SetWidth(1)
                 rule:SetPoint("TOPLEFT", parent, "TOPLEFT", PAD + half + GAP / 2, top - 4)
                 rule:SetPoint("BOTTOMLEFT", parent, "TOPLEFT", PAD + half + GAP / 2, y + 4)
-
-                LockCover(top, y, councilSpec.lockedText, councilSpec.locked, function()
-                    if addBox and addBox:HasFocus() then addBox:ClearFocus() end
-                end)
             end
         end
 
@@ -1376,8 +1496,10 @@ initFrame:SetScript("OnEvent", function(self)
                 end
             end
             Flush()
-            if section.locked and not prebuild and y < rowsTop then
-                LockCover(rowsTop, y, section.lockedText, section.locked)
+
+
+            if section.id == "voting" and not prebuild and y < rowsTop then
+                LockCover(rowsTop, y, Schema.LeaderLockReason(), function() return slc.Config:LeaderDictates() end)
             end
         end
 

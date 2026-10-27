@@ -15,6 +15,7 @@ Storage.TO_TRADE = "to_trade"
 Storage.AWARD_LATER = "award_later"
 Storage.KEPT = "kept"
 
+
 Storage.UNTRADEABLE_KEEP = 24 * 60 * 60
 Storage.TRADE_WINDOW = 2 * 60 * 60
 
@@ -717,7 +718,7 @@ function Storage:MarkUntradeable(entry, why, to)
     if not entry or entry.untradeable then return false end
     entry.untradeable = why
     entry.untradeableTo = to
-    entry.untradeableAt = time()
+    entry.untradeableAt, entry.reowed = time(), nil
     addon.Log:I("Storage", "no longer tradeable -", why, entry.link, "owed to",
         tostring(entry.args and entry.args.recipient),
         to and ("handed to " .. tostring(to)) or "")
@@ -894,6 +895,8 @@ end
 function Storage:Reconcile(reason)
     local list = addon.db.itemStorage
     local copies, counts, totalSlots = ScanHeld(list)
+
+
     if totalSlots == 0 then
         addon.Log:WLogOnly("Storage", "bags not readable - skipping reconcile,",
             #list, "entries kept")
@@ -913,7 +916,7 @@ function Storage:Reconcile(reason)
     end
 
     local drop = {}
-    local marked = {}
+    local marked, cleared = {}, {}
     local changed = false
 
     for i = 1, #list do
@@ -965,7 +968,7 @@ function Storage:Reconcile(reason)
                 else
                     entry.untradeable = "left"
                 end
-                entry.untradeableAt = now
+                entry.untradeableAt, entry.reowed = now, nil
                 marked[#marked + 1] = entry
                 addon.Log:I("Storage", "no longer tradeable -", entry.untradeable,
                     entry.link, "owed to", tostring(entry.args and entry.args.recipient))
@@ -999,7 +1002,8 @@ function Storage:Reconcile(reason)
             if id and (budget[id] or 0) > 0 and InTradeWindow(entry, now) then
                 budget[id] = budget[id] - 1
                 entry.untradeable, entry.untradeableTo, entry.untradeableAt = nil, nil, nil
-                entry.missingAtAdd = nil
+                entry.missingAtAdd, entry.reowed = nil, why
+                cleared[#cleared + 1] = entry
                 changed = true
                 addon.Log:I("Storage", "owed item is back in the bags -", why, entry.link,
                     "owed to", tostring(entry.args and entry.args.recipient))
@@ -1030,7 +1034,7 @@ function Storage:Reconcile(reason)
         addon.Callbacks:Fire("StorageChanged")
     end
 
-    return removed, marked
+    return removed, marked, cleared
 end
 
 

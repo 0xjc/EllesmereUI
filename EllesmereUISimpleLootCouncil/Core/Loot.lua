@@ -708,7 +708,6 @@ end
 
 
 
-
 function Loot:DecisionKey()
     if IsInRaid() then return "raid" end
     return addon.GroupTestActive() and "party" or nil

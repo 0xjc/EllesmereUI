@@ -584,6 +584,8 @@ local function DragTo(frame)
     local step = P.OnePixel(frame)
 
     local function Place(v, max)
+
+        if max <= 0 then return 0 end
         v = P.GridPixel(math.max(0, math.min(max, v)) / step)
         if v * step > max then v = v - 1 end
         if v < 0 then v = v + 1 end
@@ -637,6 +639,48 @@ end
 
 
 
+function S.InstallPlacement(f, key, default)
+    f.slcPlacementKey = key
+
+    function f:SavePosition()
+        local rec, windows = S.PlacementRecord(f), addon.db and addon.db.windows
+        if rec and windows then windows[key] = rec end
+    end
+
+    function f:RestorePosition()
+        local pos = addon.db and addon.db.windows and addon.db.windows[key]
+        local scale = S.ScaleNow(f)
+        f:ClearAllPoints()
+        if pos and pos.point then
+            f:SetPoint(pos.point, UIParent, pos.relPoint or pos.point, (tonumber(pos.x) or 0) / scale,
+                (tonumber(pos.y) or 0) / scale)
+            P.AlignFrame(f)
+
+
+            if not pos.thirds then
+                S.ReanchorToThirds(f)
+                f:SavePosition()
+            end
+            return
+        elseif default then
+            f:SetPoint(default[1], UIParent, default[2], default[3] / scale, default[4] / scale)
+        else
+            f:SetPoint("CENTER")
+        end
+        P.AlignFrame(f)
+    end
+end
+
+
+
+function S.StopWindowDrag(f)
+    P.StopDrag(f)
+    S.ReanchorToThirds(f)
+    f:SavePosition()
+end
+
+
+
 function S.InstallWindowGeometry(f, key, header, close)
 
 
@@ -646,16 +690,9 @@ function S.InstallWindowGeometry(f, key, header, close)
     grip:EnableMouse(true)
     grip:RegisterForDrag("LeftButton")
     grip:SetScript("OnDragStart", function() P.StartDrag(f) end)
-    grip:SetScript("OnDragStop", function()
-        P.StopDrag(f)
-        f:SavePosition()
-    end)
+    grip:SetScript("OnDragStop", function() S.StopWindowDrag(f) end)
 
-
-    function f:SavePosition()
-        local point, _, relPoint, x, y = f:GetPoint()
-        addon.db.windows[key] = { point = point, relPoint = relPoint, x = x, y = y }
-    end
+    S.InstallPlacement(f, key)
 
 
 
@@ -721,33 +758,40 @@ function S.InstallWindowGeometry(f, key, header, close)
 
 
     function f:PlaceAtCursor()
-        local scale = UIParent:GetEffectiveScale()
-        local x, y = GetCursorPosition()
-        local w, h = f:GetWidth(), f:GetHeight()
-        x = math.max(w / 2, math.min(UIParent:GetWidth() - w / 2, x / scale))
-        y = math.max(h / 2, math.min(UIParent:GetHeight() - h / 2, y / scale))
+        S.ScaleNow(f)
+        local x, y = S.CursorOffset(f)
         f:ClearAllPoints()
+        if not x then
+            f:SetPoint("CENTER")
+            return
+        end
+
+        local own = EffectiveScale(f) or 1
+        local ratio = (EffectiveScale(UIParent) or own) / own
+        local w, h = f:GetWidth(), f:GetHeight()
+        x = math.max(w / 2, math.min(UIParent:GetWidth() * ratio - w / 2, x))
+        y = math.max(h / 2, math.min(UIParent:GetHeight() * ratio - h / 2, y))
         f:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x, y)
         P.AlignFrame(f)
     end
 
-    function f:RestorePosition()
-        local pos = addon.db.windows[key]
-        f:ClearAllPoints()
-        if pos and pos.point then
-            f:SetPoint(pos.point, UIParent, pos.relPoint, pos.x, pos.y)
-        else
-            f:SetPoint("CENTER")
-        end
+
+
+
+    f:HookScript("OnSizeChanged", function()
+        P.AfterLayout(function()
+            S.ApplyWindowScale(f)
+            P.Reanchor(f)
+        end)
+    end)
+    f:HookScript("OnShow", function() S.ApplyWindowScale(f) end)
+    P.OnRescale(function()
+        S.ApplyWindowScale(f)
         P.AlignFrame(f)
-    end
-
-
-
-    f:HookScript("OnSizeChanged", function() P.AfterLayout(function() P.Reanchor(f) end) end)
-    P.OnRescale(function() P.AlignFrame(f) end)
+    end)
 
     S.FollowWindowAlpha(f)
+    S.FollowWindowScale(f)
 end
 
 
@@ -788,4 +832,256 @@ end
 function S.SetWindowAlpha(alpha)
     addon.db.windowAlpha = math.max(S.WINDOW_ALPHA_MIN, math.min(1, tonumber(alpha) or 1))
     for _, f in ipairs(S.windows) do f:SetAlpha(addon.db.windowAlpha) end
+end
+
+
+
+
+
+S.WINDOW_SCALE_MIN_PCT, S.WINDOW_SCALE_MAX_PCT, S.WINDOW_SCALE_STEP_PCT = 70, 200, 5
+S.WINDOW_SCALE_FLOOR = 0.5
+S.WINDOW_FIT_MARGIN = 16
+
+local function Num(v)
+    return type(v) == "number" and not Secret(v) and v == v and v ~= math.huge and v ~= -math.huge
+end
+
+
+function S.ClampWindowScale(v)
+    if v == nil or Secret(v) then return 1 end
+    v = tonumber(v)
+    if not Num(v) then return 1 end
+    local step = S.WINDOW_SCALE_STEP_PCT
+    local pct = math.floor(v * 100 / step + 0.5) * step
+    pct = math.max(S.WINDOW_SCALE_MIN_PCT, math.min(S.WINDOW_SCALE_MAX_PCT, pct))
+    return pct / 100
+end
+
+function S.WindowScale()
+    return S.ClampWindowScale(addon.db and addon.db.windowScale)
+end
+
+
+
+function S.AppliedScale(width, height, screenW, screenH, setting)
+    setting = S.ClampWindowScale(setting)
+    local twice = 2 * S.WINDOW_FIT_MARGIN
+    local fit = math.huge
+    if Num(width) and width > 0 and Num(screenW) and screenW > 0 then
+        fit = math.min(fit, (screenW - twice) / width)
+    end
+    if Num(height) and height > 0 and Num(screenH) and screenH > 0 then
+        fit = math.min(fit, (screenH - twice) / height)
+    end
+    local lowest = setting >= 1 and 1 or S.WINDOW_SCALE_FLOOR
+    if fit >= setting then return setting end
+    return math.max(lowest, math.floor(fit * 1000) / 1000)
+end
+
+
+local function Fractions(point)
+    if type(point) ~= "string" then return nil end
+    local fx = point:find("LEFT", 1, true) and 0 or (point:find("RIGHT", 1, true) and 1 or 0.5)
+    local fy = point:find("BOTTOM", 1, true) and 0 or (point:find("TOP", 1, true) and 1 or 0.5)
+    return fx, fy
+end
+
+
+
+function S.RectFromAnchor(point, relPoint, x, y, w, h, e, W, H)
+    if not (Num(x) and Num(y) and Num(w) and Num(h) and Num(e) and Num(W) and Num(H)) or e <= 0 then
+        return nil
+    end
+    local px, py = Fractions(point)
+    local rx, ry = Fractions(relPoint or point)
+    if not px or not rx then return nil end
+    w, h = w * e, h * e
+    return rx * W + x * e - px * w, ry * H + y * e - py * h, w, h
+end
+
+
+
+function S.ThirdsAnchor(left, bottom, w, h, W, H)
+    if not (Num(left) and Num(bottom) and Num(w) and Num(h) and Num(W) and Num(H)) then return nil end
+    local cx, cy = left + w / 2, bottom + h / 2
+    local horizontal = cx < W / 3 and "LEFT" or (cx > 2 * W / 3 and "RIGHT" or "")
+    local vertical = cy < H / 3 and "BOTTOM" or (cy > 2 * H / 3 and "TOP" or "")
+    local point = vertical .. horizontal
+    if point == "" then point = "CENTER" end
+    local x = horizontal == "LEFT" and left or (horizontal == "RIGHT" and left + w - W or cx - W / 2)
+    local y = vertical == "BOTTOM" and bottom or (vertical == "TOP" and bottom + h - H or cy - H / 2)
+    return point, point, x, y
+end
+
+
+function S.CursorOffset(frame)
+    local es = EffectiveScale(frame)
+    local cx, cy = GetCursorPosition()
+    if not es or not Num(cx) or not Num(cy) then return nil end
+    return cx / es, cy / es
+end
+
+local function ScreenSize()
+    local w, h = UIParent:GetWidth(), UIParent:GetHeight()
+    if Num(w) and Num(h) then return w, h end
+end
+
+
+local function OwnScale(f)
+    local ok, s = pcall(f.GetScale, f)
+    if ok and Num(s) and s > 0 then return s end
+end
+
+
+local function LiveRect(f)
+    local point, relTo, relPoint, x, y = f:GetPoint()
+    if Secret(point) or Secret(relTo) or Secret(relPoint) or not point
+        or (relTo and relTo ~= UIParent) then return nil end
+    local W, H = ScreenSize()
+    local e = OwnScale(f)
+    if not W or not e then return nil end
+    return S.RectFromAnchor(point, relPoint, x, y, f:GetWidth(), f:GetHeight(), e, W, H)
+end
+
+
+function S.PlacementRecord(f)
+    local left, bottom, w, h = LiveRect(f)
+    if not left then return nil end
+    local W, H = ScreenSize()
+    local point, relPoint, x, y = S.ThirdsAnchor(left, bottom, w, h, W, H)
+    if not point then return nil end
+    return { point = point, relPoint = relPoint, x = x, y = y, thirds = true }
+end
+
+
+function S.ReanchorToThirds(f)
+    local rec = S.PlacementRecord(f)
+    local scale = OwnScale(f)
+    if not rec or not scale then return end
+    f:ClearAllPoints()
+    f:SetPoint(rec.point, UIParent, rec.relPoint, rec.x / scale, rec.y / scale)
+    P.AlignFrame(f)
+end
+
+
+local scaleWindows, heldWindows = {}, {}
+S.scaleWindows = scaleWindows
+
+local function AppliedFor(f)
+    local W, H = ScreenSize()
+    return S.AppliedScale(f:GetWidth(), f:GetHeight(), W, H, S.WindowScale())
+end
+
+
+function S.RefreshEdgeSnap()
+    if not P.AutoEdgeSnap then return end
+    local scaled = S.WindowScale() ~= 1
+    for i = 1, #scaleWindows do
+        local s = OwnScale(scaleWindows[i])
+        if s and math.abs(s - 1) > 1e-4 then scaled = true end
+    end
+    P.AutoEdgeSnap(scaled)
+end
+
+
+
+local resnapQueued = false
+local function RequestResnap()
+    if not P.Resnap or resnapQueued then return end
+    resnapQueued = true
+    P.AfterLayout(function()
+        resnapQueued = false
+        P.Resnap()
+    end)
+end
+
+
+
+function S.ScaleNow(f)
+    local current = OwnScale(f) or 1
+    if heldWindows[f] then return current end
+    local target = AppliedFor(f)
+    if math.abs(target - current) > 1e-4 then
+        f:SetScale(target)
+        S.RefreshEdgeSnap()
+        RequestResnap()
+        return target
+    end
+    return current
+end
+
+
+
+local function Rescale(f, current, target)
+    local point, relTo, relPoint, x, y = f:GetPoint()
+    local pinned = point and not Secret(point) and not Secret(relPoint) and Num(x) and Num(y)
+        and (not relTo or relTo == UIParent)
+    f:SetScale(target)
+    if pinned then
+        f:ClearAllPoints()
+        f:SetPoint(point, UIParent, relPoint or point, x * current / target, y * current / target)
+        P.AlignFrame(f)
+    end
+end
+
+
+
+function S.ApplyWindowScale(f)
+    if heldWindows[f] then return false end
+    local current = OwnScale(f)
+    if not current then return false end
+    local target = AppliedFor(f)
+    if math.abs(target - current) <= 1e-4 then return false end
+    Rescale(f, current, target)
+    S.RefreshEdgeSnap()
+    RequestResnap()
+    return true
+end
+
+
+function S.FollowWindowScale(f)
+    scaleWindows[#scaleWindows + 1] = f
+    S.ScaleNow(f)
+end
+
+function S.SetWindowScale(value)
+    if not addon.db then return end
+    addon.db.windowScale = S.ClampWindowScale(value)
+    for i = 1, #scaleWindows do S.ApplyWindowScale(scaleWindows[i]) end
+    S.RefreshEdgeSnap()
+    RequestResnap()
+end
+
+
+
+function S.HoldWindowScale(f)
+    if f then
+        heldWindows[f] = true
+    end
+end
+
+function S.ReleaseWindowScale()
+    local released = {}
+    for f in pairs(heldWindows) do released[#released + 1] = f end
+    for _, f in ipairs(released) do
+        heldWindows[f] = nil
+        S.ApplyWindowScale(f)
+    end
+    if #released > 0 then RequestResnap() end
+end
+
+
+
+function S.MatchScale(frame, owner)
+    local scale
+    local kind = type(owner)
+    if (kind == "table" or kind == "userdata") and owner.GetParent then
+        scale = OwnScale(S.WindowOf(owner))
+    end
+    scale = scale or S.WindowScale()
+    local current = OwnScale(frame)
+    if current and math.abs(scale - current) <= 1e-4 then return scale end
+    frame:SetScale(scale)
+    if P.Resnap then P.Resnap() end
+    return scale
 end

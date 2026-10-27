@@ -34,7 +34,6 @@ local filter = {
 }
 
 
-
 local WINDOW_ORDER = { 0, 30, 90, 365 }
 local WINDOW_LABEL = addon.Locale.Texts{ [0] = T["All time"], [30] = T["Last 30 days"], [90] = T["Last 90 days"],
     [365] = T["Last year"] }
@@ -522,6 +521,7 @@ local function OriginMenu(window)
 
 
     function menu:Finish(used)
+        S.MatchScale(menu, window)
         for i = used + 1, #rows do rows[i]:Hide() end
         local visible = math.max(1, math.min(used, ORIGIN_MENU_ROWS))
         P.Size(menu, ORIGIN_MENU_W, visible * size.ROW_H + 2 * ORIGIN_PAD)
@@ -989,14 +989,6 @@ end
 
 
 
-
-
-
-
-
-
-
-
 local SEARCH_DELAY = 0.2
 
 
@@ -1199,7 +1191,8 @@ local function Build()
     historyPane:HookScript("OnHide", function()
         Tbl.Release(table_)
         addon.Callbacks:Invalidate("history")
-        addon.History:DropArchive("history")    end)
+        addon.History:DropArchive("history")
+    end)
 
     historyPane:HookScript("OnShow", function() addon.History:HoldArchive("history") end)
 

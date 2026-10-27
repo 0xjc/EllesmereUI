@@ -14,6 +14,17 @@ end
 local STANDALONE = "SimpleLootCouncil"
 local FIRST_STAND_DOWN = { 0, 43, 80 }
 
+
+
+local function CharacterKey()
+    local name, second = UnitName("player")
+    if EllesmereUI.IS_FOREVER and type(name) == "string" and type(second) == "string"
+        and second ~= "" and not name:find(" ", 1, true) and not second:find(" ", 1, true) then
+        return name .. " " .. second
+    end
+    return name
+end
+
 local function OlderStandaloneRuns()
     local api = C_AddOns
     if not (api and api.GetAddOnEnableState and api.GetAddOnMetadata) then return false end
@@ -21,7 +32,7 @@ local function OlderStandaloneRuns()
         local ok, exists = pcall(api.DoesAddOnExist, STANDALONE)
         if ok and not exists then return false end
     end
-    local character = UnitName("player")
+    local character = CharacterKey()
     local ok, state = pcall(api.GetAddOnEnableState, STANDALONE, character)
     if not ok or type(state) ~= "number" or state <= 0 then return false end
     if api.IsAddOnLoadable then
@@ -44,7 +55,7 @@ if OlderStandaloneRuns() then
 
     function ns.DisableStandalone()
         if C_AddOns and C_AddOns.DisableAddOn then
-            pcall(C_AddOns.DisableAddOn, STANDALONE, UnitName("player"))
+            pcall(C_AddOns.DisableAddOn, STANDALONE, CharacterKey())
         end
     end
 

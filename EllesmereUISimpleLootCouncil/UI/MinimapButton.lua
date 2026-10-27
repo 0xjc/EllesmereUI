@@ -74,22 +74,31 @@ local function CanOpenCouncil()
     return addon.PlayerIsMasterLooter() or addon.Council:Contains(addon.Player:GetFullName("player"))
 end
 
+
+local function MiddleAction()
+    if CanOpenCouncil() then return "council" end
+    if addon.Session and addon.Session:MayStage() then return "queue" end
+end
+
 local function TipText()
     local key = S.ColorStart(S.color.accentPale)
     local function Action(click, sentence)
         return addon.Locale.Format(sentence, key .. click .. "|r")
     end
-    local third = CanOpenCouncil()
-        and Action(T["Middle click"], T["%s to open the loot council."])
-        or Action(T["Middle click"], T["%s to open the loot queue."])
-    return table.concat({
+    local lines = {
         S.Colorize(S.color.accent, "SimpleLootCouncil"),
         "",
         Action(T["Left click"], T["%s to open the options panel."]),
         Action(T["Right click"], T["%s to open the loot history."]),
-        third,
-        Action("/slc minimap", T["%s to hide this button."]),
-    }, "\n")
+    }
+    local middle = MiddleAction()
+    if middle then
+        lines[#lines + 1] = middle == "council"
+            and Action(T["Middle click"], T["%s to open the loot council."])
+            or Action(T["Middle click"], T["%s to open the loot queue."])
+    end
+    lines[#lines + 1] = Action("/slc minimap", T["%s to hide this button."])
+    return table.concat(lines, "\n")
 end
 
 local function BuildTip()
@@ -105,6 +114,8 @@ end
 
 local function ShowTip()
     if not tip then BuildTip() end
+
+    S.MatchScale(tip)
     tip.Text:SetText(TipText())
     local w, h = tip.Text:GetUnboundedStringWidth(), tip.Text:GetStringHeight()
     if type(w) ~= "number" or type(h) ~= "number" then return end
@@ -134,7 +145,9 @@ end
 local function OnClick(_, mouse)
     HideTip()
     if mouse == "MiddleButton" then
-        if CanOpenCouncil() then UI.MLFrame:Toggle() else UI.QueueFrame:Toggle() end
+        local middle = MiddleAction()
+        if middle == "council" then UI.MLFrame:Toggle()
+        elseif middle == "queue" then UI.QueueFrame:Toggle() end
     elseif mouse == "RightButton" then
         UI.HistoryFrame:Toggle()
     else

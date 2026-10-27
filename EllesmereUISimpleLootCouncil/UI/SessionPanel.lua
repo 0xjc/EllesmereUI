@@ -278,16 +278,10 @@ end
 
 
 local function Anchor()
-    panel:ClearAllPoints()
     P.Size(panel, PANEL_W, PANEL_H)
 
 
-    local pos = addon.db and addon.db.windows and addon.db.windows.sessionFrame
-    if pos and pos.point then
-        panel:SetPoint(pos.point, UIParent, pos.relPoint, pos.x, pos.y)
-    else
-        panel:SetPoint("CENTER", UIParent, "CENTER", -300, 0)
-    end
+    panel:RestorePosition()
 end
 
 
@@ -373,7 +367,10 @@ local function Build()
     panel:SetWidth(PANEL_W)
     panel.slcWidth = PANEL_W
 
+    S.InstallPlacement(panel, "sessionFrame", { "CENTER", "CENTER", -300, 0 })
     S.FollowWindowAlpha(panel)
+    S.FollowWindowScale(panel)
+    panel:HookScript("OnShow", function() S.ApplyWindowScale(panel) end)
 
 
     panel:HookScript("OnHide", function()
@@ -436,12 +433,7 @@ local function Build()
         heading:SetScript("OnDragStart", function()
             P.StartDrag(panel)
         end)
-        heading:SetScript("OnDragStop", function()
-            P.StopDrag(panel)
-            local point, _, relPoint, px, py = panel:GetPoint()
-            addon.db.windows.sessionFrame =
-                { point = point, relPoint = relPoint, x = px, y = py }
-        end)
+        heading:SetScript("OnDragStop", function() S.StopWindowDrag(panel) end)
 
         return heading, headingH
     end)

@@ -5,6 +5,7 @@ if EUI_CLIENT_BLOCKED then return end if ... == "SimpleLootCouncil" and SimpleLo
 
 SimpleLootCouncil = SimpleLootCouncil or {}
 local addon = SimpleLootCouncil
+local T = addon.Locale.Text
 
 local BagShare = {}
 addon.BagShare = BagShare
@@ -103,6 +104,20 @@ local function MayShow(owner)
 end
 
 
+local QUEUE_REFUSED = addon.Locale.Texts{
+    active = T["could not queue %s - a run is in progress, and only the Loot Master can add to it."],
+    council = T["could not queue %s - only the Loot Master and council members can queue items."],
+    mode = T["could not queue %s - the group leader has not let council members manage the loot queue."],
+    lootmaster = T["could not queue %s - only the Loot Master can queue items."],
+    queued = T["could not queue %s - every copy is already queued."],
+    gone = T["could not queue %s - it is no longer in the holder's bags with an active trade timer."],
+}
+
+function BagShare.RefusalText(why, link)
+    return addon.Locale.Format(QUEUE_REFUSED[why] or QUEUE_REFUSED.gone, link)
+end
+
+
 
 
 
@@ -111,7 +126,8 @@ function BagShare:AddToQueue(link, owner)
     if addon.Session:IsRunning() and not addon.PlayerIsMasterLooter() then
         return nil, "active"
     end
-    if not addon.Session:MayStage() then return nil, "council" end
+    local refusal = addon.Session:StageRefusal()
+    if refusal then return nil, refusal end
 
     local me = addon.Player:GetFullName("player")
     if not owner then

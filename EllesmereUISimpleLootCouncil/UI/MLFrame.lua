@@ -2879,8 +2879,10 @@ end
 
 
 
+
+
 function CM.QueueAllowed()
-    return addon.PlayerIsMasterLooter() and true or false
+    return addon.PlayerIsMasterLooter() and true or addon.Session:MayStage()
 end
 
 function CM.SyncQueueTab()
@@ -3235,7 +3237,8 @@ end
 
 
 function MLFrame:OpenForKill()
-    if not CM.ready or not CM.Ensure() or not CM.QueueAllowed() then return end
+
+    if not CM.ready or not addon.PlayerIsMasterLooter() or not CM.Ensure() then return end
     if frame:IsShown() then return end
     if not CM.killOpened then
         CM.killOpened = true

@@ -13,7 +13,7 @@ local T = addon.Locale.Text
 addon.VERSION = addon.VERSION or "dev"
 
 
-addon.DEV_TOOLS = addon.EDITION ~= "eui"
+addon.DEV_TOOLS = true
 
 
 
@@ -251,6 +251,8 @@ function OnPlayerLogin()
     Init(addon.UI.VoterFrame)
     Init(addon.UI.MLFrame)
     Init(addon.UI.QueueFrame)
+    Init(addon.StartRequest)
+    Init(addon.UI.StartRequestFrame)
     Init(addon.UI.TradeQueueFrame)
     Init(addon.UI.HistoryFrame)
     Init(addon.UI.RaidTeamFrame)
@@ -603,7 +605,7 @@ local function HelpSections(dev)
                 { "guild", T["the guild-group gate"], devTools = true },
                 { "names", T["what the name APIs return here"], devTools = true },
                 { "localecheck", T["which locale files loaded"], devTools = true },
-                { T["item <link>"], T["why the funnel takes an item"], devTools = true },
+                { T["item / why <link>"], T["why the funnel takes an item"], devTools = true },
                 { "set", T["equipped set facts"], devTools = true },
                 { "taint", T["blocked-action counts"], devTools = true },
             },
@@ -625,7 +627,7 @@ local function HelpSections(dev)
             { T["on / off"], T["use SLC for this group, or stop"] },
             { T["council [add / remove <name>]"], T["manage the council"] },
             { "resend", T["push the council and settings again"] },
-            { T["lootmaster / lm [<name> / clear]"], T["delegate loot"] },
+            { T["lootmaster / lm / ml [<name> / clear]"], T["delegate loot"] },
             { T["alt [<alt> <main> / remove <alt>]"], T["link an alt to its main"] },
         },
         { T["Running loot"],
@@ -1071,10 +1073,9 @@ SlashCmdList["SIMPLELOOTCOUNCIL"] = function(input)
                 link))
             return
         end
-        if not addon.Session:MayStage() then
-            Print(addon.Locale.Format(
-                T["could not queue %s - only the Loot Master and council members can queue items."],
-                link))
+        local refusal = addon.Session:StageRefusal()
+        if refusal then
+            Print(addon.BagShare.RefusalText(refusal, link))
             return
         end
 

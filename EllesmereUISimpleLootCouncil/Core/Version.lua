@@ -105,10 +105,27 @@ end
 
 
 
+
+
+local function LeaderDelegate()
+    if not IsInGroup() or not addon.Config then return nil end
+    local me, leader = addon.Player:GetFullName("player"), addon.GetGroupLeader()
+    if not me or not leader or not addon.Player:IsSame(me, leader) then return nil end
+    local delegate = addon.Config:LootMaster()
+    return delegate and addon.Player:ForTransmit(delegate) or false
+end
+
+
+local function NoteDelegate(args, sender)
+    if args.lm ~= nil and addon.Council and addon.Council.NoteLeaderDelegate then
+        addon.Council:NoteLeaderDelegate(sender, args.lm)
+    end
+end
+
 local function Announce()
     if addon.Comms.InHomeGroup() then
         local spec = addon.Specs and addon.Specs:OwnSpec()
-        addon.Comms:Send("hello", { v = OWN, s = spec })
+        addon.Comms:Send("hello", { v = OWN, s = spec, lm = LeaderDelegate() })
         local legacy = addon.Comms.LegacyAnnounce
         if legacy then legacy(addon.Comms, OWN) end
     end
@@ -140,7 +157,7 @@ local function Digest()
             end
         end
     end
-    return { e = entries }
+    return { e = entries, lm = LeaderDelegate() }
 end
 
 local ML_POLL_COOLDOWN = 60
@@ -208,7 +225,7 @@ local function AnswerPoll(sender)
     if whisperedAt[key] then return end
     whisperedAt[key] = true
     local spec = addon.Specs and addon.Specs:OwnSpec()
-    addon.Comms:Send("hello", { v = OWN, s = spec }, sender)
+    addon.Comms:Send("hello", { v = OWN, s = spec, lm = LeaderDelegate() }, sender)
 end
 Version.AnswerPoll = AnswerPoll
 
@@ -222,6 +239,7 @@ function Version:Init()
         if record.guid and addon.Specs then
             addon.Specs:Set(record.guid, args.s, "hello")
         end
+        NoteDelegate(args, sender)
     end
 
     addon.Comms:Register("hello", "any", RecordHello)
@@ -244,6 +262,7 @@ function Version:Init()
                 end
             end
         end
+        NoteDelegate(args, sender)
     end)
 
 

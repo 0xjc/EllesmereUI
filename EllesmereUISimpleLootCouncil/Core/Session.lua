@@ -1954,6 +1954,7 @@ end
 
 
 
+
 local function RefusesLiveAppend()
     if run.active and not addon.PlayerIsMasterLooter() then
         addon.Log:W("Session", "not adding to the running run - only the loot master can")
@@ -1964,10 +1965,19 @@ end
 
 
 
+function Session:StageRefusal()
+    if addon.PlayerIsMasterLooter() then return nil end
+    local seated = addon.Council and addon.Council:Contains(addon.Player:GetFullName("player"))
+    if addon.Config:CouncilQueueMode() == "off" then
+        return seated and "mode" or "lootmaster"
+    end
+    return not seated and "council" or nil
+end
+
+
+
 function Session:MayStage()
-    if addon.PlayerIsMasterLooter() then return true end
-    return addon.Council and addon.Council:Contains(addon.Player:GetFullName("player"))
-        and true or false
+    return Session:StageRefusal() == nil
 end
 
 local function RefusesStaging()
@@ -3457,6 +3467,21 @@ local function ForgetUndelivered()
     undeliveredSeen, undeliveredCount = {}, 0
 end
 
+local function UndeliveredKey(runId, session, winner, sender)
+    return ("%s|%s|%s|%s"):format(tostring(runId), tostring(session),
+        tostring(winner), tostring(sender))
+end
+
+
+
+function Session:ForgetUndelivered(runId, session, winner, sender)
+    local key = UndeliveredKey(runId, session, winner, sender)
+    if undeliveredSeen[key] then
+        undeliveredSeen[key] = nil
+        undeliveredCount = undeliveredCount - 1
+    end
+end
+
 local UNDELIVERED = { missing = true, equipped = true, bound = true, wrong = true, left = true }
 
 
@@ -3467,8 +3492,7 @@ function Session:ApplyUndelivered(session, winner, sender, link, runId, why, to)
     if addon.Player:IsSelf(sender) then return end
     if not UNDELIVERED[why] then return Refuse("undelivered", "unknown_reason", sender) end
 
-    local key = ("%s|%s|%s|%s"):format(tostring(runId), tostring(session),
-        tostring(winner), tostring(sender))
+    local key = UndeliveredKey(runId, session, winner, sender)
     if undeliveredSeen[key] then return end
     if undeliveredCount >= UNDELIVERED_SEEN_MAX then ForgetUndelivered() end
     undeliveredSeen[key] = true
@@ -3720,7 +3744,7 @@ function Session:End()
     return true
 end
 
-function Session:ApplyRunEnd()
+function Session:ApplyRunEnd(left)
 
 
     if not run.active then
@@ -3729,7 +3753,8 @@ function Session:ApplyRunEnd()
     end
 
     addon.Log:I("Session", "run ended")
-    RememberEnded(run.id)
+
+    if not left then RememberEnded(run.id) end
     run.active = false
     run.ended = true
     assembling = nil
@@ -4521,6 +4546,23 @@ function Session:Init()
 
 
 
+
+    addon.Comms:Register("start_request", "any", function(args, sender)
+        if addon.StartRequest then addon.StartRequest:Request(sender, args and args.items) end
+    end)
+
+
+    addon.Comms:Register("start_ack", "ml", function(args, _)
+        if type(args) ~= "table" then return end
+        if args.ok then
+            addon.Chat.Print(T["the Loot Master started the run."])
+        else
+            addon.Chat.Print(addon.StartRequest.DeclineText(args.why))
+        end
+    end)
+
+
+
     local function PoliceOwnQueue()
         if run.active then return end
 
@@ -4758,7 +4800,9 @@ function Session:Init()
         if run.active and type(diff) == "table" and diff.wasInGroup and diff.inGroup == false
             and not IsInGroup() and GroupRun() then
             addon.Log:I("Session", "left the group - closing run", tostring(run.id), "on this side")
-            Session:ApplyRunEnd()
+            Session:ApplyRunEnd(true)
+
+            noRunFrom = nil
             ScheduleRecovery()
             return
         end

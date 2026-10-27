@@ -3,6 +3,7 @@ if EUI_CLIENT_BLOCKED then return end if (select(2, ...)).slcInert then return e
 
 
 
+
 SimpleLootCouncil = SimpleLootCouncil or {}
 local addon = SimpleLootCouncil
 local T = addon.Locale.Text
@@ -426,7 +427,7 @@ end
 
 local function PlusGlyph(button, extent)
     local bars = {}
-    local thickness = math.max(P.Hairline(), extent / 9)
+    local thickness = math.max(P.Hairline(button), extent / 9)
     for i = 1, 2 do
         local bar = button:CreateTexture(nil, "OVERLAY")
         bar:SetColorTexture(1, 1, 1, 1)
@@ -1240,7 +1241,7 @@ function S.FadeRule(parent)
     local rule = parent:CreateTexture(nil, "ARTWORK")
     rule:SetColorTexture(Unpack(color.rule))
     P.Crisp(rule)
-    local function thickness() rule:SetHeight(P.Hairline()) end
+    local function thickness() rule:SetHeight(P.Hairline(rule)) end
     thickness()
     P.OnRescale(thickness)
     return rule
@@ -1474,7 +1475,8 @@ end
 
 
 local function MenuOpts(opts)
-    local out = { fontKey = FONT_KEY }
+
+    local out = { fontKey = FONT_KEY, scaleToAnchor = true }
     for key, value in pairs(opts or {}) do out[key] = value end
     return out
 end
@@ -1566,7 +1568,8 @@ function S.ShowSelectMenu(owner, choices, current, onPick)
             onClick = function() onPick(value) end }
     end
     selectOwner = owner
-    EUI.ShowContextMenu(owner, items, { below = true, minWidth = owner:GetWidth(), fontKey = FONT_KEY })
+    EUI.ShowContextMenu(owner, items, { below = true, minWidth = owner:GetWidth(), fontKey = FONT_KEY,
+        scaleToAnchor = true })
 end
 
 function S.HideSelectMenu()
@@ -1853,6 +1856,8 @@ function S.Window(globalName, key, width, height, title, options)
     options = options or {}
     local f = CreateFrame("Frame", globalName, UIParent)
     P.Size(f, width, height)
+
+    S.ScaleNow(f)
     f:SetFrameStrata("DIALOG")
     f:SetToplevel(true)
     f:EnableMouse(true)
@@ -1937,6 +1942,7 @@ function S.Window(globalName, key, width, height, title, options)
     mark:SetColorTexture(0, 0, 0, 0)
     P.Point(mark, "LEFT", header, "LEFT", TITLE_INSET - 1, 0)
     f.Tick = mark
+
     local anchor = logo or mark
     local titleText = S.Label(header, S.fontTitle, "LEFT")
     P.Point(titleText, "LEFT", anchor, "RIGHT", size.TITLE_GAP, 0)

@@ -713,6 +713,7 @@ end
 
 
 
+
 local runScoped = {}
 
 function Comms:ScopeToRun(command)
@@ -773,7 +774,7 @@ local RESUME_DELAY = 1
 
 
 
-local OUTBOX = { delivered = true, undelivered = true }
+local OUTBOX = { delivered = true, undelivered = true, owed_again = true }
 local OUTBOX_MAX, OUTBOX_MAX_AGE, RUN_MASTERS_MAX = 40, 3 * 24 * 60 * 60, 8
 local outbox = { pending = false }
 

@@ -183,6 +183,18 @@ local function PlayerLabel(fullName)
 end
 
 
+local function StageRequirement()
+    local why = addon.Session:StageRefusal()
+    if why == "mode" then
+        return S.RequiresSentence(T["Requires the group leader to let council members manage the loot queue."])
+    elseif why == "council" then
+        return S.RequiresSentence(T["Requires you to be the Loot Master or on the council."])
+    elseif why then
+        return S.RequiresSentence(T["Requires you to be the Loot Master."])
+    end
+end
+
+
 local function OwnItems()
     if not ownScan then
         ownScan = { items = addon.Storage:GetTradeableItems(), at = GetTime() }
@@ -257,8 +269,10 @@ function QueueFrame:RefreshBags()
 
 
     local running = addon.Session:IsRunning()
-    bagHint:SetText(not running and (addon.Session:MayStage() and T["Click an item to queue it"]
-            or T["Only the Loot Master and council can queue"])
+    local refusal = addon.Session:StageRefusal()
+    bagHint:SetText(not running and (not refusal and T["Click an item to queue it"]
+            or refusal == "council" and T["Only the Loot Master and council can queue"]
+            or T["Only the Loot Master can queue"])
         or mine and T["Click an item to add it to the run"]
         or T["Only the Loot Master can add mid-run"])
 
@@ -327,14 +341,7 @@ function QueueFrame:RefreshBags()
                     addon.Chat.Print(addon.Locale.Format(
                         T["added %s to the running run as session %d."], link, index))
                 elseif not index then
-
-
-                    local sentence = why == "active"
-                        and T["could not queue %s - a run is in progress, and only the Loot Master can add to it."]
-                        or why == "council" and T["could not queue %s - only the Loot Master and council members can queue items."]
-                        or why == "queued" and T["could not queue %s - every copy is already queued."]
-                        or T["could not queue %s - it is no longer in the holder's bags with an active trade timer."]
-                    addon.Chat.Print(addon.Locale.Format(sentence, link))
+                    addon.Chat.Print(addon.BagShare.RefusalText(why, link))
                 end
                 QueueFrame:Refresh()
             end)
@@ -418,9 +425,10 @@ local function PaintQueue()
     emptyText:ClearAllPoints()
 
 
+
     local function PlaceEmpty(y)
         emptyText:SetPoint("TOPLEFT", itemHost, "TOPLEFT", 30, y)
-        emptyText:SetPoint("TOPRIGHT", itemHost, "TOPRIGHT", -10, y)
+        emptyText:SetPoint("TOPRIGHT", itemHost, "TOPRIGHT", 0, y)
     end
 
     if #items == 0 then
@@ -467,9 +475,17 @@ local function PaintQueue()
 
     local mine = addon.PlayerIsMasterLooter()
     local mayStage = addon.Session:MayStage()
+
+    local mayRequest = not mine and mayStage
     local ready = not running and #items > 0 and #names > 0
 
-    startButton:SetLabel(running and T["Run in progress"] or T["Start run"])
+    if running then
+        startButton:SetLabel(T["Run in progress"])
+    elseif mayRequest and addon.Config:CouncilQueueMode() == "request" then
+        startButton:SetLabel(T["Request start"])
+    else
+        startButton:SetLabel(T["Start run"])
+    end
 
 
     local blocked = addon.Restrictions:IsBlocked()
@@ -478,15 +494,16 @@ local function PaintQueue()
         startReason = S.RequiresSentence(T["The current run must finish first."])
     elseif blocked then
         startReason = addon.Restrictions:GetBlockReason() or T["unavailable"]
-    elseif not mine then
-        startReason = S.RequiresSentence(T["Requires you to be the Loot Master."])
+    elseif not mine and not mayRequest then
+        startReason = StageRequirement()
+            or S.RequiresSentence(T["Requires you to be the Loot Master."])
     elseif #items == 0 then
         startReason = S.RequiresSentence(T["Requires at least one item in the queue."])
     elseif #names == 0 then
         startReason = S.RequiresSentence(T["Requires at least one council member who is here."])
     end
     startButton:SetDisabledReason(startReason)
-    startButton:SetEnabled(mine and ready and not blocked)
+    startButton:SetEnabled((mine or mayRequest) and ready and not blocked)
 
     clearButton:SetDisabledReason(running
         and S.RequiresSentence(T["The current run must finish first."])
@@ -494,9 +511,7 @@ local function PaintQueue()
     clearButton:SetEnabled(not running)
 
 
-    fromBags:SetDisabledReason(not running and not mayStage
-        and S.RequiresSentence(T["Requires you to be the Loot Master or on the council."])
-        or nil)
+    fromBags:SetDisabledReason(not running and StageRequirement() or nil)
     fromBags:SetEnabled(running or mayStage)
 end
 
@@ -513,8 +528,13 @@ end
 function QueueFrame:AddAllFromBags()
     local me = addon.Player:GetFullName("player")
 
-    if not addon.Session:MayStage() then
-        addon.Chat.Print(T["nothing added from bags - only the Loot Master and council members can queue items."])
+    local refusal = addon.Session:StageRefusal()
+    if refusal then
+        addon.Chat.Print(refusal == "council"
+            and T["nothing added from bags - only the Loot Master and council members can queue items."]
+            or refusal == "mode"
+            and T["nothing added from bags - the group leader has not let council members manage the loot queue."]
+            or T["nothing added from bags - only the Loot Master can queue items."])
         return 0
     end
 
@@ -714,10 +734,28 @@ local function Build(host)
     host.AddButton(startButton, true, true)
 
     startButton:SetScript("OnClick", function()
-        if not addon.PlayerIsMasterLooter() then return end
-        if addon.Session:Start() then
-            QueueFrame:Refresh()
+        if addon.PlayerIsMasterLooter() then
+            if addon.Session:Start() then
+                QueueFrame:Refresh()
+            end
+            return
         end
+
+
+
+        if not addon.Session:MayStage() then return end
+        local proposal = {}
+        for _, item in ipairs(addon.Session:GetItems()) do
+            if item.link and not item.simulated then
+                proposal[#proposal + 1] = { l = item.link, o = item.owner, b = item.boss,
+                    e = item.encounterID }
+            end
+        end
+        addon.Comms:Send("start_request", { items = proposal })
+        addon.Chat.Print(addon.Locale.Format(addon.Locale.Plural{
+            one = "asking the Loot Master to start the run with %d proposed item...",
+            other = "asking the Loot Master to start the run with %d proposed items...",
+        }, #proposal, #proposal))
     end)
 
 
@@ -812,6 +850,8 @@ function QueueFrame:Init()
     end
     addon.Callbacks:Register("CouncilChanged", HoldersChanged)
     addon.Callbacks:Register("LootMasterChanged", HoldersChanged)
+
+    addon.Callbacks:Register("SharedConfigChanged", HoldersChanged)
     addon.Callbacks:Register("RosterChanged", HeaderChanged)
     addon.Restrictions:OnChange(HeaderChanged)
 
@@ -825,6 +865,8 @@ function QueueFrame:Toggle()
         return
     end
     if not council:ShowQueue() then
-        addon.Chat.Print(T["only the Loot Master can use the loot queue."])
+        addon.Chat.Print(addon.Session:StageRefusal() == "council"
+            and T["only the Loot Master and council members can use the loot queue."]
+            or T["only the Loot Master can use the loot queue."])
     end
 end

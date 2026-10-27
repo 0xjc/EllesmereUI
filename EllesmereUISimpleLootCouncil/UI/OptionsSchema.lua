@@ -730,7 +730,6 @@ local function Build()
                     if addon.UI.RaidPrompt then addon.UI.RaidPrompt:Evaluate() end
                 end }),
 
-
             SwitchRow("masterAutoLoot", T["Auto-loot to bags as Master Looter"],
                 T["As the group's Master Looter, a boss's whole corpse goes to your bags. In a raid, so do trash items at the loot threshold."],
                 function() return db().masterAutoLoot end,
@@ -746,11 +745,12 @@ local function Build()
                     if addon.UI.RaidPrompt and addon.UI.RaidPrompt.Evaluate then addon.UI.RaidPrompt:Evaluate() end
                 end),
         } },
-
         { id = "master", title = T["Loot Master"],
             locked = OtherLootMaster, refreshOn = MASTER_EVENTS,
             lockedText = T["Your Loot Master settings may only be edited while you are Loot Master."],
             rows = {
+
+
             SwitchRow("neverLead", T["Never prompt to lead SLC groups?"],
                 T["Never ask to run an SLC group when you are group leader"],
                 function() return db().raidPrompt.neverLead end,
@@ -772,14 +772,14 @@ local function Build()
                 function() return db().raidPrompt.dropDelegationOnLead end,
                 function(v) db().raidPrompt.dropDelegationOnLead = v end),
 
-            Setting({ id = "announce", type = "checks", text = T["Chat Announcements"],
+            Setting({ id = "announce", type = "multiselect", text = T["Chat Announcements"],
                 help = T["What you post in raid chat as the Loot Master."],
                 items = {
-                    { key = "awards", label = T["Loot awards"],
+                    { key = "awards", text = T["Loot awards"],
                         tooltip = T["The Loot Master posts one line when an award is made, changed or withdrawn."] },
-                    { key = "trades", label = T["Loot trades"],
+                    { key = "trades", text = T["Loot trades"],
                         tooltip = T["Posts when the awarded item is physically handed over."] },
-                    { key = "rolls", label = T["Roll requests"],
+                    { key = "rolls", text = T["Roll requests"],
                         tooltip = T["Posts when the council asks the whole group to roll. This is the only way a raider whose addon is not working can take part: their popup never opens, so the line in chat is the request."] },
                 },
                 getValue = function(key) return db().announce[key] and true or false end,
@@ -845,19 +845,25 @@ local function Build()
             Setting({ id = "windowOpacity", type = "slider", text = T["Window Opacity"],
                 help = T["How see-through every Simple Loot Council window is."],
                 min = math.floor(addon.Style.WINDOW_ALPHA_MIN * 100 + 0.5), max = 100, step = 5,
+                percent = true,
                 getValue = function() return math.floor(addon.Style.WindowAlpha() * 100 + 0.5) end,
                 setValue = function(value) addon.Style.SetWindowAlpha(value / 100) end }),
+            Setting({ id = "windowScale", type = "slider", text = T["Window Scale"],
+                help = T["How big every Simple Loot Council window is. One too large for your screen is shrunk to fit."],
+                min = 70, max = 200, step = 5, percent = true, holdsWindow = true,
+                getValue = function() return math.floor(addon.Style.WindowScale() * 100 + 0.5) end,
+                setValue = function(value) addon.Style.SetWindowScale(value / 100) end }),
         } },
 
         { id = "council", title = T["Loot council"], rows = { Council(), CouncilRanks() } },
 
-        { id = "voting", title = T["Voting"], rows = {
-            Setting({ id = "councilMay", type = "checks", text = T["Council Members May Vote For:"],
+        { id = "voting", title = T["Council rules"], rows = {
+            Setting({ id = "councilMay", type = "multiselect", text = T["Council Members May Vote For:"],
                 help = T["How council members may vote."],
                 items = {
-                    { key = "selfVote", label = T["Themselves"],
+                    { key = "selfVote", text = T["Themselves"],
                         tooltip = T["Off: a member cannot vote on their own row."] },
-                    { key = "multiVote", label = T["Multiple Candidates"],
+                    { key = "multiVote", text = T["Multiple Candidates"],
                         tooltip = T["Off: one candidate per item, per member."] },
                 },
                 getValue = function(key) return db().vote[key] and true or false end,
@@ -889,6 +895,28 @@ local function Build()
                 end,
                 { locked = LeaderLock(function() return addon.Config:CouncilBagsShared() end),
                     refreshOn = LOCK_EVENTS }),
+
+            Setting({ id = "councilQueue", type = "multiselect", exclusive = true,
+                text = T["Council members can manage the loot queue"],
+                help = T["Whether council members may queue loot and start sessions from the Loot queue tab."],
+                items = {
+                    { key = "off", text = T["Disabled"],
+                        tooltip = T["Only the Loot Master queues items and starts sessions."] },
+                    { key = "request", text = T["Request session start"],
+                        tooltip = T["Council members queue items and ask; the Loot Master approves each start."] },
+                    { key = "start", text = T["Start sessions themselves"],
+                        tooltip = T["Council members queue items and start sessions without asking. The session is still the Loot Master's."] },
+                },
+                getValue = function(key) return addon.Config.CleanCouncilQueue(db().councilQueue) == key end,
+                setValue = function(key, v)
+                    if not v then return end
+                    db().councilQueue = addon.Config.CleanCouncilQueue(key)
+                    addon.Council:RequestBroadcast()
+                    if addon.StartRequest then addon.StartRequest:Refresh() end
+                end,
+                locked = LeaderLock(function() return true end),
+                lockedValue = function(key) return addon.Config:CouncilQueueMode() == key end,
+                refreshOn = LOCK_EVENTS }),
         } },
 
         { id = "responses", title = T["Response buttons"], rows = { Responses() } },
