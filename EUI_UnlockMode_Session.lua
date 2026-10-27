@@ -1466,7 +1466,7 @@ function EllesmereUI.ForceCloseUnlockDiscard()
         UM.isUnlocked = true
     end
     if not UM.isUnlocked then return end
-    print("|cffff6060[EllesmereUI]|r Spec changed: Unlock Mode closed, unsaved layout changes discarded.")
+    EllesmereUI.PrintError(EllesmereUI.L("Layout changed: Unlock Mode closed, unsaved layout changes discarded."))
     pendingAfterClose = nil
     -- Unconditional: RevertPositions only runs below when positions changed,
     -- but the value-edit snapshot must never survive a discard-close.

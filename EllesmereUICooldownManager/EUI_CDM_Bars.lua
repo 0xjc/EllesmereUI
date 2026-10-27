@@ -1515,8 +1515,8 @@ LayoutCDMBar = function(barKey)
     if EllesmereUI.IsPointAnchored(unlockKey) then EllesmereUI.ReapplyOwnAnchor(unlockKey) end
 
     -- FocusKick: re-anchor against the focus nameplate after every layout pass so the bar tracks size/icon-count changes from the options panel.
-    if barKey == ns.FOCUSKICK_BAR_KEY and ns.ApplyFocusKickAnchor then
-        ns.ApplyFocusKickAnchor()
+    if barKey == ns.FOCUSKICK_BAR_KEY and ns.ReapplyFocusKick then
+        ns.ReapplyFocusKick()
     end
 end
 

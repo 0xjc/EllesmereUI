@@ -4691,11 +4691,11 @@ local function ShowSpellPicker(anchorFrame, barKey, slotIndex, excludeSet, onSel
         end)
         csItem:SetScript("OnClick", function()
             menu:Hide()
-            -- Own frame name: only this caller offers Show Charges (CD/utility bars).
+            -- Only this caller offers Show Charges (CD/utility bars).
             ns.CDMO_ShowCustomSpellIDPopup(bd and bd.key, function(sid)
                 if ns.UpdateCustomBuffAuraTracking then ns.UpdateCustomBuffAuraTracking() end
                 if onSelect then onSelect(sid, true) end
-            end, true, "EUI_CDM_CDSpellIDPopup", not isCustomBuff)
+            end, not isCustomBuff)
         end)
 
         allItems[#allItems + 1] = csItem

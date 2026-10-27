@@ -3309,23 +3309,28 @@ eventFrame:SetScript("OnEvent", function(_, event)
             if event == "BANK_TABS_CHANGED" and #_allTabs == prevCount then
                 local poller = EUI_Bank._tabPoller
                 if not poller then
+                    -- Hidden while idle: a poll request arms its fields and shows it,
+                    -- and it hides itself when the poll ends.
                     poller = CreateFrame("Frame")
+                    poller:Hide()
+                    poller:SetScript("OnUpdate", function(self)
+                        self.attempts = self.attempts + 1
+                        if self.attempts % 6 ~= 0 then return end -- ~0.1s per check
+                        if not EUI_Bank:IsVisible() or self.attempts > 300 then
+                            self:Hide()
+                            return
+                        end
+                        DiscoverBankTabs()
+                        if #_allTabs ~= self.prevCount then
+                            self:Hide()
+                            EUI_Bank:RefreshBank()
+                        end
+                    end)
                     EUI_Bank._tabPoller = poller
                 end
-                local attempts = 0
-                poller:SetScript("OnUpdate", function(self)
-                    attempts = attempts + 1
-                    if attempts % 6 ~= 0 then return end -- ~0.1s per check
-                    if not EUI_Bank:IsVisible() or attempts > 300 then
-                        self:SetScript("OnUpdate", nil)
-                        return
-                    end
-                    DiscoverBankTabs()
-                    if #_allTabs ~= prevCount then
-                        self:SetScript("OnUpdate", nil)
-                        EUI_Bank:RefreshBank()
-                    end
-                end)
+                poller.attempts = 0
+                poller.prevCount = prevCount
+                poller:Show()
             end
         end
 

@@ -253,13 +253,15 @@ local function ApplyAbsorbGate(frame, unit, textOverlay, zone, fs, content)
 end
 
 -- Text zones shared by every Style*Frame builder. Simple frames have no ExtraText.
--- Extra Text is tagged like the other zones; only its positioning differs.
+-- Extra Text is tagged like the other zones; only its positioning differs. The
+-- builders' wrappers pass the unit's settings as they are at the call: a profile
+-- switch or import replaces the unit's table between frame reloads.
 local function ApplyFrameTextTags(frame, unit, settings, lc, rc, cc, ec)
     local textOverlay, extraText = frame._textOverlay, frame.ExtraText
     ns.SetTextZone(frame, frame.LeftText, lc, "leftText", settings)
     ns.SetTextZone(frame, frame.RightText, rc, "rightText", settings)
     ns.SetTextZone(frame, frame.CenterText, cc, "centerText", settings)
-    -- Callers that predate the Extra Text zone pass 3 args; fall back to the stored content.
+    -- ReloadFrames passes 3 args; ec falls back to the stored content.
     if extraText then
         ec = ec or (settings.extraTextContent or "none")
         ns.SetTextZone(frame, extraText, ec, "extraText", settings)
@@ -315,7 +317,7 @@ local function ApplyFrameTextPositions(frame, unit, s, rcDefault, barWDefault)
         else extraText:Hide() end
     end
 
-    -- Each text position renders independently; Center no longer hides Left/Right.
+    -- Each text position renders independently.
     SetFSFont(centerText, csz)
     centerText:ClearAllPoints()
     if cc ~= "none" then
@@ -567,10 +569,7 @@ local function StyleFullFrame(frame, unit)
     frame.NameText = leftText
     frame.HealthValue = rightText
 
-    -- Apply tags based on content. Extra Text is handled identically to the other
-    -- zones (same ContentToTag + absorb gate); only positioning differs (alignment-
-    -- based anchor, 95%-of-bar-width clamp with ellipsis truncation).
-    local function ApplyTextTags(lc, rc, cc, ec) ApplyFrameTextTags(frame, unit, settings, lc, rc, cc, ec) end
+    local function ApplyTextTags(lc, rc, cc, ec) ApplyFrameTextTags(frame, unit, GetSettingsForUnit(unit), lc, rc, cc, ec) end
     ApplyTextTags(leftContent, rightContent, centerContent, extraContent)
     frame._applyTextTags = ApplyTextTags
     local function ApplyTextPositions(s) ApplyFrameTextPositions(frame, unit, s, "both", 181) end
@@ -745,10 +744,7 @@ local function StyleFocusFrame(frame, unit)
     frame.NameText = leftText
     frame.HealthValue = rightText
 
-    -- Apply tags based on content. Extra Text is handled identically to the other
-    -- zones (same ContentToTag + absorb gate); only positioning differs (alignment-
-    -- based anchor, 95%-of-bar-width clamp with ellipsis truncation).
-    local function ApplyTextTags(lc, rc, cc, ec) ApplyFrameTextTags(frame, unit, settings, lc, rc, cc, ec) end
+    local function ApplyTextTags(lc, rc, cc, ec) ApplyFrameTextTags(frame, unit, GetSettingsForUnit(unit), lc, rc, cc, ec) end
     ApplyTextTags(leftContent, rightContent, centerContent, extraContent)
     frame._applyTextTags = ApplyTextTags
     local function ApplyTextPositions(s) ApplyFrameTextPositions(frame, unit, s, "perhp", 181) end
@@ -909,7 +905,7 @@ local function StyleSimpleFrame(frame, unit)
     frame.NameText = leftText
     frame.HealthValue = rightText
 
-    local function ApplyTextTags(lc, rc, cc) ApplyFrameTextTags(frame, unit, settings, lc, rc, cc) end
+    local function ApplyTextTags(lc, rc, cc) ApplyFrameTextTags(frame, unit, GetSettingsForUnit(unit), lc, rc, cc) end
     ApplyTextTags(leftContent, rightContent, centerContent)
     frame._applyTextTags = ApplyTextTags
     local function ApplyTextPositions(s) ApplyFrameTextPositions(frame, unit, s, "none", 100) end
@@ -1051,7 +1047,7 @@ local function StyleBossFrame(frame, unit)
     frame.NameText = leftText
     frame.HealthValue = rightText
 
-    local function ApplyTextTags(lc, rc, cc, ec) ApplyFrameTextTags(frame, unit, settings, lc, rc, cc, ec) end
+    local function ApplyTextTags(lc, rc, cc, ec) ApplyFrameTextTags(frame, unit, GetSettingsForUnit(unit), lc, rc, cc, ec) end
     ApplyTextTags(leftContent, rightContent, centerContent, extraContent)
     frame._applyTextTags = ApplyTextTags
     local function ApplyTextPositions(s) ApplyFrameTextPositions(frame, unit, s, "perhp", 100) end

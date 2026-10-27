@@ -172,10 +172,9 @@ do
     end
     EllesmereUI._SelectiveCopy = SelectiveCopy
 
-    -- Exclusion-aware deep overlay for destinations with existing data: writes src into dst
-    -- leaf-by-leaf wherever an exclusion path (flat/dotted/wildcard) touches the subtree, so
-    -- excluded keys keep dest values (replacing a parent whole would delete them).
-    -- True when an exclusion names fullKey or a path below it (wildcards included).
+    -- True when an exclusion is fullKey itself or a path below it, by string prefix; a
+    -- wildcard only counts above its '*', so a removed list entry goes with its
+    -- wildcard-excluded leaves.
     local function HoldsExclusion(exclusions, fullKey)
         if exclusions[fullKey] then return true end
         local pre = fullKey .. "."
@@ -185,6 +184,9 @@ do
         return false
     end
 
+    -- Exclusion-aware deep overlay for destinations with existing data: writes src into dst
+    -- leaf-by-leaf wherever an exclusion path (flat/dotted/wildcard) touches the subtree, so
+    -- excluded keys keep dest values (replacing a parent whole would delete them).
     function EllesmereUI._SelectiveOverlay(src, dst, exclusions, deepCopy, parentPath)
         -- Mirror deletions, as the full copy does: drop dest keys the source no
         -- longer has, unless they hold excluded data.
