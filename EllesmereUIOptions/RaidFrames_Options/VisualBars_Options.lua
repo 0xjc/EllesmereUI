@@ -133,34 +133,11 @@ local function BuildVisualBars(parent, y, W, onSection, EYE)
                                 f._health:SetValue(barPct)
                             end
 
-                            if f._healthText then
-                                local mode = s.healthTextMode or "none"
-                                if mode == "percent" then
-                                    f._healthText:SetFormattedText("%d%%", st.current)
-                                elseif mode == "percentNoSign" then
-                                    f._healthText:SetFormattedText("%d", st.current)
-                                elseif mode == "number" then
-                                    local fakeHP = st.current * 12000
-                                    if AbbreviateNumbers then
-                                        f._healthText:SetText(AbbreviateNumbers(fakeHP))
-                                    end
-                                elseif mode == "numberPercent" then
-                                    local fakeHP = st.current * 12000
-                                    local numStr = AbbreviateNumbers and AbbreviateNumbers(fakeHP) or tostring(fakeHP)
-                                    f._healthText:SetFormattedText("%s | %d%%", numStr, st.current)
-                                elseif mode == "percentNumber" then
-                                    local fakeHP = st.current * 12000
-                                    local numStr = AbbreviateNumbers and AbbreviateNumbers(fakeHP) or tostring(fakeHP)
-                                    f._healthText:SetFormattedText("%d%% | %s", st.current, numStr)
-                                elseif mode == "missing" then
-                                    local fakeHP = (100 - st.current) * 12000
-                                    f._healthText:SetText(C_StringUtil.TruncateWhenZero(fakeHP))
-                                    if f._healthText:GetText() then
-                                        if AbbreviateNumbers then
-                                            f._healthText:SetText(AbbreviateNumbers(fakeHP))
-                                        end
-                                    end
-                                end
+                            -- The texts following health (Custom texts reading it included).
+                            local pv = f._pv
+                            if pv then
+                                pv.hpPct = st.current
+                                ns.RF_TextPreviewTick(f, "hp")
                             end
 
                             -- Fill color only moves in gradient modes.
@@ -1164,8 +1141,12 @@ local function BuildVisualBars(parent, y, W, onSection, EYE)
                             else
                                 f._power:SetValue(st.current)
                             end
-                            -- Power Text follows the animated value (ApplyPreviewData sets f._pwtMode; nil = hidden).
-                            if f._pwtMode then ns.RF_PowerTextInto(f._powerText, f._pwtMode, st.current, nil, nil, f._pwtPer) end
+                            -- The texts following power (Custom texts reading it included).
+                            local pv = f._pv
+                            if pv then
+                                pv.ppPct = st.current
+                                ns.RF_TextPreviewTick(f, "pp")
+                            end
                         end
                     end
                 end
