@@ -53,7 +53,7 @@ local function ApplyAll()
         if frame and s and not inCombat then
             if s.enabled == false then
                 frame:Hide()
-            elseif not s.alwaysHidden then
+            elseif not EAB.VisibilityCompat.IsNever(s) then
                 -- Skip Show if a state-visibility driver is managing this frame
                 -- (the driver handles show/hide; calling Show() causes a one-frame blink)
                 if not frame._eabLastVisStr then
