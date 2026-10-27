@@ -116,7 +116,15 @@ local function ApplyAll()
     -- the engine's SetPoint hook.
     ns.PartySpin_Refresh()
 
-    if not inCombat then ns.RefreshPagingCycleMacros() end
+    -- Paging drivers are built at setup and rebuilt by the options controls; a
+    -- profile swap or spec override apply changes paging settings with neither,
+    -- so re-check here. Unchanged bars are skipped (see RebuildBarPaging).
+    if not inCombat then
+        for barKey in pairs(EAB_VTABLE.BAR_KEY_TO_PAGE) do
+            ns.RebuildBarPaging(barKey, true)
+        end
+        ns.RefreshPagingCycleMacros()
+    end
     SetIsApplyingAll(false)
 end
 
