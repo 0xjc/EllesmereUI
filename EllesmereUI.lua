@@ -2402,9 +2402,11 @@ do
     --   If any owned toy is on CD -> Astral Recall (shorter CD)
     --   Otherwise -> random owned toy (variety)
     -- For non-Shamans: random owned toy HS, fallback to item 6948
-    function EllesmereUI.ResolveHearthSlot()
+    -- noAstralRecall: resolve as a non-Shaman (Quickdraw's Random Hearthstone).
+    function EllesmereUI.ResolveHearthSlot(noAstralRecall)
         local _, cls = UnitClass("player")
-        local isShaman = cls == "SHAMAN" and IsPlayerSpell(SHAMAN_ASTRAL_RECALL)
+        local isShaman = not noAstralRecall
+            and cls == "SHAMAN" and IsPlayerSpell(SHAMAN_ASTRAL_RECALL)
 
         if isShaman and InProtectedInstance() then
             local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(SHAMAN_ASTRAL_RECALL)
