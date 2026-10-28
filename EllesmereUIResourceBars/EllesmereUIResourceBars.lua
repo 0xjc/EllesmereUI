@@ -50,6 +50,27 @@ local function SetRBFont(fs, font, size) EllesmereUI.ApplyModuleFont(fs, font, s
 ns.GetRBFont = GetRBFont
 ns.SetRBFont = SetRBFont
 
+-- "Hide at Zero" test for the class-resource count text. Reads the LEADING
+-- number so every display form the resource types produce is covered by one
+-- rule: "0", "0%", "0.0" and "0/5" all count as zero, while "0.5" and "10/5"
+-- do not. An already-blank string is not "zero" (nothing to hide), and a
+-- secret value can't be compared, so both pass through untouched.
+function ns.ERB_TextIsZero(text)
+    if text == nil or (issecretvalue and issecretvalue(text)) then return false end
+    if type(text) == "number" then return text == 0 end
+    if type(text) ~= "string" or text == "" then return false end
+    return tonumber(text:match("^%s*%-?%d+%.?%d*")) == 0
+end
+
+-- Secret counterpart: Lua can't read a secret count (Insanity, Maelstrom, ...
+-- in Midnight), so let Blizzard's TruncateWhenZero render it engine-side and
+-- drop it at zero. Returns ok, display; not ok when the API is missing or
+-- throws, and the caller then shows the raw value.
+function ns.ERB_TruncateSecretZero(v)
+    if not (C_StringUtil and C_StringUtil.TruncateWhenZero) then return false end
+    return pcall(C_StringUtil.TruncateWhenZero, v)
+end
+
 -- Cast-bar text side anchoring (mirrors nameplate/unit-frame cast text). Spell text
 -- and duration share one line; duration reserves a slot on its side and pushes spell
 -- text inward when they share a side; center is never pushed. On ns not a file

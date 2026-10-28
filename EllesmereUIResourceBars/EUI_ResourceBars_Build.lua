@@ -1324,6 +1324,57 @@ local function BuildBars()
             local _spTA = sp.textAnchor or "CENTER"
             secondaryFrame._countText:SetPoint(_spTA, secondaryFrame, _spTA, sp.textXOffset, sp.textYOffset)
             SetRBFont(secondaryFrame._countText, GetRBFont(), sp.textSize)
+            -- "Hide at Zero": filtered ON THE FONTSTRING rather than at each of
+            -- the ~10 write sites (one per resource type), so one rule covers
+            -- every resource, including ones added later. Both writers are
+            -- wrapped: the pip resources use SetText, the power-based bars
+            -- (Insanity, Maelstrom, Focus, Astral Power, Devourer) use
+            -- SetFormattedText, blanked when its first value is a plain 0. A
+            -- secret count can't be compared, so a bare one ("%s") goes through
+            -- TruncateWhenZero instead; any other secret passes through. The wrappers
+            -- only exist while the option is on (toggling it rebuilds), so
+            -- users who never enable it pay nothing. The hidden text is kept so
+            -- turning the option off while at 0 shows the 0 again at once.
+            if sp.hideTextAtZero and not secondaryFrame._countText._euiOrigSetText then
+                secondaryFrame._countText._euiOrigSetText = secondaryFrame._countText.SetText
+                secondaryFrame._countText._euiOrigSetFormattedText = secondaryFrame._countText.SetFormattedText
+                secondaryFrame._countText.SetText = function(self, text, ...)
+                    if issecretvalue and issecretvalue(text) then
+                        local ok, shown = ns.ERB_TruncateSecretZero(text)
+                        if ok then
+                            self._euiHidden, self._euiHiddenText = true, text
+                            return self._euiOrigSetText(self, shown)
+                        end
+                    elseif ns.ERB_TextIsZero(text) then
+                        self._euiHidden, self._euiHiddenText = true, text
+                        return self._euiOrigSetText(self, "")
+                    end
+                    self._euiHidden, self._euiHiddenText = false, nil
+                    return self._euiOrigSetText(self, text, ...)
+                end
+                secondaryFrame._countText.SetFormattedText = function(self, fmt, first, ...)
+                    if fmt == "%s" and select("#", ...) == 0 and issecretvalue and issecretvalue(first) then
+                        return self:SetText(first)
+                    end
+                    if ns.ERB_TextIsZero(first) then
+                        self._euiHidden, self._euiHiddenText = true, format(fmt, first, ...)
+                        return self._euiOrigSetText(self, "")
+                    end
+                    self._euiHidden, self._euiHiddenText = false, nil
+                    return self._euiOrigSetFormattedText(self, fmt, first, ...)
+                end
+                secondaryFrame._countText:SetText(secondaryFrame._countText:GetText())
+            elseif not sp.hideTextAtZero and secondaryFrame._countText._euiOrigSetText then
+                secondaryFrame._countText.SetText = nil
+                secondaryFrame._countText.SetFormattedText = nil
+                secondaryFrame._countText._euiOrigSetText = nil
+                secondaryFrame._countText._euiOrigSetFormattedText = nil
+                -- A flag, not a nil test: the kept text may be secret.
+                if secondaryFrame._countText._euiHidden then
+                    secondaryFrame._countText:SetText(secondaryFrame._countText._euiHiddenText)
+                end
+                secondaryFrame._countText._euiHidden, secondaryFrame._countText._euiHiddenText = false, nil
+            end
             -- "Only if Power Bar Hidden": the fontstring is still created and
             -- updated (so text-value writes never hit nil), just hidden while the
             -- power bar is visible. Re-evaluated every build (spec/power changes
