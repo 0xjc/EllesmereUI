@@ -62,6 +62,15 @@ function ns.ERB_TextIsZero(text)
     return tonumber(text:match("^%s*%-?%d+%.?%d*")) == 0
 end
 
+-- Secret counterpart: Lua can't read a secret count (Insanity, Maelstrom, ...
+-- in Midnight), so let Blizzard's TruncateWhenZero render it engine-side and
+-- drop it at zero. Returns ok, display; not ok when the API is missing or
+-- throws, and the caller then shows the raw value.
+function ns.ERB_TruncateSecretZero(v)
+    if not (C_StringUtil and C_StringUtil.TruncateWhenZero) then return false end
+    return pcall(C_StringUtil.TruncateWhenZero, v)
+end
+
 -- Cast-bar text side anchoring (mirrors nameplate/unit-frame cast text). Spell text
 -- and duration share one line; duration reserves a slot on its side and pushes spell
 -- text inward when they share a side; center is never pushed. On ns not a file

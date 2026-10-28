@@ -1330,7 +1330,8 @@ local function BuildBars()
             -- wrapped: the pip resources use SetText, the power-based bars
             -- (Insanity, Maelstrom, Focus, Astral Power, Devourer) use
             -- SetFormattedText, blanked when its first value is a plain 0. A
-            -- secret value can't be compared and passes through. The wrappers
+            -- secret count can't be compared, so a bare one ("%s") goes through
+            -- TruncateWhenZero instead; any other secret passes through. The wrappers
             -- only exist while the option is on (toggling it rebuilds), so
             -- users who never enable it pay nothing. The hidden text is kept so
             -- turning the option off while at 0 shows the 0 again at once.
@@ -1338,19 +1339,28 @@ local function BuildBars()
                 secondaryFrame._countText._euiOrigSetText = secondaryFrame._countText.SetText
                 secondaryFrame._countText._euiOrigSetFormattedText = secondaryFrame._countText.SetFormattedText
                 secondaryFrame._countText.SetText = function(self, text, ...)
-                    if ns.ERB_TextIsZero(text) then
-                        self._euiHiddenText = text
+                    if issecretvalue and issecretvalue(text) then
+                        local ok, shown = ns.ERB_TruncateSecretZero(text)
+                        if ok then
+                            self._euiHidden, self._euiHiddenText = true, text
+                            return self._euiOrigSetText(self, shown)
+                        end
+                    elseif ns.ERB_TextIsZero(text) then
+                        self._euiHidden, self._euiHiddenText = true, text
                         return self._euiOrigSetText(self, "")
                     end
-                    self._euiHiddenText = nil
+                    self._euiHidden, self._euiHiddenText = false, nil
                     return self._euiOrigSetText(self, text, ...)
                 end
                 secondaryFrame._countText.SetFormattedText = function(self, fmt, first, ...)
+                    if fmt == "%s" and select("#", ...) == 0 and issecretvalue and issecretvalue(first) then
+                        return self:SetText(first)
+                    end
                     if ns.ERB_TextIsZero(first) then
-                        self._euiHiddenText = format(fmt, first, ...)
+                        self._euiHidden, self._euiHiddenText = true, format(fmt, first, ...)
                         return self._euiOrigSetText(self, "")
                     end
-                    self._euiHiddenText = nil
+                    self._euiHidden, self._euiHiddenText = false, nil
                     return self._euiOrigSetFormattedText(self, fmt, first, ...)
                 end
                 secondaryFrame._countText:SetText(secondaryFrame._countText:GetText())
@@ -1359,10 +1369,11 @@ local function BuildBars()
                 secondaryFrame._countText.SetFormattedText = nil
                 secondaryFrame._countText._euiOrigSetText = nil
                 secondaryFrame._countText._euiOrigSetFormattedText = nil
-                if secondaryFrame._countText._euiHiddenText ~= nil then
+                -- A flag, not a nil test: the kept text may be secret.
+                if secondaryFrame._countText._euiHidden then
                     secondaryFrame._countText:SetText(secondaryFrame._countText._euiHiddenText)
                 end
-                secondaryFrame._countText._euiHiddenText = nil
+                secondaryFrame._countText._euiHidden, secondaryFrame._countText._euiHiddenText = false, nil
             end
             -- "Only if Power Bar Hidden": the fontstring is still created and
             -- updated (so text-value writes never hit nil), just hidden while the
