@@ -1324,6 +1324,28 @@ local function BuildBars()
             local _spTA = sp.textAnchor or "CENTER"
             secondaryFrame._countText:SetPoint(_spTA, secondaryFrame, _spTA, sp.textXOffset, sp.textYOffset)
             SetRBFont(secondaryFrame._countText, GetRBFont(), sp.textSize)
+            -- "Hide at Zero": filtered ON THE FONTSTRING rather than at each of
+            -- the ~10 SetText call sites (one per resource type), so one rule
+            -- covers every resource, including ones added later. The wrapper
+            -- only exists while the option is on (toggling it rebuilds), so
+            -- users who never enable it pay nothing. The raw text is kept so
+            -- a toggle while sitting at 0 takes effect at once.
+            if sp.hideTextAtZero and not secondaryFrame._countText._euiOrigSetText then
+                secondaryFrame._countText._euiOrigSetText = secondaryFrame._countText.SetText
+                secondaryFrame._countText.SetText = function(self, text, ...)
+                    self._euiRawText = text
+                    if ns.ERB_TextIsZero(text) then
+                        return self._euiOrigSetText(self, "")
+                    end
+                    return self._euiOrigSetText(self, text, ...)
+                end
+                secondaryFrame._countText:SetText(secondaryFrame._countText:GetText())
+            elseif not sp.hideTextAtZero and secondaryFrame._countText._euiOrigSetText then
+                secondaryFrame._countText.SetText = nil
+                secondaryFrame._countText._euiOrigSetText = nil
+                secondaryFrame._countText:SetText(secondaryFrame._countText._euiRawText)
+                secondaryFrame._countText._euiRawText = nil
+            end
             -- "Only if Power Bar Hidden": the fontstring is still created and
             -- updated (so text-value writes never hit nil), just hidden while the
             -- power bar is visible. Re-evaluated every build (spec/power changes
