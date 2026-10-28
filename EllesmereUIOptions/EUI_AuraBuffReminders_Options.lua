@@ -28,7 +28,7 @@ local SECTION_ROGUE        = "ROGUE POISONS"
 local SECTION_PALADIN      = "PALADIN RITES"
 local SECTION_SHAMAN       = "SHAMAN IMBUES & SHIELDS"
 local SECTION_WARLOCK      = "WARLOCK"
-local SPECIAL_WHERE_TIP    = "Pick which content the class-special reminders (poisons/rites/imbues/shields) appear in.\nRested areas (cities and inns) always stay hidden."
+local SPECIAL_WHERE_TIP    = "Pick which content these reminders appear in.\nRested areas (cities and inns) always stay hidden."
 
 local initFrame = CreateFrame("Frame")
 initFrame:RegisterEvent("PLAYER_LOGIN")
@@ -252,6 +252,8 @@ initFrame:SetScript("OnEvent", function(self)
         return -(totalW / 2) + (sz / 2)
     end
 
+    local _eabrHeaderBaseH = 0
+
     local function UpdatePreviewHeader()
         if not _previewIcons or #_previewIcons == 0 then return end
         local d = DDB()
@@ -342,7 +344,6 @@ initFrame:SetScript("OnEvent", function(self)
     ---------------------------------------------------------------------------
     --  Preview click-to-scroll infrastructure
     ---------------------------------------------------------------------------
-    local _eabrHeaderBaseH = 0
 
     --- Rebuild the preview header with scroll compensation.
     --- SetContentHeader tears down and rebuilds, which can cause scroll jumps.
@@ -642,7 +643,7 @@ initFrame:SetScript("OnEvent", function(self)
     local function WhereGet(store) return function(k) local t = store(); return not (t and t[k] == false) end end
     local function WhereSet(store, onChange)
         return function(k, v)
-            local t = store(); if not t then return end
+            local t = store(true); if not t then return end
             t[k] = v and true or false
             if onChange then onChange() end
         end
@@ -660,7 +661,20 @@ initFrame:SetScript("OnEvent", function(self)
     local function RWhere() local r = RDB(); if not r then return nil end; r.whereToShow = r.whereToShow or {}; return r.whereToShow end
     local function AWhere() local a = ADB(); if not a then return nil end; a.whereToShow = a.whereToShow or {}; return a.whereToShow end
     local function CWhere() local c = CDB(); if not c then return nil end; c.whereToShow = c.whereToShow or {}; return c.whereToShow end
-    local function CSpecialWhere() local c = CDB(); if not c then return nil end; c.specialsWhereToShow = c.specialsWhereToShow or {}; return c.specialsWhereToShow end
+    -- Per-section sets, see EABR.SPECIALS. The first write stores a copy of
+    -- the old shared specials set.
+    local function CSpecialWhere(cls)
+        return function(forWrite)
+            local c, S = CDB(), _G._EABR_SPECIALS
+            if not (c and S) then return nil end
+            local field = S[cls].where
+            if forWrite and type(c[field]) ~= "table" then
+                local src = c.specialsWhereToShow
+                c[field] = type(src) == "table" and CopyTable(src) or {}
+            end
+            return _G._EABR_SpecialsWhere(c, field)
+        end
+    end
     local function CWarlockWhere() local c = CDB(); if not c then return nil end; c.warlockWhereToShow = c.warlockWhereToShow or {}; return c.warlockWhereToShow end
     local function FWhere() local f = FDB(); if not f then return nil end; f.whereToShow = f.whereToShow or {}; return f.whereToShow end
     local function RShowWhen() local r = RDB(); if not r then return nil end; r.showWhen = r.showWhen or {}; return r.showWhen end
@@ -709,13 +723,29 @@ initFrame:SetScript("OnEvent", function(self)
         elseif cfg.soundSec then
             local names, order = SoundNamesOrder()
             local sec, field = cfg.soundSec, cfg.soundField or "sectionSound"
+            -- Class-special sections look their field up per call (the map is
+            -- exported in ABR's OnEnable), see EABR.SPECIALS.
+            local special = cfg.specialClass
+            local function Field()
+                if not special then return field end
+                local S = _G._EABR_SPECIALS
+                return S and S[special].sound
+            end
             rightCfg = { type="dropdown", text="Reminder Sound", dropdownWidth=220,
                 tooltip="Play a sound once when a reminder in this section newly appears.",
                 values=names, order=order,
-                getValue=function() local t = sec(); return (t and t[field]) or "none" end,
+                getValue=function()
+                    local t = sec(); if not t then return "none" end
+                    local f, read = Field(), special and _G._EABR_SpecialsSound
+                    if not f then return "none" end
+                    if read then return read(t, f) or "none" end
+                    return t[f] or "none"
+                end,
                 setValue=function(v)
                     local t = sec(); if not t then return end
-                    if v == "none" then t[field] = nil else t[field] = v end
+                    -- A special section stores "none" (see EABR.SpecialsSound).
+                    local f = Field(); if not f then return end
+                    if v == "none" and not special then t[f] = nil else t[f] = v end
                     local paths = EllesmereUI._groupDeathSoundPaths
                     local sp = paths and paths[v]
                     if sp then PlaySoundFile(sp, "Master") end
@@ -1803,9 +1833,9 @@ initFrame:SetScript("OnEvent", function(self)
         -----------------------------------------------------------------------
         _, h = W:SectionHeader(parent, SECTION_ROGUE, y);  y = y - h
         _, h = SectionControlRow(parent, y, {
-            whereStore = CSpecialWhere,
+            whereStore = CSpecialWhere("ROGUE"),
             whereTooltip = SPECIAL_WHERE_TIP,
-            soundSec = CDB, soundField = "specialsSound",
+            soundSec = CDB, specialClass = "ROGUE",
             onChange = RefreshAll,
         });  y = y - h
 
@@ -1832,9 +1862,9 @@ initFrame:SetScript("OnEvent", function(self)
         -----------------------------------------------------------------------
         _, h = W:SectionHeader(parent, SECTION_PALADIN, y);  y = y - h
         _, h = SectionControlRow(parent, y, {
-            whereStore = CSpecialWhere,
+            whereStore = CSpecialWhere("PALADIN"),
             whereTooltip = SPECIAL_WHERE_TIP,
-            soundSec = CDB, soundField = "specialsSound",
+            soundSec = CDB, specialClass = "PALADIN",
             onChange = RefreshAll,
         });  y = y - h
 
@@ -1861,9 +1891,9 @@ initFrame:SetScript("OnEvent", function(self)
         -----------------------------------------------------------------------
         _, h = W:SectionHeader(parent, SECTION_SHAMAN, y);  y = y - h
         _, h = SectionControlRow(parent, y, {
-            whereStore = CSpecialWhere,
+            whereStore = CSpecialWhere("SHAMAN"),
             whereTooltip = SPECIAL_WHERE_TIP,
-            soundSec = CDB, soundField = "specialsSound",
+            soundSec = CDB, specialClass = "SHAMAN",
             onChange = RefreshAll,
         });  y = y - h
 
@@ -1909,15 +1939,22 @@ initFrame:SetScript("OnEvent", function(self)
         petHdr, h = W:SectionHeader(parent, "PETS", y);  y = y - h
 
         local petFirstRow
-        petFirstRow, h = W:DualRow(parent, y,
-            { type="toggle", text="Missing Pet",
+        petFirstRow, h = SectionControlRow(parent, y, {
+            whereStore = CSpecialWhere("PET"),
+            whereTooltip = "Pick which content the Missing Pet and Passive Pet reminders appear in.\nWarlock's Wrong Demon reminder uses the Where to Show in the Warlock section.\nRested areas (cities and inns) always stay hidden.",
+            onChange = RefreshAll,
+            rightCfg = { type="toggle", text="Missing Pet",
               tooltip="Show a reminder when you don't have an active pet summoned. Only applies to pet classes (Hunter, Warlock, Death Knight, Mage).",
               getValue=function() local c = CDB(); return c and c.enabled and c.enabled.pet ~= false end,
               setValue=function(v) local c = CDB(); if c and c.enabled then c.enabled.pet = v; RefreshAll(); RebuildPreviewHeader() end end },
+        });  y = y - h
+
+        _, h = W:DualRow(parent, y,
             { type="toggle", text="Passive Pet",
               tooltip="Show a reminder when your active pet is set to Passive stance. Only applies to pet classes (Hunter, Warlock, Death Knight, Mage).",
               getValue=function() local c = CDB(); return c and c.enabled and c.enabled.pet_passive ~= false end,
-              setValue=function(v) local c = CDB(); if c and c.enabled then c.enabled.pet_passive = v; RefreshAll(); RebuildPreviewHeader() end end }
+              setValue=function(v) local c = CDB(); if c and c.enabled then c.enabled.pet_passive = v; RefreshAll(); RebuildPreviewHeader() end end },
+            EllesmereUI.BlankRowCfg()
         );  y = y - h
 
         _eabrClickMappings.pet = { section = petHdr, target = petFirstRow }
@@ -1934,7 +1971,7 @@ initFrame:SetScript("OnEvent", function(self)
         local warlockCtrlRow
         warlockCtrlRow, h = SectionControlRow(parent, y, {
             whereStore = CWarlockWhere,
-            whereTooltip = "Pick which content these Warlock reminders appear in.\nRested areas (cities and inns) always stay hidden.",
+            whereTooltip = "Pick which content these Warlock reminders appear in.\nMissing Pet and Passive Pet use the Where to Show in the Pets section.\nRested areas (cities and inns) always stay hidden.",
             onChange = RefreshAll,
             rightCfg = { type="dropdown", text="Allowed Demons",
               tooltip="Pick which demons count as correct for Wrong Demon. A demon only counts while its summon spell is known; with none picked (or everything picked), the reminder never fires.",
@@ -2674,8 +2711,7 @@ initFrame:SetScript("OnEvent", function(self)
                 end
             end
             child:SetHeight(math.max(1, visIdx * ITEM_H))
-            scrollOffset = 0
-            sf:SetVerticalScroll(0)
+            zScrollTo(0)
         end)
 
         zonePopup:SetScript("OnShow", function()
@@ -2841,7 +2877,8 @@ initFrame:SetScript("OnEvent", function(self)
             end
             child:SetHeight(math.max(1, #allTalents * T_ITEM_H))
 
-            -- Search filter
+            -- Search filter (tScrollTo is set by the scrollbar attached below)
+            local tScrollTo
             search:SetScript("OnTextChanged", function(self)
                 local t = strlower(strtrim(self:GetText()))
                 sPh:SetShown(t == "")
@@ -2858,15 +2895,12 @@ initFrame:SetScript("OnEvent", function(self)
                     end
                 end
                 child:SetHeight(math.max(1, visIdx * T_ITEM_H))
-                tScrollTarget = 0
-                tSmoothing = false
-                if tSmoothFrame then tSmoothFrame:Hide() end
-                sf:SetVerticalScroll(0)
-                if UpdateTThumb then UpdateTThumb() end
+                tScrollTo(0)
             end)
 
             -- Scrollbar + smooth scroll
-            local _, tScrollTo = EllesmereUI.AttachSmoothScrollbar(sf, {
+            local _
+            _, tScrollTo = EllesmereUI.AttachSmoothScrollbar(sf, {
                 step = 40, thumbMin = 20, rightInset = 4, child = child })
             popup:SetScript("OnMouseWheel", function(_, delta)
                 sf:GetScript("OnMouseWheel")(sf, delta)
@@ -3247,8 +3281,7 @@ initFrame:SetScript("OnEvent", function(self)
 
             -- Validate: must have a talent selected
             if not selectedTalentSpellID or selectedTalentSpellID == 0 then
-                PulseRedBorder(classDDBtn)
-                PulseRedBorder(specDDBtn)
+                PulseRedBorder(talentDDBtn)
                 return
             end
 

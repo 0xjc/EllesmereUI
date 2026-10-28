@@ -1917,7 +1917,16 @@ local function BuildCDMLivePreview(parent, yOff)
                     local sid = slot._previewSpellID
                     local chargeInfo = sid and C_Spell.GetSpellCharges and C_Spell.GetSpellCharges(sid)
                     local maxC = chargeInfo and chargeInfo.maxCharges
-                    if (bd.showCharges ~= false) and maxC and maxC > 1 then
+                    -- A custom CD/utility spell EUI draws itself has no Blizzard charge
+                    -- frame: the live icon shows a count only with its Show Charges
+                    -- opt-in, so match it. A Blizzard-tracked one draws Blizzard's frame.
+                    local sdSc = sid and not isBuffBar and not isCustomBuffBar and ns.GetBarSpellData(bd.key)
+                    local showC = bd.showCharges ~= false
+                    if sdSc and sdSc.customSpellIDs and sdSc.customSpellIDs[sid]
+                       and not ns.IsCDMTrackedCooldown(sid) then
+                        showC = (sdSc.customSpellForceCount and sdSc.customSpellForceCount[sid]) or false
+                    end
+                    if showC and maxC and maxC > 1 then
                         slot._stackText:SetText(tostring(maxC))
                         slot._stackText:Show()
                     elseif slot._previewItemID and (bd.showItemCount ~= false) then
@@ -2076,11 +2085,16 @@ local function BuildCDMLivePreview(parent, yOff)
             end
             local fkFS = self._focusKickInfoText
             -- Wording must track the "Show on Target" toggle -- otherwise this text keeps promising focus-tracking even when the bar is configured to follow the current target instead.
+            local fkMain
             if bd.focusKickUseTarget then
-                fkFS:SetText(EllesmereUI.L("This bar will always be attached to your current target's nameplate"))
+                fkMain = EllesmereUI.L("This bar will always be attached to your current target's nameplate")
             else
-                fkFS:SetText(EllesmereUI.L("This bar will always be attached to your focus target's nameplate"))
+                fkMain = EllesmereUI.L("This bar will always be attached to your focus target's nameplate")
             end
+            -- Second, dimmer line: points sound-only users at the setup that needs no icon.
+            fkFS:SetText(fkMain .. "\n" .. EllesmereUI.COLOR_CODES.DIM
+                .. EllesmereUI.L("Want only the cast sound? Leave this bar empty and set Interrupt Spell below.")
+                .. "|r")
             fkFS:ClearAllPoints()
             fkFS:SetPoint("TOP", self, "TOPLEFT", self:GetWidth() / 2, -(totalH + 14))
             fkFS:SetWidth(self:GetWidth() - 20)
