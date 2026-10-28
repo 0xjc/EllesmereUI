@@ -566,9 +566,19 @@ initFrame:SetScript("OnEvent", function(self)
             { type="toggle", label="Prevent Multi Quest Accept",
               get=function() return Cfg("autoAcceptPreventMulti") ~= false end,
               set=function(v) Set("autoAcceptPreventMulti", v) end },
+            -- Hold Shift to Enable and Hold Shift to Skip are opposites: turning one on turns the other off.
+            { type="toggle", label="Hold Shift to Enable",
+              get=function() return Cfg("autoAcceptShiftEnable") == true end,
+              set=function(v)
+                  Set("autoAcceptShiftEnable", v)
+                  if v then Set("autoAcceptShiftSkip", false) end
+              end },
             { type="toggle", label="Hold Shift to Skip",
               get=function() return Cfg("autoAcceptShiftSkip") ~= false end,
-              set=function(v) Set("autoAcceptShiftSkip", v) end },
+              set=function(v)
+                  Set("autoAcceptShiftSkip", v)
+                  if v then Set("autoAcceptShiftEnable", false) end
+              end },
             { type="toggle", label="Ignore Low Level Quests",
               get=function() return Cfg("autoAcceptIgnoreTrivial") or false end,
               set=function(v) Set("autoAcceptIgnoreTrivial", v) end },
@@ -587,9 +597,18 @@ initFrame:SetScript("OnEvent", function(self)
         EllesmereUI.BuildInlineCog(row._rightRegion, {
             title = "Auto Turn In Settings",
             rows = {
+                { type="toggle", label="Hold Shift to Enable",
+                  get=function() return Cfg("autoTurnInShiftEnable") == true end,
+                  set=function(v)
+                      Set("autoTurnInShiftEnable", v)
+                      if v then Set("autoTurnInShiftSkip", false) end
+                  end },
                 { type="toggle", label="Hold Shift to Skip",
                   get=function() return Cfg("autoTurnInShiftSkip") ~= false end,
-                  set=function(v) Set("autoTurnInShiftSkip", v) end },
+                  set=function(v)
+                      Set("autoTurnInShiftSkip", v)
+                      if v then Set("autoTurnInShiftEnable", false) end
+                  end },
             },
         })
         y = y - h
