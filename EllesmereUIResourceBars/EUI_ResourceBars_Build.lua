@@ -1325,26 +1325,44 @@ local function BuildBars()
             secondaryFrame._countText:SetPoint(_spTA, secondaryFrame, _spTA, sp.textXOffset, sp.textYOffset)
             SetRBFont(secondaryFrame._countText, GetRBFont(), sp.textSize)
             -- "Hide at Zero": filtered ON THE FONTSTRING rather than at each of
-            -- the ~10 SetText call sites (one per resource type), so one rule
-            -- covers every resource, including ones added later. The wrapper
-            -- only exists while the option is on (toggling it rebuilds), so
-            -- users who never enable it pay nothing. The raw text is kept so
-            -- a toggle while sitting at 0 takes effect at once.
+            -- the ~10 write sites (one per resource type), so one rule covers
+            -- every resource, including ones added later. Both writers are
+            -- wrapped: the pip resources use SetText, the power-based bars
+            -- (Insanity, Maelstrom, Focus, Astral Power, Devourer) use
+            -- SetFormattedText, blanked when its first value is a plain 0. A
+            -- secret value can't be compared and passes through. The wrappers
+            -- only exist while the option is on (toggling it rebuilds), so
+            -- users who never enable it pay nothing. The hidden text is kept so
+            -- turning the option off while at 0 shows the 0 again at once.
             if sp.hideTextAtZero and not secondaryFrame._countText._euiOrigSetText then
                 secondaryFrame._countText._euiOrigSetText = secondaryFrame._countText.SetText
+                secondaryFrame._countText._euiOrigSetFormattedText = secondaryFrame._countText.SetFormattedText
                 secondaryFrame._countText.SetText = function(self, text, ...)
-                    self._euiRawText = text
                     if ns.ERB_TextIsZero(text) then
+                        self._euiHiddenText = text
                         return self._euiOrigSetText(self, "")
                     end
+                    self._euiHiddenText = nil
                     return self._euiOrigSetText(self, text, ...)
+                end
+                secondaryFrame._countText.SetFormattedText = function(self, fmt, first, ...)
+                    if ns.ERB_TextIsZero(first) then
+                        self._euiHiddenText = format(fmt, first, ...)
+                        return self._euiOrigSetText(self, "")
+                    end
+                    self._euiHiddenText = nil
+                    return self._euiOrigSetFormattedText(self, fmt, first, ...)
                 end
                 secondaryFrame._countText:SetText(secondaryFrame._countText:GetText())
             elseif not sp.hideTextAtZero and secondaryFrame._countText._euiOrigSetText then
                 secondaryFrame._countText.SetText = nil
+                secondaryFrame._countText.SetFormattedText = nil
                 secondaryFrame._countText._euiOrigSetText = nil
-                secondaryFrame._countText:SetText(secondaryFrame._countText._euiRawText)
-                secondaryFrame._countText._euiRawText = nil
+                secondaryFrame._countText._euiOrigSetFormattedText = nil
+                if secondaryFrame._countText._euiHiddenText ~= nil then
+                    secondaryFrame._countText:SetText(secondaryFrame._countText._euiHiddenText)
+                end
+                secondaryFrame._countText._euiHiddenText = nil
             end
             -- "Only if Power Bar Hidden": the fontstring is still created and
             -- updated (so text-value writes never hit nil), just hidden while the
