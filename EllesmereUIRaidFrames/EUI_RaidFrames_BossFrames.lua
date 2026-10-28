@@ -537,7 +537,10 @@ FB.Pitch = function(fbset, s)
         local party = (not IsInRaid() or ns._PartyInRaid()) and fbset.showInDungeons == true
         if ns.RF_CompactOn(db.profile, party) then return ns.RF_OnePixel(party) end
     end
-    return PixelSnap(s.cellSpacing or -1)
+    -- Same grid as FB.FreePin: the boss container's own scale.
+    local c = FB.container
+    return EllesmereUI.PP.SnapForES(s.cellSpacing or -1,
+        (c or UIParent):GetEffectiveScale())
 end
 
 -- Re-apply all setting-derived properties (size, slots, texture, fonts, text anchors). OOC only;
