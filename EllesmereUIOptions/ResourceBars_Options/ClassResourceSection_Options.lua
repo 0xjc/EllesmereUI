@@ -1054,13 +1054,11 @@ function ns.ERB_BuildClassResourceSection(parent, y, ctx)
                   p.secondary.showTextOnlyIfNoPower = v; RebuildClass()
               end },
             { type = "toggle", label = "Hide at Zero",
-              tooltip = "Hide the resource text while the resource reads zero, instead of showing a 0. Off = always show the current value.",
+              tooltip = "Hide the resource text while the resource is at zero.",
               get = function() local p = DB(); return p and p.secondary.hideTextAtZero end,
               set = function(v)
                   local p = DB(); if not p then return end
-                  -- Rebuild, not refresh: the build path re-applies the last
-                  -- raw value through the filter, so toggling this at 0
-                  -- updates the text immediately.
+                  -- Rebuild: the build path installs or removes the filter.
                   p.secondary.hideTextAtZero = v; RebuildClass()
               end },
             { type = "slider", label = "Size", min = 8, max = 64, step = 1,

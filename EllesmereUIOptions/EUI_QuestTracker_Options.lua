@@ -558,10 +558,16 @@ initFrame:SetScript("OnEvent", function(self)
         row, h = W:DualRow(parent, y,
             { type="toggle", text="Auto Accept Quests",
               getValue=function() return Cfg("autoAccept") or false end,
-              setValue=function(v) Set("autoAccept", v) end },
+              setValue=function(v)
+                  Set("autoAccept", v)
+                  if EQT.SyncAutoQuests then EQT.SyncAutoQuests() end
+              end },
             { type="toggle", text="Auto Turn In Quests",
               getValue=function() return Cfg("autoTurnIn") or false end,
-              setValue=function(v) Set("autoTurnIn", v) end })
+              setValue=function(v)
+                  Set("autoTurnIn", v)
+                  if EQT.SyncAutoQuests then EQT.SyncAutoQuests() end
+              end })
         local acceptRows = {
             { type="toggle", label="Prevent Multi Quest Accept",
               get=function() return Cfg("autoAcceptPreventMulti") ~= false end,

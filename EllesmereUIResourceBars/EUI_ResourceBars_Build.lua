@@ -1324,17 +1324,11 @@ local function BuildBars()
             local _spTA = sp.textAnchor or "CENTER"
             secondaryFrame._countText:SetPoint(_spTA, secondaryFrame, _spTA, sp.textXOffset, sp.textYOffset)
             SetRBFont(secondaryFrame._countText, GetRBFont(), sp.textSize)
-            -- "Hide at Zero": filtered ON THE FONTSTRING rather than at each of
-            -- the ~10 write sites (one per resource type), so one rule covers
-            -- every resource, including ones added later. Both writers are
-            -- wrapped: the pip resources use SetText, the power-based bars
-            -- (Insanity, Maelstrom, Focus, Astral Power, Devourer) use
-            -- SetFormattedText, blanked when its first value is a plain 0. A
-            -- secret count can't be compared, so a bare one ("%s") goes through
-            -- TruncateWhenZero instead; any other secret passes through. The wrappers
-            -- only exist while the option is on (toggling it rebuilds), so
-            -- users who never enable it pay nothing. The hidden text is kept so
-            -- turning the option off while at 0 shows the 0 again at once.
+            -- "Hide at Zero": both writers of the count text are wrapped while the
+            -- option is on (pip resources use SetText, the power bars
+            -- SetFormattedText). A secret bare count goes through TruncateWhenZero;
+            -- a secret "cur / max" or percent still shows its 0. The hidden text is
+            -- kept so turning the option off at 0 shows the 0 again.
             if sp.hideTextAtZero and not secondaryFrame._countText._euiOrigSetText then
                 secondaryFrame._countText._euiOrigSetText = secondaryFrame._countText.SetText
                 secondaryFrame._countText._euiOrigSetFormattedText = secondaryFrame._countText.SetFormattedText
