@@ -537,7 +537,10 @@ FB.Pitch = function(fbset, s)
         local party = (not IsInRaid() or ns._PartyInRaid()) and fbset.showInDungeons == true
         if ns.RF_CompactOn(db.profile, party) then return ns.RF_OnePixel(party) end
     end
-    return s.cellSpacing or -1
+    -- Same grid as FB.FreePin: the boss container's own scale.
+    local c = FB.container
+    return EllesmereUI.PP.SnapForES(s.cellSpacing or -1,
+        (c or UIParent):GetEffectiveScale())
 end
 
 -- Re-apply all setting-derived properties (size, slots, texture, fonts, text anchors). OOC only;
@@ -635,6 +638,30 @@ FB.Pin = function(c, point, rel, relPoint, x, y)
     end
     c:ClearAllPoints()
     c:SetPoint(point, rel, relPoint, x, y)
+end
+
+-- Free Move pin off UIParent's centre. The saved offsets are raw mover geometry and the centre
+-- itself can sit on a half pixel (odd physical size), so snap the pinned point's absolute
+-- position at the container's own scale, or every border inside it blurs. A CENTER pin snaps
+-- with the container's size so odd-pixel dimensions still put both edges on whole pixels.
+FB.FreePin = function(c, point, x, y)
+    local P = EllesmereUI.PP
+    local ux, uy = UIParent:GetCenter()
+    if P and P.SnapForES and ux then
+        local es = c:GetEffectiveScale()
+        if point == "CENTER" then
+            -- A secret size falls back to the even (whole-pixel) centre.
+            local w, h = c:GetWidth(), c:GetHeight()
+            if issecretvalue(w) then w = nil end
+            if issecretvalue(h) then h = nil end
+            x = P.SnapCenterForDim(ux + x, w, es) - ux
+            y = P.SnapCenterForDim(uy + y, h, es) - uy
+        else
+            x = P.SnapForES(ux + x, es) - ux
+            y = P.SnapForES(uy + y, es) - uy
+        end
+    end
+    FB.Pin(c, point, UIParent, "CENTER", x, y)
 end
 
 -- Position the container per the position setting. The container inherits protection from its
@@ -810,7 +837,7 @@ FB.Anchor = function(owner)
     -- Owner-specific free anchoring (Extra Frames pins the grid's growth corner so the group grows away from it); CENTER pin otherwise.
     if owner.FreeAnchor and owner.FreeAnchor(c, fb) then return end
     local p = fb.freePos or {}
-    FB.Pin(c, "CENTER", UIParent, "CENTER", p.x or 100, p.y or 0)
+    FB.FreePin(c, "CENTER", p.x or 100, p.y or 0)
 end
 
 -- Re-anchor only (no restyle): the party visibility pass calls this on the party container's
@@ -1009,7 +1036,7 @@ FB.SetMoverShown = function(owner, show, frameName, labelText)
             owner.mover:SetPoint("CENTER", owner.container, "CENTER")
         else
             local p = oset.freePos or {}
-            owner.mover:SetPoint("CENTER", UIParent, "CENTER", p.x or 100, p.y or 0)
+            FB.FreePin(owner.mover, "CENTER", p.x or 100, p.y or 0)
         end
     end
     owner.mover:Show()
