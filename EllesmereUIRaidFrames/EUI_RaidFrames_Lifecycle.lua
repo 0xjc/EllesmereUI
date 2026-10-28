@@ -410,23 +410,60 @@ function ERF:OnEnable()
     for i = 1, 40 do MakeUnitTracker("raid" .. i) end
     eventFrame:SetScript("OnEvent", OnEvent)
 
-    -- Level Text's UNIT_LEVEL: registered on every tracker only while a view shows the
-    -- level. Called from _RefreshProxyModes (every settings write, reload and profile
-    -- swap); the stamp keeps the 45-tracker walk to real flips.
-    local lvlRegistered = false
-    function ns._RFSyncLevelRegistration()
-        local want = ns._RFLevelWanted()
-        if want == lvlRegistered then return end
-        lvlRegistered = want
+    -- An opt-in unit event (UNIT_LEVEL, UNIT_TARGET) on every tracker, the Extra Frames'
+    -- assigned per-slot ones included (XF_Apply registers it there on assignment).
+    local function SyncOptInEvent(event, want)
         for unit, tracker in pairs(unitTrackers) do
             if want then
-                tracker:RegisterUnitEvent("UNIT_LEVEL", unit)
+                tracker:RegisterUnitEvent(event, unit)
             else
-                tracker:UnregisterEvent("UNIT_LEVEL")
+                tracker:UnregisterEvent(event)
+            end
+        end
+        local XF = ns._XF
+        if XF then
+            for i = 1, #XF.trackers do
+                local b = XF.buttons[i]
+                local unit = b and b:IsShown() and b:GetAttribute("unit")
+                if want and unit then
+                    XF.trackers[i]:RegisterUnitEvent(event, unit)
+                elseif not want then
+                    XF.trackers[i]:UnregisterEvent(event)
+                end
             end
         end
     end
+
+    -- UNIT_LEVEL: registered only while a view shows the level. Called from
+    -- _RefreshProxyModes (every settings write, reload and profile swap); the stamp keeps
+    -- the tracker walk to real flips.
+    local lvlRegistered = false
+    function ns._RFSyncLevelRegistration()
+        local want = ns.RF_TextWanted("level")
+        if want == lvlRegistered then return end
+        lvlRegistered = want
+        SyncOptInEvent("UNIT_LEVEL", want)
+    end
     ns._RFSyncLevelRegistration()
+
+    -- Custom texts: UNIT_TARGET only while a view's Custom text shows [target]; a Custom
+    -- text reading power keeps the power events of units whose power bar is off
+    -- (UpdatePowerEventRegistration below re-runs on that flip). Called with the level's
+    -- sync; the stamps keep the walks to real flips.
+    local tgtRegistered, htPowerWanted = false, false
+    function ns._RFSyncCustomRegistration()
+        local want = ns.RF_TextWanted("tgt")
+        if want ~= tgtRegistered then
+            tgtRegistered = want
+            SyncOptInEvent("UNIT_TARGET", want)
+        end
+        want = ns.RF_TextWanted("pp")
+        if want ~= htPowerWanted then
+            htPowerWanted = want
+            if ns.UpdatePowerEventRegistration then ns.UpdatePowerEventRegistration() end
+        end
+    end
+    ns._RFSyncCustomRegistration()
 
     -- UNIT_FLAGS is opt-in: only registered while the combat icon is enabled.
     if ns.UpdateCombatEventRegistration then ns.UpdateCombatEventRegistration() end
@@ -451,12 +488,14 @@ function ERF:OnEnable()
         -- power events while its mode matches the current group type,
         -- whatever the power bar settings.
         local hmOn = ns._HMActive and ns._HMActive()
+        -- A Custom text reading power needs every unit's power events.
+        local htPower = ns.RF_TextWanted("pp")
         for unit, tracker in pairs(unitTrackers) do
             local wantPower = false
             if UnitExists(unit) then
                 local role = ns._ResolvePowerRole(unit)
                 wantPower = (IsPowerBarEnabled(rs) and wantsPower(rs, role))
-                    or (hmOn and role == "HEALER")
+                    or (hmOn and role == "HEALER") or htPower
                 -- player/party tokens always count as party-displayable; the
                 -- routing-map check additionally covers arena, where the party
                 -- header binds raid1-5.
