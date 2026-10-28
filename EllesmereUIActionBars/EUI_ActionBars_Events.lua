@@ -1397,13 +1397,6 @@ do
                     if oldMacFast then
                         table.wipe(oldMacFast); pn = pn + 1; pool[pn] = oldMacFast
                     end
-                    local oldMacBy = ns._cdMacroBySpell
-                    if oldMacBy then
-                        for _, g in pairs(oldMacBy) do
-                            table.wipe(g); pn = pn + 1; pool[pn] = g
-                        end
-                        table.wipe(oldMacBy); pn = pn + 1; pool[pn] = oldMacBy
-                    end
                     local _filled = CdTakeTable()
                     ns._cdFilled = _filled
                     -- SPELL-KEYED CLASSIFICATION for the targeted cooldown
@@ -1417,17 +1410,16 @@ do
                     --   residual = non-spell slots (items, macros -- whose
                     --          resolved spell shifts with modifier keys --
                     --          mounts): slot-polled at the slow cadence.
-                    --   macroFast = macros resolving to a CURATED spell: still
-                    --          slot-polled, but at the fast cadence. A rotation
-                    --          spell behind a macro otherwise lagged its own
-                    --          cooldown shortenings by up to 0.5s.
-                    --   macroBy = spell macros indexed by resolved spell, for the
-                    --          targeted probe only (can go stale on a modifier
-                    --          flip; the slot-polled passes stay authoritative).
+                    --   macroFast = macros resolving to a CURATED spell (RunMacros):
+                    --          fast cadence and probe-reachable, resolved LIVE per
+                    --          pass. A rotation spell behind a macro otherwise
+                    --          lagged its own cooldown shortenings by up to 0.5s.
+                    --          Membership is decided here, so a macro rebuilt while
+                    --          a modifier resolved it elsewhere stays residual.
                     local fast, slow, residual = CdTakeTable(), CdTakeTable(), CdTakeTable()
                     ns._cdFastSpells, ns._cdSlowSpells, ns._cdResidual = fast, slow, residual
-                    local macroFast, macroBy = CdTakeTable(), CdTakeTable()
-                    ns._cdMacroFast, ns._cdMacroBySpell = macroFast, macroBy
+                    local macroFast = CdTakeTable()
+                    ns._cdMacroFast = macroFast
                     -- curated[sid] = true (Essential rotation kit -> fast
                     -- tier) or false (other curated category -> slow). The fast tier
                     -- must stay LEAN: its per-pass fetch floor runs at the capped storm
@@ -1518,18 +1510,9 @@ do
                                         elseif aType == "macro" and aSub == "spell"
                                             and type(aID) == "number"
                                             and not (issecretvalue and issecretvalue(aID))
-                                            and aID > 0 then
-                                            -- Spell macro: aID is the RESOLVED spell.
-                                            local mg = macroBy[aID]
-                                            if not mg then mg = CdTakeTable(); macroBy[aID] = mg end
-                                            mg[#mg + 1] = btn
-                                            local base = GetBaseSpell and GetBaseSpell(aID)
-                                            if not haveCurated or curated[aID]
-                                               or (base and base > 0 and curated[base]) then
-                                                macroFast[#macroFast + 1] = btn
-                                            else
-                                                residual[#residual + 1] = btn
-                                            end
+                                            and (not haveCurated or curated[aID]
+                                                or curated[GetBaseSpell and GetBaseSpell(aID) or 0]) then
+                                            macroFast[#macroFast + 1] = btn
                                         else
                                             residual[#residual + 1] = btn
                                         end
@@ -1540,13 +1523,45 @@ do
                         end
                     end
         end
+        -- Spell-macro push (ns._cdMacroFast). Each slot is resolved LIVE: a modifier
+        -- or castsequence step re-resolves a macro with no content edge, so nothing
+        -- is keyed at rebuild time. One fetch per resolved spell per call. only1/only2
+        -- (probe payload) restrict the push to macros currently resolving to them.
+        local _macCi, _macDur = {}, {}
+        local function RunMacros(list, visOn, only1, only2)
+            local live = false
+            wipe(_macCi); wipe(_macDur)
+            for i = 1, #list do
+                local btn = list[i]
+                local a = btn:GetAttribute("action")
+                local t, id, sub
+                if a then t, id, sub = GetActionInfo(a) end
+                if t == "macro" and sub == "spell" and type(id) == "number"
+                   and not (issecretvalue and issecretvalue(id)) and id > 0 then
+                    if not only1 or id == only1 or id == only2 then
+                        local ci = _macCi[id]
+                        if ci == nil then
+                            ci = C_Spell.GetSpellCooldown(id) or false
+                            _macCi[id] = ci
+                            if ci and ci.isActive then
+                                _macDur[id] = C_Spell.GetSpellCooldownDuration(id)
+                            end
+                        end
+                        if PushButtonCooldown(btn, visOn, ci or nil, _macDur[id]) then live = true end
+                    end
+                elseif not only1 then
+                    -- No longer a readable spell macro: plain slot fetch.
+                    if PushButtonCooldown(btn, visOn) then live = true end
+                end
+            end
+            return live
+        end
         -- Targeted-probe body (see the dispatch site below), named for profiler
         -- attribution. g is the tier group for key; push-through, same semantics as the
         -- tier body -- one fetch + one duration object per probe, pushed to the group's
         -- buttons unconditionally. Payload events fire at chatter rate, so a probe
-        -- costs a handful of sink calls on the one named group. m (optional) is the
-        -- spell-macro group for key: slot-fetched per button, never fed the spell's ci.
-        local function DispProbe(g, key, m)
+        -- costs a handful of sink calls on the one named group.
+        local function DispProbe(g, key)
                     local p = EAB.db.profile
                     local visOn = p.desaturateOnCooldown
                         or (p.alphaWhenOnCD or 100) ~= 100
@@ -1561,15 +1576,8 @@ do
                     elseif not GetSpellCd then
                         live = true
                     end
-                    if g then
-                        for i = 1, #g do
-                            if PushButtonCooldown(g[i], visOn, ci, gDur) then live = true end
-                        end
-                    end
-                    if m then
-                        for i = 1, #m do
-                            if PushButtonCooldown(m[i], visOn) then live = true end
-                        end
+                    for i = 1, #g do
+                        if PushButtonCooldown(g[i], visOn, ci, gDur) then live = true end
                     end
                     -- A live schedule needs the heartbeat awake for its END
                     -- transition: the settled gate would otherwise sleep
@@ -1639,7 +1647,7 @@ do
                 end
                 RunTier(ns._cdFastSpells)
                 local mf = ns._cdMacroFast
-                if mf then RunGroup(mf) end
+                if mf and RunMacros(mf, visOn) then liveSeen = true end
                 local nowS = GetTime()
                 if nowS >= (ns._cdSlowNext or 0) then
                     ns._cdSlowNext = nowS + 0.5
@@ -1786,10 +1794,17 @@ do
                     key = arg2
                     g = (fastT and fastT[key]) or (slowT and slowT[key])
                 end
-                local macT = ns._cdMacroBySpell
-                local m = macT and (macT[arg1] or (arg2 ~= nil and macT[arg2])) or nil
-                if g or m then
-                    DispProbe(g, g and key or arg1, m)
+                if g then
+                    DispProbe(g, key)
+                end
+                local mac = ns._cdMacroFast
+                if mac and mac[1] then
+                    local p = EAB.db.profile
+                    local visOn = p.desaturateOnCooldown
+                        or (p.alphaWhenOnCD or 100) ~= 100
+                    if RunMacros(mac, visOn, arg1, arg2) then
+                        ns._cdDirtyUntil = GetTime() + 2
+                    end
                 end
                 return
             end
