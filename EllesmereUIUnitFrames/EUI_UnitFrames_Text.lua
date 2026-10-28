@@ -453,7 +453,7 @@ local PLAYER_POWER_DEFAULT = {
     MONK   = { [2] = 0 },   -- Mistweaver: default to Mana
 }
 local PLAYER_POWER_ALT = {
-    DRUID  = { [1] = 0, [2] = 0, [3] = 0 },  -- Balance/Feral/Guardian -> Mana
+    DRUID  = { [1] = 0, [2] = 0, [3] = 0, [4] = 0 },  -- All druid specs -> Mana
     PRIEST = { [3] = nil },                     -- Shadow alt -> Insanity (UnitPowerType)
     SHAMAN = { [1] = 0 },                       -- Elemental -> Mana
 }
