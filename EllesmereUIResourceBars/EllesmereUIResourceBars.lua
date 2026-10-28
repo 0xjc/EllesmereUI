@@ -6,7 +6,7 @@ if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_C
 --  animations, combat fade, low-resource alerts, class-colored bars
 -------------------------------------------------------------------------------
 local ADDON_NAME, ns = ...
-if not (EllesmereUI and EllesmereUI._ModuleNS and EllesmereUI.NewInternals and EllesmereUI.NewCombatQueue and EllesmereUI.SetFrameScale and EllesmereUI._Pool) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring (the Call Totem Bar scales its Edit Mode system through the parent's SetFrameScale)
+if not (EllesmereUI and EllesmereUI._ModuleNS and EllesmereUI.NewInternals and EllesmereUI.NewCombatQueue and EllesmereUI.SetFrameScale and EllesmereUI._Pool and EllesmereUI.AbsorbGlow) then EUI_CLIENT_BLOCKED = true; return end -- stale-parent guard: a partially updated install (old parent, new child) goes dormant via the line-1 failsafe instead of erroring (the Call Totem Bar scales its Edit Mode system through the parent's SetFrameScale, and the health bar's absorb glow line is the parent's AbsorbGlow)
 EllesmereUI._ModuleNS[ADDON_NAME] = ns  -- LOD options files read this module ns via the registry
 local ERB = EllesmereUI.Lite.NewAddon(ADDON_NAME)
 ns.ERB = ERB
@@ -50,11 +50,9 @@ local function SetRBFont(fs, font, size) EllesmereUI.ApplyModuleFont(fs, font, s
 ns.GetRBFont = GetRBFont
 ns.SetRBFont = SetRBFont
 
--- "Hide at Zero" test for the class-resource count text. Reads the LEADING
--- number so every display form the resource types produce is covered by one
--- rule: "0", "0%", "0.0" and "0/5" all count as zero, while "0.5" and "10/5"
--- do not. An already-blank string is not "zero" (nothing to hide), and a
--- secret value can't be compared, so both pass through untouched.
+-- "Hide at Zero" test for the class resource text: the leading number, so "0",
+-- "0%", "0.0" and "0/5" are zero and "0.5" or "10/5" are not. Blank and secret
+-- text pass through.
 function ns.ERB_TextIsZero(text)
     if text == nil or (issecretvalue and issecretvalue(text)) then return false end
     if type(text) == "number" then return text == 0 end
@@ -62,10 +60,9 @@ function ns.ERB_TextIsZero(text)
     return tonumber(text:match("^%s*%-?%d+%.?%d*")) == 0
 end
 
--- Secret counterpart: Lua can't read a secret count (Insanity, Maelstrom, ...
--- in Midnight), so let Blizzard's TruncateWhenZero render it engine-side and
--- drop it at zero. Returns ok, display; not ok when the API is missing or
--- throws, and the caller then shows the raw value.
+-- A secret count (Insanity and other power bars read secret) goes through
+-- TruncateWhenZero, which blanks it at zero engine-side. Returns ok, display;
+-- not ok when the call fails, and the caller shows the raw value.
 function ns.ERB_TruncateSecretZero(v)
     if not (C_StringUtil and C_StringUtil.TruncateWhenZero) then return false end
     return pcall(C_StringUtil.TruncateWhenZero, v)
@@ -384,10 +381,10 @@ local function GetPrimaryPowerType()
         local pp = ERB.db and ERB.db.profile and ERB.db.profile.primary
         local ov = pp and pp.powerTypeOverride
         local o = ovSpec and ov and ov[ovSpec]
-        if o == "mana" then return PT.MANA end            -- "Mana (Always)": every form
+        if o == "mana" then return PT.MANA end            -- Balance "Mana": every form
         if o then
             if spec == 1 then return PT.LUNAR_POWER end  -- Balance alt: Astral Power
-            return PT.MANA                                -- Feral/Guardian alt: Mana
+            return PT.MANA                                -- Feral/Guardian/Restoration alt: Mana
         end
         if form == 1 then return PT.ENERGY end
         if form == 5 then return PT.RAGE end

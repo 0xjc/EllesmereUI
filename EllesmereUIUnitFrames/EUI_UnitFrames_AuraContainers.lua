@@ -2667,7 +2667,9 @@ end
 -- bar inside it, whatever the levels. The overlay set therefore lives under the
 -- health bar, where it sorts below the absorbs. The decoration set (Color
 -- Custom Borders copies, Type Icon) reaches past the health bar and would be
--- clipped there, so it stays on the unit frame.
+-- clipped there, so it stays on the unit frame. Each set is built the first
+-- time its feature is on: with the overlay, Color Custom Borders and the Type
+-- Icon all off (the defaults), neither is.
 ------------------------------------------------------------------------------
 
 local DISPEL_SLOTS = {
@@ -3027,73 +3029,75 @@ local function BuildDispelStyles(frame)
     return DispelSlotsShown(p)
 end
 
-local function CreateDispelSlots(frame, entry)
-    local decorShown, fillShown = BuildDispelStyles(frame)
+-- One set: the decoration set (fill false) on the unit frame, or the overlay
+-- set (fill true) under the health bar, inside the bar clip with the absorbs
+-- (section header). Built once and kept; `<field>Adds` counts the set's
+-- completed slot declarations, so a resumed build skips what already landed
+-- instead of re-declaring existing slot keys.
+local function CreateDispelSet(frame, entry, fill)
+    local field = fill and "dispelFill" or "dispel"
+    if entry[field .. "Built"] then return end
+    local addsField = field .. "Adds"
+    local container = entry[field]
+    if not container then
+        container = AK.CreateContainerShell(fill and frame.Health or frame, {
+            point = { "CENTER", frame, "CENTER" },
+        })
+        -- Stashed BEFORE the slot adds so a watchdog-killed build resumes on
+        -- the same container instead of birthing a second one.
+        entry[field] = container
+    end
 
-    -- `dispelAdds` counts completed slot declarations across both sets: a
-    -- resumed build skips what already landed instead of re-declaring existing
-    -- slot keys.
     local n = 0
-    for set = 1, 2 do
-        -- 1 = decoration set on the unit frame, 2 = overlay set under the
-        -- health bar, inside the bar clip with the absorbs (section header).
-        local fill = set == 2
-        local field = fill and "dispelFill" or "dispel"
-        local container = entry[field]
-        if not container then
-            container = AK.CreateContainerShell(fill and frame.Health or frame, {
-                point = { "CENTER", frame, "CENTER" },
+    for i = 1, #DISPEL_SLOTS do
+        local slot = DISPEL_SLOTS[i]
+        local function ParkSlot(slotButton)
+            -- Park the slot button on the health bar center (the overlay textures
+            -- anchor to the health bar independently). Anchored HERE, inside the
+            -- creation window: SetPoint on the returned button is denied while
+            -- auras are secret (12.1 button access restriction), and this build
+            -- path runs on in-instance reloads.
+            slotButton:SetPoint("CENTER", frame.Health or frame, "CENTER")
+        end
+        n = n + 1
+        if n > (entry[addsField] or 0) then
+            AK.AddSlotToContainer(container, {
+                key = slot.key,
+                filter = { "HARMFUL" },
+                candidateFilters = { includeDispelTypes = { [DISPEL_TYPE_TOKENS[slot.key]] = true } },
+                style = DispelStyleKey(slot.key, fill),
+                extraInit = ParkSlot,
             })
-            -- Stashed BEFORE the slot adds so a watchdog-killed build resumes on
-            -- the same container instead of birthing a second one.
-            entry[field] = container
+            entry[addsField] = n
         end
-
-        for i = 1, #DISPEL_SLOTS do
-            local slot = DISPEL_SLOTS[i]
-            local function ParkSlot(slotButton)
-                -- Park the slot button on the health bar center (the overlay textures
-                -- anchor to the health bar independently). Anchored HERE, inside the
-                -- creation window: SetPoint on the returned button is denied while
-                -- auras are secret (12.1 button access restriction), and this build
-                -- path runs on in-instance reloads.
-                slotButton:SetPoint("CENTER", frame.Health or frame, "CENTER")
-            end
-            n = n + 1
-            if n > (entry.dispelAdds or 0) then
-                AK.AddSlotToContainer(container, {
-                    key = slot.key,
-                    filter = { "HARMFUL" },
-                    candidateFilters = { includeDispelTypes = { [DISPEL_TYPE_TOKENS[slot.key]] = true } },
-                    style = DispelStyleKey(slot.key, fill),
-                    extraInit = ParkSlot,
-                })
-                entry.dispelAdds = n
-            end
-            -- "Only Dispellable by You" variant: identical slot with the engine
-            -- by-me filter token added. Declared upfront -- slot filters cannot
-            -- change after declaration -- and mutually exclusive with the plain
-            -- slot via its style (BuildDispelStyles blanks the inactive one).
-            n = n + 1
-            if n > (entry.dispelAdds or 0) then
-                AK.AddSlotToContainer(container, {
-                    key = slot.key .. "_byme",
-                    filter = { "HARMFUL", "RAID_PLAYER_DISPELLABLE" },
-                    candidateFilters = { includeDispelTypes = { [DISPEL_TYPE_TOKENS[slot.key]] = true } },
-                    style = DispelStyleKey(slot.key .. "_byme", fill),
-                    extraInit = ParkSlot,
-                })
-                entry.dispelAdds = n
-            end
-        end
-        AK.FinishContainer(container, "player")
-
-        if fill then
-            container:SetShown(fillShown and true or false)
-        else
-            container:SetShown(decorShown and true or false)
+        -- "Only Dispellable by You" variant: identical slot with the engine
+        -- by-me filter token added. Declared upfront -- slot filters cannot
+        -- change after declaration -- and mutually exclusive with the plain
+        -- slot via its style (BuildDispelStyles blanks the inactive one).
+        n = n + 1
+        if n > (entry[addsField] or 0) then
+            AK.AddSlotToContainer(container, {
+                key = slot.key .. "_byme",
+                filter = { "HARMFUL", "RAID_PLAYER_DISPELLABLE" },
+                candidateFilters = { includeDispelTypes = { [DISPEL_TYPE_TOKENS[slot.key]] = true } },
+                style = DispelStyleKey(slot.key .. "_byme", fill),
+                extraInit = ParkSlot,
+            })
+            entry[addsField] = n
         end
     end
+    AK.FinishContainer(container, "player")
+    entry[field .. "Built"] = true
+end
+
+-- Builds a set the first time its feature is on (decorated from the current
+-- styles: callers run BuildDispelStyles first), then shows each built set
+-- only while its feature is on; a hidden container parses nothing.
+local function SyncDispelSets(frame, entry, decorShown, fillShown)
+    if decorShown then CreateDispelSet(frame, entry, false) end
+    if fillShown then CreateDispelSet(frame, entry, true) end
+    if entry.dispel then entry.dispel:SetShown(decorShown and true or false) end
+    if entry.dispelFill then entry.dispelFill:SetShown(fillShown and true or false) end
 end
 
 local function DispelFP(p, frame)
@@ -3136,7 +3140,8 @@ local function DispelFP(p, frame)
 end
 
 local function ReloadDispelSlots(frame, entry)
-    if not (entry.dispel and entry.dispelFill) then return end
+    -- The build's dispel stage makes the styles; nothing to reload before it.
+    if not entry.dispelDone then return end
     local p = ns.UF_GetProfile and ns.UF_GetProfile()
     if not p then return end
     local v = DispelFP(p, frame)
@@ -3151,9 +3156,9 @@ local function ReloadDispelSlots(frame, entry)
             AK.RestyleSoon(DispelStyleKey(key .. "_byme", true))
         end
     end
-    local decorShown, fillShown = DispelSlotsShown(p)
-    entry.dispel:SetShown(decorShown and true or false)
-    entry.dispelFill:SetShown(fillShown)
+    -- A set turned on for the first time is built here, from the styles just
+    -- made current.
+    SyncDispelSets(frame, entry, DispelSlotsShown(p))
 end
 
 -- Options-panel poke (via ns.UpdatePlayerDispelOverlay): re-run the
@@ -3644,10 +3649,12 @@ local function BuildUnitContainers(frame, unit)
         return "again"
     end
 
-    -- Stage 4: player dispel slots (batch-1 slot adds; internally resumable
-    -- via entry.dispel / entry.dispelFill / entry.dispelAdds).
+    -- Stage 4: player dispel styles, and the slot sets whose feature is on
+    -- (batch-1 slot adds; each set resumable via its container and add
+    -- count). A set that is off is built by the reload that first sees it on.
     if unit == "player" and not entry.dispelDone then
-        CreateDispelSlots(frame, entry)
+        local decorShown, fillShown = BuildDispelStyles(frame)
+        SyncDispelSets(frame, entry, decorShown, fillShown)
         entry.dispelDone = true
         -- Prime the dispel fingerprint: creation just applied these exact
         -- settings, so the final-stage reload must not queue a redundant

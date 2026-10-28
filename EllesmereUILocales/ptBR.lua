@@ -6668,6 +6668,7 @@ L["In raid groups under 10 players, show group 1 as party frames and hide everyo
 -- == Aura/Buff Reminders / Warlock Section ============================================
 
 -- == Aura/Buff Reminders / Class-Special Section =======================================
+L["Pick which content these reminders appear in.\nRested areas (cities and inns) always stay hidden."] = "Escolha em quais conteúdos estes lembretes aparecem.\nÁreas de descanso (cidades e estalagens) sempre ficam ocultas."
 
 -- == Chat / Chat Bubbles =============================================================
 L["Only works outside of Instances"] = "Só funciona fora de Instâncias"

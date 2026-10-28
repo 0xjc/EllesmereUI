@@ -848,6 +848,7 @@ function ns.FB_Apply()
         if FB.mover then FB.mover:Hide() end
         FB.rangeSpell = nil
         FB.UpdateRangeTicker()
+        FB.SyncGroupEvents(false)
         return
     end
 
@@ -855,6 +856,7 @@ function ns.FB_Apply()
     FB.ApplyStyle()
     FB.Anchor()
     FB.container:Show()
+    FB.SyncGroupEvents(true)
     -- Drivers feed the slot controller, which assigns bosses to the first slots in bossN order and shows/hides buttons securely.
     -- Group gate: raid only by default; raid OR party with Show in Dungeons on (the cog on
     -- Add Friendly Boss Group -- opt-in, so existing users keep raid-only behavior). Dungeon
@@ -1018,14 +1020,25 @@ function ns.FB_SetMoverShown(show)
 end
 
 -- Standing event frame: exists even while inactive so a spec change can activate display="healers" without a /reload.
+-- The engage, target and roster listeners run only while the group is up (FB.SyncGroupEvents, from FB_Apply).
 do
     local ev = ns.TakeShell()
     ev:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
     ev:RegisterEvent("PLAYER_REGEN_ENABLED")
-    ev:RegisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT")
-    ev:RegisterEvent("GROUP_ROSTER_UPDATE")
-    ev:RegisterEvent("PLAYER_TARGET_CHANGED")
     ev:RegisterEvent("PLAYER_ENTERING_WORLD")
+    FB.SyncGroupEvents = function(on)
+        if FB.groupEv == on then return end
+        FB.groupEv = on
+        if on then
+            ev:RegisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT")
+            ev:RegisterEvent("GROUP_ROSTER_UPDATE")
+            ev:RegisterEvent("PLAYER_TARGET_CHANGED")
+        else
+            ev:UnregisterEvent("INSTANCE_ENCOUNTER_ENGAGE_UNIT")
+            ev:UnregisterEvent("GROUP_ROSTER_UPDATE")
+            ev:UnregisterEvent("PLAYER_TARGET_CHANGED")
+        end
+    end
     ev:SetScript("OnEvent", function(_, event)
         if not db then return end
         if event == "PLAYER_SPECIALIZATION_CHANGED" then

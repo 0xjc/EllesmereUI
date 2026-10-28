@@ -487,7 +487,7 @@ function EllesmereUI.GetPlayerPowerOverride()
     local ov = db.profile.player and db.profile.player.powerTypeOverride
     local choice = sid and ov and ov[sid]
     if choice == "astral" then
-        -- Balance "Astral Power (Except Cat & Bear)", saved only under its spec
+        -- Balance "Astral Power", saved only under its spec
         -- ID: Cat and Bear Form (form IDs 1 and 5) keep their own power, every
         -- other form shows Astral Power.
         local f = GetShapeshiftFormID()
