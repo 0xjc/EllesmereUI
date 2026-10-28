@@ -598,6 +598,11 @@ mainFrame:SetScript("OnEvent", function(_, e, arg1, arg2, arg3)
             -- Cast success is an immediate fallback; UNIT_AURA will subsequently
             -- attach the concrete target GUID/auraInstanceID via HELPFUL|PLAYER.
             EABR.SetOwnOtherAuraState(369459, true)
+        elseif arg3 == 360827 and _isEvokerOwnOnRaid then
+            -- Blistering Scales is secret in a key, so the aura lookups miss it;
+            -- our own successful cast is the only proof it went out.
+            _preCombatOwnOnRaidCache[360827] = true
+            RequestRefresh()
         end
         return
     end
