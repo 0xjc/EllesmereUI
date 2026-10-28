@@ -1104,7 +1104,7 @@ end
 
 PF.FreeAnchor = function(c, set)
     local corner, x, y = PF.FreeCorner(set, PF.Ctx())
-    FB.Pin(c, corner, UIParent, "CENTER", x, y)
+    FB.FreePin(c, corner, x, y)
     return true
 end
 
