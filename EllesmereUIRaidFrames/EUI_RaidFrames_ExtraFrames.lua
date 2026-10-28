@@ -424,11 +424,11 @@ XF.EnsureBuilt = function(count)
                 if event ~= "UNIT_MAX_HEALTH_MODIFIERS_CHANGED" then ns._AbArm(b, unit, dd) end
                 ns._MarkAbsorbDirty(b, unit)
                 if event == "UNIT_HEAL_ABSORB_AMOUNT_CHANGED" then ns.UpdateHealAbsorbTextFor(b, unit) end
-                -- Custom texts showing an absorb amount (two field reads while none does); the
-                -- max-health-modifier edge repaints them through _UpdateButtonHealth below.
+                -- Custom texts showing the amount this event moved (two field reads while
+                -- none does); the max-health-modifier edge moves health only.
                 local tp = dd._txP
                 if tp and tp.reads and event ~= "UNIT_MAX_HEALTH_MODIFIERS_CHANGED" then
-                    ns.RF_TextRepaintCustom(dd, unit, "abs", "habs")
+                    ns.RF_TextRepaintCustom(dd, unit, event == "UNIT_ABSORB_AMOUNT_CHANGED" and "abs" or "habs")
                 end
                 if event == "UNIT_MAX_HEALTH_MODIFIERS_CHANGED" then
                     dd._rmhPct = nil -- reduced-max cache: this is its only value edge
