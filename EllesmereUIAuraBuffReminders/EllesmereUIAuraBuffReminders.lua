@@ -386,7 +386,9 @@ local NON_SECRET_SPELL_IDS = {
     -- Preservation Evoker
     [355941]=true, [363502]=true, [364343]=true, [366155]=true,
     [367364]=true, [373267]=true, [376788]=true,
-    -- Augmentation Evoker
+    -- Augmentation Evoker. Blistering Scales (360827) is still secret under
+    -- keystone restrictions (ShouldSpellAuraBeSecret), so a miss there is not
+    -- authoritative; check EABR.IsRuntimeNonSecret before trusting one.
     [360827]=true, [395152]=true, [410089]=true, [410263]=true,
     [410686]=true, [413984]=true,
     -- Resto Druid
