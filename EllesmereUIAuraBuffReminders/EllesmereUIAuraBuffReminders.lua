@@ -13,13 +13,18 @@ local EABR = EllesmereUI.Lite.NewAddon("EllesmereUIAuraBuffReminders")
 
 -- WoW Forever runs a reduced module: the Raid Buffs section over that client's
 -- four buffs (EABR.CollectForeverRaidBuffs) and one Forever-only section (the
--- Camp Benefits campfire buff plus custom spell IDs) collected by
--- EABR.CollectForever, with every other retail collector, its events and its
--- options sections off. Both values live on EABR, where every split file
--- reads them; retail reads FOREVER as false at each gate and nothing else
--- changes there.
+-- Camp Benefits campfire buff, gathering tracking, Find Treasure and custom
+-- spell IDs) collected by EABR.CollectForever, with every other retail
+-- collector, its events and its options sections off. Both values live on
+-- EABR, where every split file reads them; retail reads FOREVER as false at
+-- each gate and nothing else changes there.
 EABR.FOREVER = EllesmereUI.IS_FOREVER == true
 EABR.CAMP_BENEFITS = 1229741
+-- WoW Forever gathering trackers, in cast preference order: Find Herbs, Find
+-- Minerals. Both are self-buffs there and share one slot with the class
+-- trackers. Find Treasure (Dwarf) is no aura and stacks with any of them.
+EABR.GATHER_TRACKING = { 2383, 2580 }
+EABR.FIND_TREASURE = 2481
 EABR.WELL_FED = 19705
 -- Food buffs not named Well Fed (Grilled Squid, Nightfin Soup, Runn Tum Tuber Surprise,
 -- Dirge's Chops, Blessed Sunfruit and its juice): counted by ID, since their names are
@@ -27,7 +32,12 @@ EABR.WELL_FED = 19705
 EABR.FOOD_BUFFS = { 18192, 18194, 22730, 25661, 18125, 18141 }
 
 local _B = {}  -- beacon state table, populated later
-local Known = function(id) return id and (IsPlayerSpell(id) or IsSpellKnown(id)) end
+-- The two spellbook checks Blizzard's IsPlayerSpell / IsSpellKnown wrap, called
+-- directly: those globals exist only while the loadDeprecationFallbacks CVar is on.
+local Known = function(id)
+    return id and (C_SpellBook.IsSpellKnown(id)
+        or C_SpellBook.IsSpellInSpellBook(id, Enum.SpellBookSpellBank.Player, false))
+end
 local _eabrInCombat = false
 local InCombat = function() return _eabrInCombat or (InCombatLockdown and InCombatLockdown()) end
 -- Whether important buffs ride the cursor right now: Attach Important Buffs to
@@ -326,6 +336,29 @@ function EABR.SectionShows(whereToShow, inInstance)
     return whereToShow[bucket] ~= false
 end
 
+-- Rogue, Paladin, Shaman and Pets each keep their own "Where to Show" (and,
+-- for the classes, reminder sound) in these consumables fields. A field that
+-- is not set yet reads the old shared specials value, so a profile from
+-- before the split behaves as it did until the section is edited.
+EABR.SPECIALS = {
+    ROGUE   = { where = "rogueWhereToShow",   sound = "rogueSound" },
+    PALADIN = { where = "paladinWhereToShow", sound = "paladinSound" },
+    SHAMAN  = { where = "shamanWhereToShow",  sound = "shamanSound" },
+    PET     = { where = "petWhereToShow" },
+}
+function EABR.SpecialsWhere(co, field)
+    local t = field and co[field]
+    if type(t) == "table" then return t end
+    return co.specialsWhereToShow
+end
+-- A section set to no sound stores "none" (not nil), so it never reads
+-- through to the shared value; HandleAppearSounds skips "none".
+function EABR.SpecialsSound(co, field)
+    local snd = field and co[field]
+    if snd == nil then snd = co.specialsSound end
+    return snd
+end
+
 -- Bag/equip consumable call sites share the consumables section set; the key
 -- arg is retained for call-site clarity.
 function EABR.ConsumableShows(co, key, inInstance)
@@ -376,7 +409,9 @@ local NON_SECRET_SPELL_IDS = {
     -- Preservation Evoker
     [355941]=true, [363502]=true, [364343]=true, [366155]=true,
     [367364]=true, [373267]=true, [376788]=true,
-    -- Augmentation Evoker
+    -- Augmentation Evoker. Blistering Scales (360827) is still secret under
+    -- keystone restrictions (ShouldSpellAuraBeSecret), so a miss there is not
+    -- authoritative; check EABR.IsRuntimeNonSecret before trusting one.
     [360827]=true, [395152]=true, [410089]=true, [410263]=true,
     [410686]=true, [413984]=true,
     -- Resto Druid
