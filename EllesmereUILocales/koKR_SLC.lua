@@ -1130,3 +1130,9 @@ L["you declined to take part in Simple Loot Council for this raid."] = "이 공�
 L["your tradeable items"] = "내 거래 가능 아이템"
 L["your view of the run"] = "내가 보는 분배 상태"
 L["|cff478cebSimpleLootCouncil|r loaded.  |cff73716C/slc|r for options."] = "|cff478cebSimpleLootCouncil|r 불러옴.  설정: |cff73716C/slc|r"
+
+-- == Autoroll and response-button notices, from the Simple Loot Council standalone translations ==
+L["A player who picks this response gets a roll on the council table automatically."] = "이 응답을 선택한 플레이어는 위원회 표에서 자동으로 주사위 굴림을 받습니다."
+L["Autoroll"] = "자동 굴림"
+L["Response buttons locked while loot session is active"] = "전리품 세션이 진행 중일 때는 응답 버튼이 잠깁니다"
+L["Your untouched response buttons now read in your language. Buttons you renamed, recoloured or added were kept."] = "수정하지 않은 응답 버튼이 이제 사용 중인 언어로 표시됩니다. 이름을 바꾸거나 색을 바꾸거나 추가한 버튼은 그대로 유지되었습니다."
