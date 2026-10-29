@@ -2092,7 +2092,7 @@ local function BuildCDMLivePreview(parent, yOff)
                 fkMain = EllesmereUI.L("This bar will always be attached to your focus target's nameplate")
             end
             -- Second, dimmer line: points sound-only users at the setup that needs no icon.
-            fkFS:SetText(fkMain .. "\n|cff999999"
+            fkFS:SetText(fkMain .. "\n" .. EllesmereUI.COLOR_CODES.DIM
                 .. EllesmereUI.L("Want only the cast sound? Leave this bar empty and set Interrupt Spell below.")
                 .. "|r")
             fkFS:ClearAllPoints()

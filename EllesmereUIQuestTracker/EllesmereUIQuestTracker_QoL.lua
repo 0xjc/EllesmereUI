@@ -73,9 +73,6 @@ end
 local function InstallAutoQuests()
     local autoFrame = CreateFrame("Frame")
     local autoPreventNPCGUID = nil
-    autoFrame:RegisterEvent("QUEST_DETAIL")
-    autoFrame:RegisterEvent("QUEST_COMPLETE")
-    autoFrame:RegisterEvent("GOSSIP_SHOW")
     -- Deliberately NOT enrolled in EQT._eventFrames, so the raid/arena/M+
     -- suspension leaves it alone. That suspension exists to stop skin and
     -- layout work while the tracker is hidden; this frame does neither, it
@@ -152,6 +149,25 @@ local function InstallAutoQuests()
             end
         end
     end)
+
+    -- The dialog events are registered only while Auto Accept or Auto Turn In
+    -- is on; their toggles and profile swaps call this.
+    local registered = false
+    function EQT.SyncAutoQuests()
+        local want = (Cfg("autoAccept") or Cfg("autoTurnIn")) and true or false
+        if want == registered then return end
+        registered = want
+        if want then
+            autoFrame:RegisterEvent("QUEST_DETAIL")
+            autoFrame:RegisterEvent("QUEST_COMPLETE")
+            autoFrame:RegisterEvent("GOSSIP_SHOW")
+        else
+            autoFrame:UnregisterEvent("QUEST_DETAIL")
+            autoFrame:UnregisterEvent("QUEST_COMPLETE")
+            autoFrame:UnregisterEvent("GOSSIP_SHOW")
+        end
+    end
+    EQT.SyncAutoQuests()
 end
 
 -------------------------------------------------------------------------------
